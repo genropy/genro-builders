@@ -18,7 +18,7 @@ import pytest
 from genro_builders import BagBuilderBase
 from genro_builders.builder import SchemaBuilder
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders import Range, Regex, abstract, element
+from genro_builders.builders import Range, Regex, abstract, component, element
 
 # =============================================================================
 # Tests for @element decorator - handler detection
@@ -2033,4 +2033,130 @@ class TestGetCallArgsValidations:
         assert result is not None
         assert "name" in result
 
+
+# =============================================================================
+# Tests for mixin class @element inheritance (Issue #6)
+# =============================================================================
+
+
+class TestMixinInheritance:
+    """Tests for @element/@abstract/@component discovery from mixin classes."""
+
+    def test_mixin_element_discovered(self):
+        """@element on a mixin class is discovered by the composed builder."""
+
+        class ItemMixin:
+            @element(sub_tags="a,b")
+            def item(self): ...
+
+        class Builder(ItemMixin, BagBuilderBase):
+            @element()
+            def container(self): ...
+
+        assert Builder._class_schema.get_node("item") is not None
+        assert Builder._class_schema.get_node("container") is not None
+        info = Builder._class_schema.get_attr("item")
+        assert info.get("sub_tags") == "a,b"
+
+    def test_mixin_abstract_discovered(self):
+        """@abstract on a mixin class is discovered with @ prefix."""
+
+        class AbstractMixin:
+            @abstract(sub_tags="x,y")
+            def base_tags(self): ...
+
+        class Builder(AbstractMixin, BagBuilderBase):
+            @element(inherits_from="@base_tags")
+            def item(self): ...
+
+        assert Builder._class_schema.get_node("@base_tags") is not None
+
+    def test_mixin_component_discovered(self):
+        """@component on a mixin class is discovered by the composed builder."""
+
+        class CompMixin:
+            @component()
+            def panel(self, comp, **kwargs):
+                return comp
+
+        class Builder(CompMixin, BagBuilderBase):
+            @element()
+            def item(self): ...
+
+        node = Builder._class_schema.get_node("panel")
+        assert node is not None
+        assert node.attr.get("is_component") is True
+        assert node.attr.get("handler_name") == "_comp_panel"
+
+    def test_mixin_override_priority(self):
+        """Method defined on the class overrides the mixin version."""
+
+        class ItemMixin:
+            @element(sub_tags="from_mixin")
+            def item(self): ...
+
+        class Builder(ItemMixin, BagBuilderBase):
+            @element(sub_tags="from_class")
+            def item(self): ...
+
+        info = Builder._class_schema.get_attr("item")
+        assert info.get("sub_tags") == "from_class"
+
+    def test_multiple_mixins(self):
+        """Multiple mixins each contribute their @element methods."""
+
+        class ServiceMixin:
+            @element()
+            def service(self): ...
+
+        class NetworkMixin:
+            @element()
+            def network(self): ...
+
+        class VolumeMixin:
+            @element()
+            def volume(self): ...
+
+        class Builder(ServiceMixin, NetworkMixin, VolumeMixin, BagBuilderBase):
+            @element()
+            def container(self): ...
+
+        for tag in ("service", "network", "volume", "container"):
+            assert Builder._class_schema.get_node(tag) is not None
+
+    def test_builder_base_not_collected(self):
+        """Methods from a BagBuilderBase subclass are NOT collected as mixin."""
+
+        class BaseBuilder(BagBuilderBase):
+            @element()
+            def base_item(self): ...
+
+        class ChildBuilder(BaseBuilder):
+            @element()
+            def child_item(self): ...
+
+        # child_item is defined directly on ChildBuilder
+        assert ChildBuilder._class_schema.get_node("child_item") is not None
+        # base_item belongs to BaseBuilder's own schema, not collected again
+        assert ChildBuilder._class_schema.get_node("base_item") is None
+
+    def test_mixin_reusable_across_builders(self):
+        """A mixin can be used by multiple builders without interference."""
+
+        class SharedMixin:
+            @element(sub_tags="shared")
+            def shared_item(self): ...
+
+        class BuilderA(SharedMixin, BagBuilderBase):
+            @element()
+            def item_a(self): ...
+
+        class BuilderB(SharedMixin, BagBuilderBase):
+            @element()
+            def item_b(self): ...
+
+        assert BuilderA._class_schema.get_node("shared_item") is not None
+        assert BuilderA._class_schema.get_node("item_a") is not None
+        assert BuilderB._class_schema.get_node("shared_item") is not None
+        assert BuilderB._class_schema.get_node("item_b") is not None
 
