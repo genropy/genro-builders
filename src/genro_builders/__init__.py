@@ -9,7 +9,7 @@ from genro_builders.compiler import BagCompilerBase, compile_handler
 from genro_builders.component_resolver import ComponentResolver
 from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "BagAppBase",
