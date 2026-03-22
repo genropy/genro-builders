@@ -111,11 +111,14 @@ class BagCompilerBase(ABC):
     # Main compile entry point
     # -------------------------------------------------------------------------
 
-    def compile(self, bag: Bag | None = None) -> str:
+    def compile(self, bag: Bag | None = None, data: Bag | None = None) -> str:
         """Compile bag to output format.
 
         Args:
             bag: The Bag to compile. If None, uses builder.bag.
+            data: Optional data Bag for script-mode ^pointer resolution.
+                If provided, resolves pointers inline (no subscriptions).
+                If None, bag is compiled as-is.
 
         Returns:
             Compiled output (string by default, subclasses may vary).
@@ -123,13 +126,32 @@ class BagCompilerBase(ABC):
         if bag is None:
             bag = self.builder.bag
 
-        # 1. Preprocess (expand components, normalize, etc.)
+        # 1. Preprocess (expand components)
         processed_bag = self.preprocess(bag)
 
-        # 2. Walk and compile
+        # 2. Script-mode pointer resolution
+        if data is not None:
+            self._resolve_pointers_inline(processed_bag, data)
+
+        # 3. Walk and compile
         parts = list(self._walk_compile(processed_bag))
 
-        # 3. Join output
+        # 4. Join output
+        return self.join_output(parts)
+
+    def compile_bound(self, bound_bag: Bag) -> str:
+        """Compile a pre-bound bag (app mode).
+
+        Skips preprocess — the bag is already materialized and bound.
+        Goes directly to walk + compile + join.
+
+        Args:
+            bound_bag: Bag with components expanded and pointers resolved.
+
+        Returns:
+            Compiled output.
+        """
+        parts = list(self._walk_compile(bound_bag))
         return self.join_output(parts)
 
     def join_output(self, parts: list[str]) -> str:
@@ -186,6 +208,33 @@ class BagCompilerBase(ABC):
             new_node.tag = node.tag
 
         return result
+
+    def _resolve_pointers_inline(self, bag: Bag, data: Bag) -> None:
+        """Script-mode: resolve all ^pointers in-place, no subscriptions.
+
+        Walks the bag, finds ^pointers in values and attributes,
+        resolves them against data, and replaces with resolved values.
+        """
+        from .pointer import scan_for_pointers
+
+        for node in bag:
+            pointers = scan_for_pointers(node)
+            for pointer_info, location in pointers:
+                if hasattr(node, "get_relative_data"):
+                    resolved = node.get_relative_data(data, pointer_info.raw[1:])
+                else:
+                    resolved = data.get_item(pointer_info.path)
+
+                if location == "value":
+                    node.set_value(resolved, trigger=False)
+                elif location.startswith("attr:"):
+                    attr_name = location[5:]
+                    node.set_attr({attr_name: resolved}, trigger=False)
+
+            # Recurse into children
+            value = node.static_value
+            if isinstance(value, Bag):
+                self._resolve_pointers_inline(value, data)
 
     # -------------------------------------------------------------------------
     # Walk and compile

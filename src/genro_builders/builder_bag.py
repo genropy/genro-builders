@@ -20,13 +20,20 @@ from genro_toolbox.decorators import extract_kwargs
 
 
 class BuilderBagNode(BagNode):
-    """BagNode with builder delegation.
+    """BagNode with builder delegation and data resolution.
 
     When a builder is attached to the parent Bag, allows calling
     builder methods directly on nodes to add children:
 
         node = bag.div()  # returns BuilderBagNode
         node.span()       # delegates to builder._command_on_node()
+
+    Data resolution methods resolve paths relative to this node's
+    position in the tree, using the ``datapath`` attribute chain:
+
+        node.get_relative_data(data, '.name')   # relative to this node's datapath
+        node.get_relative_data(data, 'user.name')  # absolute
+        node.set_relative_data(data, '.name', 'value')
     """
 
     def __getattr__(self, name: str) -> Any:
@@ -42,6 +49,93 @@ class BuilderBagNode(BagNode):
             )
 
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    # -------------------------------------------------------------------------
+    # Data resolution
+    # -------------------------------------------------------------------------
+
+    def get_relative_data(self, data: Bag, path: str) -> Any:
+        """Resolve a data path from this node's perspective.
+
+        Args:
+            data: The data Bag to read from.
+            path: Data path to resolve. Syntax:
+                'alfa.beta'       — absolute: data['alfa.beta']
+                '.beta'           — relative to this node's datapath
+                'alfa.beta?color' — attribute 'color' of data node 'alfa.beta'
+                '.beta?color'     — relative + attribute
+
+        Returns:
+            The resolved value or attribute.
+        """
+        resolved_path, attr_name = self._resolve_path(path)
+        if attr_name is not None:
+            node = data.get_node(resolved_path)
+            if node is None:
+                return None
+            return node.attr.get(attr_name)
+        return data.get_item(resolved_path)
+
+    def set_relative_data(self, data: Bag, path: str, value: Any) -> None:
+        """Set a value in the data Bag from this node's perspective.
+
+        Args:
+            data: The data Bag to write to.
+            path: Data path to resolve (same syntax as get_relative_data).
+            value: The value to set.
+        """
+        resolved_path, attr_name = self._resolve_path(path)
+        if attr_name is not None:
+            data.set_attr(resolved_path, **{attr_name: value})
+        else:
+            data.set_item(resolved_path, value)
+
+    def _resolve_path(self, path: str) -> tuple[str, str | None]:
+        """Parse and resolve a data path.
+
+        Returns:
+            Tuple of (resolved_path, attr_name_or_none).
+        """
+        attr_name = None
+        if "?" in path:
+            path, attr_name = path.split("?", 1)
+
+        if path.startswith("."):
+            datapath = self._resolve_datapath()
+            path = f"{datapath}.{path[1:]}" if datapath else path[1:]
+
+        return path, attr_name
+
+    def _resolve_datapath(self) -> str:
+        """Compose hierarchical datapath by walking up the ancestor chain.
+
+        Collects ``datapath`` attributes from ancestor nodes. Relative
+        datapaths (starting with '.') are concatenated; absolute datapaths
+        reset the chain.
+        """
+        parts: list[str] = []
+        current_bag = self._parent_bag
+
+        while current_bag is not None:
+            node = current_bag.parent_node
+            if node is None:
+                break
+            dp = node.attr.get("datapath", "")
+            if dp:
+                parts.append(dp)
+                if not dp.startswith("."):
+                    break
+            current_bag = node._parent_bag
+
+        parts.reverse()
+
+        result = ""
+        for part in parts:
+            if part.startswith("."):
+                result = f"{result}.{part[1:]}" if result else part[1:]
+            else:
+                result = part
+        return result
 
 
 class BuilderBag(Bag):
