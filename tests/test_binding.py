@@ -234,3 +234,84 @@ class TestNestedBag:
 
         style_node = inner.get_node("style")
         assert style_node.attr.get("bg") == "green"
+
+
+class TestRebind:
+    """Tests for rebind with new data."""
+
+    def test_rebind_updates_values(self):
+        """rebind() re-resolves pointers against new data."""
+        data1 = Bag()
+        data1.set_item("name", "Alice")
+
+        bag = BuilderBag()
+        bag.set_item("display", "^name")
+
+        manager = BindingManager()
+        manager.bind(bag, data1)
+        assert bag.get_node("display").value == "Alice"
+
+        # Rebind with new data
+        data2 = Bag()
+        data2.set_item("name", "Bob")
+        manager.rebind(data2)
+
+        assert bag.get_node("display").value == "Bob"
+
+    def test_rebind_subscribes_to_new_data(self):
+        """After rebind, changes to new data trigger updates."""
+        data1 = Bag()
+        data1.set_item("x", 1)
+
+        bag = BuilderBag()
+        bag.set_item("n", "^x")
+
+        manager = BindingManager()
+        manager.bind(bag, data1)
+
+        data2 = Bag()
+        data2.set_item("x", 10)
+        manager.rebind(data2)
+
+        # Change new data — should update
+        data2.set_item("x", 20)
+        assert bag.get_node("n").value == 20
+
+
+class TestRelativePointerBinding:
+    """Tests for binding with relative ^.pointer paths."""
+
+    def test_bind_relative_pointer(self):
+        """Relative ^.pointer resolved via datapath chain."""
+        data = Bag()
+        data.set_item("config.port", 8080)
+
+        root = BuilderBag()
+        root.set_backref()
+        section_node = root.set_item("section", BuilderBag(), datapath="config")
+        section_bag = section_node.value
+        section_bag.set_item("display", "^.port")
+
+        manager = BindingManager()
+        manager.bind(root, data)
+
+        assert section_bag.get_node("display").value == 8080
+
+
+class TestAttrQueryBinding:
+    """Tests for ^path?attr pointer binding."""
+
+    def test_bind_attr_query_pointer(self):
+        """^path?attr reads attribute from data node."""
+        data = Bag()
+        data.set_item("theme.btn", None, color="blue", size="lg")
+
+        bag = BuilderBag()
+        bag.set_item("widget", None, bg="^theme.btn?color", sz="^theme.btn?size")
+
+        manager = BindingManager()
+        manager.bind(bag, data)
+
+        node = bag.get_node("widget")
+        assert node.attr.get("bg") == "blue"
+        assert node.attr.get("sz") == "lg"
