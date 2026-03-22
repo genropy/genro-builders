@@ -28,25 +28,30 @@ from genro_builders.builders import component, element
 class TestCompiler(BagCompilerBase):
     """Simple compiler for testing component expansion."""
 
-    def compile(self, bag: Bag | None = None) -> str:
-        """Compile bag to simple string output."""
-        target = bag or self.builder.bag
-        processed = self.preprocess(target)
-        return self._compile_bag(processed)
+    def render(self, compiled_bag: Bag) -> str:
+        """Render compiled bag to simple string output."""
+        return self._render_bag(compiled_bag)
 
-    def _compile_bag(self, bag: Bag) -> str:
-        """Recursively compile bag to string."""
+    def _render_bag(self, bag: Bag) -> str:
+        """Recursively render bag to string."""
         parts = []
         for node in bag.nodes:
             tag = node.tag or node.label
             if isinstance(node.value, Bag):
-                children = self._compile_bag(node.value)
+                children = self._render_bag(node.value)
                 parts.append(f"<{tag}>{children}</{tag}>")
             elif node.value:
                 parts.append(f"<{tag}>{node.value}</{tag}>")
             else:
                 parts.append(f"<{tag}/>")
         return "".join(parts)
+
+
+def compile_and_render(builder) -> str:
+    """Helper: compile bag to CompiledBag, then render to string."""
+    compiler = builder.compiler
+    compiled = compiler.compile(builder.bag)
+    return compiler.render(compiled)
 
 
 # =============================================================================
@@ -81,7 +86,7 @@ class TestComponentExpansion:
         assert not body_called
 
         # Now compile - body should be called
-        bag.builder.compile()
+        compile_and_render(bag.builder)
         assert body_called
 
     def test_component_receives_new_bag(self):
@@ -102,7 +107,7 @@ class TestComponentExpansion:
 
         bag = Bag(builder=Builder)
         bag.myform()
-        bag.builder.compile()
+        compile_and_render(bag.builder)
 
         assert received_bag is not None
         assert isinstance(received_bag, Bag)
@@ -133,7 +138,7 @@ class TestComponentExpansion:
         assert node.tag == "myform"
 
         # Compile triggers expansion
-        result = bag.builder.compile()
+        result = compile_and_render(bag.builder)
 
         # Output should contain the expanded fields
         assert "<field" in result
@@ -155,7 +160,7 @@ class TestComponentExpansion:
 
         bag = Bag(builder=Builder)
         bag.myform()
-        result = bag.builder.compile()
+        result = compile_and_render(bag.builder)
 
         # Should have input elements in output
         assert "<input" in result
@@ -219,7 +224,7 @@ class TestComponentSubTagsAfterExpansion:
         assert result is bag
 
         # Compile expands the component body
-        output = bag.builder.compile()
+        output = compile_and_render(bag.builder)
         assert "<header" in output
 
 
@@ -254,7 +259,7 @@ class TestNestedComponentExpansion:
         bag = Bag(builder=Builder)
         bag.outer()
 
-        result = bag.builder.compile()
+        result = compile_and_render(bag.builder)
         # Should have nested structure
         assert "<outer>" in result
         assert "<inner>" in result
@@ -283,7 +288,7 @@ class TestNestedComponentExpansion:
         bag = Bag(builder=Builder)
         bag.level1()
 
-        result = bag.builder.compile()
+        result = compile_and_render(bag.builder)
         # All levels should be in output
         assert "<level1>" in result
         assert "<level2>" in result
@@ -321,7 +326,7 @@ class TestComponentBuilderOverrideExpansion:
         bag.with_inner()
 
         # Compile expands and uses InnerBuilder internally
-        result = bag.builder.compile()
+        result = compile_and_render(bag.builder)
         assert "<special" in result
 
 
@@ -350,7 +355,7 @@ class TestComponentAttributesExpansion:
         bag.myform(title="My Form", extra="data")
 
         # Compile to trigger expansion
-        bag.builder.compile()
+        compile_and_render(bag.builder)
 
         assert received_kwargs["title"] == "My Form"
         assert received_kwargs["extra"] == "data"
@@ -405,7 +410,7 @@ class TestComponentWithElementsExpansion:
         bag.div()
 
         assert len(bag) == 3
-        result = bag.builder.compile()
+        result = compile_and_render(bag.builder)
         assert "<div" in result
         assert "<form>" in result
         assert "<input" in result
@@ -428,6 +433,6 @@ class TestComponentWithElementsExpansion:
         div = bag.div()
         div.form()
 
-        result = bag.builder.compile()
+        result = compile_and_render(bag.builder)
         assert "<div>" in result
         assert "<form>" in result

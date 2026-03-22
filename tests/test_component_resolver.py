@@ -11,17 +11,15 @@ from genro_builders.compiler import compile_handler
 class SimpleCompiler(BagCompilerBase):
     """Compiler for testing — renders tags as <tag>children</tag>."""
 
-    def compile(self, bag=None):
-        target = bag or self.builder.bag
-        processed = self.preprocess(target)
-        return self._render(processed)
+    def render(self, compiled_bag):
+        return self._render_bag(compiled_bag)
 
-    def _render(self, bag):
+    def _render_bag(self, bag):
         parts = []
         for node in bag:
             tag = node.tag or node.label
             if isinstance(node.value, Bag):
-                children = self._render(node.value)
+                children = self._render_bag(node.value)
                 parts.append(f"<{tag}>{children}</{tag}>")
             elif node.value:
                 parts.append(f"<{tag}>{node.value}</{tag}>")
@@ -270,7 +268,8 @@ class TestBasedOn:
         bag = Bag(builder=B)
         bag.extended_form()
 
-        result = bag.builder.compile()
+        compiled = bag.builder.compile()
+        result = bag.builder.compiler.render(compiled)
         assert "<field" in result  # Should have fields from both base and extended
 
     def test_based_on_with_expand(self):
@@ -321,5 +320,6 @@ class TestBuilderOverride:
         bag = Bag(builder=OuterBuilder)
         bag.with_inner()
 
-        result = bag.builder.compile()
+        compiled = bag.builder.compile()
+        result = bag.builder.compiler.render(compiled)
         assert "<special" in result

@@ -1045,17 +1045,20 @@ class BagBuilderBase(ABC):
             raise ValueError(f"{type(self).__name__} has no compiler_class defined")
         return self.compiler_class(self)
 
-    def compile(self, **kwargs: Any) -> str:
-        """Compile the bag to output format.
+    def compile(self, **kwargs: Any) -> Any:
+        """Compile the bag into a CompiledBag (or string for legacy formats).
 
-        If compiler_class is defined, delegates to compiler.compile(bag).
-        Otherwise falls back to XML serialization.
+        If compiler_class is defined, delegates to compiler.compile(bag)
+        which returns a CompiledBag (static Bag with components expanded
+        and pointers resolved).
+
+        Without compiler_class, falls back to XML/JSON serialization (string).
 
         Args:
             **kwargs: Compilation parameters passed to compiler.
 
         Returns:
-            Compiled output string.
+            CompiledBag (Bag) when using compiler, string for legacy formats.
         """
         if self.compiler_class is not None:
             return self.compiler.compile(self.bag, **kwargs)

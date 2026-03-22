@@ -91,7 +91,7 @@ class BagAppBase:
 
         if self._static_bag is not None:
             self._binding.rebind(new_data)
-            self._recompile()
+            self._rerender()
 
     @property
     def output(self) -> str | None:
@@ -131,14 +131,14 @@ class BagAppBase:
                 f"Set compiler_class on the app or builder."
             )
 
-        # 1. Materialize (expand components)
-        self._static_bag = self._compiler.preprocess(self._store)
+        # 1. Compile: materialize components → CompiledBag (pointers not yet resolved)
+        self._static_bag = self._compiler.compile(self._store)
 
-        # 2. Bind pointers to data
+        # 2. Bind: resolve pointers + register subscriptions for reactive updates
         self._binding.bind(self._static_bag, self._data)
 
         # 3. Render
-        self._output = self._compiler.compile_bound(self._static_bag)
+        self._output = self.render(self._static_bag)
         return self._output
 
     def rebuild(self) -> str:
@@ -163,18 +163,38 @@ class BagAppBase:
         self._auto_compile = True
         return result
 
+    def render(self, compiled_bag: Bag) -> str:
+        """Render a CompiledBag to output string.
+
+        Delegates to compiler.render() if available, otherwise
+        uses compiler's _walk_compile + join as fallback.
+        Override in subclass for custom rendering.
+
+        Args:
+            compiled_bag: The compiled Bag (components expanded, pointers resolved).
+
+        Returns:
+            Rendered output string.
+        """
+        if self._compiler is None:
+            raise RuntimeError(f"{type(self).__name__} has no compiler for rendering.")
+        if hasattr(self._compiler, "render"):
+            return self._compiler.render(compiled_bag)
+        parts = list(self._compiler._walk_compile(compiled_bag))
+        return "\n\n".join(p for p in parts if p)
+
     def _on_node_updated(self, node: BagNode) -> None:
         """Called by BindingManager when a bound node is updated.
 
         Triggers re-render of the static bag.
         """
         if self._auto_compile:
-            self._recompile()
+            self._rerender()
 
-    def _recompile(self) -> None:
-        """Re-render the static bag without re-materializing.
+    def _rerender(self) -> None:
+        """Re-render the static bag without re-compiling.
 
         Used after data changes — nodes are already updated by binding.
         """
-        if self._compiler is not None and self._static_bag is not None:
-            self._output = self._compiler.compile_bound(self._static_bag)
+        if self._static_bag is not None:
+            self._output = self.render(self._static_bag)

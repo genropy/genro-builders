@@ -1,33 +1,34 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """BagCompilerBase - Abstract base class for Bag compilers.
 
-Compilers transform a Bag (built with a Builder) into output formats.
-The compile flow is:
+A compiler has two distinct responsibilities:
 
-    1. preprocess(bag) - Expand components, normalize parameters
-    2. walk + compile handlers - Transform each node to output
-    3. Return final output
+1. **compile(bag, data)** → CompiledBag:
+   Expand components (via resolvers) and resolve ^pointers against data.
+   The result is a static, fully resolved Bag — the CompiledBag.
+
+2. **Rendering** (subclass-defined):
+   Transform the CompiledBag into an output format (HTML, YAML, etc.).
+   Subclasses define their own rendering methods, optionally using
+   @compile_handler for tag-based dispatch.
+
+The CompiledBag is the contract between compilation and rendering.
+Multiple renderers can consume the same CompiledBag.
 
 Decorators:
-    @compile_handler: Mark a method as compile handler for a specific tag.
-                      If no @compile_handler method matches, default_compile is used.
+    @compile_handler: Mark a method as render handler for a specific tag.
+                      Used by _walk_compile() for automatic tag dispatch.
 
 Example:
-    >>> from genro_bag.compiler import BagCompilerBase, compile_handler
-    >>>
     >>> class MarkdownCompiler(BagCompilerBase):
     ...     @compile_handler
     ...     def h1(self, node, ctx):
     ...         return f"# {ctx['node_value']}"
     ...
-    ...     @compile_handler
-    ...     def blockquote(self, node, ctx):
-    ...         lines = ctx['node_value'].split('\\n')
-    ...         return '\\n'.join(f'> {line}' for line in lines)
-    ...
-    ...     # Other tags use default_compile with compile_template from schema
+    ...     def to_markdown(self, compiled_bag):
+    ...         parts = list(self._walk_compile(compiled_bag))
+    ...         return '\\n\\n'.join(p for p in parts if p)
 """
-
 from __future__ import annotations
 
 from abc import ABC
@@ -42,7 +43,7 @@ from genro_bag import Bag, BagNode
 
 
 def compile_handler(func: Callable) -> Callable:
-    """Decorator to mark a method as compile handler for a tag.
+    """Decorator to mark a method as render handler for a tag.
 
     The method name becomes the tag it handles.
 
@@ -66,17 +67,12 @@ def compile_handler(func: Callable) -> Callable:
 class BagCompilerBase(ABC):
     """Abstract base class for Bag compilers.
 
-    Subclasses define @compile_handler methods for specific tags.
-    Tags without a @compile_handler method use default_compile().
+    Provides:
+        - compile(): Expand components + resolve pointers → CompiledBag
+        - @compile_handler dispatch: tag-based rendering infrastructure
+        - _walk_compile(), _build_context(), default_compile(): rendering utilities
 
-    The compile flow:
-        1. preprocess() - Called first, expands components (lazy expansion)
-        2. _walk_compile() - Walk bag, call handlers for each node
-        3. default_compile() - Fallback using compile_kwargs from schema
-
-    Attributes:
-        builder: The builder instance (provides schema access).
-        _compile_handlers: Dict mapping tag names to handler methods.
+    Subclasses use these to build their own output methods (to_html, to_yaml, etc.).
     """
 
     _class_compile_handlers: dict[str, Callable]  # Built at class definition
@@ -108,90 +104,42 @@ class BagCompilerBase(ABC):
         self._compile_handlers = dict(type(self)._class_compile_handlers)
 
     # -------------------------------------------------------------------------
-    # Main compile entry point
+    # compile() → CompiledBag
     # -------------------------------------------------------------------------
 
-    def compile(self, bag: Bag | None = None, data: Bag | None = None) -> str:
-        """Compile bag to output format.
+    def compile(self, bag: Bag | None = None, data: Bag | None = None) -> Bag:
+        """Compile a BuilderBag into a CompiledBag.
+
+        Expands all components (via resolvers) and resolves ^pointers
+        against data. The result is a static, fully resolved Bag.
 
         Args:
             bag: The Bag to compile. If None, uses builder.bag.
-            data: Optional data Bag for script-mode ^pointer resolution.
-                If provided, resolves pointers inline (no subscriptions).
-                If None, bag is compiled as-is.
+            data: Optional data Bag for ^pointer resolution.
+                If None, pointers are left as-is.
 
         Returns:
-            Compiled output (string by default, subclasses may vary).
+            CompiledBag — a static Bag with components expanded and
+            pointers resolved. Ready for rendering.
         """
         if bag is None:
             bag = self.builder.bag
 
-        # 1. Preprocess (expand components)
-        processed_bag = self.preprocess(bag)
+        # 1. Materialize components (creates a static copy)
+        compiled = self._materialize(bag)
 
-        # 2. Script-mode pointer resolution
+        # 2. Resolve pointers
         if data is not None:
-            self._resolve_pointers_inline(processed_bag, data)
+            self._resolve_pointers(compiled, data)
 
-        # 3. Walk and compile
-        parts = list(self._walk_compile(processed_bag))
-
-        # 4. Join output
-        return self.join_output(parts)
-
-    def compile_bound(self, bound_bag: Bag) -> str:
-        """Compile a pre-bound bag (app mode).
-
-        Skips preprocess — the bag is already materialized and bound.
-        Goes directly to walk + compile + join.
-
-        Args:
-            bound_bag: Bag with components expanded and pointers resolved.
-
-        Returns:
-            Compiled output.
-        """
-        parts = list(self._walk_compile(bound_bag))
-        return self.join_output(parts)
-
-    def join_output(self, parts: list[str]) -> str:
-        """Join compiled parts into final output.
-
-        Override in subclasses for different joining logic.
-        Default: join with double newline.
-        """
-        return "\n\n".join(p for p in parts if p)
+        return compiled
 
     # -------------------------------------------------------------------------
-    # Preprocess
+    # Materialization (component expansion)
     # -------------------------------------------------------------------------
-
-    def preprocess(self, bag: Bag) -> Bag:
-        """Preprocess bag before compilation.
-
-        Materializes all component resolvers into a static Bag tree.
-        Override for custom preprocessing.
-
-        Args:
-            bag: The source Bag.
-
-        Returns:
-            Preprocessed Bag (may be same instance if no resolvers).
-        """
-        if not self._has_resolvers(bag):
-            return bag
-        return self._materialize(bag)
-
-    def _has_resolvers(self, bag: Bag) -> bool:
-        """Check if bag contains any nodes with resolvers."""
-        return any(node.resolver is not None for node in bag)
 
     def _materialize(self, bag: Bag) -> Bag:
-        """Create a static copy of the bag with all resolvers expanded.
-
-        Component nodes (with resolver) are expanded via get_value(static=False).
-        The result is a plain Bag tree with no resolvers — ready for compilation.
-        """
+        """Create a static copy of the bag with all resolvers expanded."""
         from .builder_bag import BuilderBag
 
         result = BuilderBag(builder=type(self.builder))
@@ -209,12 +157,12 @@ class BagCompilerBase(ABC):
 
         return result
 
-    def _resolve_pointers_inline(self, bag: Bag, data: Bag) -> None:
-        """Script-mode: resolve all ^pointers in-place, no subscriptions.
+    # -------------------------------------------------------------------------
+    # Pointer resolution
+    # -------------------------------------------------------------------------
 
-        Walks the bag, finds ^pointers in values and attributes,
-        resolves them against data, and replaces with resolved values.
-        """
+    def _resolve_pointers(self, bag: Bag, data: Bag) -> None:
+        """Resolve all ^pointers in-place against data."""
         from .pointer import scan_for_pointers
 
         for node in bag:
@@ -234,21 +182,21 @@ class BagCompilerBase(ABC):
             # Recurse into children
             value = node.static_value
             if isinstance(value, Bag):
-                self._resolve_pointers_inline(value, data)
+                self._resolve_pointers(value, data)
 
     # -------------------------------------------------------------------------
-    # Walk and compile
+    # Rendering utilities (for subclass use)
     # -------------------------------------------------------------------------
 
     def _walk_compile(self, bag: Bag) -> Iterator[str]:
-        """Walk bag and compile each node."""
+        """Walk bag and render each node via handler dispatch."""
         for node in bag:
             result = self._compile_node(node)
             if result is not None:
                 yield result
 
     def _compile_node(self, node: BagNode) -> str | None:
-        """Compile a single node.
+        """Render a single node.
 
         Resolution order:
         1. compile_handler from schema (explicit override)
@@ -280,22 +228,19 @@ class BagCompilerBase(ABC):
         return self.default_compile(node, ctx, info)
 
     def _build_context(self, node: BagNode) -> dict[str, Any]:
-        """Build context dict for compile handlers.
+        """Build context dict for render handlers.
 
         Context contains:
             - node_value: The node's value (string)
             - node_label: The node's label
             - _node: The full BagNode (for advanced access)
-            - children: Compiled children (if node has Bag value)
+            - children: Rendered children (if node has Bag value)
             - All node attributes
         """
-        from genro_bag import Bag
-
         node_value = node.get_value(static=True)
-        node_value = "" if node_value is None else str(node_value)
 
         ctx: dict[str, Any] = {
-            "node_value": node_value,
+            "node_value": "" if node_value is None or isinstance(node_value, Bag) else str(node_value),
             "node_label": node.label,
             "_node": node,
         }
@@ -303,9 +248,9 @@ class BagCompilerBase(ABC):
         # Add all node attributes
         ctx.update(node.attr)
 
-        # Compile children if value is a Bag
-        if isinstance(node.value, Bag):
-            children_parts = list(self._walk_compile(node.value))
+        # Render children if value is a Bag
+        if isinstance(node_value, Bag):
+            children_parts = list(self._walk_compile(node_value))
             ctx["children"] = self.join_children(children_parts)
         else:
             ctx["children"] = ""
@@ -313,21 +258,17 @@ class BagCompilerBase(ABC):
         return ctx
 
     def join_children(self, parts: list[str]) -> str:
-        """Join compiled children.
-
-        Override for different child joining logic.
-        Default: join with newline.
-        """
+        """Join rendered children. Override for different joining logic."""
         return "\n".join(p for p in parts if p)
 
     # -------------------------------------------------------------------------
-    # Default compile
+    # Default render
     # -------------------------------------------------------------------------
 
     def default_compile(
         self, node: BagNode, ctx: dict[str, Any], info: dict[str, Any]
     ) -> str | None:
-        """Default compile using compile_kwargs from schema.
+        """Default render using compile_kwargs from schema.
 
         Checks for:
         - compile_template: Format string with ctx placeholders

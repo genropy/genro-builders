@@ -36,16 +36,16 @@ class TestBuilder(BagBuilderBase):
 class TestCompiler(BagCompilerBase):
     """Simple compiler that renders tags with values."""
 
-    def compile_bound(self, bound_bag):
-        return self._render(bound_bag)
+    def render(self, compiled_bag):
+        return self._render_bag(compiled_bag)
 
-    def _render(self, bag):
+    def _render_bag(self, bag):
         parts = []
         for node in bag:
             tag = node.tag or node.label
             value = node.static_value
             if isinstance(value, Bag):
-                children = self._render(value)
+                children = self._render_bag(value)
                 parts.append(f"[{tag}:{children}]")
             elif value is not None:
                 parts.append(f"[{tag}:{value}]")
