@@ -32,11 +32,9 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Callable, Iterator
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from genro_bag import Bag, BagNode
-
+from genro_bag import Bag, BagNode
 
 # =============================================================================
 # Decorator
@@ -184,6 +182,9 @@ class BagCompilerBase(ABC):
         """Expand all components in bag.
 
         Creates a new Bag with components replaced by their expanded content.
+        Each component node is replaced by a wrapper node (same tag) containing
+        the expanded body. If the component has sub_tags and the original node
+        has children, those children are merged into the expanded content.
         """
         from .builder_bag import BuilderBag
 
@@ -191,25 +192,34 @@ class BagCompilerBase(ABC):
 
         for node in bag:
             if self._is_component(node):
-                # Get component handler from builder
                 info = self.builder.get_schema_info(node.tag)
                 handler_name = info.get("handler_name")
                 if handler_name:
                     handler = getattr(self.builder, handler_name)
-                    # Create temp bag for expansion
-                    component_bag = BuilderBag(builder=type(self.builder))
+                    # Use component_builder if specified, else same builder
+                    builder_cls = info.get("component_builder") or type(self.builder)
+                    component_bag = BuilderBag(builder=builder_cls)
                     # Call handler with kwargs from node attributes
                     kwargs = dict(node.attr)
                     handler(component_bag, **kwargs)
-                    # Recursively expand and merge
+                    # Merge user-added children (sub_tags) from the original node
+                    if isinstance(node.value, Bag):
+                        for child in node.value:
+                            component_bag.set_item(
+                                child.label,
+                                child.value,
+                                _attributes=dict(child.attr),
+                            )
+                            component_bag.get_node(child.label).tag = child.tag
+                    # Recursively expand nested components
                     expanded = self._expand_components(component_bag)
-                    for child in expanded:
-                        result.set_item(
-                            child.label,
-                            child.value,
-                            _attributes=dict(child.attr),
-                        )
-                        result.get_node(child.label).tag = child.tag
+                    # Wrap in a node with the component tag
+                    new_node = result.set_item(
+                        node.label,
+                        expanded,
+                        _attributes=dict(node.attr),
+                    )
+                    new_node.tag = node.tag
             else:
                 # Copy node, recursively expand children if Bag
                 value = node.value

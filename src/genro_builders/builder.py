@@ -1019,16 +1019,17 @@ class BagBuilderBase(ABC):
     def compile(self, **kwargs: Any) -> str:
         """Compile the bag to output format.
 
-        This is a placeholder that subclasses should override.
-        The full compile workflow with hooks will be defined later.
+        If compiler_class is defined, delegates to compiler.compile(bag).
+        Otherwise falls back to XML serialization.
 
         Args:
-            **kwargs: Compilation parameters (format, destination, etc.)
+            **kwargs: Compilation parameters passed to compiler.
 
         Returns:
             Compiled output string.
         """
-        # Placeholder - full implementation TBD
+        if self.compiler_class is not None:
+            return self.compiler.compile(self.bag, **kwargs)
         format_ = kwargs.get("format", "xml")
         if format_ == "xml":
             return self.bag.to_xml()
