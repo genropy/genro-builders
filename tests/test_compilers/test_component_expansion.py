@@ -1,0 +1,438 @@
+# Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
+"""Tests for component expansion during compile phase.
+
+These tests verify that:
+- Component body is called during preprocess/compile (lazy expansion)
+- Component receives new Bag with builder
+- Component populates the internal bag
+- Nested components work correctly
+- Builder override works for internal bag
+- Component attributes are passed correctly
+
+NOTE: With "Bag Pura" architecture, components are NOT expanded at creation time.
+Expansion happens only during compile() via preprocess().
+"""
+
+import pytest
+
+from genro_builders import BagBuilderBase, BagCompilerBase, compile_handler
+from genro_builders.builder_bag import BuilderBag as Bag
+from genro_builders.builders import component, element
+
+
+# =============================================================================
+# Simple compiler for testing expansion
+# =============================================================================
+
+
+class TestCompiler(BagCompilerBase):
+    """Simple compiler for testing component expansion."""
+
+    def compile(self, bag: Bag | None = None) -> str:
+        """Compile bag to simple string output."""
+        target = bag or self.builder.bag
+        processed = self.preprocess(target)
+        return self._compile_bag(processed)
+
+    def _compile_bag(self, bag: Bag) -> str:
+        """Recursively compile bag to string."""
+        parts = []
+        for node in bag.nodes:
+            tag = node.tag or node.label
+            if isinstance(node.value, Bag):
+                children = self._compile_bag(node.value)
+                parts.append(f"<{tag}>{children}</{tag}>")
+            elif node.value:
+                parts.append(f"<{tag}>{node.value}</{tag}>")
+            else:
+                parts.append(f"<{tag}/>")
+        return "".join(parts)
+
+
+# =============================================================================
+# Tests for component expansion
+# =============================================================================
+
+
+class TestComponentExpansion:
+    """Tests for component expansion during compile."""
+
+    def test_component_body_called_on_compile(self):
+        """Component body is called during compile, not at creation."""
+        body_called = False
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component()
+            def myform(self, comp: Bag, **kwargs):
+                nonlocal body_called
+                body_called = True
+                comp.field()
+                return comp
+
+            @element()
+            def field(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.myform()
+
+        # Body NOT called yet (lazy)
+        assert not body_called
+
+        # Now compile - body should be called
+        bag.builder.compile()
+        assert body_called
+
+    def test_component_receives_new_bag(self):
+        """Component method receives a new Bag with builder during expansion."""
+        received_bag = None
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component()
+            def myform(self, comp: Bag, **kwargs):
+                nonlocal received_bag
+                received_bag = comp
+                return comp
+
+            @element()
+            def div(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.myform()
+        bag.builder.compile()
+
+        assert received_bag is not None
+        assert isinstance(received_bag, Bag)
+        # Each Bag gets its own builder instance, but same class
+        assert type(received_bag.builder) is type(bag.builder)
+
+    def test_component_populates_bag(self):
+        """Component populates the internal bag during expansion."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component()
+            def myform(self, comp: Bag, **kwargs):
+                comp.field(name="field1")
+                comp.field(name="field2")
+                return comp
+
+            @element()
+            def field(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.myform()
+
+        # Before compile: node exists but value is None or empty
+        node = bag.get_node("myform_0")
+        assert node is not None
+        assert node.tag == "myform"
+
+        # Compile triggers expansion
+        result = bag.builder.compile()
+
+        # Output should contain the expanded fields
+        assert "<field" in result
+
+    def test_component_uses_builder_elements(self):
+        """Component can use builder elements inside during expansion."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component()
+            def myform(self, comp: Bag, **kwargs):
+                comp.input(name="field1")
+                comp.input(name="field2")
+                return comp
+
+            @element()
+            def input(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.myform()
+        result = bag.builder.compile()
+
+        # Should have input elements in output
+        assert "<input" in result
+
+
+# =============================================================================
+# Tests for sub_tags return behavior after expansion
+# =============================================================================
+
+
+class TestComponentSubTagsAfterExpansion:
+    """Tests for sub_tags controlling return value after expansion."""
+
+    def test_void_sub_tags_returns_parent(self):
+        """sub_tags='' (void) returns parent bag for chaining at same level."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component(sub_tags="")
+            def closed_form(self, comp: Bag, **kwargs):
+                comp.internal()
+                return comp
+
+            @element()
+            def internal(self): ...
+
+            @element()
+            def span(self): ...
+
+        bag = Bag(builder=Builder)
+        result = bag.closed_form()
+
+        # Should return parent bag (root in this case)
+        assert result is bag
+        # Can continue at same level
+        result.span()
+        assert len(bag) == 2  # closed_form + span
+
+    def test_defined_sub_tags_returns_internal_bag(self):
+        """sub_tags='item' returns internal bag for adding children."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component(sub_tags="item")
+            def mylist(self, comp: Bag, **kwargs):
+                comp.header()
+                return comp
+
+            @element()
+            def header(self): ...
+
+            @element()
+            def item(self): ...
+
+        bag = Bag(builder=Builder)
+        internal = bag.mylist()
+
+        # Should NOT return parent bag
+        assert internal is not bag
+        # Can add 'item' children
+        internal.item(node_label="added_item")
+
+        # Compile and check output
+        result = bag.builder.compile()
+        assert "<header" in result
+        assert "<item" in result
+
+
+# =============================================================================
+# Tests for nested components
+# =============================================================================
+
+
+class TestNestedComponentExpansion:
+    """Tests for using components inside components."""
+
+    def test_component_uses_other_component(self):
+        """Component can use another component internally."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component(sub_tags="")
+            def inner(self, comp: Bag, **kwargs):
+                comp.set_item("inner_data", "value")
+                return comp
+
+            @component(sub_tags="")
+            def outer(self, comp: Bag, **kwargs):
+                comp.inner()  # Use another component
+                comp.set_item("outer_data", "value")
+                return comp
+
+            @element()
+            def div(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.outer()
+
+        result = bag.builder.compile()
+        # Should have nested structure
+        assert "<outer>" in result
+        assert "<inner>" in result
+
+    def test_nested_component_chain(self):
+        """Multiple levels of component nesting."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component(sub_tags="")
+            def level3(self, comp: Bag, **kwargs):
+                comp.set_item("l3", "data")
+                return comp
+
+            @component(sub_tags="")
+            def level2(self, comp: Bag, **kwargs):
+                comp.level3()
+                return comp
+
+            @component(sub_tags="")
+            def level1(self, comp: Bag, **kwargs):
+                comp.level2()
+                return comp
+
+        bag = Bag(builder=Builder)
+        bag.level1()
+
+        result = bag.builder.compile()
+        # All levels should be in output
+        assert "<level1>" in result
+        assert "<level2>" in result
+        assert "<level3>" in result
+
+
+# =============================================================================
+# Tests for builder override
+# =============================================================================
+
+
+class TestComponentBuilderOverrideExpansion:
+    """Tests for builder override in components during expansion."""
+
+    def test_component_with_different_builder(self):
+        """Component can use a different builder for its internal bag."""
+
+        class InnerBuilder(BagBuilderBase):
+            @element()
+            def special(self): ...
+
+        class OuterBuilder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component(builder=InnerBuilder)
+            def with_inner(self, comp: Bag, **kwargs):
+                # comp should have InnerBuilder
+                comp.special()  # This should work
+                return comp
+
+            @element()
+            def outer_elem(self): ...
+
+        bag = Bag(builder=OuterBuilder)
+        internal = bag.with_inner()
+
+        # Internal bag uses InnerBuilder
+        assert isinstance(internal.builder, InnerBuilder)
+
+        result = bag.builder.compile()
+        assert "<special" in result
+
+
+# =============================================================================
+# Tests for component attributes during expansion
+# =============================================================================
+
+
+class TestComponentAttributesExpansion:
+    """Tests for passing attributes to components during expansion."""
+
+    def test_component_receives_kwargs(self):
+        """Component receives kwargs passed at call time during expansion."""
+        received_kwargs = {}
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component(sub_tags="")
+            def myform(self, comp: Bag, title=None, **kwargs):
+                nonlocal received_kwargs
+                received_kwargs = {"title": title, **kwargs}
+                return comp
+
+        bag = Bag(builder=Builder)
+        bag.myform(title="My Form", extra="data")
+
+        # Compile to trigger expansion
+        bag.builder.compile()
+
+        assert received_kwargs["title"] == "My Form"
+        assert received_kwargs["extra"] == "data"
+
+    def test_component_attrs_stored_on_node(self):
+        """Component attributes are stored on the node."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component(sub_tags="")
+            def myform(self, comp: Bag, title=None, **kwargs):
+                return {"node_value": comp, "title": title, **kwargs}
+
+        bag = Bag(builder=Builder)
+        bag.myform(title="Form Title", css_class="my-form")
+
+        # Attributes should be on node even before compile
+        node = bag.get_node("myform_0")
+        assert node.attr.get("title") == "Form Title"
+        assert node.attr.get("css_class") == "my-form"
+
+
+# =============================================================================
+# Tests for component with elements mixed
+# =============================================================================
+
+
+class TestComponentWithElementsExpansion:
+    """Tests for mixing components and elements during expansion."""
+
+    def test_component_and_elements_in_same_builder(self):
+        """Builder can have both components and elements."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @component(sub_tags="")
+            def form(self, comp: Bag, **kwargs):
+                comp.input(name="field1")
+                return comp
+
+            @element()
+            def input(self): ...
+
+            @element()
+            def div(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.div()
+        bag.form()
+        bag.div()
+
+        assert len(bag) == 3
+        result = bag.builder.compile()
+        assert "<div" in result
+        assert "<form>" in result
+        assert "<input" in result
+
+    def test_component_inside_element(self):
+        """Component can be placed inside an element."""
+
+        class Builder(BagBuilderBase):
+            compiler_class = TestCompiler
+
+            @element(sub_tags="form")
+            def div(self): ...
+
+            @component(sub_tags="")
+            def form(self, comp: Bag, **kwargs):
+                comp.set_item("field", "value")
+                return comp
+
+        bag = Bag(builder=Builder)
+        div = bag.div()
+        div.form()
+
+        result = bag.builder.compile()
+        assert "<div>" in result
+        assert "<form>" in result
