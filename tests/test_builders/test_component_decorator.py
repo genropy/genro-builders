@@ -113,8 +113,8 @@ class TestComponentSubTagsReturnBehavior:
         result.span()
         assert len(bag) == 2  # closed_form + span
 
-    def test_defined_sub_tags_returns_internal_bag(self):
-        """sub_tags='item' returns internal bag for adding children."""
+    def test_defined_sub_tags_returns_parent_bag(self):
+        """All components return parent bag for chaining."""
 
         class Builder(BagBuilderBase):
             @component(sub_tags="item")
@@ -125,18 +125,16 @@ class TestComponentSubTagsReturnBehavior:
             def item(self): ...
 
         bag = Bag(builder=Builder)
-        internal = bag.mylist()
+        result = bag.mylist()
 
-        # Should NOT return parent bag
-        assert internal is not bag
-        # Internal bag should be a Bag
-        assert isinstance(internal, Bag)
+        # All components return parent bag for chaining
+        assert result is bag
 
-    def test_absent_sub_tags_returns_internal_bag(self):
-        """No sub_tags (absent) returns internal bag - open container."""
+    def test_absent_sub_tags_returns_parent_bag(self):
+        """No sub_tags (absent) returns parent bag for chaining."""
 
         class Builder(BagBuilderBase):
-            @component()  # No sub_tags - open container
+            @component()
             def container(self, comp: Bag, **kwargs):
                 return comp
 
@@ -144,14 +142,13 @@ class TestComponentSubTagsReturnBehavior:
             def anything(self): ...
 
         bag = Bag(builder=Builder)
-        internal = bag.container()
+        result = bag.container()
 
-        # Should NOT return parent bag
-        assert internal is not bag
-        assert isinstance(internal, Bag)
+        # All components return parent bag
+        assert result is bag
 
-    def test_none_sub_tags_returns_internal_bag(self):
-        """sub_tags=None explicitly returns internal bag - open container."""
+    def test_none_sub_tags_returns_parent_bag(self):
+        """sub_tags=None explicitly returns parent bag for chaining."""
 
         class Builder(BagBuilderBase):
             @component(sub_tags=None)
@@ -162,11 +159,10 @@ class TestComponentSubTagsReturnBehavior:
             def item(self): ...
 
         bag = Bag(builder=Builder)
-        internal = bag.container()
+        result = bag.container()
 
-        # Should NOT return parent bag
-        assert internal is not bag
-        assert isinstance(internal, Bag)
+        # All components return parent bag
+        assert result is bag
 
 
 # =============================================================================
@@ -453,8 +449,8 @@ class TestComponentBuilderOverrideStructure:
         # Stored as component_builder, not builder
         assert node.attr.get("component_builder") is InnerBuilder
 
-    def test_internal_bag_uses_override_builder(self):
-        """Component returns internal bag with overridden builder."""
+    def test_override_builder_stored_in_resolver(self):
+        """Component with builder override stores it in the resolver."""
 
         class InnerBuilder(BagBuilderBase):
             @element()
@@ -466,7 +462,9 @@ class TestComponentBuilderOverrideStructure:
                 return comp
 
         bag = Bag(builder=OuterBuilder)
-        internal = bag.with_inner()
+        bag.with_inner()
 
-        # Internal bag uses InnerBuilder
-        assert isinstance(internal.builder, InnerBuilder)
+        # Resolver has the override builder class
+        node = bag.get_node("with_inner_0")
+        assert node.resolver is not None
+        assert node.resolver._kw["builder_class"] is InnerBuilder

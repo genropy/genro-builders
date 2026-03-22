@@ -1,43 +1,55 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Component expander - walk with automatic component expansion.
+"""Component expander - flatten components into their expanded content.
 
-With ComponentResolver, expansion is automatic: components store a resolver
-that executes the handler lazily. To expand, just walk with static=False.
+Walks a Bag and transparently replaces component nodes (those with a
+ComponentResolver) with their expanded children. The component wrapper
+node itself does NOT appear in the output — only its contents.
 
 Example:
-    >>> from genro_bag import Bag
-    >>> from genro_bag.expander import expand
+    >>> from genro_builders.expander import expand
     >>>
-    >>> # bag contains components (e.g., lasagne_sauce -> meat_sauce -> soffritto)
+    >>> # bag has: pasta (component) -> lasagne_sauce (component) -> ...
     >>> for path, node in expand(bag):
-    ...     # Components are expanded via their resolvers
+    ...     # Component wrappers are invisible, only leaf content appears
     ...     print(f"{path}: {node.tag}")
 """
-
 from __future__ import annotations
 
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+from genro_bag import Bag
+
 if TYPE_CHECKING:
-    from genro_bag import Bag, BagNode
+    from genro_bag import BagNode
 
 
 def expand(bag: Bag) -> Iterator[tuple[str, BagNode]]:
-    """Expand components in a Bag during iteration.
+    """Expand components in a Bag, yielding only non-component nodes.
 
-    Simply delegates to bag.walk(static=False), which triggers ComponentResolvers
-    to expand component nodes automatically.
+    Component nodes (with resolver) are expanded and their children
+    are yielded recursively. The component wrapper is not yielded.
 
     Args:
         bag: The Bag to iterate with expansion.
 
     Yields:
-        Tuples of (path, node) where components have been expanded.
-
-    Example:
-        >>> for path, node in expand(menu_bag):
-        ...     if node.tag == "ingredient":
-        ...         print(f"{path}: {node.value}")
+        Tuples of (path, node) for non-component nodes.
     """
-    yield from bag.walk(static=False)
+    yield from _expand_walk(bag, "")
+
+
+def _expand_walk(bag: Bag, prefix: str) -> Iterator[tuple[str, BagNode]]:
+    """Recursive walk that flattens component nodes."""
+    for node in bag:
+        path = f"{prefix}.{node.label}" if prefix else node.label
+        if node.resolver is not None:
+            # Component: expand via resolver, don't yield the wrapper
+            expanded = node.get_value(static=False)
+            if isinstance(expanded, Bag):
+                yield from _expand_walk(expanded, path)
+        else:
+            yield path, node
+            value = node.get_value(static=True)
+            if isinstance(value, Bag):
+                yield from _expand_walk(value, path)

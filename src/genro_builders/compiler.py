@@ -147,90 +147,43 @@ class BagCompilerBase(ABC):
     def preprocess(self, bag: Bag) -> Bag:
         """Preprocess bag before compilation.
 
-        Default implementation expands components if present.
+        Materializes all component resolvers into a static Bag tree.
         Override for custom preprocessing.
 
         Args:
             bag: The source Bag.
 
         Returns:
-            Preprocessed Bag (may be same instance if no changes).
+            Preprocessed Bag (may be same instance if no resolvers).
         """
-        # Check if any component needs expansion
-        has_components = self._has_components(bag)
-        if not has_components:
+        if not self._has_resolvers(bag):
             return bag
+        return self._materialize(bag)
 
-        # Expand components
-        return self._expand_components(bag)
+    def _has_resolvers(self, bag: Bag) -> bool:
+        """Check if bag contains any nodes with resolvers."""
+        return any(node.resolver is not None for node in bag)
 
-    def _has_components(self, bag: Bag) -> bool:
-        """Check if bag contains any unexpanded components."""
-        return any(node.tag and self._is_component(node) for _path, node in bag.walk())
+    def _materialize(self, bag: Bag) -> Bag:
+        """Create a static copy of the bag with all resolvers expanded.
 
-    def _is_component(self, node: BagNode) -> bool:
-        """Check if node is a component that needs expansion."""
-        if not node.tag:
-            return False
-        try:
-            info = self.builder.get_schema_info(node.tag)
-            return info.get("is_component", False)
-        except KeyError:
-            return False
-
-    def _expand_components(self, bag: Bag) -> Bag:
-        """Expand all components in bag.
-
-        Creates a new Bag with components replaced by their expanded content.
-        Each component node is replaced by a wrapper node (same tag) containing
-        the expanded body. If the component has sub_tags and the original node
-        has children, those children are merged into the expanded content.
+        Component nodes (with resolver) are expanded via get_value(static=False).
+        The result is a plain Bag tree with no resolvers — ready for compilation.
         """
         from .builder_bag import BuilderBag
 
         result = BuilderBag(builder=type(self.builder))
 
         for node in bag:
-            if self._is_component(node):
-                info = self.builder.get_schema_info(node.tag)
-                handler_name = info.get("handler_name")
-                if handler_name:
-                    handler = getattr(self.builder, handler_name)
-                    # Use component_builder if specified, else same builder
-                    builder_cls = info.get("component_builder") or type(self.builder)
-                    component_bag = BuilderBag(builder=builder_cls)
-                    # Call handler with kwargs from node attributes
-                    kwargs = dict(node.attr)
-                    handler(component_bag, **kwargs)
-                    # Merge user-added children (sub_tags) from the original node
-                    if isinstance(node.value, Bag):
-                        for child in node.value:
-                            component_bag.set_item(
-                                child.label,
-                                child.value,
-                                _attributes=dict(child.attr),
-                            )
-                            component_bag.get_node(child.label).tag = child.tag
-                    # Recursively expand nested components
-                    expanded = self._expand_components(component_bag)
-                    # Wrap in a node with the component tag
-                    new_node = result.set_item(
-                        node.label,
-                        expanded,
-                        _attributes=dict(node.attr),
-                    )
-                    new_node.tag = node.tag
-            else:
-                # Copy node, recursively expand children if Bag
-                value = node.value
-                if isinstance(value, Bag):
-                    value = self._expand_components(value)
-                new_node = result.set_item(
-                    node.label,
-                    value,
-                    _attributes=dict(node.attr),
-                )
-                new_node.tag = node.tag
+            value = node.get_value(static=False) if node.resolver is not None else node.static_value
+            if isinstance(value, Bag):
+                value = self._materialize(value)
+            new_node = result.set_item(
+                node.label,
+                value,
+                _attributes=dict(node.attr),
+            )
+            new_node.tag = node.tag
 
         return result
 

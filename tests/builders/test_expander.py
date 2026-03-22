@@ -88,17 +88,26 @@ class TestExpanderMenuBuilder:
         assert "meat_sauce" not in tags, "meat_sauce should be expanded, not yielded as-is"
         assert "white_sauce" not in tags, "white_sauce should be expanded, not yielded as-is"
 
-    def test_expand_preserves_manual_children(self, menu_bag):
-        """Manual children added after component call should be preserved."""
-        from examples.builders.chef_app.menu_builder import MenuBuilder
+    def test_expand_based_on_component(self):
+        """based_on component extends the base with additional content."""
+        from genro_builders import BagBuilderBase
+        from genro_builders.builders import component, element
 
-        bag = Bag(builder=MenuBuilder)
-        menu = bag.menu(name="Test")
-        first = menu.first_courses()
+        class Builder(BagBuilderBase):
+            @element()
+            def ingredient(self): ...
 
-        # Create risotto (a component) and add manual ingredient
-        risotto = first.risotto(name="Mushroom Risotto")
-        risotto.ingredient("porcini mushrooms", quantity="200g")
+            @component()
+            def risotto(self, comp, **kwargs):
+                comp.ingredient("arborio rice", quantity="320g")
+                comp.ingredient("butter", quantity="50g")
+
+            @component(based_on="risotto")
+            def mushroom_risotto(self, comp, **kwargs):
+                comp.ingredient("porcini mushrooms", quantity="200g")
+
+        bag = Bag(builder=Builder)
+        bag.mushroom_risotto(name="Mushroom Risotto")
 
         # Expand and collect
         expanded = list(expand(bag))
@@ -108,9 +117,10 @@ class TestExpanderMenuBuilder:
             node.value for _, node in expanded if node.tag == "ingredient"
         ]
 
-        # Should contain both base risotto ingredients AND the manual one
+        # Should contain both base risotto ingredients AND the extended one
         assert "porcini mushrooms" in ingredient_values
         assert "arborio rice" in ingredient_values  # From risotto base
+        assert "butter" in ingredient_values  # From risotto base
 
 
 class TestExpanderEdgeCases:

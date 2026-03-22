@@ -4,6 +4,7 @@
 from genro_builders.builder import BagBuilderBase
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode
 from genro_builders.compiler import BagCompilerBase, compile_handler
+from genro_builders.component_resolver import ComponentResolver
 
 __version__ = "0.1.0"
 
@@ -12,5 +13,6 @@ __all__ = [
     "BagCompilerBase",
     "BuilderBag",
     "BuilderBagNode",
+    "ComponentResolver",
     "compile_handler",
 ]

@@ -195,8 +195,8 @@ class TestComponentSubTagsAfterExpansion:
         result.span()
         assert len(bag) == 2  # closed_form + span
 
-    def test_defined_sub_tags_returns_internal_bag(self):
-        """sub_tags='item' returns internal bag for adding children."""
+    def test_component_returns_parent_for_chaining(self):
+        """All components return parent bag for chaining."""
 
         class Builder(BagBuilderBase):
             compiler_class = TestCompiler
@@ -213,17 +213,14 @@ class TestComponentSubTagsAfterExpansion:
             def item(self): ...
 
         bag = Bag(builder=Builder)
-        internal = bag.mylist()
+        result = bag.mylist()
 
-        # Should NOT return parent bag
-        assert internal is not bag
-        # Can add 'item' children
-        internal.item(node_label="added_item")
+        # All components return parent bag
+        assert result is bag
 
-        # Compile and check output
-        result = bag.builder.compile()
-        assert "<header" in result
-        assert "<item" in result
+        # Compile expands the component body
+        output = bag.builder.compile()
+        assert "<header" in output
 
 
 # =============================================================================
@@ -321,11 +318,9 @@ class TestComponentBuilderOverrideExpansion:
             def outer_elem(self): ...
 
         bag = Bag(builder=OuterBuilder)
-        internal = bag.with_inner()
+        bag.with_inner()
 
-        # Internal bag uses InnerBuilder
-        assert isinstance(internal.builder, InnerBuilder)
-
+        # Compile expands and uses InnerBuilder internally
         result = bag.builder.compile()
         assert "<special" in result
 

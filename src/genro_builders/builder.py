@@ -284,6 +284,7 @@ def component(
     sub_tags: str | tuple[str, ...] | None = None,
     parent_tags: str | None = None,
     builder: type[BagBuilderBase] | None = None,
+    based_on: str | None = None,
     compile_kwargs: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> Callable:
@@ -362,6 +363,7 @@ def component(
                 "sub_tags": sub_tags,
                 "parent_tags": parent_tags,
                 "builder": builder,
+                "based_on": based_on,
                 "compile_kwargs": merged_compile if merged_compile else None,
             }.items()
             if v is not None
@@ -473,6 +475,7 @@ class BagBuilderBase(ABC):
             inherits_from = decorator_info.get("inherits_from", "")
             compile_kwargs = decorator_info.get("compile_kwargs")
             component_builder = decorator_info.get("builder")
+            based_on = decorator_info.get("based_on")
             documentation = obj.__doc__
             call_args_validations = _extract_validators_from_signature(obj)
 
@@ -484,6 +487,7 @@ class BagBuilderBase(ABC):
                         handler_name=method_name,
                         is_component=True,
                         component_builder=component_builder,
+                        based_on=based_on,
                         sub_tags=sub_tags,
                         parent_tags=parent_tags,
                         compile_kwargs=compile_kwargs,
@@ -600,11 +604,12 @@ class BagBuilderBase(ABC):
         info: dict,
         node_tag: str,
         kwargs: dict,
-    ) -> Bag | BagNode:
-        """Handle component invocation - lazy registration.
+    ) -> Bag:
+        """Handle component invocation - lazy registration with resolver.
 
-        Registers the component node with its kwargs but does NOT call the handler.
-        The handler (body) will be called during compile to expand the component.
+        Registers the component node with a ComponentResolver. The handler
+        body is NOT called here — it will be called lazily when the node
+        is accessed with static=False (during expand or compile).
 
         Args:
             destination_bag: The parent Bag where component will be added.
@@ -613,10 +618,9 @@ class BagBuilderBase(ABC):
             kwargs: Arguments passed to the component (stored as attributes).
 
         Returns:
-            - If sub_tags='': returns destination_bag (closed/leaf component)
-            - Otherwise: returns empty internal bag for manual children
+            destination_bag for chaining at the same level.
         """
-        sub_tags = info.get("sub_tags")
+        from .component_resolver import ComponentResolver
 
         # Extract internal kwargs that need special handling
         kwargs.pop("node_value", None)
@@ -626,27 +630,28 @@ class BagBuilderBase(ABC):
         # Register node with kwargs as attributes, no expansion
         node = self._add_element(
             destination_bag,
-            node_value=None,  # No value yet, will be populated in compile
+            node_value=None,
             node_tag=node_tag,
             node_label=node_label,
             node_position=node_position,
-            **kwargs,  # All kwargs become node attributes
+            **kwargs,
         )
 
-        # Return logic based on sub_tags
-        if sub_tags == "":
-            # Closed component: return parent bag for chaining
-            return destination_bag
+        # Attach resolver for lazy expansion
+        handler_name = info.get("handler_name")
+        handler = getattr(self, handler_name) if handler_name else None
+        builder_class = info.get("component_builder") or type(self)
+        based_on = info.get("based_on")
 
-        # Open component: create empty Bag for manual children
-        from .builder_bag import BuilderBag
+        resolver = ComponentResolver(
+            handler=handler,
+            builder_class=builder_class,
+            based_on=based_on,
+            builder=self,
+        )
+        node.resolver = resolver
 
-        component_builder_class = info.get("component_builder")
-        if component_builder_class is not None:
-            node.value = BuilderBag(builder=component_builder_class)
-        else:
-            node.value = BuilderBag(builder=type(self))
-        return node.value
+        return destination_bag
 
     def _add_element(
         self,
@@ -881,16 +886,40 @@ class BagBuilderBase(ABC):
             )
 
     def _command_on_node(
-        self, node: BagNode, child_tag: str, node_position: str | int | None = None, **attrs: Any
-    ) -> BagNode:
-        """Add a child to a node. Validation is delegated to child()."""
+        self,
+        node: BagNode,
+        child_tag: str,
+        node_position: str | int | None = None,
+        node_value: Any = None,
+        **attrs: Any,
+    ) -> Any:
+        """Add a child to a node.
+
+        Uses _bag_call for schema elements (handles components and tag renames).
+        Falls back to self.child() for unknown tags (provides validation errors).
+        """
         from .builder_bag import BuilderBag
 
         if not isinstance(node.value, Bag):
             node.value = BuilderBag()
             node.value.builder = self
 
-        return self.child(node.value, child_tag, node_position=node_position, **attrs)
+        if child_tag in self._schema:
+            callable_handler = self._bag_call(node.value, child_tag)
+            return callable_handler(
+                node_value=node_value,
+                node_position=node_position,
+                **attrs,
+            )
+
+        # Tag not in schema: use child() which will validate and raise
+        return self.child(
+            node.value,
+            child_tag,
+            node_value=node_value,
+            node_position=node_position,
+            **attrs,
+        )
 
     # -------------------------------------------------------------------------
     # Schema access
