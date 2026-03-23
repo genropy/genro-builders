@@ -94,6 +94,11 @@ class BagAppBase:
             self._rerender()
 
     @property
+    def compiled(self) -> Bag | None:
+        """The compiled Bag (components expanded, pointers resolved)."""
+        return self._static_bag
+
+    @property
     def output(self) -> str | None:
         """Last compiled output."""
         return self._output
@@ -134,10 +139,24 @@ class BagAppBase:
         # 1. Compile: materialize components → CompiledBag (pointers not yet resolved)
         self._static_bag = self._compiler.compile(self._store)
 
-        # 2. Bind: resolve pointers + register subscriptions for reactive updates
+        # 2. Make the compiled bag observable for live apps
+        if not self._static_bag.backref:
+            self._static_bag.set_backref()
+
+        # 3. Bind: resolve pointers + register subscriptions for reactive updates
         self._binding.bind(self._static_bag, self._data)
 
-        # 3. Render
+        # 4. Subscribe to store changes for incremental updates
+        if not self._store.backref:
+            self._store.set_backref()
+        self._store.subscribe(
+            "store_watcher",
+            delete=self._on_store_deleted,
+            insert=self._on_store_inserted,
+            update=self._on_store_updated,
+        )
+
+        # 5. Render
         self._output = self.render(self._static_bag)
         return self._output
 
@@ -150,6 +169,7 @@ class BagAppBase:
             Compiled output string.
         """
         self._binding.unbind()
+        self._store.unsubscribe("store_watcher", any=True)
         self._static_bag = None
         self._auto_compile = False
 
@@ -190,6 +210,122 @@ class BagAppBase:
         """
         if self._auto_compile:
             self._rerender()
+
+    def _on_store_deleted(
+        self,
+        node: BagNode | None = None,
+        pathlist: list | None = None,
+        ind: int | None = None,
+        evt: str = "",
+        **kwargs: Any,
+    ) -> None:
+        """Called when a node is deleted from the store.
+
+        Removes the corresponding node from the compiled bag,
+        cleans up bindings, and re-renders.
+        """
+        if not self._auto_compile or self._static_bag is None or node is None:
+            return
+        parts = [str(p) for p in pathlist] if pathlist else []
+        parts.append(node.label)
+        path = ".".join(parts)
+        self._binding.unbind_path(path)
+        self._static_bag.del_item(path, _reason="store")
+        self._rerender()
+
+    def _on_store_inserted(
+        self,
+        node: BagNode | None = None,
+        pathlist: list | None = None,
+        ind: int | None = None,
+        evt: str = "",
+        **kwargs: Any,
+    ) -> None:
+        """Called when a node is inserted into the store.
+
+        Materializes the new node, inserts it into the compiled bag
+        at the same position, binds ^pointers, and re-renders.
+        """
+        if not self._auto_compile or self._static_bag is None or node is None:
+            return
+        if self._compiler is None:
+            return
+
+        # Determine the parent path in the compiled bag
+        parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
+
+        # Materialize the new node's value
+        value = node.get_value(static=False) if node.resolver is not None else node.static_value
+        if isinstance(value, Bag):
+            value = self._compiler._materialize(value)
+
+        # Find the target bag in the compiled tree
+        if parent_path:
+            target_bag = self._static_bag.get_item(parent_path)
+            if not isinstance(target_bag, Bag):
+                return
+        else:
+            target_bag = self._static_bag
+
+        # Insert the materialized node at the same position
+        new_node = target_bag.set_item(
+            node.label,
+            value,
+            _attributes=dict(node.attr),
+            node_position=ind,
+            _reason="store",
+        )
+        new_node.tag = node.tag
+
+        # Bind ^pointers on the new subtree
+        node_path = f"{parent_path}.{node.label}" if parent_path else node.label
+        self._binding.bind_subtree(new_node, self._data, node_path)
+
+        self._rerender()
+
+    def _on_store_updated(
+        self,
+        node: BagNode | None = None,
+        pathlist: list | None = None,
+        oldvalue: Any = None,
+        evt: str = "",
+        **kwargs: Any,
+    ) -> None:
+        """Called when a node in the store is updated (value or attributes).
+
+        Updates the corresponding node in the compiled bag,
+        re-binds ^pointers if needed, and re-renders.
+        """
+        if not self._auto_compile or self._static_bag is None or pathlist is None:
+            return
+        if self._compiler is None:
+            return
+
+        path = ".".join(str(p) for p in pathlist)
+        compiled_node = self._static_bag.get_node(path)
+        if compiled_node is None:
+            return
+
+        if evt == "upd_value":
+            # Materialize the new value if needed
+            value = node.get_value(static=False) if node.resolver is not None else node.static_value
+            if isinstance(value, Bag):
+                value = self._compiler._materialize(value)
+            compiled_node.set_value(value, _reason="store")
+
+            # Re-bind pointers on this subtree
+            self._binding.unbind_path(path)
+            self._binding.bind_subtree(compiled_node, self._data, path)
+
+        elif evt == "upd_attrs":
+            # oldvalue is the list of changed attribute names
+            if node is not None:
+                compiled_node.set_attr(dict(node.attr))
+                # Re-bind in case new attrs contain ^pointers
+                self._binding.unbind_path(path)
+                self._binding.bind_subtree(compiled_node, self._data, path)
+
+        self._rerender()
 
     def _rerender(self) -> None:
         """Re-render the static bag without re-compiling.

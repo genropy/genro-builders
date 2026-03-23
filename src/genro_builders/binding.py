@@ -84,6 +84,54 @@ class BindingManager:
         self._subscription_map.clear()
         self._data = None
 
+    def unbind_path(self, path: str) -> None:
+        """Remove all subscription entries for nodes at or under the given path.
+
+        Args:
+            path: The store path to unbind (e.g., 'page.header').
+                  All nodes whose compiled path equals or starts with this path
+                  are removed from the subscription map.
+        """
+        to_remove: list[tuple[str, str | None]] = []
+        for map_key, entries in self._subscription_map.items():
+            remaining = [
+                (target_node, location)
+                for target_node, location in entries
+                if not self._node_under_path(target_node, path)
+            ]
+            if remaining:
+                self._subscription_map[map_key] = remaining
+            else:
+                to_remove.append(map_key)
+        for key in to_remove:
+            del self._subscription_map[key]
+
+    def _node_under_path(self, node: BagNode, path: str) -> bool:
+        """Check if a node's compiled path is at or under the given path."""
+        node_path = node.compiled.get("path", "")
+        return node_path == path or node_path.startswith(path + ".")
+
+    def bind_subtree(self, node: BagNode, data: Bag, path: str) -> None:
+        """Bind ^pointers on a single node and its children.
+
+        Used for incremental compilation after a node is inserted
+        into the compiled bag. Binds only this subtree without
+        re-scanning the entire tree.
+
+        Args:
+            node: The compiled BagNode to bind.
+            data: The data Bag for pointer resolution.
+            path: The path of this node in the compiled bag.
+        """
+        node.compiled["path"] = path
+        pointers = scan_for_pointers(node)
+        if pointers:
+            self._bind_node(node, pointers, data)
+
+        value = node.static_value
+        if isinstance(value, Bag):
+            self._walk_bind(value, data, prefix=path)
+
     def rebind(self, data: Bag) -> None:
         """Re-resolve all pointers against new data.
 
@@ -116,9 +164,11 @@ class BindingManager:
     # Internal
     # -------------------------------------------------------------------------
 
-    def _walk_bind(self, bag: Bag, data: Bag) -> None:
+    def _walk_bind(self, bag: Bag, data: Bag, prefix: str = "") -> None:
         """Recursively walk bag and bind ^pointers."""
         for node in bag:
+            path = f"{prefix}.{node.label}" if prefix else node.label
+            node.compiled["path"] = path
             pointers = scan_for_pointers(node)
             if pointers:
                 self._bind_node(node, pointers, data)
@@ -126,7 +176,7 @@ class BindingManager:
             # Recurse into children
             value = node.static_value
             if isinstance(value, Bag):
-                self._walk_bind(value, data)
+                self._walk_bind(value, data, prefix=path)
 
     def _bind_node(
         self,

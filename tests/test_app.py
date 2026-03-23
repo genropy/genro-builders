@@ -277,6 +277,326 @@ class TestAppWithComponent:
         assert "default content" in app.output
 
 
+class TestAppStoreDelete:
+    """Tests for reactive store deletion."""
+
+    def test_store_delete_updates_output(self):
+        """Deleting a node from the store removes it from output."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("Title")
+                store.text("Content")
+
+        app = MyApp()
+        app.setup()
+
+        assert "[heading:Title]" in app.output
+        assert "[text:Content]" in app.output
+
+        app.store.del_item("text_0")
+        assert "[text:Content]" not in app.output
+        assert "[heading:Title]" in app.output
+
+    def test_store_delete_with_pointer_cleanup(self):
+        """Deleting a node with ^pointer cleans up the subscription map."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("^title")
+                store.text("static")
+
+        app = MyApp()
+        app.data["title"] = "Hello"
+        app.setup()
+
+        assert "Hello" in app.output
+
+        # The heading node is bound to 'title' in the subscription map
+        assert len(app._binding.subscription_map) > 0
+
+        app.store.del_item("heading_0")
+
+        # After delete, the binding for the deleted node should be gone
+        for entries in app._binding.subscription_map.values():
+            for target_node, _location in entries:
+                assert target_node.compiled.get("path") != "heading_0"
+
+        assert "Hello" not in app.output
+        assert "[text:static]" in app.output
+
+    def test_store_delete_subtree(self):
+        """Deleting a node with children removes the entire subtree from output."""
+
+        class SubtreeBuilder(BagBuilderBase):
+            @element(sub_tags="*")
+            def group(self): ...
+
+            @element()
+            def leaf(self): ...
+
+        SubtreeBuilder.compiler_class = TestCompiler
+
+        class MyApp(BagAppBase):
+            builder_class = SubtreeBuilder
+
+            def recipe(self, store):
+                inner = store.group()
+                inner.leaf("Child1")
+                inner.leaf("Child2")
+
+        app = MyApp()
+        app.setup()
+
+        assert "Child1" in app.output
+        assert "Child2" in app.output
+
+        app.store.del_item("group_0")
+
+        assert "Child1" not in app.output
+        assert "Child2" not in app.output
+
+
+class TestAppStoreInsert:
+    """Tests for reactive store insertion."""
+
+    def test_store_insert_updates_output(self):
+        """Inserting a node into the store adds it to output."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("Title")
+
+        app = MyApp()
+        app.setup()
+
+        assert "[heading:Title]" in app.output
+        assert "Extra" not in app.output
+
+        app.store.text("Extra")
+
+        assert "Extra" in app.output
+        assert "[heading:Title]" in app.output
+
+    def test_store_insert_with_pointer(self):
+        """Inserted node with ^pointer gets bound to data."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("Static")
+
+        app = MyApp()
+        app.data["dynamic"] = "Resolved"
+        app.setup()
+
+        assert "Resolved" not in app.output
+
+        app.store.text("^dynamic")
+
+        assert "Resolved" in app.output
+
+    def test_store_insert_at_position(self):
+        """Inserted node appears at the correct position."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("First")
+                store.heading("Third")
+
+        app = MyApp()
+        app.setup()
+
+        # Insert between First and Third
+        app.store.text("Second", node_position=1)
+
+        assert app.output is not None
+        first_pos = app.output.index("First")
+        second_pos = app.output.index("Second")
+        third_pos = app.output.index("Third")
+        assert first_pos < second_pos < third_pos
+
+
+class TestAppStoreUpdate:
+    """Tests for reactive store value/attribute updates."""
+
+    def test_store_update_value(self):
+        """Updating a node value in the store updates the output."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("Original")
+
+        app = MyApp()
+        app.setup()
+
+        assert "Original" in app.output
+
+        # Update the node value via set_item (overwrites)
+        app.store.set_item("heading_0", "Modified")
+
+        assert "Modified" in app.output
+        assert "Original" not in app.output
+
+    def test_store_update_attr(self):
+        """Updating a node attribute in the store updates the output."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.item(color="red")
+
+        app = MyApp()
+        app.setup()
+
+        assert "color=red" in app.output
+
+        app.store.set_attr("item_0", color="blue")
+
+        assert "color=blue" in app.output
+        assert "color=red" not in app.output
+
+    def test_store_update_pointer_rebind(self):
+        """Updating a static value to a ^pointer binds it to data."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("static")
+
+        app = MyApp()
+        app.data["title"] = "Dynamic"
+        app.setup()
+
+        assert "static" in app.output
+        assert "Dynamic" not in app.output
+
+        # Replace static value with a pointer
+        app.store.set_item("heading_0", "^title")
+
+        assert "Dynamic" in app.output
+
+    def test_store_update_value_replaces_subtree(self):
+        """Updating a node that had children replaces the entire subtree."""
+
+        class SubtreeBuilder(BagBuilderBase):
+            @element(sub_tags="*")
+            def group(self): ...
+
+            @element()
+            def leaf(self): ...
+
+        SubtreeBuilder.compiler_class = TestCompiler
+
+        class MyApp(BagAppBase):
+            builder_class = SubtreeBuilder
+
+            def recipe(self, store):
+                inner = store.group()
+                inner.leaf("^child_a")
+                inner.leaf("^child_b")
+
+        app = MyApp()
+        app.data["child_a"] = "A"
+        app.data["child_b"] = "B"
+        app.setup()
+
+        assert "A" in app.output
+        assert "B" in app.output
+
+        # Count bindings before
+        bindings_before = sum(len(v) for v in app._binding.subscription_map.values())
+
+        # Replace the group node value with a scalar — children disappear
+        app.store.set_item("group_0", "replaced")
+
+        assert "replaced" in app.output
+        assert "A" not in app.output
+        assert "B" not in app.output
+
+        # Old bindings for child_a and child_b should be gone
+        bindings_after = sum(len(v) for v in app._binding.subscription_map.values())
+        assert bindings_after < bindings_before
+
+
+class TestAppCompiledObservable:
+    """Tests for compiled bag observability (live app support)."""
+
+    def test_compiled_bag_notifies_on_store_delete(self):
+        """Subscriber on compiled bag receives delete events from store changes."""
+        events = []
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("Title")
+                store.text("Content")
+
+        app = MyApp()
+        app.setup()
+
+        app.compiled.subscribe("test", delete=lambda **kw: events.append(("del", kw.get("reason"))))
+
+        app.store.del_item("text_0")
+
+        assert len(events) == 1
+        assert events[0] == ("del", "store")
+
+    def test_compiled_bag_notifies_on_store_insert(self):
+        """Subscriber on compiled bag receives insert events from store changes."""
+        events = []
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("Title")
+
+        app = MyApp()
+        app.setup()
+
+        app.compiled.subscribe("test", insert=lambda **kw: events.append(("ins", kw.get("reason"))))
+
+        app.store.text("Extra")
+
+        assert len(events) == 1
+        assert events[0] == ("ins", "store")
+
+    def test_compiled_bag_notifies_on_store_update_value(self):
+        """Subscriber on compiled bag receives update events from store value changes."""
+        events = []
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, store):
+                store.heading("Original")
+
+        app = MyApp()
+        app.setup()
+
+        app.compiled.subscribe("test", update=lambda **kw: events.append(("upd", kw.get("reason"))))
+
+        app.store.set_item("heading_0", "Modified")
+
+        assert len(events) >= 1
+        assert any(e[1] == "store" for e in events)
+
+
 class TestAppNoCompiler:
     """Tests for error handling."""
 
