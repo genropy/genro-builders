@@ -228,7 +228,7 @@ class MarkdownBuilder(BagBuilderBase):
         is_first = True
 
         for row_node in rows:
-            if row_node.tag != "tr":
+            if row_node.node_tag != "tr":
                 continue
             cells = row_node.value if isinstance(row_node.value, Bag) else []
             cell_texts = [str(cell.get_value(static=True) or "") for cell in cells]
@@ -315,7 +315,7 @@ class MarkdownCompiler(BagCompilerBase):
         is_first = True
 
         for row_node in rows:
-            if row_node.tag != "tr":
+            if row_node.node_tag != "tr":
                 continue
             cells = row_node.value if isinstance(row_node.value, Bag) else []
             cell_texts = [str(cell.get_value(static=True) or "") for cell in cells]

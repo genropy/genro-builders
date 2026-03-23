@@ -59,7 +59,7 @@ class TestExpanderMenuBuilder:
     def test_expand_nested_components(self, menu_bag):
         """Expander should expand nested components recursively."""
         # Collect all expanded paths and tags
-        expanded = [(path, node.tag) for path, node in expand(menu_bag)]
+        expanded = [(path, node.node_tag) for path, node in expand(menu_bag)]
 
         # After expansion, we should see ingredients from:
         # 1. pasta base (fresh pasta, salt)
@@ -114,7 +114,7 @@ class TestExpanderMenuBuilder:
 
         # Find all ingredient values
         ingredient_values = [
-            node.value for _, node in expanded if node.tag == "ingredient"
+            node.value for _, node in expanded if node.node_tag == "ingredient"
         ]
 
         # Should contain both base risotto ingredients AND the extended one

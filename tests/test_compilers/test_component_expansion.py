@@ -36,7 +36,7 @@ class TestCompiler(BagCompilerBase):
         """Recursively render bag to string."""
         parts = []
         for node in bag.nodes:
-            tag = node.tag or node.label
+            tag = node.node_tag or node.label
             if isinstance(node.value, Bag):
                 children = self._render_bag(node.value)
                 parts.append(f"<{tag}>{children}</{tag}>")
@@ -135,7 +135,7 @@ class TestComponentExpansion:
         # Before compile: node exists but value is None or empty
         node = bag.get_node("myform_0")
         assert node is not None
-        assert node.tag == "myform"
+        assert node.node_tag == "myform"
 
         # Compile triggers expansion
         result = compile_and_render(bag.builder)

@@ -368,7 +368,7 @@ class TestBagBuilderBase:
         bag = Bag(builder=Builder)
         node = bag.item(name="test")
 
-        assert node.tag == "item"
+        assert node.node_tag == "item"
         assert node.label == "item_0"
         assert node.attr.get("name") == "test"
 
@@ -410,7 +410,7 @@ class TestBagBuilderBase:
         node = bag.item(name="test")
 
         # Default handler should work
-        assert node.tag == "item"
+        assert node.node_tag == "item"
         assert node.attr.get("name") == "test"
 
 

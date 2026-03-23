@@ -42,7 +42,7 @@ class TestCompiler(BagCompilerBase):
     def _render_bag(self, bag):
         parts = []
         for node in bag:
-            tag = node.tag or node.label
+            tag = node.node_tag or node.label
             value = node.static_value
             if isinstance(value, Bag):
                 children = self._render_bag(value)

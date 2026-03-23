@@ -40,7 +40,7 @@ class TestHtmlBuilder:
         node = bag.div(id="main", class_="container")
 
         assert isinstance(node, BagNode)
-        assert node.tag == "div"
+        assert node.node_tag == "div"
         assert node.attr.get("id") == "main"
         assert node.attr.get("class_") == "container"
 
@@ -50,7 +50,7 @@ class TestHtmlBuilder:
         node = bag.br()
 
         assert node.value is None
-        assert node.tag == "br"
+        assert node.node_tag == "br"
 
     def test_create_element_with_value(self):
         """Elements can have text content."""
@@ -58,7 +58,7 @@ class TestHtmlBuilder:
         node = bag.p("Hello, World!")
 
         assert node.value == "Hello, World!"
-        assert node.tag == "p"
+        assert node.node_tag == "p"
 
     def test_nested_elements(self):
         """Creates nested HTML structure."""

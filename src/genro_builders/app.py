@@ -274,8 +274,8 @@ class BagAppBase:
             _attributes=dict(node.attr),
             node_position=ind,
             _reason="store",
+            node_tag=node.node_tag,
         )
-        new_node.tag = node.tag
 
         # Bind ^pointers on the new subtree
         node_path = f"{parent_path}.{node.label}" if parent_path else node.label

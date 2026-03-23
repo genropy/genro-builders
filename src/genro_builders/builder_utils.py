@@ -268,7 +268,7 @@ def print_bag(
     def add_node(node: Any, depth: int = 0) -> None:
         """Add a node to the document recursively."""
         indent_str = "    " * depth
-        tag = node.tag or ""
+        tag = node.node_tag or ""
         label = node.label
         value = node.value
 

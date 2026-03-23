@@ -69,7 +69,7 @@ class HtmlBuilder(BagBuilderBase):
         """Recursively convert a node to HTML."""
         from genro_bag import Bag
 
-        tag = node.tag or node.label
+        tag = node.node_tag or node.label
         attrs = " ".join(f'{k}="{v}"' for k, v in node.attr.items() if not k.startswith("_"))
         attrs_str = f" {attrs}" if attrs else ""
         spaces = "  " * indent

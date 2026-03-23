@@ -336,7 +336,7 @@ class TestComponentNodeCreation:
 
         node = bag.get_node("myform_0")
         assert node is not None
-        assert node.tag == "myform"
+        assert node.node_tag == "myform"
 
     def test_component_attrs_stored_on_node(self):
         """Component attributes are stored on node at call time."""
@@ -371,9 +371,9 @@ class TestComponentNodeCreation:
 
         assert len(bag) == 3
         nodes = list(bag.nodes)
-        assert nodes[0].tag == "div"
-        assert nodes[1].tag == "form"
-        assert nodes[2].tag == "div"
+        assert nodes[0].node_tag == "div"
+        assert nodes[1].node_tag == "form"
+        assert nodes[2].node_tag == "div"
 
     def test_component_inside_element(self):
         """Component can be placed inside an element."""
@@ -392,7 +392,7 @@ class TestComponentNodeCreation:
 
         assert len(div.value) == 1
         form_node = div.value.get_node("form_0")
-        assert form_node.tag == "form"
+        assert form_node.node_tag == "form"
 
     def test_component_node_label_generation(self):
         """Component nodes get auto-generated labels like elements."""
@@ -422,7 +422,7 @@ class TestComponentNodeCreation:
         bag.myform(node_label="my_custom_form")
 
         assert bag.get_node("my_custom_form") is not None
-        assert bag.get_node("my_custom_form").tag == "myform"
+        assert bag.get_node("my_custom_form").node_tag == "myform"
 
 
 # =============================================================================

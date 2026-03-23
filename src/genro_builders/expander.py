@@ -11,7 +11,7 @@ Example:
     >>> # bag has: pasta (component) -> lasagne_sauce (component) -> ...
     >>> for path, node in expand(bag):
     ...     # Component wrappers are invisible, only leaf content appears
-    ...     print(f"{path}: {node.tag}")
+    ...     print(f"{path}: {node.node_tag}")
 """
 from __future__ import annotations
 

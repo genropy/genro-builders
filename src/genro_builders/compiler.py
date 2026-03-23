@@ -148,12 +148,12 @@ class BagCompilerBase(ABC):
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
             if isinstance(value, Bag):
                 value = self._materialize(value)
-            new_node = result.set_item(
+            result.set_item(
                 node.label,
                 value,
                 _attributes=dict(node.attr),
+                node_tag=node.node_tag,
             )
-            new_node.tag = node.tag
 
         return result
 
@@ -203,7 +203,7 @@ class BagCompilerBase(ABC):
         2. @compile_handler method matching tag name
         3. default_compile()
         """
-        tag = node.tag or node.label
+        tag = node.node_tag or node.label
 
         # Build context
         ctx = self._build_context(node)

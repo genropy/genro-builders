@@ -688,16 +688,18 @@ class BagBuilderBase(ABC):
         Raises ValueError if validation fails, KeyError if parent tag not in schema.
         """
         parent_node = build_where._parent_node
-        if parent_node and parent_node.tag:
-            parent_info = self.get_schema_info(parent_node.tag)
+        if parent_node and parent_node.node_tag:
+            parent_info = self.get_schema_info(parent_node.node_tag)
             self._accept_child(parent_node, parent_info, node_tag, node_position)
 
         child_info = self.get_schema_info(node_tag)
         self._validate_parent_tags(child_info, parent_node)
 
         node_label = node_label or self._auto_label(build_where, node_tag)
-        child_node = build_where.set_item(node_label, node_value, _attributes=dict(attr), node_position=node_position)
-        child_node.tag = node_tag
+        child_node = build_where.set_item(
+            node_label, node_value, _attributes=dict(attr),
+            node_position=node_position, node_tag=node_tag,
+        )
 
         if parent_node:
             self._validate_sub_tags(parent_node, parent_info)
@@ -803,7 +805,7 @@ class BagBuilderBase(ABC):
             node: The node to validate.
             info: Schema info dict from get_schema_info().
         """
-        node_tag = node.tag
+        node_tag = node.node_tag
         if not node_tag:
             node._invalid_reasons = []
             return
@@ -818,7 +820,7 @@ class BagBuilderBase(ABC):
             node._invalid_reasons = []
             return
 
-        children_tags = [n.tag for n in node.value.nodes] if isinstance(node.value, Bag) else []
+        children_tags = [n.node_tag for n in node.value.nodes] if isinstance(node.value, Bag) else []
 
         node._invalid_reasons = self._validate_children_tags(
             node_tag, sub_tags_compiled, children_tags
@@ -846,7 +848,7 @@ class BagBuilderBase(ABC):
 
         # Build children_tags = current + new
         children_tags = (
-            [n.tag for n in target_node.value.nodes] if isinstance(target_node.value, Bag) else []
+            [n.node_tag for n in target_node.value.nodes] if isinstance(target_node.value, Bag) else []
         )
 
         # Insert new tag at correct position
@@ -857,7 +859,7 @@ class BagBuilderBase(ABC):
         )
         children_tags.insert(idx, child_tag)
 
-        self._validate_children_tags(target_node.tag, sub_tags_compiled, children_tags)
+        self._validate_children_tags(target_node.node_tag, sub_tags_compiled, children_tags)
 
     def _validate_parent_tags(
         self,
@@ -877,7 +879,7 @@ class BagBuilderBase(ABC):
         if parent_tags_compiled is None:
             return
 
-        parent_tag = parent_node.tag if parent_node else None
+        parent_tag = parent_node.node_tag if parent_node else None
         if parent_tag not in parent_tags_compiled:
             valid_parents = ", ".join(sorted(parent_tags_compiled))
             raise ValueError(
@@ -1202,7 +1204,7 @@ class BagBuilderBase(ABC):
 
         # Build template context: node_value, node_label, and all attributes
         # Start with default values from schema for optional parameters
-        tag = node.tag or node.label
+        tag = node.node_tag or node.label
         info = self.get_schema_info(tag)
         call_args = info.get("call_args_validations") or {}
         template_ctx: dict[str, Any] = {}
