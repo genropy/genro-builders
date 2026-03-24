@@ -1,9 +1,10 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BagCompilerBase — compile() returns CompiledBag, rendering is separate."""
+"""Tests for BagCompilerBase — compile() populates target, rendering is separate."""
 from __future__ import annotations
 
 from genro_bag import Bag
 from genro_builders import BagBuilderBase, BagCompilerBase, compile_handler
+from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag
 from genro_builders.builders import component, element
 
@@ -56,11 +57,24 @@ class TagBuilder(BagBuilderBase):
         comp.text("body content")
 
 
+def _compile(bag, data=None):
+    """Helper: compile bag into a new target with empty binding."""
+    compiler = TagCompiler(bag.builder)
+    target = BuilderBag(builder=TagBuilder)
+    binding = BindingManager()
+    if data is None:
+        data = Bag()
+    compiler.compile(bag, target, data, binding)
+    return target
+
+
 def compile_and_render(builder) -> str:
-    """Helper: compile bag → CompiledBag → render to string."""
+    """Helper: compile bag → target → render to string."""
     compiler = builder._compiler
-    compiled = compiler.compile(builder._bag)
-    return compiler.render(compiled)
+    target = BuilderBag(builder=TagBuilder)
+    binding = BindingManager()
+    compiler.compile(builder._bag, target, Bag(), binding)
+    return compiler.render(target)
 
 
 # =============================================================================
@@ -69,25 +83,24 @@ def compile_and_render(builder) -> str:
 
 
 class TestCompileReturnsCompiledBag:
-    """compile() returns a Bag (CompiledBag), not a string."""
+    """compile() populates target Bag with expanded components and resolved pointers."""
 
     def test_compile_returns_bag(self):
-        """compile() returns a Bag instance."""
+        """compile() populates a target Bag."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("Hello")
 
-        compiler = TagCompiler(bag.builder)
-        result = compiler.compile(bag)
+        compiled = _compile(bag)
 
-        assert isinstance(result, Bag)
+        assert isinstance(compiled, Bag)
+        assert compiled.get_node("heading_0") is not None
 
     def test_compiled_bag_has_expanded_components(self):
         """CompiledBag has components expanded."""
         bag = BuilderBag(builder=TagBuilder)
         bag.section(title="Test")
 
-        compiler = TagCompiler(bag.builder)
-        compiled = compiler.compile(bag)
+        compiled = _compile(bag)
 
         # The section should be expanded — its children visible
         section_node = compiled.get_node("section_0")
@@ -103,8 +116,7 @@ class TestCompileReturnsCompiledBag:
         data = Bag()
         data["title"] = "Resolved"
 
-        compiler = TagCompiler(bag.builder)
-        compiled = compiler.compile(bag, data=data)
+        compiled = _compile(bag, data=data)
 
         heading = compiled.get_node("heading_0")
         assert heading.value == "Resolved"
@@ -114,8 +126,7 @@ class TestCompileReturnsCompiledBag:
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
 
-        compiler = TagCompiler(bag.builder)
-        compiled = compiler.compile(bag)
+        compiled = _compile(bag)
 
         heading = compiled.get_node("heading_0")
         assert heading.value == "^title"
@@ -186,8 +197,9 @@ class TestDefaultCompile:
         bag.plain("raw text")
 
         compiler = ConcreteCompiler(bag.builder)
-        compiled = compiler.compile(bag)
-        result = compiler.render(compiled)
+        target = BuilderBag(builder=MinimalBuilder)
+        compiler.compile(bag, target, Bag(), BindingManager())
+        result = compiler.render(target)
 
         assert "raw text" in result
 
@@ -209,8 +221,9 @@ class TestDefaultCompile:
         bag.tag("content")
 
         compiler = Compiler(bag.builder)
-        compiled = compiler.compile(bag)
-        result = compiler.render(compiled)
+        target = BuilderBag(builder=TemplateBuilder)
+        compiler.compile(bag, target, Bag(), BindingManager())
+        result = compiler.render(target)
 
         assert "<tag_0>content</tag_0>" in result
 
@@ -232,8 +245,9 @@ class TestDefaultCompile:
         bag.tag("value")
 
         compiler = Compiler(bag.builder)
-        compiled = compiler.compile(bag)
-        result = compiler.render(compiled)
+        target = BuilderBag(builder=BadTemplateBuilder)
+        compiler.compile(bag, target, Bag(), BindingManager())
+        result = compiler.render(target)
 
         assert "{missing_key}" in result
 
@@ -258,8 +272,9 @@ class TestDefaultCompile:
         bag.tag("hello")
 
         compiler = CbCompiler(bag.builder)
-        compiled = compiler.compile(bag)
-        result = compiler.render(compiled)
+        target = BuilderBag(builder=CbBuilder)
+        compiler.compile(bag, target, Bag(), BindingManager())
+        result = compiler.render(target)
 
         assert "HELLO" in result
 
@@ -285,8 +300,9 @@ class TestDefaultCompile:
         outer.inner("child content")
 
         compiler = Compiler(bag.builder)
-        compiled = compiler.compile(bag)
-        result = compiler.render(compiled)
+        target = BuilderBag(builder=NestBuilder)
+        compiler.compile(bag, target, Bag(), BindingManager())
+        result = compiler.render(target)
 
         assert "child content" in result
 
@@ -308,8 +324,9 @@ class TestDefaultCompile:
         bag.empty()
 
         compiler = Compiler(bag.builder)
-        compiled = compiler.compile(bag)
-        result = compiler.render(compiled)
+        target = BuilderBag(builder=EmptyBuilder)
+        compiler.compile(bag, target, Bag(), BindingManager())
+        result = compiler.render(target)
 
         assert result == ""
 
@@ -333,8 +350,9 @@ class TestScriptModeCompile:
         data["body"] = "Resolved Body"
 
         compiler = TagCompiler(bag.builder)
-        compiled = compiler.compile(bag, data=data)
-        result = compiler.render(compiled)
+        target = BuilderBag(builder=TagBuilder)
+        compiler.compile(bag, target, data, BindingManager())
+        result = compiler.render(target)
 
         assert "# Resolved Title" in result
         assert "Resolved Body" in result
@@ -344,8 +362,8 @@ class TestScriptModeCompile:
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
 
+        compiled = _compile(bag)
         compiler = TagCompiler(bag.builder)
-        compiled = compiler.compile(bag)
         result = compiler.render(compiled)
 
         assert "^title" in result
@@ -371,7 +389,8 @@ class TestScriptModeCompile:
         data["theme.color"] = "blue"
 
         compiler = Compiler(bag.builder)
-        compiled = compiler.compile(bag, data=data)
-        result = compiler.render(compiled)
+        target = BuilderBag(builder=AttrBuilder)
+        compiler.compile(bag, target, data, BindingManager())
+        result = compiler.render(target)
 
         assert "color=blue" in result

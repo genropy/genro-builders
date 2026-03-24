@@ -7,15 +7,19 @@ Coordinates the 4-stage pipeline:
     3. Bound Bag (subscriptions active, reactive updates)
     4. Output (rendered by compiler)
 
-Compilation is a single recursive walk (_compile_bag) that for each node:
-    1. Expands components (via resolver)
-    2. Resolves ^pointers against data
-    3. Registers subscriptions in the binding map
+Compilation is delegated entirely to the compiler's compile() method —
+a single recursive walk that for each node:
+    1. Cleans subscription map for the subtree
+    2. Expands components (via resolver)
+    3. Resolves ^pointers against data
+    4. Registers subscriptions in the binding map
+    5. Recurses into children
 
-The same method handles full compile and incremental compile on subtrees.
+The same compiler.compile() handles full compile and incremental compile
+on subtrees — the difference is only the entry point.
 
 Reactivity:
-    - Source change → incremental compile on subtree
+    - Source change → incremental compile on subtree via compiler.compile()
     - Data change → subscription updates nodes → re-render
     - Recipe change → full rebuild()
 
@@ -47,7 +51,6 @@ from genro_bag import Bag, BagNode
 from .binding import BindingManager
 from .builder_bag import BuilderBag
 from .compiler import BagCompilerBase
-from .pointer import scan_for_pointers
 
 
 class BagAppBase:
@@ -147,7 +150,7 @@ class BagAppBase:
         """
 
     def compile(self) -> str:
-        """Full pipeline: compile (materialize + resolve + register) → subscribe → render.
+        """Full pipeline: compile → subscribe → render.
 
         Returns:
             Compiled output string.
@@ -164,8 +167,8 @@ class BagAppBase:
         # 1. Clear compiled bag and binding map
         self._clear_compiled()
 
-        # 2. Compile: materialize + resolve pointers + register in map
-        self._compile_bag(self.source, self.compiled)
+        # 2. Compile: expand + resolve pointers + register in map
+        self._compiler.compile(self.source, self.compiled, self._data, self._binding)
 
         # 3. Subscribe to data changes for reactive updates
         self._binding.subscribe(self.compiled, self._data)
@@ -181,124 +184,6 @@ class BagAppBase:
         # 5. Render
         self._output = self.render(self.compiled)
         return self._output
-
-    # -------------------------------------------------------------------------
-    # Compilation: single recursive walk
-    # -------------------------------------------------------------------------
-
-    def _compile_bag(
-        self, source: Bag, target: Bag, prefix: str = "",
-    ) -> None:
-        """Compile source into target: materialize + resolve pointers + register map.
-
-        Recursive: for each node, expands components, resolves ^pointers,
-        registers subscriptions, then recurses into children.
-
-        Used for both full compile and incremental compile on subtrees.
-
-        Args:
-            source: The source Bag to compile from.
-            target: The compiled Bag to populate.
-            prefix: Path prefix for subscription map registration.
-        """
-        for node in source:
-            # Expand component if resolver present
-            value = node.get_value(static=False) if node.resolver is not None else node.static_value
-
-            # Insert into compiled bag
-            new_node = target.set_item(
-                node.label,
-                value if not isinstance(value, Bag) else BuilderBag(builder=self.builder_class),
-                _attributes=dict(node.attr),
-                node_tag=node.node_tag,
-            )
-
-            compiled_path = f"{prefix}.{node.label}" if prefix else node.label
-
-            # Resolve ^pointers and register in map
-            self._resolve_and_register(new_node, compiled_path)
-
-            # Recurse into children
-            if isinstance(value, Bag):
-                self._compile_bag(value, new_node.value, prefix=compiled_path)
-
-    def _compile_node(
-        self, node: BagNode, target: Bag, path: str, ind: int | None = None,
-    ) -> None:
-        """Compile a single source node into target (incremental).
-
-        Same logic as _compile_bag but for a single node + children.
-
-        Args:
-            node: The source BagNode to compile.
-            target: The target Bag to insert into.
-            path: The compiled path for this node.
-            ind: Optional position index for insertion.
-        """
-        value = node.get_value(static=False) if node.resolver is not None else node.static_value
-
-        new_node = target.set_item(
-            node.label,
-            value if not isinstance(value, Bag) else BuilderBag(builder=self.builder_class),
-            _attributes=dict(node.attr),
-            node_position=ind,
-            _reason="source",
-            node_tag=node.node_tag,
-        )
-
-        self._resolve_and_register(new_node, path)
-
-        if isinstance(value, Bag):
-            self._compile_bag(value, new_node.value, prefix=path)
-
-    def _resolve_and_register(self, node: BagNode, compiled_path: str) -> None:
-        """Resolve ^pointers on a node and register subscriptions in the map.
-
-        Args:
-            node: The compiled BagNode to process.
-            compiled_path: The absolute path of this node in the compiled bag.
-        """
-        pointers = scan_for_pointers(node)
-        if not pointers:
-            return
-
-        for pointer_info, location in pointers:
-            # Resolve datapath for relative pointers
-            datapath = ""
-            if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
-                datapath = node._resolve_datapath()
-
-            # Compute absolute data path
-            data_path = pointer_info.path
-            if pointer_info.is_relative:
-                rel = data_path[1:]  # strip leading '.'
-                data_path = f"{datapath}.{rel}" if datapath else rel
-
-            # Resolve value from data and apply
-            resolved = self._resolve_pointer(node, pointer_info, data_path, datapath)
-            if location == "value":
-                node.set_value(resolved, trigger=False)
-            elif location.startswith("attr:"):
-                attr_name = location[5:]
-                node.set_attr({attr_name: resolved}, trigger=False)
-
-            # Build map keys and register
-            data_key = f"{data_path}?{pointer_info.attr}" if pointer_info.attr else data_path
-            compiled_entry = compiled_path if location == "value" else f"{compiled_path}?{location[5:]}"
-
-            self._binding.register(data_key, compiled_entry)
-
-    def _resolve_pointer(
-        self, node: BagNode, pointer_info: Any, data_path: str, datapath: str,
-    ) -> Any:
-        """Resolve a single ^pointer value from the data Bag."""
-        if hasattr(node, "_get_relative_data"):
-            return node._get_relative_data(self._data, pointer_info.raw[1:])  # strip ^
-
-        if pointer_info.attr:
-            data_node = self._data.get_node(data_path)
-            return data_node.attr.get(pointer_info.attr) if data_node else None
-        return self._data.get_item(data_path)
 
     # -------------------------------------------------------------------------
     # Lifecycle helpers
@@ -398,7 +283,8 @@ class BagAppBase:
     ) -> None:
         """Called when a node is inserted into the source.
 
-        Compiles the new node (materialize + resolve + register) and re-renders.
+        Insert: create the node in compiled at the right position,
+        then compile its children via compiler.compile().
         """
         if not self._auto_compile or node is None:
             return
@@ -415,7 +301,26 @@ class BagAppBase:
             target_bag = self.compiled
 
         node_path = f"{parent_path}.{node.label}" if parent_path else node.label
-        self._compile_node(node, target_bag, node_path, ind=ind)
+
+        # Expand component if resolver present
+        value = node.get_value(static=False) if node.resolver is not None else node.static_value
+
+        # Insert node in compiled at the right position
+        new_node = target_bag.set_item(
+            node.label,
+            value if not isinstance(value, Bag) else BuilderBag(builder=self.builder_class),
+            _attributes=dict(node.attr),
+            node_tag=node.node_tag,
+            node_position=ind,
+            _reason="source",
+        )
+
+        # Resolve pointers on this node and register in map
+        self._compiler._resolve_and_register(new_node, node_path, self._data, self._binding)
+
+        # Compile children if value is a Bag
+        if isinstance(value, Bag):
+            self._compiler.compile(value, new_node.value, self._data, self._binding, prefix=node_path)
 
         self._rerender()
 
@@ -429,7 +334,7 @@ class BagAppBase:
     ) -> None:
         """Called when a node in the source is updated (value or attributes).
 
-        Cleans up old bindings, recompiles the node, and re-renders.
+        Update: remove old children from map, then recompile the subtree.
         """
         if not self._auto_compile or pathlist is None:
             return
@@ -444,23 +349,24 @@ class BagAppBase:
         if evt == "upd_value":
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
 
-            # Clean up old bindings for this subtree
+            # Remove old bindings for this subtree
             self._binding.unbind_path(path)
 
             if isinstance(value, Bag):
-                # Replace with empty bag, then compile children into it
+                # Replace value with empty bag, resolve pointers on the node,
+                # then compile children into the new bag
                 compiled_node.set_value(BuilderBag(builder=self.builder_class), _reason="source")
-                self._resolve_and_register(compiled_node, path)
-                self._compile_bag(value, compiled_node.value, prefix=path)
+                self._compiler._resolve_and_register(compiled_node, path, self._data, self._binding)
+                self._compiler.compile(value, compiled_node.value, self._data, self._binding, prefix=path)
             else:
                 compiled_node.set_value(value, _reason="source")
-                self._resolve_and_register(compiled_node, path)
+                self._compiler._resolve_and_register(compiled_node, path, self._data, self._binding)
 
         elif evt == "upd_attrs":
             if node is not None:
                 compiled_node.set_attr(dict(node.attr))
                 self._binding.unbind_path(path)
-                self._resolve_and_register(compiled_node, path)
+                self._compiler._resolve_and_register(compiled_node, path, self._data, self._binding)
 
         self._rerender()
 

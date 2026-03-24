@@ -1053,22 +1053,42 @@ class BagBuilderBase(ABC):
         return self._compiler_class(self)
 
     def _compile(self, **kwargs: Any) -> Any:
-        """Compile the bag into a CompiledBag (or string for legacy formats).
+        """Compile the bag via the compiler, then render to output string.
 
-        If _compiler_class is defined, delegates to _compiler.compile(bag)
-        which returns a CompiledBag (static Bag with components expanded
-        and pointers resolved).
+        If _compiler_class is defined, compiles source into a target bag
+        and then renders it using the compiler's render method.
 
         Without _compiler_class, falls back to XML/JSON serialization (string).
 
         Args:
-            **kwargs: Compilation parameters passed to compiler.
+            **kwargs: Extra parameters. 'destination' writes output to file.
+                'format' selects legacy format ('xml' or 'json').
 
         Returns:
-            CompiledBag (Bag) when using compiler, string for legacy formats.
+            Rendered output string.
         """
         if self._compiler_class is not None:
-            return self._compiler.compile(self._bag, **kwargs)
+            from .binding import BindingManager
+            from .builder_bag import BuilderBag
+
+            compiler = self._compiler
+            target = BuilderBag(builder=type(self))
+            data = kwargs.pop("data", None) or Bag()
+            binding = kwargs.pop("binding", None) or BindingManager()
+            compiler.compile(self._bag, target, data, binding)
+
+            destination = kwargs.get("destination")
+            if hasattr(compiler, "render"):
+                result = compiler.render(target)
+            else:
+                parts = list(compiler._walk_compile(target))
+                result = "\n".join(p for p in parts if p)
+
+            if destination is not None:
+                from pathlib import Path
+                Path(destination).write_text(result)
+
+            return result
         format_ = kwargs.get("format", "xml")
         if format_ == "xml":
             return self._bag.to_xml()

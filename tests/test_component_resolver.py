@@ -268,8 +268,7 @@ class TestBasedOn:
         bag = Bag(builder=B)
         bag.extended_form()
 
-        compiled = bag.builder._compile()
-        result = bag.builder._compiler.render(compiled)
+        result = bag.builder._compile()
         assert "<field" in result  # Should have fields from both base and extended
 
     def test_based_on_with_expand(self):
@@ -320,6 +319,5 @@ class TestBuilderOverride:
         bag = Bag(builder=OuterBuilder)
         bag.with_inner()
 
-        compiled = bag.builder._compile()
-        result = bag.builder._compiler.render(compiled)
+        result = bag.builder._compile()
         assert "<special" in result

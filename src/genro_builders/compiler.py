@@ -3,17 +3,16 @@
 
 A compiler has two distinct responsibilities:
 
-1. **compile(bag, data)** → CompiledBag:
-   Expand components (via resolvers) and resolve ^pointers against data.
-   The result is a static, fully resolved Bag — the CompiledBag.
+1. **compile(source, target, data, binding)** → None:
+   Single recursive walk: for each node, clean subscription map for the
+   subtree, expand components (via resolvers), resolve ^pointers against
+   data, register subscriptions in the binding map, recurse into children.
+   The same method handles full compile and incremental compile on subtrees.
 
 2. **Rendering** (subclass-defined):
    Transform the CompiledBag into an output format (HTML, YAML, etc.).
    Subclasses define their own rendering methods, optionally using
    @compile_handler for tag-based dispatch.
-
-The CompiledBag is the contract between compilation and rendering.
-Multiple renderers can consume the same CompiledBag.
 
 Decorators:
     @compile_handler: Mark a method as render handler for a specific tag.
@@ -36,6 +35,8 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 from genro_bag import Bag, BagNode
+
+from .pointer import scan_for_pointers
 
 # =============================================================================
 # Decorator
@@ -68,7 +69,7 @@ class BagCompilerBase(ABC):
     """Abstract base class for Bag compilers.
 
     Provides:
-        - compile(): Expand components + resolve pointers → CompiledBag
+        - compile(): Single recursive walk — expand, resolve, register
         - @compile_handler dispatch: tag-based rendering infrastructure
         - _walk_compile(), _build_context(), default_compile(): rendering utilities
 
@@ -104,82 +105,120 @@ class BagCompilerBase(ABC):
         self._compile_handlers = dict(type(self)._class_compile_handlers)
 
     # -------------------------------------------------------------------------
-    # compile() → CompiledBag
+    # compile() — single recursive walk
     # -------------------------------------------------------------------------
 
     def compile(
-        self, bag: Bag | None = None, data: Bag | None = None, target: Bag | None = None,
-    ) -> Bag:
-        """Compile a BuilderBag into a CompiledBag.
+        self,
+        source: Bag,
+        target: Bag,
+        data: Bag,
+        binding: Any,
+        prefix: str = "",
+    ) -> None:
+        """Compile source into target: expand, resolve pointers, register map.
 
-        Single-pass: expands components (via resolvers) and resolves ^pointers
-        against data in the same walk. The result is a static, fully resolved Bag.
+        Single recursive walk. For each node:
+        1. Clean subscription map for the subtree being compiled
+        2. Expand component if resolver present
+        3. Create node in target
+        4. Resolve ^pointers against data and register in binding map
+        5. Recurse into children (Bag values)
 
-        Args:
-            bag: The Bag to compile. If None, uses builder._bag.
-            data: Optional data Bag for ^pointer resolution.
-                If None, pointers are left as-is.
-            target: Optional target Bag to materialize into. If provided,
-                nodes are added to this Bag instead of creating a new one.
-
-        Returns:
-            CompiledBag — a static Bag with components expanded and
-            pointers resolved. Ready for rendering.
-        """
-        if bag is None:
-            bag = self.builder._bag
-
-        return self._materialize(bag, target=target, data=data)
-
-    # -------------------------------------------------------------------------
-    # Materialization (component expansion + pointer resolution)
-    # -------------------------------------------------------------------------
-
-    def _materialize(
-        self, bag: Bag, target: Bag | None = None, data: Bag | None = None,
-    ) -> Bag:
-        """Create a static copy with resolvers expanded and ^pointers resolved.
-
-        Single-pass: for each node, expand component if needed, then resolve
-        any ^pointers against data.
+        The same method handles full compile (from root) and incremental
+        compile (from a subtree). The unbind_path at each node ensures
+        stale entries are cleaned before re-registering.
 
         Args:
-            bag: The source Bag to materialize.
-            target: Optional target Bag to populate. If None, creates a new one.
-            data: Optional data Bag for ^pointer resolution.
+            source: The source Bag to compile from.
+            target: The compiled Bag to populate.
+            data: Data Bag for ^pointer resolution.
+            binding: BindingManager for subscription registration.
+            prefix: Path prefix for subscription map keys.
         """
         from .builder_bag import BuilderBag
-        from .pointer import scan_for_pointers
 
-        result = target if target is not None else BuilderBag(builder=type(self.builder))
+        for node in source:
+            compiled_path = f"{prefix}.{node.label}" if prefix else node.label
 
-        for node in bag:
+            # 1. Clean subscription map for this subtree
+            binding.unbind_path(compiled_path)
+
+            # 2. Expand component if resolver present
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
-            if isinstance(value, Bag):
-                value = self._materialize(value, data=data)
-            new_node = result.set_item(
+
+            # 3. Create node in target
+            new_node = target.set_item(
                 node.label,
-                value,
+                value if not isinstance(value, Bag) else BuilderBag(builder=type(self.builder)),
                 _attributes=dict(node.attr),
                 node_tag=node.node_tag,
             )
 
-            # Resolve ^pointers in-place during materialization
-            if data is not None:
-                pointers = scan_for_pointers(new_node)
-                for pointer_info, location in pointers:
-                    if hasattr(new_node, "_get_relative_data"):
-                        resolved = new_node._get_relative_data(data, pointer_info.raw[1:])
-                    else:
-                        resolved = data.get_item(pointer_info.path)
+            # 4. Resolve ^pointers and register in map
+            self._resolve_and_register(new_node, compiled_path, data, binding)
 
-                    if location == "value":
-                        new_node.set_value(resolved, trigger=False)
-                    elif location.startswith("attr:"):
-                        attr_name = location[5:]
-                        new_node.set_attr({attr_name: resolved}, trigger=False)
+            # 5. Recurse into children
+            if isinstance(value, Bag):
+                self.compile(value, new_node.value, data, binding, prefix=compiled_path)
 
-        return result
+    # -------------------------------------------------------------------------
+    # Pointer resolution and registration
+    # -------------------------------------------------------------------------
+
+    def _resolve_and_register(
+        self, node: BagNode, compiled_path: str, data: Bag, binding: Any,
+    ) -> None:
+        """Resolve ^pointers on a node and register subscriptions in the map.
+
+        Args:
+            node: The compiled BagNode to process.
+            compiled_path: The absolute path of this node in the compiled bag.
+            data: Data Bag for ^pointer resolution.
+            binding: BindingManager for subscription registration.
+        """
+        pointers = scan_for_pointers(node)
+        if not pointers:
+            return
+
+        for pointer_info, location in pointers:
+            # Resolve datapath for relative pointers
+            datapath = ""
+            if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
+                datapath = node._resolve_datapath()
+
+            # Compute absolute data path
+            data_path = pointer_info.path
+            if pointer_info.is_relative:
+                rel = data_path[1:]  # strip leading '.'
+                data_path = f"{datapath}.{rel}" if datapath else rel
+
+            # Resolve value from data and apply (only if found)
+            resolved = self._resolve_pointer(node, pointer_info, data_path, data)
+            if resolved is not None:
+                if location == "value":
+                    node.set_value(resolved, trigger=False)
+                elif location.startswith("attr:"):
+                    attr_name = location[5:]
+                    node.set_attr({attr_name: resolved}, trigger=False)
+
+            # Build map keys and register
+            data_key = f"{data_path}?{pointer_info.attr}" if pointer_info.attr else data_path
+            compiled_entry = compiled_path if location == "value" else f"{compiled_path}?{location[5:]}"
+
+            binding.register(data_key, compiled_entry)
+
+    def _resolve_pointer(
+        self, node: BagNode, pointer_info: Any, data_path: str, data: Bag,
+    ) -> Any:
+        """Resolve a single ^pointer value from the data Bag."""
+        if hasattr(node, "_get_relative_data"):
+            return node._get_relative_data(data, pointer_info.raw[1:])  # strip ^
+
+        if pointer_info.attr:
+            data_node = data.get_node(data_path)
+            return data_node.attr.get(pointer_info.attr) if data_node else None
+        return data.get_item(data_path)
 
     # -------------------------------------------------------------------------
     # Rendering utilities (for subclass use)
@@ -188,11 +227,11 @@ class BagCompilerBase(ABC):
     def _walk_compile(self, bag: Bag) -> Iterator[str]:
         """Walk bag and render each node via handler dispatch."""
         for node in bag:
-            result = self._compile_node(node)
+            result = self._render_node(node)
             if result is not None:
                 yield result
 
-    def _compile_node(self, node: BagNode) -> str | None:
+    def _render_node(self, node: BagNode) -> str | None:
         """Render a single node.
 
         Resolution order:

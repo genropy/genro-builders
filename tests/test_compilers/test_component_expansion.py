@@ -15,7 +15,9 @@ Expansion happens only during compile() via preprocess().
 
 import pytest
 
+from genro_bag import Bag as DataBag
 from genro_builders import BagBuilderBase, BagCompilerBase, compile_handler
+from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builders import component, element
 
@@ -48,10 +50,11 @@ class TestCompiler(BagCompilerBase):
 
 
 def compile_and_render(builder) -> str:
-    """Helper: compile bag to CompiledBag, then render to string."""
+    """Helper: compile bag into target, then render to string."""
     compiler = builder._compiler
-    compiled = compiler.compile(builder._bag)
-    return compiler.render(compiled)
+    target = Bag(builder=type(builder))
+    compiler.compile(builder._bag, target, DataBag(), BindingManager())
+    return compiler.render(target)
 
 
 # =============================================================================
