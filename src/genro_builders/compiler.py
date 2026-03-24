@@ -112,8 +112,8 @@ class BagCompilerBase(ABC):
     ) -> Bag:
         """Compile a BuilderBag into a CompiledBag.
 
-        Expands all components (via resolvers) and resolves ^pointers
-        against data. The result is a static, fully resolved Bag.
+        Single-pass: expands components (via resolvers) and resolves ^pointers
+        against data in the same walk. The result is a static, fully resolved Bag.
 
         Args:
             bag: The Bag to compile. If None, uses builder._bag.
@@ -129,69 +129,57 @@ class BagCompilerBase(ABC):
         if bag is None:
             bag = self.builder._bag
 
-        # 1. Materialize components
-        compiled = self._materialize(bag, target=target)
-
-        # 2. Resolve pointers
-        if data is not None:
-            self._resolve_pointers(compiled, data)
-
-        return compiled
+        return self._materialize(bag, target=target, data=data)
 
     # -------------------------------------------------------------------------
-    # Materialization (component expansion)
+    # Materialization (component expansion + pointer resolution)
     # -------------------------------------------------------------------------
 
-    def _materialize(self, bag: Bag, target: Bag | None = None) -> Bag:
-        """Create a static copy of the bag with all resolvers expanded.
+    def _materialize(
+        self, bag: Bag, target: Bag | None = None, data: Bag | None = None,
+    ) -> Bag:
+        """Create a static copy with resolvers expanded and ^pointers resolved.
+
+        Single-pass: for each node, expand component if needed, then resolve
+        any ^pointers against data.
 
         Args:
             bag: The source Bag to materialize.
             target: Optional target Bag to populate. If None, creates a new one.
+            data: Optional data Bag for ^pointer resolution.
         """
         from .builder_bag import BuilderBag
+        from .pointer import scan_for_pointers
 
         result = target if target is not None else BuilderBag(builder=type(self.builder))
 
         for node in bag:
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
             if isinstance(value, Bag):
-                value = self._materialize(value)
-            result.set_item(
+                value = self._materialize(value, data=data)
+            new_node = result.set_item(
                 node.label,
                 value,
                 _attributes=dict(node.attr),
                 node_tag=node.node_tag,
             )
 
+            # Resolve ^pointers in-place during materialization
+            if data is not None:
+                pointers = scan_for_pointers(new_node)
+                for pointer_info, location in pointers:
+                    if hasattr(new_node, "_get_relative_data"):
+                        resolved = new_node._get_relative_data(data, pointer_info.raw[1:])
+                    else:
+                        resolved = data.get_item(pointer_info.path)
+
+                    if location == "value":
+                        new_node.set_value(resolved, trigger=False)
+                    elif location.startswith("attr:"):
+                        attr_name = location[5:]
+                        new_node.set_attr({attr_name: resolved}, trigger=False)
+
         return result
-
-    # -------------------------------------------------------------------------
-    # Pointer resolution
-    # -------------------------------------------------------------------------
-
-    def _resolve_pointers(self, bag: Bag, data: Bag) -> None:
-        """Resolve all ^pointers in-place against data."""
-        from .pointer import scan_for_pointers
-
-        for node in bag:
-            pointers = scan_for_pointers(node)
-            for pointer_info, location in pointers:
-                if hasattr(node, "_get_relative_data"):
-                    resolved = node._get_relative_data(data, pointer_info.raw[1:])
-                else:
-                    resolved = data.get_item(pointer_info.path)
-
-                if location == "value":
-                    node.set_value(resolved, trigger=False)
-                elif location.startswith("attr:"):
-                    attr_name = location[5:]
-                    node.set_attr({attr_name: resolved}, trigger=False)
-
-            # Recurse into children
-            value = node.static_value
-            if isinstance(value, Bag):
-                self._resolve_pointers(value, data)
 
     # -------------------------------------------------------------------------
     # Rendering utilities (for subclass use)

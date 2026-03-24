@@ -1,23 +1,25 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """BindingManager — reactive data binding for ^pointer resolution.
 
-Manages the subscription map between a store Bag (with ^pointers) and a
-data Bag (source of values). When data changes, affected nodes are updated
-automatically.
+Manages the flat subscription map and reactive updates. The map is populated
+by the app during compilation; the BindingManager handles data change
+notifications and applies updates to the compiled Bag.
 
-Subscription map structure:
-    {(data_path, attr_or_none) → [(node, location), ...]}
+Subscription map structure (flat, string-only):
+    {data_key → [compiled_entry, ...]}
 
 Where:
-    data_path: resolved absolute path in the data Bag
-    attr_or_none: attribute name (from ?attr syntax) or None for value
-    node: BagNode in the store/static Bag
-    location: 'value' or 'attr:attribute_name'
+    data_key: absolute data path, optionally with ?attr
+              (e.g., 'user.name', 'theme.btn?color')
+    compiled_entry: absolute compiled node path, optionally with ?attr
+              to indicate where to write the value
+              (e.g., 'heading_0', 'widget_2?bg')
 
 Example:
     >>> manager = BindingManager()
-    >>> manager.bind(static_bag, data)
-    >>> data['user.name'] = 'Giovanni'  # triggers update on bound nodes
+    >>> manager.subscribe(compiled_bag, data)
+    >>> manager.register("user.name", "heading_0")
+    >>> data['user.name'] = 'Giovanni'  # triggers update on heading_0
 """
 from __future__ import annotations
 
@@ -27,14 +29,13 @@ from typing import Any
 
 from genro_bag import Bag, BagNode
 
-from .pointer import scan_for_pointers
-
 
 class BindingManager:
-    """Manages ^pointer binding between a store Bag and a data Bag.
+    """Manages the subscription map and reactive data updates.
 
-    Builds a subscription map during bind(), subscribes to data changes,
-    and updates bound nodes when data changes.
+    The app registers entries during compilation. The BindingManager
+    subscribes to data changes and updates compiled nodes via
+    set_item/set_attr when data changes.
     """
 
     def __init__(self, on_node_updated: Callable[[BagNode], None] | None = None):
@@ -44,35 +45,48 @@ class BindingManager:
             on_node_updated: Optional callback invoked when a bound node
                 is updated due to a data change. Receives the updated node.
         """
-        self._subscription_map: dict[tuple[str, str | None], list[tuple[BagNode, str]]] = defaultdict(list)
+        self._subscription_map: dict[str, list[str]] = defaultdict(list)
+        self._compiled: Bag | None = None
         self._data: Bag | None = None
         self._subscriber_id = "genro_builders_binding"
         self._on_node_updated = on_node_updated
 
     @property
-    def subscription_map(self) -> dict[tuple[str, str | None], list[tuple[BagNode, str]]]:
+    def subscription_map(self) -> dict[str, list[str]]:
         """The current subscription map (read-only)."""
         return dict(self._subscription_map)
 
-    def bind(self, bag: Bag, data: Bag) -> None:
-        """Walk bag, find ^pointers, resolve them, build subscription map.
+    # -------------------------------------------------------------------------
+    # Map registration
+    # -------------------------------------------------------------------------
 
-        Steps:
-            1. Clear previous bindings
-            2. Walk bag recursively
-            3. For each ^pointer: resolve, apply, register in map
-            4. Subscribe to data changes
+    def register(self, data_key: str, compiled_entry: str) -> None:
+        """Register a subscription entry in the map.
+
+        Called by the app during compilation for each ^pointer found.
 
         Args:
-            bag: The materialized Bag to scan for ^pointers.
+            data_key: Data path, optionally with ?attr suffix.
+            compiled_entry: Compiled node path, optionally with ?attr suffix.
+        """
+        self._subscription_map[data_key].append(compiled_entry)
+
+    # -------------------------------------------------------------------------
+    # Lifecycle
+    # -------------------------------------------------------------------------
+
+    def subscribe(self, compiled: Bag, data: Bag) -> None:
+        """Subscribe to data changes for reactive updates.
+
+        Called after the app has registered all entries in the map.
+
+        Args:
+            compiled: The compiled Bag (target for updates).
             data: The data Bag (source of values).
         """
-        self.unbind()
+        self._compiled = compiled
         self._data = data
 
-        self._walk_bind(bag, data)
-
-        # Subscribe to data changes for reactive updates
         if not data.backref:
             data.set_backref()
         data.subscribe(self._subscriber_id, any=self._on_data_changed)
@@ -82,61 +96,33 @@ class BindingManager:
         if self._data is not None:
             self._data.unsubscribe(self._subscriber_id, any=True)
         self._subscription_map.clear()
+        self._compiled = None
         self._data = None
 
     def unbind_path(self, path: str) -> None:
         """Remove all subscription entries for nodes at or under the given path.
 
         Args:
-            path: The store path to unbind (e.g., 'page.header').
-                  All nodes whose compiled path equals or starts with this path
-                  are removed from the subscription map.
+            path: The compiled path to unbind (e.g., 'page.header').
         """
-        to_remove: list[tuple[str, str | None]] = []
-        for map_key, entries in self._subscription_map.items():
+        to_remove: list[str] = []
+        for data_key, entries in self._subscription_map.items():
             remaining = [
-                (target_node, location)
-                for target_node, location in entries
-                if not self._node_under_path(target_node, path)
+                e for e in entries
+                if not self._compiled_path_under(e, path)
             ]
             if remaining:
-                self._subscription_map[map_key] = remaining
+                self._subscription_map[data_key] = remaining
             else:
-                to_remove.append(map_key)
+                to_remove.append(data_key)
         for key in to_remove:
             del self._subscription_map[key]
-
-    def _node_under_path(self, node: BagNode, path: str) -> bool:
-        """Check if a node's compiled path is at or under the given path."""
-        node_path = node.compiled.get("path", "")
-        return node_path == path or node_path.startswith(path + ".")
-
-    def bind_subtree(self, node: BagNode, data: Bag, path: str) -> None:
-        """Bind ^pointers on a single node and its children.
-
-        Used for incremental compilation after a node is inserted
-        into the compiled bag. Binds only this subtree without
-        re-scanning the entire tree.
-
-        Args:
-            node: The compiled BagNode to bind.
-            data: The data Bag for pointer resolution.
-            path: The path of this node in the compiled bag.
-        """
-        node.compiled["path"] = path
-        pointers = scan_for_pointers(node)
-        if pointers:
-            self._bind_node(node, pointers, data)
-
-        value = node.static_value
-        if isinstance(value, Bag):
-            self._walk_bind(value, data, prefix=path)
 
     def rebind(self, data: Bag) -> None:
         """Re-resolve all pointers against new data.
 
-        Uses stored binding info on nodes (node.compiled['bindings'])
-        to re-resolve without re-scanning the tree.
+        Iterates the flat subscription map, resolves each data_key from
+        the new data Bag, and applies the value to each compiled entry.
 
         Args:
             data: The new data Bag.
@@ -148,15 +134,11 @@ class BindingManager:
         if not data.backref:
             data.set_backref()
 
-        for entries in self._subscription_map.values():
-            for node, location in entries:
-                bindings = node.compiled.get("bindings", [])
-                for binding_info in bindings:
-                    if binding_info["location"] == location:
-                        self._apply_value(
-                            node, binding_info["pointer_info"], location, data,
-                            binding_info["datapath"], trigger=False,
-                        )
+        if self._compiled is not None:
+            for data_key, compiled_entries in self._subscription_map.items():
+                resolved = self._resolve_data_key(data, data_key)
+                for compiled_entry in compiled_entries:
+                    self._apply_to_compiled(compiled_entry, resolved, trigger=False)
 
         data.subscribe(self._subscriber_id, any=self._on_data_changed)
 
@@ -164,85 +146,30 @@ class BindingManager:
     # Internal
     # -------------------------------------------------------------------------
 
-    def _walk_bind(self, bag: Bag, data: Bag, prefix: str = "") -> None:
-        """Recursively walk bag and bind ^pointers."""
-        for node in bag:
-            path = f"{prefix}.{node.label}" if prefix else node.label
-            node.compiled["path"] = path
-            pointers = scan_for_pointers(node)
-            if pointers:
-                self._bind_node(node, pointers, data)
-
-            # Recurse into children
-            value = node.static_value
-            if isinstance(value, Bag):
-                self._walk_bind(value, data, prefix=path)
-
-    def _bind_node(
-        self,
-        node: BagNode,
-        pointers: list[tuple[Any, str]],
-        data: Bag,
-    ) -> None:
-        """Bind all ^pointers found on a single node."""
-        node.compiled["bindings"] = []
-
-        for pointer_info, location in pointers:
-            # Resolve datapath for relative pointers
-            datapath = ""
-            if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
-                datapath = node._resolve_datapath()
-
-            # Compute absolute data path
-            data_path = pointer_info.path
-            if pointer_info.is_relative:
-                rel = data_path[1:]  # strip leading '.'
-                data_path = f"{datapath}.{rel}" if datapath else rel
-
-            # Resolve and apply current value
-            self._apply_value(node, pointer_info, location, data, datapath, trigger=False)
-
-            # Register in subscription map
-            map_key = (data_path, pointer_info.attr)
-            self._subscription_map[map_key].append((node, location))
-
-            # Store binding info on node for rebind
-            node.compiled["bindings"].append({
-                "pointer_info": pointer_info,
-                "location": location,
-                "datapath": datapath,
-                "data_path": data_path,
-            })
-
-    def _apply_value(
-        self,
-        node: BagNode,
-        pointer_info: Any,
-        location: str,
-        data: Bag,
-        datapath: str,
-        trigger: bool = False,
-    ) -> None:
-        """Resolve a pointer and apply the value to the node."""
-        if hasattr(node, "_get_relative_data"):
-            resolved = node._get_relative_data(data, pointer_info.raw[1:])  # strip ^
+    def _apply_to_compiled(self, compiled_entry: str, value: Any, trigger: bool = True) -> None:
+        """Apply a resolved value to a compiled node via path."""
+        if self._compiled is None:
+            return
+        node_path, _, write_attr = compiled_entry.partition("?")
+        if write_attr:
+            node = self._compiled.get_node(node_path)
+            if node:
+                node.set_attr({write_attr: value}, trigger=trigger)
         else:
-            # Fallback: direct data access
-            data_path = pointer_info.path
-            if pointer_info.is_relative:
-                rel = data_path[1:]
-                data_path = f"{datapath}.{rel}" if datapath else rel
-            if pointer_info.attr:
-                data_node = data.get_node(data_path)
-                resolved = data_node.attr.get(pointer_info.attr) if data_node else None
-            else:
-                resolved = data.get_item(data_path)
+            self._compiled.set_item(node_path, value, do_trigger=trigger)
 
-        if location == "value":
-            node.set_value(resolved, trigger=trigger)
-        elif location.startswith("attr:"):
-            attr_name = location[5:]
-            node.set_attr({attr_name: resolved}, trigger=trigger)
+    def _resolve_data_key(self, data: Bag, data_key: str) -> Any:
+        """Resolve a value from the data Bag given a data_key string."""
+        data_path, _, data_attr = data_key.partition("?")
+        if data_attr:
+            data_node = data.get_node(data_path)
+            return data_node.attr.get(data_attr) if data_node else None
+        return data.get_item(data_path)
+
+    def _compiled_path_under(self, compiled_entry: str, prefix: str) -> bool:
+        """Check if a compiled entry's path is at or under the given prefix."""
+        node_path = compiled_entry.partition("?")[0]
+        return node_path == prefix or node_path.startswith(prefix + ".")
 
     def _on_data_changed(
         self,
@@ -252,39 +179,42 @@ class BindingManager:
         evt: str = "",
         **kwargs: Any,
     ) -> None:
-        """Callback from data.subscribe — update affected bound nodes.
-
-        Args:
-            node: The data node that changed.
-            pathlist: Path components from data root to changed node.
-            oldvalue: Previous value.
-            evt: Event type ('upd_value', 'upd_attrs', 'ins', 'del').
-        """
+        """Callback from data.subscribe — update affected bound nodes."""
         if pathlist is None or self._data is None:
             return
 
         changed_path = ".".join(str(p) for p in pathlist)
+        reason = kwargs.get("reason")
 
         if evt == "upd_attrs":
-            # Attribute change: check each changed attr
             changed_attrs = oldvalue if isinstance(oldvalue, list) else []
             for attr_name in changed_attrs:
-                self._update_bound_nodes((changed_path, attr_name))
+                self._update_bound_nodes(f"{changed_path}?{attr_name}", reason=reason)
         else:
-            # Value change
-            self._update_bound_nodes((changed_path, None))
+            self._update_bound_nodes(changed_path, reason=reason)
 
-    def _update_bound_nodes(self, map_key: tuple[str, str | None]) -> None:
-        """Update all nodes bound to a specific data path."""
-        entries = self._subscription_map.get(map_key, [])
-        for target_node, location in entries:
-            bindings = target_node.compiled.get("bindings", [])
-            for binding_info in bindings:
-                if binding_info["location"] == location:
-                    self._apply_value(
-                        target_node, binding_info["pointer_info"], location,
-                        self._data, binding_info["datapath"], trigger=True,
-                    )
-                    if self._on_node_updated:
-                        self._on_node_updated(target_node)
-                    break
+    def _update_bound_nodes(self, data_key: str, reason: str | None = None) -> None:
+        """Update all compiled nodes bound to a specific data key.
+
+        Args:
+            data_key: The data key that changed.
+            reason: Optional compiled path of the node that originated the change.
+                    Used for anti-loop: skip if compiled entry matches reason.
+        """
+        entries = self._subscription_map.get(data_key, [])
+        if not entries or self._data is None or self._compiled is None:
+            return
+
+        resolved = self._resolve_data_key(self._data, data_key)
+
+        for compiled_entry in entries:
+            node_path = compiled_entry.partition("?")[0]
+            if reason and node_path == reason:
+                continue
+
+            self._apply_to_compiled(compiled_entry, resolved)
+
+            if self._on_node_updated:
+                target_node = self._compiled.get_node(node_path)
+                if target_node:
+                    self._on_node_updated(target_node)

@@ -323,8 +323,9 @@ class TestAppSourceDelete:
 
         # After delete, the binding for the deleted node should be gone
         for entries in app._binding.subscription_map.values():
-            for target_node, _location in entries:
-                assert target_node.compiled.get("path") != "heading_0"
+            for compiled_entry in entries:
+                node_path = compiled_entry.partition("?")[0]
+                assert node_path != "heading_0"
 
         assert "Hello" not in app.output
         assert "[text:static]" in app.output
@@ -595,6 +596,141 @@ class TestAppCompiledObservable:
 
         assert len(events) >= 1
         assert any(e[1] == "source" for e in events)
+
+
+class TestAppMapAdequacy:
+    """Tests that the subscription map adapts correctly on insert/update/delete."""
+
+    def test_insert_adds_to_map(self):
+        """Inserting a node with ^pointer adds an entry to the subscription map."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, source):
+                source.heading("static")
+
+        app = MyApp()
+        app.data["dynamic"] = "Resolved"
+        app.setup()
+
+        # No pointer in recipe → map should be empty
+        assert len(app._binding.subscription_map) == 0
+
+        # Insert a node with pointer
+        app.source.text("^dynamic")
+
+        smap = app._binding.subscription_map
+        assert "dynamic" in smap
+        assert any("text_0" in e for e in smap["dynamic"])
+
+    def test_delete_removes_from_map(self):
+        """Deleting a node with ^pointer removes its entry from the map."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, source):
+                source.heading("^title")
+                source.text("^body")
+
+        app = MyApp()
+        app.data["title"] = "T"
+        app.data["body"] = "B"
+        app.setup()
+
+        smap = app._binding.subscription_map
+        assert "title" in smap
+        assert "body" in smap
+
+        app.source.del_item("heading_0")
+
+        smap = app._binding.subscription_map
+        assert "title" not in smap
+        assert "body" in smap
+
+    def test_update_value_replaces_map_entry(self):
+        """Updating a node from static to ^pointer adds to the map."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, source):
+                source.heading("static")
+
+        app = MyApp()
+        app.data["title"] = "Dynamic"
+        app.setup()
+
+        assert len(app._binding.subscription_map) == 0
+
+        # Replace static value with pointer
+        app.source.set_item("heading_0", "^title")
+
+        smap = app._binding.subscription_map
+        assert "title" in smap
+        assert "heading_0" in smap["title"]
+
+    def test_update_pointer_to_static_removes_from_map(self):
+        """Updating a node from ^pointer to static removes from the map."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, source):
+                source.heading("^title")
+
+        app = MyApp()
+        app.data["title"] = "Hello"
+        app.setup()
+
+        assert "title" in app._binding.subscription_map
+
+        # Replace pointer with static value
+        app.source.set_item("heading_0", "static now")
+
+        assert "title" not in app._binding.subscription_map
+
+    def test_update_attr_pointer_adds_to_map(self):
+        """Updating attributes to include ^pointer adds to the map."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, source):
+                source.item(color="red")
+
+        app = MyApp()
+        app.data["theme.color"] = "blue"
+        app.setup()
+
+        assert len(app._binding.subscription_map) == 0
+
+        # Update attr to pointer
+        app.source.set_attr("item_0", color="^theme.color")
+
+        smap = app._binding.subscription_map
+        assert "theme.color" in smap
+        assert "item_0?color" in smap["theme.color"]
+
+    def test_insert_reactive_after_map_registration(self):
+        """After insert, data changes propagate to the new node."""
+
+        class MyApp(BagAppBase):
+            builder_class = TestBuilder
+
+            def recipe(self, source):
+                source.heading("static")
+
+        app = MyApp()
+        app.data["val"] = "first"
+        app.setup()
+
+        app.source.text("^val")
+        assert "first" in app.output
+
+        app.data["val"] = "second"
+        assert "second" in app.output
 
 
 class TestAppNoCompiler:
