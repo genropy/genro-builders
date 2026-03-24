@@ -59,7 +59,7 @@ class TestCompiler(BagCompilerBase):
         return "".join(parts)
 
 
-TestBuilder.compiler_class = TestCompiler
+TestBuilder._compiler_class = TestCompiler
 
 
 # =============================================================================
@@ -339,7 +339,7 @@ class TestAppSourceDelete:
             @element()
             def leaf(self): ...
 
-        SubtreeBuilder.compiler_class = TestCompiler
+        SubtreeBuilder._compiler_class = TestCompiler
 
         class MyApp(BagAppBase):
             builder_class = SubtreeBuilder
@@ -499,7 +499,7 @@ class TestAppSourceUpdate:
             @element()
             def leaf(self): ...
 
-        SubtreeBuilder.compiler_class = TestCompiler
+        SubtreeBuilder._compiler_class = TestCompiler
 
         class MyApp(BagAppBase):
             builder_class = SubtreeBuilder

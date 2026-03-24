@@ -81,7 +81,7 @@ class TestXsdBuilderCompile:
         doc = bag.Document()
         doc.Title("Test Document")
 
-        result = bag.builder.compile()
+        result = bag.builder._compile()
 
         assert isinstance(result, str)
         assert "Document" in result or "Title" in result
@@ -93,7 +93,7 @@ class TestXsdBuilderCompile:
         doc.Title("Test Title")
         doc.Count(42)
 
-        result = bag.builder.compile()
+        result = bag.builder._compile()
 
         assert isinstance(result, str)
         assert "Title" in result or "Test Title" in result
@@ -110,12 +110,12 @@ class TestXsdBuilderCompile:
             import xmlschema  # noqa: F401
 
             # xmlschema is installed, test validation
-            result = bag.builder.compile(full_validate=True)
+            result = bag.builder._compile(full_validate=True)
             assert isinstance(result, str)
         except ImportError:
             # xmlschema not installed, should raise ImportError with our message
             with pytest.raises(ImportError, match="xmlschema is required"):
-                bag.builder.compile(full_validate=True)
+                bag.builder._compile(full_validate=True)
 
 
 # =============================================================================

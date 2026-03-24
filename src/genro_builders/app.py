@@ -46,7 +46,7 @@ class BagAppBase:
     """Base class for reactive Bag applications.
 
     Subclasses must set ``builder_class`` and override ``recipe()``.
-    Optionally set ``compiler_class`` (falls back to builder's compiler_class).
+    Optionally set ``compiler_class`` (falls back to builder's _compiler_class).
 
     Lifecycle:
         1. __init__: create source, data, compiled shells, binding, compiler
@@ -80,7 +80,7 @@ class BagAppBase:
         self._auto_compile = False
         self._output: str | None = None
 
-        compiler_cls = self.compiler_class or getattr(self.builder_class, "compiler_class", None)
+        compiler_cls = self.compiler_class or getattr(self.builder_class, "_compiler_class", None)
         if compiler_cls:
             self._compiler: BagCompilerBase | None = compiler_cls(self.source.builder)
         else:

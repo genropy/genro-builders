@@ -252,7 +252,7 @@ class TestBasedOn:
         """based_on works through the full compile pipeline."""
 
         class B(BagBuilderBase):
-            compiler_class = SimpleCompiler
+            _compiler_class = SimpleCompiler
 
             @element()
             def field(self): ...
@@ -268,8 +268,8 @@ class TestBasedOn:
         bag = Bag(builder=B)
         bag.extended_form()
 
-        compiled = bag.builder.compile()
-        result = bag.builder.compiler.render(compiled)
+        compiled = bag.builder._compile()
+        result = bag.builder._compiler.render(compiled)
         assert "<field" in result  # Should have fields from both base and extended
 
     def test_based_on_with_expand(self):
@@ -308,7 +308,7 @@ class TestBuilderOverride:
             def special(self): ...
 
         class OuterBuilder(BagBuilderBase):
-            compiler_class = SimpleCompiler
+            _compiler_class = SimpleCompiler
 
             @component(builder=InnerBuilder)
             def with_inner(self, comp, **kwargs):
@@ -320,6 +320,6 @@ class TestBuilderOverride:
         bag = Bag(builder=OuterBuilder)
         bag.with_inner()
 
-        compiled = bag.builder.compile()
-        result = bag.builder.compiler.render(compiled)
+        compiled = bag.builder._compile()
+        result = bag.builder._compiler.render(compiled)
         assert "<special" in result

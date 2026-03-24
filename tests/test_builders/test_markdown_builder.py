@@ -22,21 +22,21 @@ class TestMarkdownHeadings:
         """h1 generates # prefix."""
         doc = Bag(builder=MarkdownBuilder)
         doc.h1("Title")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert result == "# Title"
 
     def test_h2(self):
         """h2 generates ## prefix."""
         doc = Bag(builder=MarkdownBuilder)
         doc.h2("Subtitle")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert result == "## Subtitle"
 
     def test_h3(self):
         """h3 generates ### prefix."""
         doc = Bag(builder=MarkdownBuilder)
         doc.h3("Section")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert result == "### Section"
 
     def test_multiple_headings(self):
@@ -44,7 +44,7 @@ class TestMarkdownHeadings:
         doc = Bag(builder=MarkdownBuilder)
         doc.h1("Title")
         doc.h2("Subtitle")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "# Title" in result
         assert "## Subtitle" in result
         assert "\n\n" in result
@@ -57,7 +57,7 @@ class TestMarkdownParagraph:
         """p generates plain text."""
         doc = Bag(builder=MarkdownBuilder)
         doc.p("This is a paragraph.")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert result == "This is a paragraph."
 
     def test_multiple_paragraphs(self):
@@ -65,7 +65,7 @@ class TestMarkdownParagraph:
         doc = Bag(builder=MarkdownBuilder)
         doc.p("First paragraph.")
         doc.p("Second paragraph.")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "First paragraph." in result
         assert "Second paragraph." in result
         assert "\n\n" in result
@@ -78,7 +78,7 @@ class TestMarkdownCode:
         """code generates fenced code block."""
         doc = Bag(builder=MarkdownBuilder)
         doc.code("print('hello')")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "```" in result
         assert "print('hello')" in result
 
@@ -86,7 +86,7 @@ class TestMarkdownCode:
         """code with lang attribute adds language."""
         doc = Bag(builder=MarkdownBuilder)
         doc.code("def foo(): pass", lang="python")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "```python" in result
         assert "def foo(): pass" in result
 
@@ -98,14 +98,14 @@ class TestMarkdownBlockquote:
         """blockquote generates > prefix."""
         doc = Bag(builder=MarkdownBuilder)
         doc.blockquote("A quote.")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert result == "> A quote."
 
     def test_blockquote_multiline(self):
         """blockquote handles multiple lines."""
         doc = Bag(builder=MarkdownBuilder)
         doc.blockquote("Line 1\nLine 2")
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "> Line 1" in result
         assert "> Line 2" in result
 
@@ -117,7 +117,7 @@ class TestMarkdownHorizontalRule:
         """hr generates ---."""
         doc = Bag(builder=MarkdownBuilder)
         doc.hr()
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert result == "---"
 
 
@@ -135,7 +135,7 @@ class TestMarkdownTable:
         row.td("foo")
         row.td("bar")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "| Name | Value |" in result
         assert "| --- | --- |" in result
         assert "| foo | bar |" in result
@@ -152,7 +152,7 @@ class TestMarkdownTable:
             row.td(f"a{i}")
             row.td(f"b{i}")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "| a0 | b0 |" in result
         assert "| a1 | b1 |" in result
         assert "| a2 | b2 |" in result
@@ -169,7 +169,7 @@ class TestMarkdownLists:
         ul.li("Item 2")
         ul.li("Item 3")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "- Item 1" in result
         assert "- Item 2" in result
         assert "- Item 3" in result
@@ -182,7 +182,7 @@ class TestMarkdownLists:
         ol.li("Second")
         ol.li("Third")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "1. First" in result
         assert "2. Second" in result
         assert "3. Third" in result
@@ -196,7 +196,7 @@ class TestMarkdownInline:
         doc = Bag(builder=MarkdownBuilder)
         doc.link("Click here", href="https://example.com")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "[Click here](https://example.com)" in result
 
     def test_img(self):
@@ -204,7 +204,7 @@ class TestMarkdownInline:
         doc = Bag(builder=MarkdownBuilder)
         doc.img(src="image.png", alt="My Image")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "![My Image](image.png)" in result
 
     def test_bold(self):
@@ -212,7 +212,7 @@ class TestMarkdownInline:
         doc = Bag(builder=MarkdownBuilder)
         doc.bold("important")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "**important**" in result
 
     def test_italic(self):
@@ -220,7 +220,7 @@ class TestMarkdownInline:
         doc = Bag(builder=MarkdownBuilder)
         doc.italic("emphasis")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert "*emphasis*" in result
 
 
@@ -233,7 +233,7 @@ class TestMarkdownCompile:
         doc.h1("Test")
         doc.p("Content")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
         assert isinstance(result, str)
         assert "# Test" in result
         assert "Content" in result
@@ -244,7 +244,7 @@ class TestMarkdownCompile:
         doc.h1("File Test")
 
         output_file = tmp_path / "test.md"
-        result = doc.builder.compile(destination=output_file)
+        result = doc.builder._compile(destination=output_file)
 
         assert output_file.exists()
         assert output_file.read_text() == result
@@ -276,7 +276,7 @@ class TestMarkdownCompleteDocument:
         ol.li("First step")
         ol.li("Second step")
 
-        result = doc.builder.compile()
+        result = doc.builder._compile()
 
         assert "# My Document" in result
         assert "## Code Example" in result

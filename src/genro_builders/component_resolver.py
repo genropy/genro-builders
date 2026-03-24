@@ -91,7 +91,7 @@ class ComponentResolver(BagResolver):
         """Resolve the parent component, handling recursive based_on chains."""
         from .builder_bag import BuilderBag
 
-        parent_info = builder_instance.get_schema_info(based_on)
+        parent_info = builder_instance._get_schema_info(based_on)
         parent_handler_name = parent_info.get("handler_name")
         parent_handler = getattr(builder_instance, parent_handler_name) if parent_handler_name else None
         parent_builder_class = parent_info.get("component_builder") or type(builder_instance)

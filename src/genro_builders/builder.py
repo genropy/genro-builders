@@ -450,8 +450,8 @@ class BagBuilderBase(ABC):
     """
 
     _class_schema: Bag  # Schema built from decorators at class definition
-    schema_path: str | Path | None = None  # Default schema path (class attribute)
-    compiler_class: type | None = None  # Default compiler class for this builder
+    _schema_path: str | Path | None = None  # Default schema path (class attribute)
+    _compiler_class: type | None = None  # Default compiler class for this builder
 
     # -------------------------------------------------------------------------
     # Initialization
@@ -461,7 +461,17 @@ class BagBuilderBase(ABC):
         """Build _class_schema Bag from @element and @component decorated methods."""
         super().__init_subclass__(**kwargs)
 
-        cls._class_schema = Bag().fill_from(getattr(cls, "schema_path", None))
+        schema_path = getattr(cls, "_schema_path", None)
+        if schema_path is not None:
+            cls._class_schema = Bag().fill_from(schema_path)
+        else:
+            # Inherit parent schema via MRO, then extend with own elements
+            parent_schema = None
+            for base in cls.__mro__[1:]:
+                if hasattr(base, "_class_schema"):
+                    parent_schema = base._class_schema
+                    break
+            cls._class_schema = Bag(source=parent_schema) if parent_schema else Bag()
 
         for tag_list, method_name, obj, decorator_info in _pop_decorated_methods(cls):
             if method_name:
@@ -518,8 +528,8 @@ class BagBuilderBase(ABC):
             schema_path: Optional path to load schema from. If not provided,
                 uses the class-level schema (_class_schema).
         """
-        self.bag = bag
-        self.bag.set_backref()
+        self._bag = bag
+        self._bag.set_backref()
 
         if schema_path is not None:
             self._schema = Bag().fill_from(schema_path)
@@ -580,7 +590,7 @@ class BagBuilderBase(ABC):
 
         def wrapper(destination_bag: Bag, *args: Any, node_tag: str = name, **kwargs: Any) -> Any:
             try:
-                info = self.get_schema_info(node_tag)
+                info = self._get_schema_info(node_tag)
             except KeyError as err:
                 raise AttributeError(f"'{type(self).__name__}' has no element '{node_tag}'") from err
 
@@ -672,9 +682,9 @@ class BagBuilderBase(ABC):
             node_tag: The tag name for the element.
             **attr: Node attributes.
         """
-        return self.child(build_where, node_tag, node_value, node_label=node_label, **attr)
+        return self._child(build_where, node_tag, node_value, node_label=node_label, **attr)
 
-    def child(
+    def _child(
         self,
         build_where: Bag,
         node_tag: str,
@@ -689,10 +699,10 @@ class BagBuilderBase(ABC):
         """
         parent_node = build_where._parent_node
         if parent_node and parent_node.node_tag:
-            parent_info = self.get_schema_info(parent_node.node_tag)
+            parent_info = self._get_schema_info(parent_node.node_tag)
             self._accept_child(parent_node, parent_info, node_tag, node_position)
 
-        child_info = self.get_schema_info(node_tag)
+        child_info = self._get_schema_info(node_tag)
         self._validate_parent_tags(child_info, parent_node)
 
         node_label = node_label or self._auto_label(build_where, node_tag)
@@ -898,7 +908,7 @@ class BagBuilderBase(ABC):
         """Add a child to a node.
 
         Uses _bag_call for schema elements (handles components and tag renames).
-        Falls back to self.child() for unknown tags (provides validation errors).
+        Falls back to self._child() for unknown tags (provides validation errors).
         """
         from .builder_bag import BuilderBag
 
@@ -914,8 +924,8 @@ class BagBuilderBase(ABC):
                 **attrs,
             )
 
-        # Tag not in schema: use child() which will validate and raise
-        return self.child(
+        # Tag not in schema: use _child() which will validate and raise
+        return self._child(
             node.value,
             child_tag,
             node_value=node_value,
@@ -927,16 +937,11 @@ class BagBuilderBase(ABC):
     # Schema access
     # -------------------------------------------------------------------------
 
-    @property
-    def schema(self) -> Bag:
-        """Return the instance schema."""
-        return self._schema
-
     def __contains__(self, name: str) -> bool:
         """Check if element exists in schema."""
-        return self.schema.get_node(name) is not None
+        return self._schema.get_node(name) is not None
 
-    def get_schema_info(self, name: str) -> dict:
+    def _get_schema_info(self, name: str) -> dict:
         """Return info dict for an element.
 
         Returns dict with keys:
@@ -947,7 +952,7 @@ class BagBuilderBase(ABC):
 
         Raises KeyError if element not in schema.
         """
-        schema_node = self.schema.get_node(name)
+        schema_node = self._schema.get_node(name)
         if schema_node is None:
             raise KeyError(f"Element '{name}' not found in schema")
 
@@ -963,7 +968,7 @@ class BagBuilderBase(ABC):
             # Parents are processed left-to-right, later parents override earlier ones
             parents = [p.strip() for p in inherits_from.split(",")]
             for parent in parents:
-                abstract_attrs = self.schema.get_attr(parent)
+                abstract_attrs = self._schema.get_attr(parent)
                 if abstract_attrs:
                     for k, v in abstract_attrs.items():
                         # Skip inherits_from from abstract - don't propagate it
@@ -990,7 +995,7 @@ class BagBuilderBase(ABC):
 
     def __iter__(self):
         """Iterate over schema nodes."""
-        return iter(self.schema)
+        return iter(self._schema)
 
     def __repr__(self) -> str:
         """Show builder schema summary."""
@@ -999,16 +1004,16 @@ class BagBuilderBase(ABC):
 
     def __str__(self) -> str:
         """Show schema structure."""
-        return str(self.schema)
+        return str(self._schema)
 
     # -------------------------------------------------------------------------
     # Validation check
     # -------------------------------------------------------------------------
 
-    def check(self, bag: Bag | None = None) -> list[tuple[str, BagNode, list[str]]]:
+    def _check(self, bag: Bag | None = None) -> list[tuple[str, BagNode, list[str]]]:
         """Return report of invalid nodes."""
         if bag is None:
-            bag = self.bag
+            bag = self._bag
         invalid_nodes: list[tuple[str, BagNode, list[str]]] = []
         self._walk_check(bag, "", invalid_nodes)
         return invalid_nodes
@@ -1035,26 +1040,26 @@ class BagBuilderBase(ABC):
     # -------------------------------------------------------------------------
 
     @property
-    def compiler(self) -> Any:
+    def _compiler(self) -> Any:
         """Return compiler instance for this builder.
 
-        Requires compiler_class to be defined on the builder subclass.
+        Requires _compiler_class to be defined on the builder subclass.
 
         Raises:
-            ValueError: If compiler_class is not defined.
+            ValueError: If _compiler_class is not defined.
         """
-        if self.compiler_class is None:
-            raise ValueError(f"{type(self).__name__} has no compiler_class defined")
-        return self.compiler_class(self)
+        if self._compiler_class is None:
+            raise ValueError(f"{type(self).__name__} has no _compiler_class defined")
+        return self._compiler_class(self)
 
-    def compile(self, **kwargs: Any) -> Any:
+    def _compile(self, **kwargs: Any) -> Any:
         """Compile the bag into a CompiledBag (or string for legacy formats).
 
-        If compiler_class is defined, delegates to compiler.compile(bag)
+        If _compiler_class is defined, delegates to _compiler.compile(bag)
         which returns a CompiledBag (static Bag with components expanded
         and pointers resolved).
 
-        Without compiler_class, falls back to XML/JSON serialization (string).
+        Without _compiler_class, falls back to XML/JSON serialization (string).
 
         Args:
             **kwargs: Compilation parameters passed to compiler.
@@ -1062,13 +1067,13 @@ class BagBuilderBase(ABC):
         Returns:
             CompiledBag (Bag) when using compiler, string for legacy formats.
         """
-        if self.compiler_class is not None:
-            return self.compiler.compile(self.bag, **kwargs)
+        if self._compiler_class is not None:
+            return self._compiler.compile(self._bag, **kwargs)
         format_ = kwargs.get("format", "xml")
         if format_ == "xml":
-            return self.bag.to_xml()
+            return self._bag.to_xml()
         elif format_ == "json":
-            return self.bag.to_tytx(transport="json")  # type: ignore[return-value]
+            return self._bag.to_tytx(transport="json")  # type: ignore[return-value]
         else:
             raise ValueError(f"Unknown format: {format_}")
 
@@ -1076,7 +1081,7 @@ class BagBuilderBase(ABC):
     # Schema documentation
     # -------------------------------------------------------------------------
 
-    def schema_to_md(self, title: str | None = None) -> str:
+    def _schema_to_md(self, title: str | None = None) -> str:
         """Generate Markdown documentation for the builder schema.
 
         Creates a formatted Markdown document with tables for abstract
@@ -1100,9 +1105,9 @@ class BagBuilderBase(ABC):
         abstracts: list[tuple[str, dict]] = []
         elements: list[tuple[str, dict]] = []
 
-        for node in self.schema:
+        for node in self._schema:
             name = node.label
-            info = self.get_schema_info(name)
+            info = self._get_schema_info(name)
             if name.startswith("@"):
                 abstracts.append((name[1:], info))
             else:
@@ -1172,7 +1177,7 @@ class BagBuilderBase(ABC):
 
                 row.td(info.get("documentation") or "-")
 
-        return doc.builder.compile()
+        return doc.builder._compile()
 
     # -------------------------------------------------------------------------
     # Value rendering (for compile)
@@ -1205,7 +1210,7 @@ class BagBuilderBase(ABC):
         # Build template context: node_value, node_label, and all attributes
         # Start with default values from schema for optional parameters
         tag = node.node_tag or node.label
-        info = self.get_schema_info(tag)
+        info = self._get_schema_info(tag)
         call_args = info.get("call_args_validations") or {}
         template_ctx: dict[str, Any] = {}
         for param_name, (default, _validators, _type) in call_args.items():
@@ -1616,7 +1621,7 @@ class SchemaBuilder(BagBuilderBase):
         schema.item('div', inherits_from='@flow')
         schema.item('li', parent_tags='ul,ol')  # li only inside ul or ol
         schema.item('br', sub_tags='')  # void element
-        schema.builder.compile('schema.msgpack')
+        schema.builder._compile('schema.msgpack')
     """
 
     def item(
@@ -1668,13 +1673,13 @@ class SchemaBuilder(BagBuilderBase):
         if documentation is not None:
             attrs["documentation"] = documentation
 
-        return self.bag.set_item(name, None, **attrs)
+        return self._bag.set_item(name, None, **attrs)
 
-    def compile(self, destination: str | Path) -> None:  # type: ignore[override]
+    def _compile(self, destination: str | Path) -> None:  # type: ignore[override]
         """Save schema to MessagePack file for later loading by builders.
 
         Args:
             destination: Path to the output .msgpack file.
         """
-        msgpack_data = self.bag.to_tytx(transport="msgpack")
+        msgpack_data = self._bag.to_tytx(transport="msgpack")
         Path(destination).write_bytes(msgpack_data)  # type: ignore[arg-type]

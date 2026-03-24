@@ -93,7 +93,7 @@ class ChefApp:
         self._print_courses(doc, self._menu)
 
         # Compile and render
-        computed = doc.builder.compile(doc)
+        computed = doc.builder._compile(doc)
         pdf_bytes = doc.builder.render(computed)
 
         if destination:
