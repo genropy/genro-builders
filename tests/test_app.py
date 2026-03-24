@@ -77,10 +77,10 @@ class TestAppLifecycle:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
+            def recipe(self, source):
                 nonlocal recipe_called
                 recipe_called = True
-                store.heading("Hello")
+                source.heading("Hello")
 
         app = MyApp()
         app.setup()
@@ -95,11 +95,11 @@ class TestAppLifecycle:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.text("content")
+            def recipe(self, source):
+                source.text("content")
 
         app = MyApp()
-        app.recipe(app.store)
+        app.recipe(app.source)
         result = app.compile()
 
         assert result == app.output
@@ -115,8 +115,8 @@ class TestAppPointerResolution:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("^page.title")
+            def recipe(self, source):
+                source.heading("^page.title")
 
         app = MyApp()
         app.data["page.title"] = "Hello World"
@@ -130,8 +130,8 @@ class TestAppPointerResolution:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.item(color="^theme.color")
+            def recipe(self, source):
+                source.item(color="^theme.color")
 
         app = MyApp()
         app.data["theme.color"] = "blue"
@@ -145,9 +145,9 @@ class TestAppPointerResolution:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("^title")
-                store.text("^body")
+            def recipe(self, source):
+                source.heading("^title")
+                source.text("^body")
 
         app = MyApp()
         app.data["title"] = "Title"
@@ -167,8 +167,8 @@ class TestAppReactivity:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("^title")
+            def recipe(self, source):
+                source.heading("^title")
 
         app = MyApp()
         app.data["title"] = "Original"
@@ -186,9 +186,9 @@ class TestAppReactivity:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("^title")
-                store.text("static content")
+            def recipe(self, source):
+                source.heading("^title")
+                source.text("static content")
 
         app = MyApp()
         app.data["title"] = "Hello"
@@ -213,10 +213,10 @@ class TestAppRebuild:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
+            def recipe(self, source):
                 nonlocal call_count
                 call_count += 1
-                store.heading("^title")
+                source.heading("^title")
 
         app = MyApp()
         app.data["title"] = "v1"
@@ -240,8 +240,8 @@ class TestAppDataReplacement:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("^name")
+            def recipe(self, source):
+                source.heading("^name")
 
         app = MyApp()
         app.data["name"] = "Alice"
@@ -266,8 +266,8 @@ class TestAppWithComponent:
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.section(title="^section.title")
+            def recipe(self, source):
+                source.section(title="^section.title")
 
         app = MyApp()
         app.data["section.title"] = "My Section"
@@ -277,18 +277,18 @@ class TestAppWithComponent:
         assert "default content" in app.output
 
 
-class TestAppStoreDelete:
-    """Tests for reactive store deletion."""
+class TestAppSourceDelete:
+    """Tests for reactive source deletion."""
 
-    def test_store_delete_updates_output(self):
-        """Deleting a node from the store removes it from output."""
+    def test_source_delete_updates_output(self):
+        """Deleting a node from the source removes it from output."""
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("Title")
-                store.text("Content")
+            def recipe(self, source):
+                source.heading("Title")
+                source.text("Content")
 
         app = MyApp()
         app.setup()
@@ -296,19 +296,19 @@ class TestAppStoreDelete:
         assert "[heading:Title]" in app.output
         assert "[text:Content]" in app.output
 
-        app.store.del_item("text_0")
+        app.source.del_item("text_0")
         assert "[text:Content]" not in app.output
         assert "[heading:Title]" in app.output
 
-    def test_store_delete_with_pointer_cleanup(self):
+    def test_source_delete_with_pointer_cleanup(self):
         """Deleting a node with ^pointer cleans up the subscription map."""
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("^title")
-                store.text("static")
+            def recipe(self, source):
+                source.heading("^title")
+                source.text("static")
 
         app = MyApp()
         app.data["title"] = "Hello"
@@ -319,7 +319,7 @@ class TestAppStoreDelete:
         # The heading node is bound to 'title' in the subscription map
         assert len(app._binding.subscription_map) > 0
 
-        app.store.del_item("heading_0")
+        app.source.del_item("heading_0")
 
         # After delete, the binding for the deleted node should be gone
         for entries in app._binding.subscription_map.values():
@@ -329,7 +329,7 @@ class TestAppStoreDelete:
         assert "Hello" not in app.output
         assert "[text:static]" in app.output
 
-    def test_store_delete_subtree(self):
+    def test_source_delete_subtree(self):
         """Deleting a node with children removes the entire subtree from output."""
 
         class SubtreeBuilder(BagBuilderBase):
@@ -344,8 +344,8 @@ class TestAppStoreDelete:
         class MyApp(BagAppBase):
             builder_class = SubtreeBuilder
 
-            def recipe(self, store):
-                inner = store.group()
+            def recipe(self, source):
+                inner = source.group()
                 inner.leaf("Child1")
                 inner.leaf("Child2")
 
@@ -355,23 +355,23 @@ class TestAppStoreDelete:
         assert "Child1" in app.output
         assert "Child2" in app.output
 
-        app.store.del_item("group_0")
+        app.source.del_item("group_0")
 
         assert "Child1" not in app.output
         assert "Child2" not in app.output
 
 
-class TestAppStoreInsert:
-    """Tests for reactive store insertion."""
+class TestAppSourceInsert:
+    """Tests for reactive source insertion."""
 
-    def test_store_insert_updates_output(self):
-        """Inserting a node into the store adds it to output."""
+    def test_source_insert_updates_output(self):
+        """Inserting a node into the source adds it to output."""
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("Title")
+            def recipe(self, source):
+                source.heading("Title")
 
         app = MyApp()
         app.setup()
@@ -379,19 +379,19 @@ class TestAppStoreInsert:
         assert "[heading:Title]" in app.output
         assert "Extra" not in app.output
 
-        app.store.text("Extra")
+        app.source.text("Extra")
 
         assert "Extra" in app.output
         assert "[heading:Title]" in app.output
 
-    def test_store_insert_with_pointer(self):
+    def test_source_insert_with_pointer(self):
         """Inserted node with ^pointer gets bound to data."""
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("Static")
+            def recipe(self, source):
+                source.heading("Static")
 
         app = MyApp()
         app.data["dynamic"] = "Resolved"
@@ -399,25 +399,25 @@ class TestAppStoreInsert:
 
         assert "Resolved" not in app.output
 
-        app.store.text("^dynamic")
+        app.source.text("^dynamic")
 
         assert "Resolved" in app.output
 
-    def test_store_insert_at_position(self):
+    def test_source_insert_at_position(self):
         """Inserted node appears at the correct position."""
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("First")
-                store.heading("Third")
+            def recipe(self, source):
+                source.heading("First")
+                source.heading("Third")
 
         app = MyApp()
         app.setup()
 
         # Insert between First and Third
-        app.store.text("Second", node_position=1)
+        app.source.text("Second", node_position=1)
 
         assert app.output is not None
         first_pos = app.output.index("First")
@@ -426,17 +426,17 @@ class TestAppStoreInsert:
         assert first_pos < second_pos < third_pos
 
 
-class TestAppStoreUpdate:
-    """Tests for reactive store value/attribute updates."""
+class TestAppSourceUpdate:
+    """Tests for reactive source value/attribute updates."""
 
-    def test_store_update_value(self):
-        """Updating a node value in the store updates the output."""
+    def test_source_update_value(self):
+        """Updating a node value in the source updates the output."""
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("Original")
+            def recipe(self, source):
+                source.heading("Original")
 
         app = MyApp()
         app.setup()
@@ -444,38 +444,38 @@ class TestAppStoreUpdate:
         assert "Original" in app.output
 
         # Update the node value via set_item (overwrites)
-        app.store.set_item("heading_0", "Modified")
+        app.source.set_item("heading_0", "Modified")
 
         assert "Modified" in app.output
         assert "Original" not in app.output
 
-    def test_store_update_attr(self):
-        """Updating a node attribute in the store updates the output."""
+    def test_source_update_attr(self):
+        """Updating a node attribute in the source updates the output."""
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.item(color="red")
+            def recipe(self, source):
+                source.item(color="red")
 
         app = MyApp()
         app.setup()
 
         assert "color=red" in app.output
 
-        app.store.set_attr("item_0", color="blue")
+        app.source.set_attr("item_0", color="blue")
 
         assert "color=blue" in app.output
         assert "color=red" not in app.output
 
-    def test_store_update_pointer_rebind(self):
+    def test_source_update_pointer_rebind(self):
         """Updating a static value to a ^pointer binds it to data."""
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("static")
+            def recipe(self, source):
+                source.heading("static")
 
         app = MyApp()
         app.data["title"] = "Dynamic"
@@ -485,11 +485,11 @@ class TestAppStoreUpdate:
         assert "Dynamic" not in app.output
 
         # Replace static value with a pointer
-        app.store.set_item("heading_0", "^title")
+        app.source.set_item("heading_0", "^title")
 
         assert "Dynamic" in app.output
 
-    def test_store_update_value_replaces_subtree(self):
+    def test_source_update_value_replaces_subtree(self):
         """Updating a node that had children replaces the entire subtree."""
 
         class SubtreeBuilder(BagBuilderBase):
@@ -504,8 +504,8 @@ class TestAppStoreUpdate:
         class MyApp(BagAppBase):
             builder_class = SubtreeBuilder
 
-            def recipe(self, store):
-                inner = store.group()
+            def recipe(self, source):
+                inner = source.group()
                 inner.leaf("^child_a")
                 inner.leaf("^child_b")
 
@@ -521,7 +521,7 @@ class TestAppStoreUpdate:
         bindings_before = sum(len(v) for v in app._binding.subscription_map.values())
 
         # Replace the group node value with a scalar — children disappear
-        app.store.set_item("group_0", "replaced")
+        app.source.set_item("group_0", "replaced")
 
         assert "replaced" in app.output
         assert "A" not in app.output
@@ -535,66 +535,66 @@ class TestAppStoreUpdate:
 class TestAppCompiledObservable:
     """Tests for compiled bag observability (live app support)."""
 
-    def test_compiled_bag_notifies_on_store_delete(self):
-        """Subscriber on compiled bag receives delete events from store changes."""
+    def test_compiled_bag_notifies_on_source_delete(self):
+        """Subscriber on compiled bag receives delete events from source changes."""
         events = []
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("Title")
-                store.text("Content")
+            def recipe(self, source):
+                source.heading("Title")
+                source.text("Content")
 
         app = MyApp()
         app.setup()
 
         app.compiled.subscribe("test", delete=lambda **kw: events.append(("del", kw.get("reason"))))
 
-        app.store.del_item("text_0")
+        app.source.del_item("text_0")
 
         assert len(events) == 1
-        assert events[0] == ("del", "store")
+        assert events[0] == ("del", "source")
 
-    def test_compiled_bag_notifies_on_store_insert(self):
-        """Subscriber on compiled bag receives insert events from store changes."""
+    def test_compiled_bag_notifies_on_source_insert(self):
+        """Subscriber on compiled bag receives insert events from source changes."""
         events = []
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("Title")
+            def recipe(self, source):
+                source.heading("Title")
 
         app = MyApp()
         app.setup()
 
         app.compiled.subscribe("test", insert=lambda **kw: events.append(("ins", kw.get("reason"))))
 
-        app.store.text("Extra")
+        app.source.text("Extra")
 
         assert len(events) == 1
-        assert events[0] == ("ins", "store")
+        assert events[0] == ("ins", "source")
 
-    def test_compiled_bag_notifies_on_store_update_value(self):
-        """Subscriber on compiled bag receives update events from store value changes."""
+    def test_compiled_bag_notifies_on_source_update_value(self):
+        """Subscriber on compiled bag receives update events from source value changes."""
         events = []
 
         class MyApp(BagAppBase):
             builder_class = TestBuilder
 
-            def recipe(self, store):
-                store.heading("Original")
+            def recipe(self, source):
+                source.heading("Original")
 
         app = MyApp()
         app.setup()
 
         app.compiled.subscribe("test", update=lambda **kw: events.append(("upd", kw.get("reason"))))
 
-        app.store.set_item("heading_0", "Modified")
+        app.source.set_item("heading_0", "Modified")
 
         assert len(events) >= 1
-        assert any(e[1] == "store" for e in events)
+        assert any(e[1] == "source" for e in events)
 
 
 class TestAppNoCompiler:
@@ -612,7 +612,7 @@ class TestAppNoCompiler:
             builder_class = NoCompBuilder
 
         app = MyApp()
-        app.recipe(app.store)
+        app.recipe(app.source)
 
         with pytest.raises(RuntimeError, match="no compiler"):
             app.compile()

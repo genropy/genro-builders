@@ -107,7 +107,9 @@ class BagCompilerBase(ABC):
     # compile() → CompiledBag
     # -------------------------------------------------------------------------
 
-    def compile(self, bag: Bag | None = None, data: Bag | None = None) -> Bag:
+    def compile(
+        self, bag: Bag | None = None, data: Bag | None = None, target: Bag | None = None,
+    ) -> Bag:
         """Compile a BuilderBag into a CompiledBag.
 
         Expands all components (via resolvers) and resolves ^pointers
@@ -117,6 +119,8 @@ class BagCompilerBase(ABC):
             bag: The Bag to compile. If None, uses builder.bag.
             data: Optional data Bag for ^pointer resolution.
                 If None, pointers are left as-is.
+            target: Optional target Bag to materialize into. If provided,
+                nodes are added to this Bag instead of creating a new one.
 
         Returns:
             CompiledBag — a static Bag with components expanded and
@@ -125,8 +129,8 @@ class BagCompilerBase(ABC):
         if bag is None:
             bag = self.builder.bag
 
-        # 1. Materialize components (creates a static copy)
-        compiled = self._materialize(bag)
+        # 1. Materialize components
+        compiled = self._materialize(bag, target=target)
 
         # 2. Resolve pointers
         if data is not None:
@@ -138,11 +142,16 @@ class BagCompilerBase(ABC):
     # Materialization (component expansion)
     # -------------------------------------------------------------------------
 
-    def _materialize(self, bag: Bag) -> Bag:
-        """Create a static copy of the bag with all resolvers expanded."""
+    def _materialize(self, bag: Bag, target: Bag | None = None) -> Bag:
+        """Create a static copy of the bag with all resolvers expanded.
+
+        Args:
+            bag: The source Bag to materialize.
+            target: Optional target Bag to populate. If None, creates a new one.
+        """
         from .builder_bag import BuilderBag
 
-        result = BuilderBag(builder=type(self.builder))
+        result = target if target is not None else BuilderBag(builder=type(self.builder))
 
         for node in bag:
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
