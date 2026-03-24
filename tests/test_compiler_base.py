@@ -39,7 +39,7 @@ class TagCompiler(BagCompilerBase):
 
 
 class TagBuilder(BagBuilderBase):
-    compiler_class = TagCompiler
+    _compiler_class = TagCompiler
 
     @element()
     def heading(self): ...
@@ -58,8 +58,8 @@ class TagBuilder(BagBuilderBase):
 
 def compile_and_render(builder) -> str:
     """Helper: compile bag → CompiledBag → render to string."""
-    compiler = builder.compiler
-    compiled = compiler.compile(builder.bag)
+    compiler = builder._compiler
+    compiled = compiler.compile(builder._bag)
     return compiler.render(compiled)
 
 
@@ -180,7 +180,7 @@ class TestDefaultCompile:
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(p for p in parts if p)
 
-        MinimalBuilder.compiler_class = ConcreteCompiler
+        MinimalBuilder._compiler_class = ConcreteCompiler
 
         bag = BuilderBag(builder=MinimalBuilder)
         bag.plain("raw text")
@@ -203,7 +203,7 @@ class TestDefaultCompile:
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(p for p in parts if p)
 
-        TemplateBuilder.compiler_class = Compiler
+        TemplateBuilder._compiler_class = Compiler
 
         bag = BuilderBag(builder=TemplateBuilder)
         bag.tag("content")
@@ -226,7 +226,7 @@ class TestDefaultCompile:
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(p for p in parts if p)
 
-        BadTemplateBuilder.compiler_class = Compiler
+        BadTemplateBuilder._compiler_class = Compiler
 
         bag = BuilderBag(builder=BadTemplateBuilder)
         bag.tag("value")
@@ -252,7 +252,7 @@ class TestDefaultCompile:
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(p for p in parts if p)
 
-        CbBuilder.compiler_class = CbCompiler
+        CbBuilder._compiler_class = CbCompiler
 
         bag = BuilderBag(builder=CbBuilder)
         bag.tag("hello")
@@ -278,7 +278,7 @@ class TestDefaultCompile:
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(p for p in parts if p)
 
-        NestBuilder.compiler_class = Compiler
+        NestBuilder._compiler_class = Compiler
 
         bag = BuilderBag(builder=NestBuilder)
         outer = bag.outer()
@@ -302,7 +302,7 @@ class TestDefaultCompile:
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(p for p in parts if p)
 
-        EmptyBuilder.compiler_class = Compiler
+        EmptyBuilder._compiler_class = Compiler
 
         bag = BuilderBag(builder=EmptyBuilder)
         bag.empty()
@@ -362,7 +362,7 @@ class TestScriptModeCompile:
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(p for p in parts if p)
 
-        AttrBuilder.compiler_class = Compiler
+        AttrBuilder._compiler_class = Compiler
 
         bag = BuilderBag(builder=AttrBuilder)
         bag.widget(color="^theme.color")

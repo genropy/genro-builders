@@ -56,7 +56,7 @@ class ContactListPage:
 
     def to_html(self, destination=None):
         """Compile the page to HTML."""
-        return self.page.builder.compile(destination=destination)
+        return self.page.builder._compile(destination=destination)
 
 
 if __name__ == "__main__":

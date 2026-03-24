@@ -105,7 +105,7 @@ class TestHtmlBuilderCompile:
         bag = Bag(builder=HtmlBuilder)
         bag.p("Hello")
 
-        html = bag.builder.compile()
+        html = bag.builder._compile()
 
         assert "<p>Hello</p>" in html
 
@@ -115,7 +115,7 @@ class TestHtmlBuilderCompile:
         div = bag.div(id="main")
         div.p("Content")
 
-        html = bag.builder.compile()
+        html = bag.builder._compile()
 
         assert '<div id="main">' in html
         assert "<p>Content</p>" in html
@@ -127,7 +127,7 @@ class TestHtmlBuilderCompile:
         bag.br()
         bag.meta(charset="utf-8")
 
-        html = bag.builder.compile()
+        html = bag.builder._compile()
 
         assert "<br>" in html
         assert "</br>" not in html
@@ -140,7 +140,7 @@ class TestHtmlBuilderCompile:
         bag.p("Content")
 
         dest = tmp_path / "test.html"
-        result = bag.builder.compile(destination=dest)
+        result = bag.builder._compile(destination=dest)
 
         assert dest.exists()
         assert "<p>Content</p>" in dest.read_text()
@@ -155,7 +155,7 @@ class TestHtmlBuilderCompile:
         body = page.body()
         body.div(id="main").p("Hello")
 
-        html = page.builder.compile()
+        html = page.builder._compile()
 
         assert "<head>" in html
         assert "</head>" in html
@@ -201,7 +201,7 @@ class TestHtmlBuilderIntegration:
         assert len(head.value) == 3
         assert len(body.value) == 3  # header, main, footer
 
-        html = page.builder.compile()
+        html = page.builder._compile()
         assert '<header id="header">' in html
         assert "<nav>" in html
         assert "<ul>" in html

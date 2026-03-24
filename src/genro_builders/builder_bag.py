@@ -31,9 +31,9 @@ class BuilderBagNode(BagNode):
     Data resolution methods resolve paths relative to this node's
     position in the tree, using the ``datapath`` attribute chain:
 
-        node.get_relative_data(data, '.name')   # relative to this node's datapath
-        node.get_relative_data(data, 'user.name')  # absolute
-        node.set_relative_data(data, '.name', 'value')
+        node._get_relative_data(data, '.name')   # relative to this node's datapath
+        node._get_relative_data(data, 'user.name')  # absolute
+        node._set_relative_data(data, '.name', 'value')
     """
 
     def __getattr__(self, name: str) -> Any:
@@ -54,7 +54,7 @@ class BuilderBagNode(BagNode):
     # Data resolution
     # -------------------------------------------------------------------------
 
-    def get_relative_data(self, data: Bag, path: str) -> Any:
+    def _get_relative_data(self, data: Bag, path: str) -> Any:
         """Resolve a data path from this node's perspective.
 
         Args:
@@ -76,7 +76,7 @@ class BuilderBagNode(BagNode):
             return node.attr.get(attr_name)
         return data.get_item(resolved_path)
 
-    def set_relative_data(self, data: Bag, path: str, value: Any) -> None:
+    def _set_relative_data(self, data: Bag, path: str, value: Any) -> None:
         """Set a value in the data Bag from this node's perspective.
 
         Args:

@@ -189,7 +189,7 @@ class TestInheritsFrom:
             def a(self): ...
 
         bag = Bag(builder=Builder)
-        info = bag.builder.get_schema_info("div")
+        info = bag.builder._get_schema_info("div")
         assert info.get("sub_tags") == "span,p,a"
 
     def test_element_can_override_inherited_attrs(self):
@@ -212,7 +212,7 @@ class TestInheritsFrom:
             def z(self): ...
 
         bag = Bag(builder=Builder)
-        info = bag.builder.get_schema_info("custom")
+        info = bag.builder._get_schema_info("custom")
         # sub_tags overridden
         assert info.get("sub_tags") == "x,y,z"
 
@@ -239,7 +239,7 @@ class TestInheritsFrom:
             def container(self): ...
 
         bag = Bag(builder=Builder)
-        info = bag.builder.get_schema_info("multi")
+        info = bag.builder._get_schema_info("multi")
         # Inherits from both abstracts
         assert info.get("sub_tags") == "a,b"
         assert info.get("parent_tags") == "container"
@@ -264,7 +264,7 @@ class TestInheritsFrom:
             def b(self): ...
 
         bag = Bag(builder=Builder)
-        info = bag.builder.get_schema_info("derived")
+        info = bag.builder._get_schema_info("derived")
         # @first wins over @second (first is closest)
         assert info.get("sub_tags") == "a,b"
         assert info.get("parent_tags") == "first"
@@ -659,7 +659,7 @@ class TestSubTagsWildcard:
         container.item()
         container.item()
 
-        result = bag.builder.check()
+        result = bag.builder._check()
         assert result == []
 
 
@@ -960,7 +960,7 @@ class TestBuilderIntrospection:
 
         bag = Bag(builder=Builder)
         with pytest.raises(KeyError, match="not found"):
-            bag.builder.get_schema_info("unknown")
+            bag.builder._get_schema_info("unknown")
 
     def test_getattr_raises_on_unknown_element(self):
         """Accessing unknown element raises AttributeError."""
@@ -1113,12 +1113,12 @@ class TestValueValidation:
 
 
 # =============================================================================
-# Tests for builder.check()
+# Tests for builder._check()
 # =============================================================================
 
 
 class TestBuilderCheck:
-    """Tests for builder.check() validation method."""
+    """Tests for builder._check() validation method."""
 
     def test_check_empty_bag_returns_empty_list(self):
         """check() on empty bag returns empty list."""
@@ -1128,7 +1128,7 @@ class TestBuilderCheck:
             def item(self): ...
 
         bag = Bag(builder=Builder)
-        result = bag.builder.check()
+        result = bag.builder._check()
         assert result == []
 
     def test_check_valid_bag_returns_empty_list(self):
@@ -1145,7 +1145,7 @@ class TestBuilderCheck:
         outer_node = bag.outer()
         outer_node.inner()
 
-        result = bag.builder.check()
+        result = bag.builder._check()
         assert result == []
 
     def test_check_finds_invalid_nodes(self):
@@ -1161,7 +1161,7 @@ class TestBuilderCheck:
         bag = Bag(builder=Builder)
         bag.container()  # Missing required child
 
-        result = bag.builder.check()
+        result = bag.builder._check()
         assert len(result) == 1
         path, node, reasons = result[0]
         assert "container_0" in path
@@ -1184,7 +1184,7 @@ class TestBuilderCheck:
         wrapper_node = bag.wrapper()
         wrapper_node.middle()  # Missing required leaf
 
-        result = bag.builder.check()
+        result = bag.builder._check()
         assert len(result) == 1
         path, node, reasons = result[0]
         assert "middle" in path
@@ -1208,21 +1208,21 @@ class TestBuilderCheck:
         outer_node.inner()  # Valid
 
         # Check the invalid bag explicitly
-        result = bag.builder.check(bag)
+        result = bag.builder._check(bag)
         assert len(result) == 1
 
         # Check the valid bag explicitly
-        result = bag.builder.check(other_bag)
+        result = bag.builder._check(other_bag)
         assert result == []
 
 
 # =============================================================================
-# Tests for builder.compile()
+# Tests for builder._compile()
 # =============================================================================
 
 
 class TestBuilderCompile:
-    """Tests for builder.compile() output method.
+    """Tests for builder._compile() output method.
 
     NOTE: Output format tests are suspended pending full compile workflow definition.
     Only testing that compile() is callable and raises for unknown format.
@@ -1239,7 +1239,7 @@ class TestBuilderCompile:
         bag = Bag(builder=Builder)
         bag.item("content")
 
-        result = bag.builder.compile()
+        result = bag.builder._compile()
         # XML uses tag name, not label
         assert "<item" in result
         assert "content" in result
@@ -1255,7 +1255,7 @@ class TestBuilderCompile:
         bag = Bag(builder=Builder)
         bag.div("hello")
 
-        result = bag.builder.compile(format="xml")
+        result = bag.builder._compile(format="xml")
         assert result.startswith("<")
         # XML uses tag name
         assert "<div" in result
@@ -1271,7 +1271,7 @@ class TestBuilderCompile:
         bag = Bag(builder=Builder)
         bag.item("value")
 
-        result = bag.builder.compile(format="json")
+        result = bag.builder._compile(format="json")
         assert "item_0" in result
         assert "value" in result
 
@@ -1286,7 +1286,7 @@ class TestBuilderCompile:
         bag.item()
 
         with pytest.raises(ValueError, match="Unknown format"):
-            bag.builder.compile(format="yaml")
+            bag.builder._compile(format="yaml")
 
     def test_compile_is_callable(self):
         """compile() is callable on builder."""
@@ -1299,7 +1299,7 @@ class TestBuilderCompile:
         bag.item("content")
 
         # Just verify it's callable and returns something
-        result = bag.builder.compile()
+        result = bag.builder._compile()
         assert result is not None
 
 
@@ -1365,7 +1365,7 @@ class TestCompileKwargs:
             def vertical(self): ...
 
         bag = Bag(builder=Builder)
-        info = bag.builder.get_schema_info("vertical")
+        info = bag.builder._get_schema_info("vertical")
 
         # Should have merged: module from abstract + class from element
         assert info["compile_kwargs"] == {"module": "textual.containers", "class": "Vertical"}
@@ -1385,7 +1385,7 @@ class TestCompileKwargs:
             def vertical(self): ...
 
         bag = Bag(builder=Builder)
-        info = bag.builder.get_schema_info("vertical")
+        info = bag.builder._get_schema_info("vertical")
 
         # class should be overridden, module inherited
         assert info["compile_kwargs"]["module"] == "textual.containers"
@@ -1510,7 +1510,7 @@ class TestDocumentation:
                 ...
 
         bag = Bag(builder=Builder)
-        info = bag.builder.get_schema_info("input")
+        info = bag.builder._get_schema_info("input")
         assert info["documentation"] == "Text input field."
 
 
@@ -1537,7 +1537,7 @@ class TestSchemaToMd:
                 ...
 
         bag = Bag(builder=Builder)
-        md = bag.builder.schema_to_md()
+        md = bag.builder._schema_to_md()
 
         assert "# Schema: Builder" in md
         assert "## Elements" in md
@@ -1559,7 +1559,7 @@ class TestSchemaToMd:
             def div(self): ...
 
         bag = Bag(builder=Builder)
-        md = bag.builder.schema_to_md()
+        md = bag.builder._schema_to_md()
 
         assert "## Abstract Elements" in md
         assert "`@flow`" in md
@@ -1575,7 +1575,7 @@ class TestSchemaToMd:
             def button(self): ...
 
         bag = Bag(builder=Builder)
-        md = bag.builder.schema_to_md()
+        md = bag.builder._schema_to_md()
 
         assert "module: textual.widgets" in md
         assert "class: Button" in md
@@ -1588,7 +1588,7 @@ class TestSchemaToMd:
             def item(self): ...
 
         bag = Bag(builder=Builder)
-        md = bag.builder.schema_to_md(title="My Custom Builder")
+        md = bag.builder._schema_to_md(title="My Custom Builder")
 
         assert "# Schema: My Custom Builder" in md
 
@@ -1605,7 +1605,7 @@ class TestSchemaToMd:
             def item(self): ...
 
         bag = Bag(builder=Builder)
-        md = bag.builder.schema_to_md()
+        md = bag.builder._schema_to_md()
 
         # Check table structure
         assert "| Name |" in md
@@ -1866,7 +1866,7 @@ class TestSchemaBuilderCompile:
 
         # Use correct extension for msgpack files
         output_file = tmp_path / "test_schema.bag.mp"
-        schema.builder.compile(output_file)
+        schema.builder._compile(output_file)
 
         # File should exist and contain msgpack data
         assert output_file.exists()
@@ -2124,8 +2124,8 @@ class TestMixinInheritance:
         for tag in ("service", "network", "volume", "container"):
             assert Builder._class_schema.get_node(tag) is not None
 
-    def test_builder_base_not_collected(self):
-        """Methods from a BagBuilderBase subclass are NOT collected as mixin."""
+    def test_builder_inherits_parent_schema(self):
+        """Child builder inherits parent's schema elements."""
 
         class BaseBuilder(BagBuilderBase):
             @element()
@@ -2137,8 +2137,11 @@ class TestMixinInheritance:
 
         # child_item is defined directly on ChildBuilder
         assert ChildBuilder._class_schema.get_node("child_item") is not None
-        # base_item belongs to BaseBuilder's own schema, not collected again
-        assert ChildBuilder._class_schema.get_node("base_item") is None
+        # base_item is inherited from BaseBuilder's schema
+        assert ChildBuilder._class_schema.get_node("base_item") is not None
+        # BaseBuilder still has only its own element
+        assert BaseBuilder._class_schema.get_node("base_item") is not None
+        assert BaseBuilder._class_schema.get_node("child_item") is None
 
     def test_mixin_reusable_across_builders(self):
         """A mixin can be used by multiple builders without interference."""

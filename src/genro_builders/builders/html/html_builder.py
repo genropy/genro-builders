@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 class HtmlBuilder(BagBuilderBase):
     """Builder for HTML5 elements.
 
-    Uses pre-compiled schema loaded via schema_path. All element handling
+    Uses pre-compiled schema loaded via _schema_path. All element handling
     is provided by BagBuilderBase.__getattr__.
 
     Usage:
@@ -44,9 +44,9 @@ class HtmlBuilder(BagBuilderBase):
         >>> bag.ul().li(value='Item 1')
     """
 
-    schema_path = Path(__file__).parent / "html5_schema.bag.mp"
+    _schema_path = Path(__file__).parent / "html5_schema.bag.mp"
 
-    def compile(self, destination: str | Path | None = None) -> str:
+    def _compile(self, destination: str | Path | None = None) -> str:
         """Compile the bag to HTML.
 
         Args:
@@ -56,7 +56,7 @@ class HtmlBuilder(BagBuilderBase):
             HTML string representation.
         """
         lines = []
-        for node in self.bag:
+        for node in self._bag:
             lines.append(self._node_to_html(node, indent=0))
         html = "\n".join(lines)
 

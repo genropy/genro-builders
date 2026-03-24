@@ -38,9 +38,9 @@ def quick_ref(builder: BagBuilderBase, title: str | None = None) -> str:
     elements: list[tuple[str, dict]] = []
     components: list[tuple[str, dict]] = []
 
-    for node in builder.schema:
+    for node in builder._schema:
         name = node.label
-        info = builder.get_schema_info(name)
+        info = builder._get_schema_info(name)
 
         if name.startswith("@"):
             abstracts.append((name[1:], info))
@@ -141,9 +141,9 @@ def print_ref(
     elements: list[tuple[str, dict[str, Any]]] = []
     components: list[tuple[str, dict[str, Any]]] = []
 
-    for node in builder.schema:
+    for node in builder._schema:
         name = node.label
-        info = builder.get_schema_info(name)
+        info = builder._get_schema_info(name)
 
         if name.startswith("@"):
             abstracts.append((name[1:], info))
@@ -214,7 +214,7 @@ def print_ref(
     add_section("Components", components)
 
     # Compile and render
-    computed = doc.builder.compile(doc)
+    computed = doc.builder._compile(doc)
     pdf_bytes = doc.builder.render(computed)
 
     if destination:
@@ -305,7 +305,7 @@ def print_bag(
         add_node(node, depth=0)
 
     # Compile and render
-    computed = doc.builder.compile(doc)
+    computed = doc.builder._compile(doc)
     pdf_bytes = doc.builder.render(computed)
 
     if destination:

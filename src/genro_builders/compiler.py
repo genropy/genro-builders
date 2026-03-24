@@ -116,7 +116,7 @@ class BagCompilerBase(ABC):
         against data. The result is a static, fully resolved Bag.
 
         Args:
-            bag: The Bag to compile. If None, uses builder.bag.
+            bag: The Bag to compile. If None, uses builder._bag.
             data: Optional data Bag for ^pointer resolution.
                 If None, pointers are left as-is.
             target: Optional target Bag to materialize into. If provided,
@@ -127,7 +127,7 @@ class BagCompilerBase(ABC):
             pointers resolved. Ready for rendering.
         """
         if bag is None:
-            bag = self.builder.bag
+            bag = self.builder._bag
 
         # 1. Materialize components
         compiled = self._materialize(bag, target=target)
@@ -177,8 +177,8 @@ class BagCompilerBase(ABC):
         for node in bag:
             pointers = scan_for_pointers(node)
             for pointer_info, location in pointers:
-                if hasattr(node, "get_relative_data"):
-                    resolved = node.get_relative_data(data, pointer_info.raw[1:])
+                if hasattr(node, "_get_relative_data"):
+                    resolved = node._get_relative_data(data, pointer_info.raw[1:])
                 else:
                     resolved = data.get_item(pointer_info.path)
 
@@ -219,7 +219,7 @@ class BagCompilerBase(ABC):
 
         # 1. Check for explicit compile_handler in schema
         try:
-            info = self.builder.get_schema_info(tag)
+            info = self.builder._get_schema_info(tag)
             handler_name = info.get("compile_kwargs", {}).get("handler")
             if handler_name:
                 handler = getattr(self, handler_name, None)

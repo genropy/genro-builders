@@ -49,8 +49,8 @@ class TestCompiler(BagCompilerBase):
 
 def compile_and_render(builder) -> str:
     """Helper: compile bag to CompiledBag, then render to string."""
-    compiler = builder.compiler
-    compiled = compiler.compile(builder.bag)
+    compiler = builder._compiler
+    compiled = compiler.compile(builder._bag)
     return compiler.render(compiled)
 
 
@@ -67,7 +67,7 @@ class TestComponentExpansion:
         body_called = False
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component()
             def myform(self, comp: Bag, **kwargs):
@@ -94,7 +94,7 @@ class TestComponentExpansion:
         received_bag = None
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component()
             def myform(self, comp: Bag, **kwargs):
@@ -118,7 +118,7 @@ class TestComponentExpansion:
         """Component populates the internal bag during expansion."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component()
             def myform(self, comp: Bag, **kwargs):
@@ -147,7 +147,7 @@ class TestComponentExpansion:
         """Component can use builder elements inside during expansion."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component()
             def myform(self, comp: Bag, **kwargs):
@@ -178,7 +178,7 @@ class TestComponentSubTagsAfterExpansion:
         """sub_tags='' (void) returns parent bag for chaining at same level."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def closed_form(self, comp: Bag, **kwargs):
@@ -204,7 +204,7 @@ class TestComponentSubTagsAfterExpansion:
         """All components return parent bag for chaining."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component(sub_tags="item")
             def mylist(self, comp: Bag, **kwargs):
@@ -240,7 +240,7 @@ class TestNestedComponentExpansion:
         """Component can use another component internally."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def inner(self, comp: Bag, **kwargs):
@@ -268,7 +268,7 @@ class TestNestedComponentExpansion:
         """Multiple levels of component nesting."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def level3(self, comp: Bag, **kwargs):
@@ -311,7 +311,7 @@ class TestComponentBuilderOverrideExpansion:
             def special(self): ...
 
         class OuterBuilder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component(builder=InnerBuilder)
             def with_inner(self, comp: Bag, **kwargs):
@@ -343,7 +343,7 @@ class TestComponentAttributesExpansion:
         received_kwargs = {}
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def myform(self, comp: Bag, title=None, **kwargs):
@@ -364,7 +364,7 @@ class TestComponentAttributesExpansion:
         """Component attributes are stored on the node."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def myform(self, comp: Bag, title=None, **kwargs):
@@ -391,7 +391,7 @@ class TestComponentWithElementsExpansion:
         """Builder can have both components and elements."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def form(self, comp: Bag, **kwargs):
@@ -419,7 +419,7 @@ class TestComponentWithElementsExpansion:
         """Component can be placed inside an element."""
 
         class Builder(BagBuilderBase):
-            compiler_class = TestCompiler
+            _compiler_class = TestCompiler
 
             @element(sub_tags="form")
             def div(self): ...

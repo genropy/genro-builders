@@ -46,7 +46,7 @@ class MarkdownBuilder(BagBuilderBase):
     """Builder for Markdown documents.
 
     Each element uses compile_template to define its markdown structure.
-    The compile() method renders nodes using _render_value() from base class.
+    The _compile() method renders nodes using _render_value() from base class.
     """
 
     # -------------------------------------------------------------------------
@@ -188,7 +188,7 @@ class MarkdownBuilder(BagBuilderBase):
     # Compile to Markdown
     # -------------------------------------------------------------------------
 
-    def compile(self, destination: str | Path | None = None) -> str:
+    def _compile(self, destination: str | Path | None = None) -> str:
         """Compile the bag to Markdown.
 
         Args:
@@ -198,7 +198,7 @@ class MarkdownBuilder(BagBuilderBase):
             Markdown string representation.
         """
         lines: list[str] = []
-        for node in self.bag:
+        for node in self._bag:
             rendered = self._render_value(node)
             if rendered:
                 lines.append(rendered)
@@ -284,7 +284,7 @@ class MarkdownCompiler(BagCompilerBase):
         """Compile bag to Markdown.
 
         Args:
-            bag: The Bag to compile. If None, uses builder.bag.
+            bag: The Bag to compile. If None, uses builder._bag.
             destination: If provided, write Markdown to this file path.
 
         Returns:
@@ -356,5 +356,5 @@ class MarkdownCompiler(BagCompilerBase):
         return "\n".join(lines)
 
 
-# Set compiler_class after MarkdownCompiler is defined
-MarkdownBuilder.compiler_class = MarkdownCompiler
+# Set _compiler_class after MarkdownCompiler is defined
+MarkdownBuilder._compiler_class = MarkdownCompiler

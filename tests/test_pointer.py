@@ -131,7 +131,7 @@ class TestScanForPointers:
 
 
 # =============================================================================
-# Tests for BuilderBagNode.get_relative_data
+# Tests for BuilderBagNode._get_relative_data
 # =============================================================================
 
 
@@ -146,7 +146,7 @@ class TestGetRelativeData:
         bag = BuilderBag()
         node = bag.set_item("n", None)
 
-        result = node.get_relative_data(data, "user.name")
+        result = node._get_relative_data(data, "user.name")
         assert result == "Giovanni"
 
     def test_absolute_attr(self):
@@ -157,8 +157,8 @@ class TestGetRelativeData:
         bag = BuilderBag()
         node = bag.set_item("n", None)
 
-        assert node.get_relative_data(data, "theme.btn?color") == "blue"
-        assert node.get_relative_data(data, "theme.btn?size") == "large"
+        assert node._get_relative_data(data, "theme.btn?color") == "blue"
+        assert node._get_relative_data(data, "theme.btn?size") == "large"
 
     def test_relative_path(self):
         """Relative path uses datapath from ancestor chain."""
@@ -181,7 +181,7 @@ class TestGetRelativeData:
 
         target = api_bag.set_item("port_display", None)
 
-        result = target.get_relative_data(data, ".port")
+        result = target._get_relative_data(data, ".port")
         assert result == 8080
 
     def test_missing_data_returns_none(self):
@@ -190,7 +190,7 @@ class TestGetRelativeData:
         bag = BuilderBag()
         node = bag.set_item("n", None)
 
-        result = node.get_relative_data(data, "nonexistent")
+        result = node._get_relative_data(data, "nonexistent")
         assert result is None
 
     def test_missing_attr_returns_none(self):
@@ -201,12 +201,12 @@ class TestGetRelativeData:
         bag = BuilderBag()
         node = bag.set_item("n", None)
 
-        result = node.get_relative_data(data, "x?nonexistent")
+        result = node._get_relative_data(data, "x?nonexistent")
         assert result is None
 
 
 # =============================================================================
-# Tests for BuilderBagNode.set_relative_data
+# Tests for BuilderBagNode._set_relative_data
 # =============================================================================
 
 
@@ -220,7 +220,7 @@ class TestSetRelativeData:
         bag = BuilderBag()
         node = bag.set_item("n", None)
 
-        node.set_relative_data(data, "user.name", "Giovanni")
+        node._set_relative_data(data, "user.name", "Giovanni")
         assert data["user.name"] == "Giovanni"
 
     def test_set_absolute_attr(self):
@@ -231,7 +231,7 @@ class TestSetRelativeData:
         bag = BuilderBag()
         node = bag.set_item("n", None)
 
-        node.set_relative_data(data, "theme.btn?color", "red")
+        node._set_relative_data(data, "theme.btn?color", "red")
         assert data.get_attr("theme.btn").get("color") == "red"
 
     def test_set_relative_value(self):
@@ -246,5 +246,5 @@ class TestSetRelativeData:
 
         target = section_bag.set_item("writer", None)
 
-        target.set_relative_data(data, ".port", 3000)
+        target._set_relative_data(data, ".port", 3000)
         assert data["config.port"] == 3000

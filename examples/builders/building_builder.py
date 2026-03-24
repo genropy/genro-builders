@@ -30,14 +30,14 @@ class Building:
         >>> kitchen.oven()
         >>>
         >>> # Check the structure
-        >>> errors = casa.check()
+        >>> errors = casa.check()  # wrapper method, calls builder._check()
         >>> if errors:
         ...     for e in errors:
         ...         print(e)
         >>>
         >>> # Invalid: fridge in dining_room
         >>> dining = apt.dining_room()
-        >>> dining.fridge()  # This will be caught by check()
+        >>> dining.fridge()  # This will be caught by _check()
         >>> errors = casa.check()
         >>> # ['fridge is not a valid child of dining_room...']
     """
@@ -72,7 +72,7 @@ class Building:
         Returns:
             List of error messages (empty if valid).
         """
-        results = self._store.builder.check(self._root)
+        results = self._store.builder._check(self._root)
         # Convert tuple format (path, node, reasons) to simple error strings
         errors = []
         for path, _node, reasons in results:
@@ -120,7 +120,7 @@ class BuildingBuilder(BagBuilderBase):
         >>> apt = floor1.apartment(number='1A')
         >>> kitchen = apt.kitchen()
         >>> kitchen.fridge(brand='Samsung')
-        >>> errors = store.builder.check(building)
+        >>> errors = store.builder._check(building)
     """
 
     # === Building level ===

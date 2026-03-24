@@ -224,8 +224,8 @@ class BindingManager:
         trigger: bool = False,
     ) -> None:
         """Resolve a pointer and apply the value to the node."""
-        if hasattr(node, "get_relative_data"):
-            resolved = node.get_relative_data(data, pointer_info.raw[1:])  # strip ^
+        if hasattr(node, "_get_relative_data"):
+            resolved = node._get_relative_data(data, pointer_info.raw[1:])  # strip ^
         else:
             # Fallback: direct data access
             data_path = pointer_info.path

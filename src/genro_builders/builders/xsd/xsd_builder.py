@@ -13,7 +13,7 @@ Example:
     >>> bag = Bag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
     >>> doc = bag.Document()
     >>> # ... build document ...
-    >>> xml = bag.builder.compile(full_validate=True)  # validates against XSD
+    >>> xml = bag.builder._compile(full_validate=True)  # validates against XSD
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ class XsdBuilder(BagBuilderBase):
         super().__init__(bag)
         self._schema = schema_bag
 
-    def compile(self, full_validate: bool = False) -> str:
+    def _compile(self, full_validate: bool = False) -> str:
         """Compile the bag to XML.
 
         Args:
@@ -83,7 +83,7 @@ class XsdBuilder(BagBuilderBase):
             ImportError: If full_validate=True but xmlschema is not installed.
             xmlschema.XMLSchemaValidationError: If validation fails.
         """
-        result = self.bag.to_xml()
+        result = self._bag.to_xml()
 
         if full_validate:
             self._validate_with_xsd(result)
