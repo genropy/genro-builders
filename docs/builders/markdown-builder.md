@@ -1,6 +1,6 @@
 # MarkdownBuilder
 
-The `MarkdownBuilder` provides elements for building Markdown documents programmatically. The `compile()` method walks the Bag and renders each node using the `compile_template` or `compile_callback` from the schema.
+The `MarkdownBuilder` provides elements for building Markdown documents programmatically. The `_compile()` method walks the Bag and renders each node using the `compile_template` or `compile_callback` from the schema.
 
 ## Basic Usage
 
@@ -196,7 +196,7 @@ BagNode : ...
 
 ## Compile to File
 
-The `compile()` method can optionally write to a file:
+The `_compile()` method can optionally write to a file:
 
 ```python
 from genro_builders import BuilderBag
@@ -207,7 +207,7 @@ doc.h1("My Document")
 doc.p("Content here.")
 
 # Write to file
-doc.builder.compile(destination="output.md")
+doc.builder._compile(destination="output.md")
 ```
 
 ## Complete Example

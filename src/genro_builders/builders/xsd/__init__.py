@@ -7,10 +7,10 @@ This module provides:
 - XsdReader: Low-level XSD parser for schema generation
 
 Example:
-    >>> from genro_bag import Bag
-    >>> from genro_bag.builders.xsd import XsdBuilder
+    >>> from genro_builders import BuilderBag
+    >>> from genro_builders.builders.xsd import XsdBuilder
     >>>
-    >>> bag = Bag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
+    >>> bag = BuilderBag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
     >>> doc = bag.Document()
 """
 

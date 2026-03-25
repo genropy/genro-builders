@@ -65,8 +65,8 @@ Type hints supported:
     - Annotated[T, validator...] for validators
 
 Example - @element:
-    >>> from genro_bag import Bag
-    >>> from genro_bag.builders import BagBuilderBase, element
+    >>> from genro_builders import BuilderBag
+    >>> from genro_builders.builders import BagBuilderBase, element
 
     >>> class MyBuilder(BagBuilderBase):
     ...     @element(sub_tags='item')
@@ -76,8 +76,8 @@ Example - @element:
     ...     def item(self): ...
 
 Example - @component (lazy expansion):
-    >>> from genro_bag import Bag
-    >>> from genro_bag.builders import BagBuilderBase, element, component
+    >>> from genro_builders import BuilderBag
+    >>> from genro_builders.builders import BagBuilderBase, element, component
 
     >>> class FormBuilder(BagBuilderBase):
     ...     @element()
@@ -90,14 +90,14 @@ Example - @component (lazy expansion):
     ...         component.input(name='password')
 
 SchemaBuilder Example:
-    >>> from genro_bag import Bag
-    >>> from genro_bag.builder import SchemaBuilder
+    >>> from genro_builders import BuilderBag
+    >>> from genro_builders.builders import SchemaBuilder
     >>>
-    >>> schema = Bag(builder=SchemaBuilder)
+    >>> schema = BuilderBag(builder=SchemaBuilder)
     >>> schema.item('@container', sub_tags='child', compile_module='textual.containers')
     >>> schema.item('vertical', inherits_from='@container', compile_class='Vertical')
     >>> schema.item('br', sub_tags='')  # void element
-    >>> schema.builder.compile('schema.msgpack')
+    >>> schema.builder._compile('schema.msgpack')
 """
 
 from __future__ import annotations

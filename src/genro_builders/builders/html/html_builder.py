@@ -8,10 +8,10 @@ RELAX NG schema files using SchemaBuilder.
 Example:
     Creating an HTML document::
 
-        from genro_bag import Bag
-        from genro_bag.builders import HtmlBuilder
+        from genro_builders import BuilderBag
+        from genro_builders.builders import HtmlBuilder
 
-        store = Bag(builder=HtmlBuilder)
+        store = BuilderBag(builder=HtmlBuilder)
         body = store.body()
         div = body.div(id='main', class_='container')
         div.h1(value='Welcome')

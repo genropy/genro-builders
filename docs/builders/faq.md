@@ -155,7 +155,7 @@ True
 
 ### How do I check for errors after building?
 
-Use `builder.check()`:
+Use `builder._check()`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -170,7 +170,7 @@ Use `builder.check()`:
 >>> bag = BuilderBag(builder=MyBuilder)
 >>> p = bag.parent()
 
->>> errors = bag.builder.check(p, parent_tag='parent')
+>>> errors = bag.builder._check()
 >>> errors
 []
 ```
@@ -230,7 +230,7 @@ Content
 >>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class SimpleBuilder(BagBuilderBase):
-...     @element(sub_tags='item[]')
+...     @element(sub_tags='item')
 ...     def container(self): ...
 ...
 ...     @element()
@@ -256,7 +256,7 @@ Defines which child elements are allowed:
 @element(sub_tags='a,b,c')
 
 # With cardinality
-@element(sub_tags='child[]')     # Unlimited
+@element(sub_tags='child')       # Any number (0..N)
 @element(sub_tags='child[:1]')   # At most 1
 @element(sub_tags='child[1:]')   # At least 1
 @element(sub_tags='child[2:5]')  # Between 2 and 5

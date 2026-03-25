@@ -59,11 +59,11 @@ BagNode : ... at ...
 >>> schema = BuilderBag(builder=SchemaBuilder)
 
 >>> # Define elements with the item() method
->>> schema.item('document', sub_tags='chapter[]')  # doctest: +ELLIPSIS
+>>> schema.item('document', sub_tags='chapter')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> schema.item('chapter', sub_tags='section[],paragraph[]')  # doctest: +ELLIPSIS
+>>> schema.item('chapter', sub_tags='section,paragraph')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> schema.item('section', sub_tags='paragraph[]')  # doctest: +ELLIPSIS
+>>> schema.item('section', sub_tags='paragraph')  # doctest: +ELLIPSIS
 BagNode : ... at ...
 >>> schema.item('paragraph')  # Leaf element (no children)  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -111,7 +111,7 @@ Save the schema for reuse:
 
 ```python
 # Save to MessagePack (binary, compact)
-schema.builder.compile('my_schema.msgpack')
+schema.builder._compile('my_schema.msgpack')
 ```
 
 ### Using Compiled Schema
@@ -124,7 +124,7 @@ from genro_builders.builders import BagBuilderBase
 
 # Method 1: Class attribute
 class MyBuilder(BagBuilderBase):
-    schema_path = 'my_schema.msgpack'
+    _schema_path = 'my_schema.msgpack'
 
 # Method 2: Constructor parameter
 bag = BuilderBag(builder=BagBuilderBase, builder_schema_path='my_schema.msgpack')
@@ -166,14 +166,14 @@ BagNode : ... at ...
 
 ## Loading Schema from File
 
-Builders can load schema from a pre-compiled MessagePack file using `schema_path`:
+Builders can load schema from a pre-compiled MessagePack file using `_schema_path`:
 
 ```python
 from genro_builders import BuilderBag
 from genro_builders.builders import BagBuilderBase
 
 class MyBuilder(BagBuilderBase):
-    schema_path = 'path/to/schema.msgpack'  # Load at class definition
+    _schema_path = 'path/to/schema.msgpack'  # Load at class definition
 
 # Or pass at instantiation
 bag = BuilderBag(builder=MyBuilder, builder_schema_path='custom_schema.msgpack')
@@ -193,7 +193,7 @@ for data in large_dataset:
     parent.item(data)
 
 # Validate once at the end:
-errors = builder.check(parent, parent_tag='list')
+errors = builder._check()
 ```
 
 ## Real-World Example: Config Builder
@@ -205,7 +205,7 @@ errors = builder.check(parent, parent_tag='list')
 >>> class ConfigBuilder(BagBuilderBase):
 ...     """Builder for application configuration."""
 ...
-...     @element(sub_tags='database,cache[:1],logging[:1],features[]')
+...     @element(sub_tags='database,cache[:1],logging[:1],features')
 ...     def config(self): ...
 ...
 ...     @element()
@@ -232,7 +232,7 @@ errors = builder.check(parent, parent_tag='list')
 BagNode : ... at ...
 
 >>> # Validate structure
->>> errors = bag.builder.check(config, parent_tag='config')
+>>> errors = bag.builder._check()
 >>> errors
 []
 

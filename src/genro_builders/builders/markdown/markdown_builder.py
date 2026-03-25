@@ -7,10 +7,10 @@ MarkdownBuilder defines the schema elements, MarkdownCompiler transforms to Mark
 Example:
     Creating a Markdown document::
 
-        from genro_bag import Bag
-        from genro_bag.builders.markdown import MarkdownBuilder, MarkdownCompiler
+        from genro_builders import BuilderBag
+        from genro_builders.builders.markdown import MarkdownBuilder, MarkdownCompiler
 
-        doc = Bag(builder=MarkdownBuilder)
+        doc = BuilderBag(builder=MarkdownBuilder)
         doc.h1("My Document")
         doc.p("This is a paragraph.")
 

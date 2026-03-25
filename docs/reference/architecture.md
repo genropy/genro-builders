@@ -12,7 +12,7 @@ classDiagram
         -List~BagNode~ _nodes
         -Dict _node_index
         -BagNode _parent_node
-        -Builder _builder
+        -BagBuilderBase _builder
         +__getitem__(path)
         +__setitem__(path, value)
         +set_item(path, value, **attrs)
@@ -220,36 +220,46 @@ Builders provide a fluent API for constructing Bags with structural validation.
 ```mermaid
 flowchart TB
     A[bag.div] --> B["__getattr__('div')"]
-    B --> C[Builder.create_child]
-    C --> D{Tag allowed?}
-    D -->|Yes| E[Create BagNode]
-    D -->|No| F[Raise ValidationError]
-    E --> G[Set attributes]
-    G --> H[Return node for chaining]
+    B --> C[BagBuilderBase._add_element]
+    C --> D{_accept_child?}
+    D -->|Yes| E[Create BagNode via _child]
+    D -->|No| F[Raise BuilderChildError]
+    E --> G[_validate_call_args]
+    G --> H[Return Bag or BagNode]
 ```
 
 ### Builder Hierarchy
 
 ```mermaid
 classDiagram
-    class Builder {
+    class BagBuilderBase {
         <<abstract>>
-        +create_child(tag, value, attrs)
-        +validate_tag(parent, tag)
+        +_class_schema: Bag
+        +_schema_path: str
+        +_compiler_class: type
+        +_add_element(bag, tag, ...)
+        +_validate_sub_tags(node, info)
+        +_validate_parent_tags(info, parent)
+        +_check(bag) list
     }
 
     class HtmlBuilder {
-        +ALLOWED_CHILDREN: Dict
-        +validate_tag()
+        +_schema_path: Path
+        +_compile() str
     }
 
-    class XmlBuilder {
-        +schema: XmlSchema
-        +validate_tag()
+    class MarkdownBuilder {
+        +_compiler_class: MarkdownCompiler
     }
 
-    Builder <|-- HtmlBuilder
-    Builder <|-- XmlBuilder
+    class XsdBuilder {
+        +_xsd_source: str
+        +_compile(full_validate) str
+    }
+
+    BagBuilderBase <|-- HtmlBuilder
+    BagBuilderBase <|-- MarkdownBuilder
+    BagBuilderBase <|-- XsdBuilder
 ```
 
 ## Serialization

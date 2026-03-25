@@ -52,28 +52,39 @@ doc = BuilderBag(builder=XsdBuilder, builder_xsd_source='https://example.com/sch
 
 ```python
 class XsdBuilder(BagBuilderBase):
-    def __init__(self, schema_store: Bag):
-        """Create builder from XSD schema Bag."""
+    def __init__(self, bag: Bag, xsd_source: str | Path):
+        """Initialize builder from XSD file path or URL.
 
-    @property
-    def elements(self) -> frozenset[str]:
-        """All valid element names in the schema."""
+        Args:
+            bag: The Bag instance this builder is attached to.
+            xsd_source: Path to XSD file or URL to fetch XSD from.
+        """
 
-    def get_children(self, element: str) -> frozenset[str] | None:
-        """Get allowed children for an element."""
+    def _compile(self, full_validate: bool = False) -> str:
+        """Compile the bag to XML string.
+
+        Args:
+            full_validate: If True, validate against the original XSD
+                (requires xmlschema library).
+        """
+```
+
+When used with `BuilderBag`, pass the XSD source via `builder_xsd_source`:
+
+```python
+doc = BuilderBag(builder=XsdBuilder, builder_xsd_source='schema.xsd')
 ```
 
 ### Dynamic Methods
 
-For each element `Foo` in the schema, the builder provides:
+For each element in the XSD schema, the builder provides a callable method.
+These work like standard builder elements — calling without a value returns
+a `Bag` (branch), calling with a value returns a `BagNode` (leaf):
 
 ```python
-builder.Foo(target, value=None, **attributes) -> Bag | BagNode
+root = doc.RootElement(attr1='value')   # branch → Bag
+child = root.LeafElement('text')        # leaf → BagNode
 ```
-
-- `target`: The parent Bag to add this element to
-- `value`: Text content for leaf elements
-- `**attributes`: XML attributes for the element
 
 ## Example: SEPA Credit Transfer (ISO 20022 pain.001)
 
@@ -229,16 +240,15 @@ seller_addr.Nazione(value='IT')
 
 ## Introspection
 
-You can inspect the parsed schema:
+You can inspect the parsed schema via the builder's schema:
 
 ```python
-# List all elements
-print(f"Schema has {len(builder.elements)} elements")
-print(f"Sample: {sorted(builder.elements)[:10]}")
+builder = doc.builder
 
-# Get allowed children for an element
-children = builder.get_children('FatturaElettronicaHeader')
-print(f"Header can contain: {children}")
+# Iterate over schema elements
+for node in builder:
+    info = builder._get_schema_info(node.tag)
+    print(f"{node.tag}: sub_tags={info.get('sub_tags', '')}")
 ```
 
 ## Supported Formats

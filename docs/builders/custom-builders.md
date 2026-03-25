@@ -8,7 +8,7 @@ Builders use three decorators to define their schema:
 
 | Decorator | Purpose | Body Required |
 |-----------|---------|---------------|
-| `@element` | Simple elements with optional adapter | No (can use `...`) |
+| `@element` | Simple elements with optional adapter | Required empty (`...`) |
 | `@abstract` | Define sub_tags for inheritance | No (can use `...`) |
 | `@component` | Composite structures with code logic | **Yes** (must have body) |
 
@@ -140,10 +140,10 @@ Use `parent_tags` to specify where an element can be placed:
 >>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class ListBuilder(BagBuilderBase):
-...     @element(sub_tags='li[]')
+...     @element(sub_tags='li')
 ...     def ul(self): ...
 ...
-...     @element(sub_tags='li[]')
+...     @element(sub_tags='li')
 ...     def ol(self): ...
 ...
 ...     @element(parent_tags='ul,ol')  # li can ONLY be inside ul or ol
@@ -162,10 +162,8 @@ BagNode : ... at ...
 BagNode : ... at ...
 
 >>> # Check for validation errors
->>> errors = bag.builder.check()
+>>> errors = bag.builder._check()
 >>> len(errors) > 0
-True
->>> 'parent_tags' in str(errors[0])
 True
 ```
 
@@ -173,7 +171,7 @@ True
 
 - Comma-separated list of valid parent tags
 - Element is **marked invalid** if placed elsewhere (not rejected)
-- Use `builder.check()` to find validation errors
+- Use `builder._check()` to find validation errors
 - Works with both `@element` and `@component`
 
 ## The @abstract Decorator
@@ -312,7 +310,7 @@ The **first parent wins** when there are conflicting attributes (closest to the 
 ...     def em(self): ...
 
 >>> bag = BuilderBag(builder=UIBuilder)
->>> info = bag.builder.get_schema_info('mixed')
+>>> info = bag.builder._get_schema_info('mixed')
 >>> info['sub_tags']  # From @inline (first parent)
 'span,em'
 >>> info['parent_tags']  # From @inline (first parent)
@@ -463,7 +461,7 @@ Use `builder` parameter to use a different builder inside the component:
 
 | Feature | @element | @component |
 |---------|----------|------------|
-| Body | Optional (`...` allowed) | **Required** |
+| Body | Required empty (`...`) | **Required** (implementation) |
 | Receives | kwargs only | `Bag` + kwargs |
 | Creates | Single node | Node with pre-populated children |
 | Use case | Simple elements | Composite structures |
@@ -477,19 +475,19 @@ For elements without custom logic, use empty method bodies:
 >>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class TableBuilder(BagBuilderBase):
-...     @element(sub_tags='thead[:1],tbody,tfoot[:1],tr[]')
+...     @element(sub_tags='thead[:1],tbody,tfoot[:1],tr')
 ...     def table(self): ...
 ...
-...     @element(sub_tags='tr[]')
+...     @element(sub_tags='tr')
 ...     def thead(self): ...
 ...
-...     @element(sub_tags='tr[]')
+...     @element(sub_tags='tr')
 ...     def tbody(self): ...
 ...
-...     @element(sub_tags='tr[]')
+...     @element(sub_tags='tr')
 ...     def tfoot(self): ...
 ...
-...     @element(sub_tags='th[],td[]')
+...     @element(sub_tags='th,td')
 ...     def tr(self): ...
 ...
 ...     @element()
@@ -524,7 +522,7 @@ Use `sub_tags=''` to define void elements that cannot have children:
 >>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class FormBuilder(BagBuilderBase):
-...     @element(sub_tags='input[],button[],label[]')
+...     @element(sub_tags='input,button,label')
 ...     def form(self): ...
 ...
 ...     @element(sub_tags='')  # Void element - no children allowed

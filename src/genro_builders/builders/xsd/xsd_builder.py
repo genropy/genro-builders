@@ -7,10 +7,10 @@ The resulting schema is used by BagBuilderBase for validation during
 document construction.
 
 Example:
-    >>> from genro_bag import Bag
-    >>> from genro_bag.builders.xsd import XsdBuilder
+    >>> from genro_builders import BuilderBag
+    >>> from genro_builders.builders.xsd import XsdBuilder
     >>>
-    >>> bag = Bag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
+    >>> bag = BuilderBag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
     >>> doc = bag.Document()
     >>> # ... build document ...
     >>> xml = bag.builder._compile(full_validate=True)  # validates against XSD
@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
+
 from genro_builders.builder import BagBuilderBase
 from genro_builders.builders import SchemaBuilder
 

@@ -26,7 +26,7 @@ flowchart TB
 
 | Decorator | Returns | Description |
 |-----------|---------|-------------|
-| `@element(sub_tags='child[]')` | Bag | Container, children allowed |
+| `@element(sub_tags='child')` | Bag | Container, children allowed |
 | `@element(sub_tags='')` | BagNode | Leaf, no children |
 | `@element()` | BagNode | Leaf, no children |
 

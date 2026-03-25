@@ -82,7 +82,7 @@ Three decorators for defining schema:
 
 | Decorator | Purpose | Body |
 |-----------|---------|------|
-| `@element` | Simple elements | Optional (`...`) |
+| `@element` | Simple elements | Required empty (`...`) |
 | `@abstract` | Inheritance groups | Optional (`...`) |
 | `@component` | Composite structures | **Required** |
 

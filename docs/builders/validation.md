@@ -75,7 +75,7 @@ BagNode : ... at ...
 
 - `sub_tags='*'` disables child validation entirely
 - Useful for generic container elements
-- `check()` will not report errors for unknown children
+- `_check()` will not report errors for unknown children
 - Different from `sub_tags=''` which means **no children allowed** (leaf element)
 
 | Syntax | Meaning |
@@ -90,13 +90,16 @@ Specify minimum and maximum occurrences with bracket syntax:
 
 | Syntax | Meaning |
 |--------|---------|
-| `tag` | Exactly 1 |
+| `tag` | Any number (0..N) |
+| `tag[1]` | Exactly 1 |
 | `tag[3]` | Exactly 3 |
-| `tag[]` | Any number (0..N) |
-| `tag[0:]` | 0 or more (same as `[]`) |
+| `tag[0:]` | 0 or more (same as `tag`) |
 | `tag[1:]` | At least 1 |
 | `tag[:3]` | 0 to 3 |
 | `tag[2:5]` | Between 2 and 5 |
+
+> **Note:** `tag[]` (empty brackets) is **not valid** syntax and raises `ValueError`.
+> Use `tag` for 0..N or `tag[0:]` explicitly.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -118,70 +121,10 @@ Specify minimum and maximum occurrences with bracket syntax:
 ...     def footer(self): ...
 ```
 
-### Ordering Constraints (sub_tags_order)
+### The _check() Method
 
-Use `sub_tags_order` to enforce the order of child elements. Two formats are supported:
-
-#### String Format (Grouped Ordering)
-
-The legacy string format uses `>` to define groups that must appear in order:
-
-```python
-@element(sub_tags='a,b,c,d', sub_tags_order='a,b>c,d')
-def container(self): ...
-# a and b must come before c and d
-```
-
-#### List Format (Pattern Matching)
-
-The list format uses regex patterns and `*` wildcards for flexible ordering:
-
-| Pattern | Meaning |
-|---------|---------|
-| `'^tag$'` | Exactly this tag (regex fullmatch) |
-| `'.*'` | Any single tag (regex matches one) |
-| `'*'` | Wildcard: 0 or more tags |
-
-```{doctest}
->>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
-
->>> class DocumentBuilder(BagBuilderBase):
-...     @element(sub_tags='header,content[],footer', sub_tags_order=['^header$', '*', '^footer$'])
-...     def page(self): ...
-...
-...     @element()
-...     def header(self): ...
-...
-...     @element()
-...     def content(self): ...
-...
-...     @element()
-...     def footer(self): ...
-
->>> bag = BuilderBag(builder=DocumentBuilder)
->>> page = bag.page()
->>> page.header()  # Must be first
-<genro_bag.bag.Bag object at ...>
->>> page.content()  # Any number in the middle
-<genro_bag.bag.Bag object at ...>
->>> page.content()
-<genro_bag.bag.Bag object at ...>
->>> page.footer()  # Must be last
-<genro_bag.bag.Bag object at ...>
-```
-
-Common patterns:
-
-- `['^header$', '*', '^footer$']` - header first, footer last, anything between
-- `['*', '^footer$']` - anything, but footer must be last
-- `['^header$', '*']` - header first, then anything
-- `['^a$', '^b$', '^c$']` - exact sequence a, b, c
-- `['*']` - any order (no constraint)
-
-### The check() Method
-
-Use `check()` to validate structure after building:
+Use `_check()` to validate structure after building. It walks the bag and returns
+a list of `(path, node, reasons)` tuples for every invalid node:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -198,10 +141,8 @@ Use `check()` to validate structure after building:
 >>> lst = bag.list()
 
 >>> # Empty list - validation fails
->>> errors = bag.builder.check(lst, parent_tag='list')
+>>> errors = bag.builder._check()
 >>> len(errors) > 0
-True
->>> 'at least 1' in errors[0]
 True
 
 >>> # Add items - now valid
@@ -209,7 +150,7 @@ True
 BagNode : ... at ...
 >>> lst.item('Second')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> errors = bag.builder.check(lst, parent_tag='list')
+>>> errors = bag.builder._check()
 >>> errors
 []
 ```
@@ -237,10 +178,8 @@ BagNode : ... at ...
 >>> cont.forbidden('Oops')  # Structurally added, but invalid
 BagNode : ... at ...
 
->>> errors = bag.builder.check(cont, parent_tag='container')
+>>> errors = bag.builder._check()
 >>> len(errors) > 0
-True
->>> 'forbidden' in errors[0] and 'not a valid child' in errors[0]
 True
 ```
 
@@ -256,16 +195,16 @@ Use `parent_tags` to specify where an element can be placed. This is the inverse
 >>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class HtmlBuilder(BagBuilderBase):
-...     @element(sub_tags='li[]')
+...     @element(sub_tags='li')
 ...     def ul(self): ...
 ...
-...     @element(sub_tags='li[]')
+...     @element(sub_tags='li')
 ...     def ol(self): ...
 ...
 ...     @element(parent_tags='ul,ol')  # li MUST be inside ul or ol
 ...     def li(self): ...
 ...
-...     @element(sub_tags='li[]')  # Allows li as child (sub_tags)
+...     @element(sub_tags='li')  # Allows li as child (sub_tags)
 ...     def div(self): ...
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
@@ -274,14 +213,14 @@ Use `parent_tags` to specify where an element can be placed. This is the inverse
 >>> ul = bag.ul()
 >>> ul.li('Item 1')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> bag.builder.check()
+>>> bag.builder._check()
 []
 
 >>> # Invalid: li inside div (div allows li via sub_tags, but li rejects div via parent_tags)
 >>> div = bag.div()
 >>> div.li('Invalid item')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> errors = bag.builder.check()
+>>> errors = bag.builder._check()
 >>> len(errors) > 0
 True
 ```
@@ -290,7 +229,7 @@ True
 
 - `parent_tags` is a comma-separated list of allowed parent tags
 - Element is added but **marked invalid** if parent doesn't match
-- Validation happens at build time, errors collected via `check()`
+- Validation happens at build time, errors collected via `_check()`
 - Works with both `@element` and `@component`
 
 ### Combining sub_tags and parent_tags
@@ -299,10 +238,10 @@ Use both parameters for complete bidirectional validation:
 
 ```python
 class StrictHtmlBuilder(BagBuilderBase):
-    @element(sub_tags='tr[]')
+    @element(sub_tags='tr')
     def tbody(self): ...
 
-    @element(sub_tags='td[]', parent_tags='tbody,thead,tfoot')
+    @element(sub_tags='td', parent_tags='tbody,thead,tfoot')
     def tr(self): ...
 
     @element(parent_tags='tr')
@@ -345,16 +284,16 @@ A complete example with structure constraints:
 ...     @element(sub_tags='thead[:1],tbody,tfoot[:1]')
 ...     def table(self): ...
 ...
-...     @element(sub_tags='tr[]')
+...     @element(sub_tags='tr')
 ...     def thead(self): ...
 ...
 ...     @element(sub_tags='tr[1:]')  # At least 1 row
 ...     def tbody(self): ...
 ...
-...     @element(sub_tags='tr[]')
+...     @element(sub_tags='tr')
 ...     def tfoot(self): ...
 ...
-...     @element(sub_tags='th[],td[]')
+...     @element(sub_tags='th,td')
 ...     def tr(self): ...
 ...
 ...     @element()
@@ -401,10 +340,10 @@ Always validate complete structures before use:
 bag = BuilderBag(builder=MyBuilder)
 # ... build the structure ...
 
-errors = bag.builder.check(bag, parent_tag='root')
+errors = bag.builder._check()
 if errors:
-    for error in errors:
-        print(f"ERROR: {error}")
+    for path, node, reasons in errors:
+        print(f"ERROR at {path}: {reasons}")
     raise ValueError("Invalid structure")
 ```
 
@@ -413,7 +352,7 @@ if errors:
 The `sub_tags` parameter serves as documentation and enables validation:
 
 ```python
-@element(sub_tags='input[],button[],textarea[]')
+@element(sub_tags='input,button,textarea')
 def form(self):
     """Form element that accepts inputs, buttons, and textareas."""
     ...
