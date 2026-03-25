@@ -10,7 +10,7 @@ from genro_builders.component_proxy import ComponentProxy
 from genro_builders.component_resolver import ComponentResolver
 from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "BagAppBase",
