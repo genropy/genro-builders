@@ -711,7 +711,7 @@ class BagBuilderBase(ABC):
             node_position=node_position, node_tag=node_tag,
         )
 
-        if parent_node:
+        if parent_node and parent_node.node_tag:
             self._validate_sub_tags(parent_node, parent_info)
 
         self._validate_sub_tags(child_node, child_info)
