@@ -192,8 +192,7 @@ class BagAppBase:
     def _clear_compiled(self) -> None:
         """Clear the compiled bag without destroying the shell."""
         self._binding.unbind()
-        new_root = BuilderBag(builder=self.builder_class)
-        self._compiled_shell.set_item("root", new_root)
+        self.compiled.clear()
 
     def _clear_source(self) -> None:
         """Clear the source bag without destroying the shell."""
