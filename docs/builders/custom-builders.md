@@ -366,14 +366,14 @@ Unlike `@element`, components **must have a method body** - ellipsis (`...`) is 
 
 ### Component Return Behavior (sub_tags)
 
-The `sub_tags` parameter controls what the component call returns:
+All component calls return a `ComponentProxy` that delegates to the parent bag:
 
-| sub_tags | Return Value | Use Case |
-|----------|--------------|----------|
+| sub_tags | Proxy delegates to | Use Case |
+|----------|-------------------|----------|
 | `''` (empty) | Parent bag | Closed/leaf component, for chaining |
-| defined/None | Internal bag | Open container, for adding children |
+| defined/None | Parent bag | Chaining at same level |
 
-**Closed component** (`sub_tags=''`): Returns the parent bag for chaining.
+**Closed component** (`sub_tags=''`): Returns proxy wrapping parent bag for chaining.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -457,6 +457,76 @@ Use `builder` parameter to use a different builder inside the component:
 <genro_bag.bag.Bag object at ...>
 ```
 
+### Named Slots
+
+Use `slots` to declare named insertion points. This allows users to inject
+content into specific positions of the component's structure at recipe time,
+while the component body controls the overall layout.
+
+```{doctest}
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, component
+
+>>> class LayoutBuilder(BagBuilderBase):
+...     @element()
+...     def toolbar(self): ...
+...
+...     @element(sub_tags='*')
+...     def pane(self): ...
+...
+...     @element()
+...     def item(self): ...
+...
+...     @component(slots=['left', 'right'])
+...     def split_panel(self, comp, title='', **kwargs):
+...         comp.toolbar(title)
+...         left_pane = comp.pane(side='left')
+...         right_pane = comp.pane(side='right')
+...         return {'left': left_pane, 'right': right_pane}
+
+>>> page = BuilderBag(builder=LayoutBuilder)
+>>> shell = page.split_panel(title='My App')
+
+>>> # Populate slots at recipe time
+>>> shell.left.item('Navigation')  # doctest: +ELLIPSIS
+BagNode : ... at ...
+>>> shell.right.item('Main content')  # doctest: +ELLIPSIS
+BagNode : ... at ...
+
+>>> # Chaining still works via proxy delegation
+>>> page.toolbar('Page footer')  # doctest: +ELLIPSIS
+BagNode : ... at ...
+>>> len(page)  # split_panel + toolbar
+2
+```
+
+**How it works:**
+
+1. `@component(slots=['left', 'right'])` declares slot names
+2. At recipe time, `shell.left` and `shell.right` are empty `BuilderBag` instances
+3. The component body runs at compile time and returns a `dict` mapping slot names
+   to destination `BagNode` instances (where slot content should be mounted)
+4. The resolver copies nodes from each slot Bag into the corresponding destination
+
+**Handler return types:**
+
+| Slots | Handler returns | Behavior |
+|-------|----------------|----------|
+| None | `comp` (Bag) | Standard component (no slots) |
+| Declared | `dict[str, BagNode]` | Maps slot name → destination node |
+
+**The ComponentProxy:**
+
+All component calls return a `ComponentProxy`. Without slots, it delegates
+transparently to the parent bag. With slots, slot names are intercepted
+and return the corresponding slot Bag:
+
+```python
+shell = page.my_component()      # Returns ComponentProxy
+shell.element('text')             # Delegates to parent bag
+shell.left.item('nav')            # Returns slot Bag (if 'left' declared)
+```
+
 ### Key Differences: @element vs @component
 
 | Feature | @element | @component |
@@ -464,6 +534,7 @@ Use `builder` parameter to use a different builder inside the component:
 | Body | Required empty (`...`) | **Required** (implementation) |
 | Receives | kwargs only | `Bag` + kwargs |
 | Creates | Single node | Node with pre-populated children |
+| Slots | No | Optional (`slots=['name', ...]`) |
 | Use case | Simple elements | Composite structures |
 
 ## Defining Multiple Elements Simply

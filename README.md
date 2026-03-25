@@ -24,6 +24,7 @@ print(html.builder._compile())
 ## Features
 
 - **Domain-specific grammars** — Define elements, validation rules, and components via decorators (`@element`, `@abstract`, `@component`)
+- **Named slots** — Components can declare insertion points (`slots=['left', 'right']`) for user content injection at recipe time
 - **Built-in builders** — HTML5, Markdown, XSD (schema-driven XML)
 - **Compilation pipeline** — Expand components, resolve `^pointer` bindings, render output
 - **Reactive applications** — `BagAppBase` provides automatic re-render on data or source changes
