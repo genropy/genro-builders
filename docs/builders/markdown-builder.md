@@ -5,15 +5,15 @@ The `MarkdownBuilder` provides elements for building Markdown documents programm
 ## Basic Usage
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("My Document")  # doctest: +ELLIPSIS
 BagNode : ... at ...
 >>> doc.p("This is a paragraph.")  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> md = doc.builder.compile()
+>>> md = doc.builder._compile()
 >>> print(md)
 # My Document
 <BLANKLINE>
@@ -25,17 +25,17 @@ This is a paragraph.
 ### Headings
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("Title")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> doc.h2("Subtitle")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> doc.h3("Section")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 # Title
 <BLANKLINE>
 ## Subtitle
@@ -46,13 +46,13 @@ BagNode : ...
 ### Code Blocks
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.code("print('hello')", lang="python")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 ```python
 print('hello')
 ```
@@ -61,10 +61,10 @@ print('hello')
 ### Tables
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> table = doc.table()
 >>> header = table.tr()
 >>> header.th("Name")  # doctest: +ELLIPSIS
@@ -76,7 +76,7 @@ BagNode : ...
 BagNode : ...
 >>> row.td("bar")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 | Name | Value |
 | --- | --- |
 | foo | bar |
@@ -87,10 +87,10 @@ BagNode : ...
 #### Unordered Lists
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ul = doc.ul()
 >>> ul.li("First item")  # doctest: +ELLIPSIS
 BagNode : ...
@@ -98,7 +98,7 @@ BagNode : ...
 BagNode : ...
 >>> ul.li("Third item")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 - First item
 - Second item
 - Third item
@@ -107,10 +107,10 @@ BagNode : ...
 #### Ordered Lists
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ol = doc.ol()
 >>> ol.li("First step")  # doctest: +ELLIPSIS
 BagNode : ...
@@ -118,7 +118,7 @@ BagNode : ...
 BagNode : ...
 >>> ol.li("Third step")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 1. First step
 2. Second step
 3. Third step
@@ -129,16 +129,16 @@ BagNode : ...
 Use the `idx` parameter for custom markers:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ol = doc.ol()
 >>> ol.li("Item A", idx="a)")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> ol.li("Item B", idx="b)")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 a) Item A
 b) Item B
 ```
@@ -146,10 +146,10 @@ b) Item B
 ### Inline Elements
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.bold("important")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> doc.italic("emphasis")  # doctest: +ELLIPSIS
@@ -158,7 +158,7 @@ BagNode : ...
 BagNode : ...
 >>> doc.inlinecode("code")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 **important**
 <BLANKLINE>
 *emphasis*
@@ -171,26 +171,26 @@ BagNode : ...
 ### Blockquotes
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.blockquote("This is a quote.")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 > This is a quote.
 ```
 
 ### Images
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.img(src="image.png", alt="My Image")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder.compile())
+>>> print(doc.builder._compile())
 ![My Image](image.png)
 ```
 
@@ -199,10 +199,10 @@ BagNode : ...
 The `compile()` method can optionally write to a file:
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import MarkdownBuilder
+from genro_builders import BuilderBag
+from genro_builders.builders import MarkdownBuilder
 
-doc = Bag(builder=MarkdownBuilder)
+doc = BuilderBag(builder=MarkdownBuilder)
 doc.h1("My Document")
 doc.p("Content here.")
 
@@ -213,10 +213,10 @@ doc.builder.compile(destination="output.md")
 ## Complete Example
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("Project README")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> doc.p("A brief description of the project.")  # doctest: +ELLIPSIS
@@ -235,7 +235,7 @@ BagNode : ...
 >>> ul.li("Feature 2")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder.compile()
+>>> md = doc.builder._compile()
 >>> "# Project README" in md
 True
 >>> "pip install my-project" in md

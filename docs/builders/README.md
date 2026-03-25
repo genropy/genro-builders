@@ -12,10 +12,10 @@ Domain-specific fluent APIs: HTML, Markdown, XML Schema, custom DSLs.
 ## Quick Start
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import HtmlBuilder
+from genro_builders import BuilderBag
+from genro_builders.builders import HtmlBuilder
 
-html = Bag(builder=HtmlBuilder)
+html = BuilderBag(builder=HtmlBuilder)
 div = html.div(id='main')
 div.p(value='Hello World')
 
@@ -36,7 +36,7 @@ bag['div'].set_item('p', 'Hello')  # No validation, no structure
 
 With a builder:
 ```python
-html = Bag(builder=HtmlBuilder)
+html = BuilderBag(builder=HtmlBuilder)
 div = html.div()       # Returns Bag for children
 div.p(value='Hello')   # Validated, returns BagNode
 div.invalid()          # Error! 'invalid' not in HTML schema
@@ -89,7 +89,7 @@ Three decorators for defining schema:
 ### @element Example
 
 ```python
-from genro_bag.builders import BagBuilderBase, element
+from genro_builders.builders import BagBuilderBase, element
 
 class MenuBuilder(BagBuilderBase):
     @element(sub_tags='item,separator')
@@ -101,7 +101,7 @@ class MenuBuilder(BagBuilderBase):
     @element()
     def separator(self): ...
 
-menu = Bag(builder=MenuBuilder)
+menu = BuilderBag(builder=MenuBuilder)
 m = menu.menu()
 m.item(label='Open', action='open_file')
 m.separator()
@@ -113,7 +113,7 @@ m.item(label='Exit', action='quit')
 Use `@component` for reusable composite structures:
 
 ```python
-from genro_bag.builders import BagBuilderBase, element, component
+from genro_builders.builders import BagBuilderBase, element, component
 
 class PageBuilder(BagBuilderBase):
     @element()
@@ -129,7 +129,7 @@ class PageBuilder(BagBuilderBase):
         component.button('Login')
         return component
 
-page = Bag(builder=PageBuilder)
+page = BuilderBag(builder=PageBuilder)
 page.login_form()  # Creates complete form structure
 ```
 
@@ -144,10 +144,10 @@ html.to_xml(pretty=True)
 ### Markdown
 
 ```python
-doc = Bag(builder=MarkdownBuilder)
+doc = BuilderBag(builder=MarkdownBuilder)
 doc.h1("Title")
 doc.p("Content")
-doc.builder.compile()  # Returns markdown string
+doc.builder._compile()  # Returns markdown string
 ```
 
 ## Documentation

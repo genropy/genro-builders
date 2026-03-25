@@ -7,10 +7,10 @@ Practical examples of builder usage patterns.
 ### Simple Page
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> page = Bag(builder=HtmlBuilder)
+>>> page = BuilderBag(builder=HtmlBuilder)
 >>> html = page.html()
 >>> head = html.head()
 >>> head.title(value='My Page')  # doctest: +ELLIPSIS
@@ -31,10 +31,10 @@ True
 ### Navigation Menu
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> nav = Bag(builder=HtmlBuilder)
+>>> nav = BuilderBag(builder=HtmlBuilder)
 >>> ul = nav.ul(class_='nav-menu')
 >>> ul.li().a(value='Home', href='/')  # doctest: +ELLIPSIS
 BagNode : ...
@@ -51,15 +51,15 @@ True
 ### Data Table
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
 >>> data = [
 ...     {'name': 'Alice', 'role': 'Admin'},
 ...     {'name': 'Bob', 'role': 'User'},
 ... ]
 
->>> table = Bag(builder=HtmlBuilder)
+>>> table = BuilderBag(builder=HtmlBuilder)
 >>> t = table.table(class_='data-table')
 >>> thead = t.thead()
 >>> tr = thead.tr()
@@ -84,10 +84,10 @@ True
 ### README Template
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("My Project")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> doc.p("A brief description of the project.")  # doctest: +ELLIPSIS
@@ -106,7 +106,7 @@ BagNode : ...
 >>> ul.li("Easy to use")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder.compile()
+>>> md = doc.builder._compile()
 >>> "# My Project" in md
 True
 >>> "pip install" in md
@@ -116,10 +116,10 @@ True
 ### API Documentation
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("API Reference")  # doctest: +ELLIPSIS
 BagNode : ...
 
@@ -146,7 +146,7 @@ BagNode : ...
 >>> row.td("The user identifier")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder.compile()
+>>> md = doc.builder._compile()
 >>> "| Name | Type |" in md
 True
 ```
@@ -156,8 +156,8 @@ True
 ### Configuration Builder
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class ConfigBuilder(BagBuilderBase):
 ...     @element(sub_tags='database,cache,logging')
@@ -172,7 +172,7 @@ True
 ...     @element()
 ...     def logging(self, level='INFO'): ...
 
->>> cfg = Bag(builder=ConfigBuilder)
+>>> cfg = BuilderBag(builder=ConfigBuilder)
 >>> config = cfg.config(env='development')
 >>> config.database(host='db.local', port=5433)  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
@@ -190,8 +190,8 @@ True
 ### Form Builder
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class FormBuilder(BagBuilderBase):
 ...     @element(sub_tags='text,email,password,submit')
@@ -209,7 +209,7 @@ True
 ...     @element()
 ...     def submit(self, node_value='Submit'): ...
 
->>> form = Bag(builder=FormBuilder)
+>>> form = BuilderBag(builder=FormBuilder)
 >>> f = form.form(action='/login')
 >>> f.text(name='username', placeholder='Username')  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
@@ -224,11 +224,11 @@ BagNode : ...
 ### Invoice Builder
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import XsdBuilder
+from genro_builders import BuilderBag
+from genro_builders.builders import XsdBuilder
 
 # Create from XSD schema
-invoice = Bag(builder=XsdBuilder, builder_xsd_source='invoice.xsd')
+invoice = BuilderBag(builder=XsdBuilder, builder_xsd_source='invoice.xsd')
 
 doc = invoice.Invoice()
 header = doc.Header()
@@ -259,8 +259,8 @@ xml = invoice.to_xml(pretty=True)
 ### Reusable Components
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
 >>> def create_card(parent, title, content):
 ...     card = parent.div(class_='card')
@@ -268,7 +268,7 @@ xml = invoice.to_xml(pretty=True)
 ...     card.div(class_='card-body').p(value=content)
 ...     return card
 
->>> page = Bag(builder=HtmlBuilder)
+>>> page = BuilderBag(builder=HtmlBuilder)
 >>> container = page.div(class_='container')
 >>> create_card(container, 'Card 1', 'First card content')  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
@@ -285,8 +285,8 @@ True
 The previous example uses a function. With `@component`, you can make it part of the builder:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element, component
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, component
 
 >>> class CardBuilder(BagBuilderBase):
 ...     @element(sub_tags='header,body')
@@ -304,7 +304,7 @@ The previous example uses a function. With `@component`, you can make it part of
 ...         component.body(content)
 ...         return component
 
->>> page = Bag(builder=CardBuilder)
+>>> page = BuilderBag(builder=CardBuilder)
 >>> page.card(title='Card 1', content='First card')  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
 >>> page.card(title='Card 2', content='Second card')  # doctest: +ELLIPSIS
@@ -316,11 +316,11 @@ The previous example uses a function. With `@component`, you can make it part of
 ### Dynamic Structure from Data
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
 >>> def generate_doc(data):
-...     doc = Bag(builder=MarkdownBuilder)
+...     doc = BuilderBag(builder=MarkdownBuilder)
 ...     doc.h1(data['title'])
 ...     doc.p(data['description'])
 ...
@@ -341,7 +341,7 @@ The previous example uses a function. With `@component`, you can make it part of
 ... }
 
 >>> doc = generate_doc(content)
->>> md = doc.builder.compile()
+>>> md = doc.builder._compile()
 >>> "# User Guide" in md
 True
 >>> "## Getting Started" in md

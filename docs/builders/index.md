@@ -16,7 +16,7 @@ You need builders when:
 Without a builder, constructing a nested structure requires explicit paths:
 
 ```python
-from genro_bag import Bag
+from genro_builders import BuilderBag
 
 bag = Bag()
 bag.set_item('div', Bag())
@@ -27,9 +27,9 @@ div_bag.set_item('p', 'Hello World')
 With a builder, the same structure becomes natural and readable:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
->>> bag = Bag(builder=HtmlBuilder)
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
+>>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(id='main')
 >>> p = div.p(value='Hello World')
 >>> p.tag
@@ -46,9 +46,9 @@ Builders use the **fluent API pattern**: each method returns something you can c
 - **Leaf nodes** (values) return the `BagNode` itself
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
->>> bag = Bag(builder=HtmlBuilder)
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
+>>> bag = BuilderBag(builder=HtmlBuilder)
 >>> # div() returns a Bag (branch) - you can add children
 >>> container = bag.div()
 >>> type(container).__name__
@@ -67,9 +67,9 @@ Every node has both a **label** (unique identifier) and a **tag** (semantic type
 - **Tag**: The semantic type (e.g., `div`, `p`, `meta`) - used for validation
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
->>> bag = Bag(builder=HtmlBuilder)
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
+>>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div1 = bag.div()
 >>> div2 = bag.div()
 >>> list(bag.keys())
@@ -102,7 +102,7 @@ BagNode : ... at ...
 Define elements using `@element` decorator with empty method bodies:
 
 ```python
-from genro_bag.builders import BagBuilderBase, element
+from genro_builders.builders import BagBuilderBase, element
 
 class MenuBuilder(BagBuilderBase):
     @element(sub_tags='item,separator')
@@ -131,9 +131,9 @@ or schema builder utilities.
 Complete HTML5 support with 112 tags loaded from W3C schema:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
->>> bag = Bag(builder=HtmlBuilder)
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
+>>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(id='main')
 >>> div.p(value='Hello World')  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -144,14 +144,14 @@ BagNode : ... at ...
 Build Markdown documents programmatically with `compile()` to generate the final output:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
->>> doc = Bag(builder=MarkdownBuilder)
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("My Document")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> doc.p("Introduction paragraph.")  # doctest: +ELLIPSIS
 BagNode : ...
->>> md = doc.builder.compile()
+>>> md = doc.builder._compile()
 >>> "# My Document" in md
 True
 ```
@@ -163,11 +163,11 @@ See [Markdown Builder](markdown-builder.md) for complete documentation.
 Dynamic builder from XML Schema (XSD) files - automatically generates methods for all elements defined in the schema:
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import XsdBuilder
+from genro_builders import BuilderBag
+from genro_builders.builders import XsdBuilder
 
 # Use with Bag - pass XSD file path via builder_xsd_source
-invoice = Bag(builder=XsdBuilder, builder_xsd_source='invoice.xsd')
+invoice = BuilderBag(builder=XsdBuilder, builder_xsd_source='invoice.xsd')
 invoice.Invoice().Header().Date(value='2025-01-01')
 ```
 

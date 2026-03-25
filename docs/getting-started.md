@@ -1,146 +1,145 @@
 # Getting Started
 
-Learn Bag in 5 minutes. No resolvers, no subscriptions, no builders — just the core.
+Build structured output with genro-builders in 5 minutes.
 
 ## Install
 
 ```bash
-pip install genro-bag
+pip install genro-builders
 ```
 
-## Create a Bag
+This also installs [genro-bag](https://github.com/genropy/genro-bag) as a dependency.
 
-```{doctest}
->>> from genro_bag import Bag
+## Create an HTML page
 
->>> bag = Bag()
+```python
+from genro_builders import BuilderBag
+from genro_builders.builders import HtmlBuilder
+
+html = BuilderBag(builder=HtmlBuilder)
+body = html.body()
+body.h1('Welcome')
+body.p('This is a paragraph.')
+
+print(html.builder._compile())
 ```
 
-## Store Values with Paths
+Output:
 
-Use dot-separated paths. Intermediate nodes are created automatically.
-
-```{doctest}
->>> from genro_bag import Bag
-
->>> bag = Bag()
->>> bag['name'] = 'Alice'
->>> bag['config.database.host'] = 'localhost'
->>> bag['config.database.port'] = 5432
+```html
+<body><h1>Welcome</h1><p>This is a paragraph.</p></body>
 ```
 
-## Read Values
+## Nesting elements
 
-```{doctest}
->>> from genro_bag import Bag
+Methods return the created node, so you can nest by chaining or by assigning:
 
->>> bag = Bag()
->>> bag['config.database.host'] = 'localhost'
->>> bag['config.database.port'] = 5432
+```python
+from genro_builders import BuilderBag
+from genro_builders.builders import HtmlBuilder
 
->>> bag['config.database.host']
-'localhost'
-
->>> # Get intermediate Bag
->>> db = bag['config.database']
->>> db['port']
-5432
+html = BuilderBag(builder=HtmlBuilder)
+body = html.body()
+div = body.div(id='main')
+div.p('Inside the div')
+div.p('Another paragraph')
 ```
 
-## Add Attributes (Metadata)
+## Attributes
 
-Every node can carry attributes separate from its value.
+Pass keyword arguments to set HTML attributes:
 
-```{doctest}
->>> from genro_bag import Bag
+```python
+from genro_builders import BuilderBag
+from genro_builders.builders import HtmlBuilder
 
->>> bag = Bag()
->>> bag.set_item('api_key', 'sk-xxx', env='production', expires=2025)
-
->>> bag['api_key']
-'sk-xxx'
-
->>> bag['api_key?env']
-'production'
+html = BuilderBag(builder=HtmlBuilder)
+body = html.body()
+body.a('Click here', href='https://example.com', target='_blank')
+body.img(src='logo.png', alt='Logo')
 ```
 
-## Iterate
+## Markdown output
 
-```{doctest}
->>> from genro_bag import Bag
+```python
+from genro_builders import BuilderBag
+from genro_builders.builders import MarkdownBuilder
 
->>> bag = Bag({'a': 1, 'b': 2, 'c': 3})
+doc = BuilderBag(builder=MarkdownBuilder)
+doc.h1('My Document')
+doc.p('A paragraph of text.')
+doc.h2('Section')
+doc.code('print("hello")', lang='python')
 
->>> for node in bag:
-...     print(f"{node.label}: {node.value}")
-a: 1
-b: 2
-c: 3
-
->>> list(bag.keys())
-['a', 'b', 'c']
+print(doc.builder._compile())
 ```
 
-## Serialize
+## Custom builders
 
-```{doctest}
->>> from genro_bag import Bag
+Define your own grammar with `@element`:
 
->>> bag = Bag()
->>> bag['name'] = 'Test'
->>> bag['count'] = 42
+```python
+from genro_builders import BuilderBag, BagBuilderBase
+from genro_builders.builders import element
 
->>> xml = bag.to_xml()
->>> '<name>Test</name>' in xml
-True
+class ConfigBuilder(BagBuilderBase):
+    @element(sub_tags='setting')
+    def section(self): ...
 
->>> # Round-trip
->>> bag2 = Bag.from_xml('<root><x>1</x></root>')
->>> bag2['root.x']
-'1'
+    @element(sub_tags='')
+    def setting(self): ...
+
+config = BuilderBag(builder=ConfigBuilder)
+db = config.section(node_label='database')
+db.setting('localhost', node_label='host')
+db.setting(5432, node_label='port')
 ```
 
-## That's It
+## Reactive applications
 
-You now know Bag. Three concepts:
+Use `BagAppBase` for live, data-bound output:
 
-| Concept | Syntax | Example |
-|---------|--------|---------|
-| Path | `bag['a.b.c']` | Navigate hierarchy |
-| Value | `bag['key'] = value` | Store data |
-| Attribute | `bag['key?attr']` | Add metadata |
+```python
+from genro_builders import BagAppBase
+from genro_builders.builders import HtmlBuilder
+from genro_builders.compiler import BagCompilerBase, compile_handler
 
-## What's Next?
+class MyCompiler(BagCompilerBase):
+    @compile_handler
+    def h1(self, node, ctx):
+        return f"<h1>{ctx['node_value']}</h1>"
 
-::::{grid} 2
-:gutter: 3
+    @compile_handler
+    def p(self, node, ctx):
+        return f"<p>{ctx['node_value']}</p>"
 
-:::{grid-item-card} Deep Dive: Core Bag
-:link: bag/basic-usage
-:link-type: doc
+    def render(self, compiled_bag):
+        parts = list(self._walk_compile(compiled_bag))
+        return '\n'.join(p for p in parts if p)
 
-Positioning, deletion, nested Bags, and more.
-:::
+class MyApp(BagAppBase):
+    builder_class = HtmlBuilder
+    compiler_class = MyCompiler
 
-:::{grid-item-card} When values need to compute themselves
-:link: resolvers/index
-:link-type: doc
+    def recipe(self, source):
+        source.h1(value='^title')
+        source.p(value='^text')
 
-Lazy loading, API calls, file watches.
-:::
+app = MyApp()
+app.data['title'] = 'Hello'
+app.data['text'] = 'World'
+app.setup()
+print(app.output)
+# <h1>Hello</h1>
+# <p>World</p>
 
-:::{grid-item-card} When you need to react to changes
-:link: subscriptions/index
-:link-type: doc
+# Change data — output updates automatically
+app.data['title'] = 'Updated'
+print(app.output)
+# <h1>Updated</h1>
+# <p>World</p>
+```
 
-Validation, logging, computed properties.
-:::
+---
 
-:::{grid-item-card} When you need domain-specific structure
-:link: builders/index
-:link-type: doc
-
-HTML, Markdown, XML schemas — validated as you build.
-:::
-
-::::
+**Next:** [Quickstart](builders/quickstart.md) — Deep dive into builder grammar and validation

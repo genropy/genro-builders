@@ -7,8 +7,8 @@ This guide covers advanced builder patterns for complex use cases.
 ### Extending Existing Builders
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class BaseUIBuilder(BagBuilderBase):
 ...     """Base builder with common UI elements."""
@@ -31,7 +31,7 @@ This guide covers advanced builder patterns for complex use cases.
 ...     @element()
 ...     def option(self): ...
 
->>> bag = Bag(builder=ExtendedUIBuilder)
+>>> bag = BuilderBag(builder=ExtendedUIBuilder)
 >>> cont = bag.container()  # From parent
 >>> cont.text('Label')  # From parent
 BagNode : ... at ...
@@ -53,10 +53,10 @@ BagNode : ... at ...
 ### Basic Usage
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import SchemaBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import SchemaBuilder
 
->>> schema = Bag(builder=SchemaBuilder)
+>>> schema = BuilderBag(builder=SchemaBuilder)
 
 >>> # Define elements with the item() method
 >>> schema.item('document', sub_tags='chapter[]')  # doctest: +ELLIPSIS
@@ -84,10 +84,10 @@ schema.item(
 Use `@` prefix for abstract elements:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import SchemaBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import SchemaBuilder
 
->>> schema = Bag(builder=SchemaBuilder)
+>>> schema = BuilderBag(builder=SchemaBuilder)
 
 >>> # Define abstract (content category)
 >>> schema.item('@inline', sub_tags='span,strong,em')  # doctest: +ELLIPSIS
@@ -119,25 +119,25 @@ schema.builder.compile('my_schema.msgpack')
 Load the schema in a custom builder:
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import BagBuilderBase
+from genro_builders import BuilderBag
+from genro_builders.builders import BagBuilderBase
 
 # Method 1: Class attribute
 class MyBuilder(BagBuilderBase):
     schema_path = 'my_schema.msgpack'
 
 # Method 2: Constructor parameter
-bag = Bag(builder=BagBuilderBase, builder_schema_path='my_schema.msgpack')
+bag = BuilderBag(builder=BagBuilderBase, builder_schema_path='my_schema.msgpack')
 ```
 
 ### Complete Example: Config Schema
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import SchemaBuilder, BagBuilderBase
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import SchemaBuilder, BagBuilderBase
 
 >>> # Create schema programmatically
->>> schema = Bag(builder=SchemaBuilder)
+>>> schema = BuilderBag(builder=SchemaBuilder)
 >>> schema.item('config', sub_tags='database,cache[:1],logging[:1]')  # doctest: +ELLIPSIS
 BagNode : ... at ...
 >>> schema.item('database')  # doctest: +ELLIPSIS
@@ -169,14 +169,14 @@ BagNode : ... at ...
 Builders can load schema from a pre-compiled MessagePack file using `schema_path`:
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import BagBuilderBase
+from genro_builders import BuilderBag
+from genro_builders.builders import BagBuilderBase
 
 class MyBuilder(BagBuilderBase):
     schema_path = 'path/to/schema.msgpack'  # Load at class definition
 
 # Or pass at instantiation
-bag = Bag(builder=MyBuilder, builder_schema_path='custom_schema.msgpack')
+bag = BuilderBag(builder=MyBuilder, builder_schema_path='custom_schema.msgpack')
 ```
 
 ## Custom Validation
@@ -199,8 +199,8 @@ errors = builder.check(parent, parent_tag='list')
 ## Real-World Example: Config Builder
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class ConfigBuilder(BagBuilderBase):
 ...     """Builder for application configuration."""
@@ -220,7 +220,7 @@ errors = builder.check(parent, parent_tag='list')
 ...     @element()
 ...     def features(self): ...
 
->>> bag = Bag(builder=ConfigBuilder)
+>>> bag = BuilderBag(builder=ConfigBuilder)
 >>> config = bag.config(env='development')
 >>> config.database(host='db.local', port=5433)  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag object at ...>

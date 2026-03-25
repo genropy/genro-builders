@@ -14,11 +14,11 @@ Creating builders manually for complex XML formats like invoices, financial repo
 ## Basic Usage
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import XsdBuilder
+from genro_builders import BuilderBag
+from genro_builders.builders import XsdBuilder
 
 # Use with Bag - pass XSD file path via builder_xsd_source
-doc = Bag(builder=XsdBuilder, builder_xsd_source='schema.xsd')
+doc = BuilderBag(builder=XsdBuilder, builder_xsd_source='schema.xsd')
 
 # Methods are generated from XSD elements
 root = doc.RootElement(attr1='value')
@@ -26,7 +26,7 @@ child = root.ChildElement()
 child.GrandChild(value='text content')
 
 # Can also use URL
-doc = Bag(builder=XsdBuilder, builder_xsd_source='https://example.com/schema.xsd')
+doc = BuilderBag(builder=XsdBuilder, builder_xsd_source='https://example.com/schema.xsd')
 ```
 
 ## How It Works
@@ -81,11 +81,11 @@ SEPA Credit Transfer is the European standard for bank transfers. The pain.001 s
 defines the Customer Credit Transfer Initiation message.
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import XsdBuilder
+from genro_builders import BuilderBag
+from genro_builders.builders import XsdBuilder
 
 # Create Credit Transfer document from ISO 20022 pain.001 schema
-doc = Bag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
+doc = BuilderBag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
 root = doc.Document()
 cstmr = root.CstmrCdtTrfInitn()
 
@@ -188,11 +188,11 @@ Output:
 The FatturaPA is Italy's mandatory electronic invoice format with a complex XSD schema.
 
 ```python
-from genro_bag import Bag
-from genro_bag.builders import XsdBuilder
+from genro_builders import BuilderBag
+from genro_builders.builders import XsdBuilder
 
 # Create invoice from official FatturaPA schema - all methods generated from XSD
-invoice = Bag(builder=XsdBuilder, builder_xsd_source='Schema_VFPA12.xsd')
+invoice = BuilderBag(builder=XsdBuilder, builder_xsd_source='Schema_VFPA12.xsd')
 fe = invoice.FatturaElettronica(versione='FPR12')
 
 # Header

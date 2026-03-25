@@ -4,7 +4,7 @@
 
 ```{mermaid}
 flowchart TB
-    A["Bag(builder=HtmlBuilder)"] --> B[Bag with .builder]
+    A["BuilderBag(builder=HtmlBuilder)"] --> B[Bag with .builder]
     B --> C[HtmlBuilder]
     C --> D[Schema: 112 HTML tags]
     C --> E["Methods: div(), p(), ..."]
@@ -34,7 +34,7 @@ flowchart TB
 
 ```{mermaid}
 flowchart TB
-    A["doc.builder.compile()"] --> B[Walk Bag]
+    A["doc.builder._compile()"] --> B[Walk Bag]
     B --> C[For each node]
     C --> D[Get compile_template from schema]
     D --> E[Render node to output format]

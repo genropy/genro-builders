@@ -13,8 +13,8 @@ pip install genro-bag
 Let's create a simple menu structure:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class MenuBuilder(BagBuilderBase):
 ...     """Builder for navigation menus."""
@@ -29,7 +29,7 @@ Let's create a simple menu structure:
 ...     def separator(self): ...
 
 >>> # Use the builder
->>> bag = Bag(builder=MenuBuilder)
+>>> bag = BuilderBag(builder=MenuBuilder)
 >>> menu = bag.menu(id='main-nav')
 >>> menu.item('Home', href='/')  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -54,10 +54,10 @@ BagNode : ... at ...
 For HTML, use the built-in `HtmlBuilder`:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> bag = Bag(builder=HtmlBuilder)
+>>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(id='content', class_='container')
 >>> div.h1(value='Welcome')  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -85,10 +85,10 @@ BagNode : ... at ...
 Pass attributes as keyword arguments. Use `class_` for the `class` attribute (since `class` is a Python reserved word):
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> bag = Bag(builder=HtmlBuilder)
+>>> bag = BuilderBag(builder=HtmlBuilder)
 >>> a = bag.a(value='Click here', href='https://example.com', target='_blank')
 >>> a.attr['href']  # Access via saved reference
 'https://example.com'
@@ -109,10 +109,10 @@ on insertion order.
 Understanding when you get a `Bag` vs a `BagNode` is key:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> bag = Bag(builder=HtmlBuilder)
+>>> bag = BuilderBag(builder=HtmlBuilder)
 
 >>> # Branch: returns Bag, can add children
 >>> div = bag.div()

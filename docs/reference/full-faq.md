@@ -288,7 +288,7 @@ bag['email'] = 'invalid'  # Raises ValueError
 A builder provides a fluent API for constructing validated Bag structures:
 
 ```python
-bag = Bag(builder=HtmlBuilder)
+bag = BuilderBag(builder=HtmlBuilder)
 div = bag.div(id='main')
 div.h1('Title')
 div.p('Content')
@@ -312,7 +312,7 @@ menu.div('Error')    # Raises BuilderChildError
 Yes, extend `BagBuilderBase`:
 
 ```python
-from genro_bag.builders import BagBuilderBase, element
+from genro_builders.builders import BagBuilderBase, element
 
 class MyBuilder(BagBuilderBase):
     @element(sub_tags='child')

@@ -23,8 +23,8 @@ Do not create JSON or dictionary schemas by hand.
 ```
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class RecipeBuilder(BagBuilderBase):
 ...     """Builder for cooking recipes."""
@@ -38,7 +38,7 @@ Do not create JSON or dictionary schemas by hand.
 ...     @element()
 ...     def step(self): ...
 
->>> bag = Bag(builder=RecipeBuilder)
+>>> bag = BuilderBag(builder=RecipeBuilder)
 >>> recipe = bag.recipe(title='Pasta Carbonara')
 >>> recipe.ingredient('Spaghetti', amount='400', unit='g')  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -58,14 +58,14 @@ BagNode : ... at ...
 The simplest form just marks a method as an element handler:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class SimpleBuilder(BagBuilderBase):
 ...     @element()
 ...     def item(self): ...
 
->>> bag = Bag(builder=SimpleBuilder)
+>>> bag = BuilderBag(builder=SimpleBuilder)
 >>> bag.item('test')  # doctest: +ELLIPSIS
 BagNode : ... at ...
 ```
@@ -75,14 +75,14 @@ BagNode : ... at ...
 Use `tags` to handle multiple tag names with one method:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class KitchenBuilder(BagBuilderBase):
 ...     @element(tags='fridge, oven, dishwasher, microwave')
 ...     def appliance(self): ...
 
->>> bag = Bag(builder=KitchenBuilder)
+>>> bag = BuilderBag(builder=KitchenBuilder)
 >>> bag.fridge(brand='Samsung')  # doctest: +ELLIPSIS
 BagNode : ... at ...
 >>> bag.oven(brand='Bosch')  # doctest: +ELLIPSIS
@@ -100,8 +100,8 @@ BagNode : ... at ...
 Use `sub_tags` to define what child elements are allowed:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class DocumentBuilder(BagBuilderBase):
 ...     @element(sub_tags='section,paragraph')
@@ -119,7 +119,7 @@ Use `sub_tags` to define what child elements are allowed:
 ...     @element()
 ...     def item(self): ...
 
->>> bag = Bag(builder=DocumentBuilder)
+>>> bag = BuilderBag(builder=DocumentBuilder)
 >>> doc = bag.document()
 >>> sec = doc.section(title='Introduction')
 >>> sec.paragraph('Welcome!')  # doctest: +ELLIPSIS
@@ -136,8 +136,8 @@ BagNode : ... at ...
 Use `parent_tags` to specify where an element can be placed:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class ListBuilder(BagBuilderBase):
 ...     @element(sub_tags='li[]')
@@ -152,7 +152,7 @@ Use `parent_tags` to specify where an element can be placed:
 ...     @element()
 ...     def div(self): ...
 
->>> bag = Bag(builder=ListBuilder)
+>>> bag = BuilderBag(builder=ListBuilder)
 >>> ul = bag.ul()
 >>> ul.li('Item 1')  # OK - li inside ul  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -185,8 +185,8 @@ Use `@abstract` to define element groups that can be inherited but not instantia
 Abstract elements are useful for defining content categories (like HTML5 content categories):
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element, abstract
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, abstract
 
 >>> class HtmlLikeBuilder(BagBuilderBase):
 ...     """Builder with HTML-like content categories."""
@@ -228,7 +228,7 @@ Abstract elements are useful for defining content categories (like HTML5 content
 ...     @element()
 ...     def li(self): ...
 
->>> bag = Bag(builder=HtmlLikeBuilder)
+>>> bag = BuilderBag(builder=HtmlLikeBuilder)
 >>> p = bag.p()
 >>> p.strong('Bold')  # phrasing content allowed in p
 BagNode : ... at ...
@@ -250,8 +250,8 @@ BagNode : ... at ...
 ### Combining Abstracts
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element, abstract
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, abstract
 
 >>> class ContentBuilder(BagBuilderBase):
 ...     @abstract(sub_tags='text,code')
@@ -278,7 +278,7 @@ BagNode : ... at ...
 ...     @element()
 ...     def section(self): ...
 
->>> bag = Bag(builder=ContentBuilder)
+>>> bag = BuilderBag(builder=ContentBuilder)
 >>> c = bag.container()
 >>> c.text('Hello')  # from @inline
 BagNode : ... at ...
@@ -292,8 +292,8 @@ Elements can inherit from multiple abstracts using a comma-separated list.
 The **first parent wins** when there are conflicting attributes (closest to the element):
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element, abstract
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, abstract
 
 >>> class UIBuilder(BagBuilderBase):
 ...     @abstract(sub_tags='span,em', parent_tags='body')
@@ -311,7 +311,7 @@ The **first parent wins** when there are conflicting attributes (closest to the 
 ...     @element()
 ...     def em(self): ...
 
->>> bag = Bag(builder=UIBuilder)
+>>> bag = BuilderBag(builder=UIBuilder)
 >>> info = bag.builder.get_schema_info('mixed')
 >>> info['sub_tags']  # From @inline (first parent)
 'span,em'
@@ -339,8 +339,8 @@ Unlike `@element`, components **must have a method body** - ellipsis (`...`) is 
 ### Basic Component
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element, component
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, component
 
 >>> class PageBuilder(BagBuilderBase):
 ...     @element()
@@ -356,7 +356,7 @@ Unlike `@element`, components **must have a method body** - ellipsis (`...`) is 
 ...         component.button('Login', type='submit')
 ...         return component
 
->>> page = Bag(builder=PageBuilder)
+>>> page = BuilderBag(builder=PageBuilder)
 >>> page.login_form()  # Creates the form structure  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag object at ...>
 >>> len(page)  # One node: login_form_0
@@ -378,8 +378,8 @@ The `sub_tags` parameter controls what the component call returns:
 **Closed component** (`sub_tags=''`): Returns the parent bag for chaining.
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element, component
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, component
 
 >>> class Builder(BagBuilderBase):
 ...     @element()
@@ -390,7 +390,7 @@ The `sub_tags` parameter controls what the component call returns:
 ...         component.text('---')
 ...         return component
 
->>> doc = Bag(builder=Builder)
+>>> doc = BuilderBag(builder=Builder)
 >>> doc.text('Above')  # doctest: +ELLIPSIS
 BagNode : ... at ...
 >>> doc.separator()  # Returns doc, not the separator's bag  # doctest: +ELLIPSIS
@@ -404,8 +404,8 @@ BagNode : ... at ...
 **Open component** (`sub_tags` defined): Returns the internal bag for adding children.
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element, component
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, component
 
 >>> class Builder(BagBuilderBase):
 ...     @element()
@@ -419,7 +419,7 @@ BagNode : ... at ...
 ...         component.header(title)
 ...         return component
 
->>> doc = Bag(builder=Builder)
+>>> doc = BuilderBag(builder=Builder)
 >>> lst = doc.mylist(title='Shopping')  # Returns internal bag
 >>> lst.item('Milk')  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -434,8 +434,8 @@ BagNode : ... at ...
 Use `builder` parameter to use a different builder inside the component:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element, component
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element, component
 
 >>> class InnerBuilder(BagBuilderBase):
 ...     @element()
@@ -452,7 +452,7 @@ Use `builder` parameter to use a different builder inside the component:
 ...         component.field(name='name')
 ...         return component
 
->>> page = Bag(builder=OuterBuilder)
+>>> page = BuilderBag(builder=OuterBuilder)
 >>> page.section()  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag object at ...>
 >>> page.form()  # Uses InnerBuilder internally  # doctest: +ELLIPSIS
@@ -473,8 +473,8 @@ Use `builder` parameter to use a different builder inside the component:
 For elements without custom logic, use empty method bodies:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class TableBuilder(BagBuilderBase):
 ...     @element(sub_tags='thead[:1],tbody,tfoot[:1],tr[]')
@@ -498,7 +498,7 @@ For elements without custom logic, use empty method bodies:
 ...     @element()
 ...     def td(self): ...
 
->>> bag = Bag(builder=TableBuilder)
+>>> bag = BuilderBag(builder=TableBuilder)
 >>> table = bag.table()
 >>> thead = table.thead()
 >>> tr = thead.tr()
@@ -520,8 +520,8 @@ BagNode : ... at ...
 Use `sub_tags=''` to define void elements that cannot have children:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class FormBuilder(BagBuilderBase):
 ...     @element(sub_tags='input[],button[],label[]')
@@ -536,7 +536,7 @@ Use `sub_tags=''` to define void elements that cannot have children:
 ...     @element()
 ...     def label(self): ...
 
->>> bag = Bag(builder=FormBuilder)
+>>> bag = BuilderBag(builder=FormBuilder)
 >>> form = bag.form()
 >>> form.input(type='text', name='email')  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -549,8 +549,8 @@ BagNode : ... at ...
 Mix simple elements (empty body) with custom logic elements:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class HybridBuilder(BagBuilderBase):
 ...     # Simple elements with empty body (uses default handler)
@@ -572,7 +572,7 @@ Mix simple elements (empty body) with custom logic elements:
 ...     @element()
 ...     def aside(self): ...
 
->>> bag = Bag(builder=HybridBuilder)
+>>> bag = BuilderBag(builder=HybridBuilder)
 >>> container = bag.container()
 >>> container.header()  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag object at ...>
@@ -589,8 +589,8 @@ BagNode : ... at ...
 - Value passed → Returns `BagNode` (leaf)
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class TestBuilder(BagBuilderBase):
 ...     @element()
@@ -599,7 +599,7 @@ BagNode : ... at ...
 ...     @element()
 ...     def leaf(self): ...
 
->>> bag = Bag(builder=TestBuilder)
+>>> bag = BuilderBag(builder=TestBuilder)
 >>> b = bag.branch()
 >>> type(b).__name__
 'Bag'

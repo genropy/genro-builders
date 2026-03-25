@@ -8,15 +8,15 @@
 - **Builder**: Adds domain-specific methods and validation rules to a Bag
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
 >>> # Plain Bag - no structure rules
 >>> plain = Bag()
 >>> plain['anything'] = 'goes'
 
 >>> # With builder - domain-specific methods
->>> html = Bag(builder=HtmlBuilder)
+>>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div().p(value='Structured')  # doctest: +ELLIPSIS
 BagNode : ...
 ```
@@ -27,10 +27,10 @@ Elements with allowed children (containers) return a Bag so you can add children
 Elements without children (leaves) return the BagNode itself.
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> html = Bag(builder=HtmlBuilder)
+>>> html = BuilderBag(builder=HtmlBuilder)
 >>> div = html.div()  # Container - returns Bag
 >>> type(div).__name__
 'Bag'
@@ -43,10 +43,10 @@ Elements without children (leaves) return the BagNode itself.
 ### How do I access the node value?
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> html = Bag(builder=HtmlBuilder)
+>>> html = BuilderBag(builder=HtmlBuilder)
 >>> p = html.p(value='Hello')
 >>> p.value
 'Hello'
@@ -55,10 +55,10 @@ Elements without children (leaves) return the BagNode itself.
 ### How do I access node attributes?
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> html = Bag(builder=HtmlBuilder)
+>>> html = BuilderBag(builder=HtmlBuilder)
 >>> div = html.div(id='main', class_='container')
 >>> node = html.get_node('div_0')
 >>> node.attr
@@ -72,10 +72,10 @@ Elements without children (leaves) return the BagNode itself.
 Auto-generated labels use `tag_index` format for uniqueness:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> html = Bag(builder=HtmlBuilder)
+>>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div()  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
 >>> html.div()  # doctest: +ELLIPSIS
@@ -89,10 +89,10 @@ Auto-generated labels use `tag_index` format for uniqueness:
 Use `node_label`:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> html = Bag(builder=HtmlBuilder)
+>>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div(node_label='header')  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
 >>> html.div(node_label='footer')  # doctest: +ELLIPSIS
@@ -106,10 +106,10 @@ Use `node_label`:
 ### How do I find elements by tag?
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> html = Bag(builder=HtmlBuilder)
+>>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div()  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
 >>> html.p(value='text')  # doctest: +ELLIPSIS
@@ -129,8 +129,8 @@ BagNode : ...
 At build time - invalid children are rejected immediately:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class StrictBuilder(BagBuilderBase):
 ...     @element(sub_tags='item')
@@ -140,7 +140,7 @@ At build time - invalid children are rejected immediately:
 ...     @element()
 ...     def other(self): ...
 
->>> bag = Bag(builder=StrictBuilder)
+>>> bag = BuilderBag(builder=StrictBuilder)
 >>> l = bag.list()
 >>> l.item()  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
@@ -158,8 +158,8 @@ True
 Use `builder.check()`:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class MyBuilder(BagBuilderBase):
 ...     @element(sub_tags='child')
@@ -167,7 +167,7 @@ Use `builder.check()`:
 ...     @element()
 ...     def child(self): ...
 
->>> bag = Bag(builder=MyBuilder)
+>>> bag = BuilderBag(builder=MyBuilder)
 >>> p = bag.parent()
 
 >>> errors = bag.builder.check(p, parent_tag='parent')
@@ -186,10 +186,10 @@ Not directly, but you can use plain Bag for unstructured content.
 Use `bag.to_xml()`:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import HtmlBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import HtmlBuilder
 
->>> html = Bag(builder=HtmlBuilder)
+>>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div().p(value='Hello')  # doctest: +ELLIPSIS
 BagNode : ...
 
@@ -202,19 +202,19 @@ BagNode : ...
 
 ### How do I generate Markdown?
 
-Use `builder.compile()`:
+Use `builder._compile()`:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import MarkdownBuilder
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import MarkdownBuilder
 
->>> doc = Bag(builder=MarkdownBuilder)
+>>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("Title")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> doc.p("Content")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder.compile()
+>>> md = doc.builder._compile()
 >>> print(md)
 # Title
 <BLANKLINE>
@@ -226,8 +226,8 @@ Content
 ### How do I create a simple builder?
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class SimpleBuilder(BagBuilderBase):
 ...     @element(sub_tags='item[]')
@@ -236,7 +236,7 @@ Content
 ...     @element()
 ...     def item(self, node_value=''): ...
 
->>> bag = Bag(builder=SimpleBuilder)
+>>> bag = BuilderBag(builder=SimpleBuilder)
 >>> c = bag.container()
 >>> c.item(node_value='First')  # doctest: +ELLIPSIS
 BagNode : ...
@@ -267,14 +267,14 @@ Defines which child elements are allowed:
 Add parameters to the method signature:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class MyBuilder(BagBuilderBase):
 ...     @element()
 ...     def field(self, name='', required: bool = False): ...
 
->>> bag = Bag(builder=MyBuilder)
+>>> bag = BuilderBag(builder=MyBuilder)
 >>> bag.field(name='email', required=True)  # doctest: +ELLIPSIS
 <genro_bag.bag.Bag ...>
 

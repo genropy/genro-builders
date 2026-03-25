@@ -12,8 +12,8 @@ Builders support two types of validation:
 Use the `sub_tags` parameter in `@element` to specify allowed child tags:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class DocumentBuilder(BagBuilderBase):
 ...     @element(sub_tags='chapter')
@@ -28,7 +28,7 @@ Use the `sub_tags` parameter in `@element` to specify allowed child tags:
 ...     @element()
 ...     def paragraph(self): ...
 
->>> bag = Bag(builder=DocumentBuilder)
+>>> bag = BuilderBag(builder=DocumentBuilder)
 >>> book = bag.book()
 >>> ch1 = book.chapter()
 >>> ch1.paragraph('Introduction')  # doctest: +ELLIPSIS
@@ -43,8 +43,8 @@ BagNode : ... at ...
 Use `sub_tags='*'` to create container elements that accept any child without validation:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class FlexibleBuilder(BagBuilderBase):
 ...     @element(sub_tags='*')  # Accepts ANY children
@@ -59,7 +59,7 @@ Use `sub_tags='*'` to create container elements that accept any child without va
 ...     @element()
 ...     def custom(self): ...
 
->>> bag = Bag(builder=FlexibleBuilder)
+>>> bag = BuilderBag(builder=FlexibleBuilder)
 >>> container = bag.container()
 >>> container.span('text')  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -99,8 +99,8 @@ Specify minimum and maximum occurrences with bracket syntax:
 | `tag[2:5]` | Between 2 and 5 |
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class PageBuilder(BagBuilderBase):
 ...     @element(sub_tags='header,content,footer[:1]')
@@ -143,8 +143,8 @@ The list format uses regex patterns and `*` wildcards for flexible ordering:
 | `'*'` | Wildcard: 0 or more tags |
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class DocumentBuilder(BagBuilderBase):
 ...     @element(sub_tags='header,content[],footer', sub_tags_order=['^header$', '*', '^footer$'])
@@ -159,7 +159,7 @@ The list format uses regex patterns and `*` wildcards for flexible ordering:
 ...     @element()
 ...     def footer(self): ...
 
->>> bag = Bag(builder=DocumentBuilder)
+>>> bag = BuilderBag(builder=DocumentBuilder)
 >>> page = bag.page()
 >>> page.header()  # Must be first
 <genro_bag.bag.Bag object at ...>
@@ -184,8 +184,8 @@ Common patterns:
 Use `check()` to validate structure after building:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class ListBuilder(BagBuilderBase):
 ...     @element(sub_tags='item[1:]')  # At least 1 item required
@@ -194,7 +194,7 @@ Use `check()` to validate structure after building:
 ...     @element()
 ...     def item(self): ...
 
->>> bag = Bag(builder=ListBuilder)
+>>> bag = BuilderBag(builder=ListBuilder)
 >>> lst = bag.list()
 
 >>> # Empty list - validation fails
@@ -217,8 +217,8 @@ BagNode : ... at ...
 ### Invalid Children Detection
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class StrictBuilder(BagBuilderBase):
 ...     @element(sub_tags='allowed')
@@ -230,7 +230,7 @@ BagNode : ... at ...
 ...     @element()
 ...     def forbidden(self): ...
 
->>> bag = Bag(builder=StrictBuilder)
+>>> bag = BuilderBag(builder=StrictBuilder)
 >>> cont = bag.container()
 >>> cont.allowed('OK')  # doctest: +ELLIPSIS
 BagNode : ... at ...
@@ -252,8 +252,8 @@ Use `parent_tags` to specify where an element can be placed. This is the inverse
 - `parent_tags`: "What parents can I be inside?"
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class HtmlBuilder(BagBuilderBase):
 ...     @element(sub_tags='li[]')
@@ -268,7 +268,7 @@ Use `parent_tags` to specify where an element can be placed. This is the inverse
 ...     @element(sub_tags='li[]')  # Allows li as child (sub_tags)
 ...     def div(self): ...
 
->>> bag = Bag(builder=HtmlBuilder)
+>>> bag = BuilderBag(builder=HtmlBuilder)
 
 >>> # Valid: li inside ul
 >>> ul = bag.ul()
@@ -319,14 +319,14 @@ This ensures:
 Attribute validation is handled automatically by the builder. Pass attributes as keyword arguments when calling elements:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class ButtonBuilder(BagBuilderBase):
 ...     @element()
 ...     def button(self): ...
 
->>> bag = Bag(builder=ButtonBuilder)
+>>> bag = BuilderBag(builder=ButtonBuilder)
 >>> bag.button('Submit', variant='primary')  # doctest: +ELLIPSIS
 BagNode : ... at ...
 >>> bag.button('Delete', variant='danger')  # doctest: +ELLIPSIS
@@ -338,8 +338,8 @@ BagNode : ... at ...
 A complete example with structure constraints:
 
 ```{doctest}
->>> from genro_bag import Bag
->>> from genro_bag.builders import BagBuilderBase, element
+>>> from genro_builders import BuilderBag
+>>> from genro_builders.builders import BagBuilderBase, element
 
 >>> class TableBuilder(BagBuilderBase):
 ...     @element(sub_tags='thead[:1],tbody,tfoot[:1]')
@@ -363,7 +363,7 @@ A complete example with structure constraints:
 ...     @element()
 ...     def td(self): ...
 
->>> bag = Bag(builder=TableBuilder)
+>>> bag = BuilderBag(builder=TableBuilder)
 >>> table = bag.table()
 >>> tbody = table.tbody()
 >>> row = tbody.tr()
@@ -398,7 +398,7 @@ class ConfigBuilder(BagBuilderBase):
 Always validate complete structures before use:
 
 ```python
-bag = Bag(builder=MyBuilder)
+bag = BuilderBag(builder=MyBuilder)
 # ... build the structure ...
 
 errors = bag.builder.check(bag, parent_tag='root')
