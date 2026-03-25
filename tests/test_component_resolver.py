@@ -81,8 +81,9 @@ class TestResolverCreation:
 
         assert called
 
-    def test_component_returns_parent_bag(self):
-        """All components return parent bag for chaining."""
+    def test_component_returns_proxy(self):
+        """All components return ComponentProxy wrapping parent bag."""
+        from genro_builders.component_proxy import ComponentProxy
 
         class B(BagBuilderBase):
             @component()
@@ -91,7 +92,7 @@ class TestResolverCreation:
 
         bag = Bag(builder=B)
         result = bag.myform()
-        assert result is bag
+        assert isinstance(result, ComponentProxy)
 
 
 class TestResolverExpansion:

@@ -93,8 +93,9 @@ class TestComponentDecoratorSchema:
 class TestComponentSubTagsReturnBehavior:
     """Tests for sub_tags controlling return value at CALL time."""
 
-    def test_void_sub_tags_returns_parent(self):
-        """sub_tags='' (void) returns parent bag for chaining at same level."""
+    def test_void_sub_tags_returns_proxy(self):
+        """sub_tags='' (void) returns ComponentProxy wrapping parent bag."""
+        from genro_builders.component_proxy import ComponentProxy
 
         class Builder(BagBuilderBase):
             @component(sub_tags="")
@@ -107,14 +108,15 @@ class TestComponentSubTagsReturnBehavior:
         bag = Bag(builder=Builder)
         result = bag.closed_form()
 
-        # Should return parent bag (root in this case)
-        assert result is bag
-        # Can continue at same level
+        # Returns ComponentProxy wrapping parent bag
+        assert isinstance(result, ComponentProxy)
+        # Can continue at same level via proxy delegation
         result.span()
         assert len(bag) == 2  # closed_form + span
 
-    def test_defined_sub_tags_returns_parent_bag(self):
-        """All components return parent bag for chaining."""
+    def test_defined_sub_tags_returns_proxy(self):
+        """All components return ComponentProxy wrapping parent bag."""
+        from genro_builders.component_proxy import ComponentProxy
 
         class Builder(BagBuilderBase):
             @component(sub_tags="item")
@@ -127,11 +129,12 @@ class TestComponentSubTagsReturnBehavior:
         bag = Bag(builder=Builder)
         result = bag.mylist()
 
-        # All components return parent bag for chaining
-        assert result is bag
+        # All components return proxy for chaining
+        assert isinstance(result, ComponentProxy)
 
-    def test_absent_sub_tags_returns_parent_bag(self):
-        """No sub_tags (absent) returns parent bag for chaining."""
+    def test_absent_sub_tags_returns_proxy(self):
+        """No sub_tags (absent) returns ComponentProxy wrapping parent bag."""
+        from genro_builders.component_proxy import ComponentProxy
 
         class Builder(BagBuilderBase):
             @component()
@@ -144,11 +147,12 @@ class TestComponentSubTagsReturnBehavior:
         bag = Bag(builder=Builder)
         result = bag.container()
 
-        # All components return parent bag
-        assert result is bag
+        # All components return proxy
+        assert isinstance(result, ComponentProxy)
 
-    def test_none_sub_tags_returns_parent_bag(self):
-        """sub_tags=None explicitly returns parent bag for chaining."""
+    def test_none_sub_tags_returns_proxy(self):
+        """sub_tags=None explicitly returns ComponentProxy wrapping parent bag."""
+        from genro_builders.component_proxy import ComponentProxy
 
         class Builder(BagBuilderBase):
             @component(sub_tags=None)
@@ -161,8 +165,8 @@ class TestComponentSubTagsReturnBehavior:
         bag = Bag(builder=Builder)
         result = bag.container()
 
-        # All components return parent bag
-        assert result is bag
+        # All components return proxy
+        assert isinstance(result, ComponentProxy)
 
 
 # =============================================================================

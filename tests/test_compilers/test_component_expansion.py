@@ -177,8 +177,9 @@ class TestComponentExpansion:
 class TestComponentSubTagsAfterExpansion:
     """Tests for sub_tags controlling return value after expansion."""
 
-    def test_void_sub_tags_returns_parent(self):
-        """sub_tags='' (void) returns parent bag for chaining at same level."""
+    def test_void_sub_tags_returns_proxy(self):
+        """sub_tags='' (void) returns ComponentProxy wrapping parent bag."""
+        from genro_builders.component_proxy import ComponentProxy
 
         class Builder(BagBuilderBase):
             _compiler_class = TestCompiler
@@ -197,14 +198,15 @@ class TestComponentSubTagsAfterExpansion:
         bag = Bag(builder=Builder)
         result = bag.closed_form()
 
-        # Should return parent bag (root in this case)
-        assert result is bag
-        # Can continue at same level
+        # Returns ComponentProxy wrapping parent bag
+        assert isinstance(result, ComponentProxy)
+        # Can continue at same level via proxy delegation
         result.span()
         assert len(bag) == 2  # closed_form + span
 
-    def test_component_returns_parent_for_chaining(self):
-        """All components return parent bag for chaining."""
+    def test_component_returns_proxy_for_chaining(self):
+        """All components return ComponentProxy wrapping parent bag."""
+        from genro_builders.component_proxy import ComponentProxy
 
         class Builder(BagBuilderBase):
             _compiler_class = TestCompiler
@@ -223,8 +225,8 @@ class TestComponentSubTagsAfterExpansion:
         bag = Bag(builder=Builder)
         result = bag.mylist()
 
-        # All components return parent bag
-        assert result is bag
+        # All components return proxy
+        assert isinstance(result, ComponentProxy)
 
         # Compile expands the component body
         output = compile_and_render(bag.builder)

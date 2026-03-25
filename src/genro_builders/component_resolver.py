@@ -50,11 +50,12 @@ class ComponentResolver(BagResolver):
         "builder_class": None,
         "based_on": None,
         "builder": None,
+        "slots": None,
     }
     class_args: list[str] = []
     internal_params: set[str] = {
         "cache_time", "read_only", "retry_policy", "as_bag",
-        "handler", "builder_class", "based_on", "builder",
+        "handler", "builder_class", "based_on", "builder", "slots",
     }
 
     def load(self) -> Bag:
@@ -62,11 +63,15 @@ class ComponentResolver(BagResolver):
 
         If based_on is set, resolves the parent component first (recursively),
         then passes the result to the current handler for modification.
+
+        If the handler returns a dict (slot mapping), mounts the content
+        from each slot Bag into the corresponding destination Bag.
         """
         handler = self._kw["handler"]
         builder_class = self._kw["builder_class"]
         based_on = self._kw["based_on"]
         builder_instance = self._kw["builder"]
+        slots = self._kw.get("slots") or {}
 
         # Collect kwargs from parent node attributes
         kwargs = dict(self._parent_node.attr) if self._parent_node else {}
@@ -79,9 +84,38 @@ class ComponentResolver(BagResolver):
 
             comp_bag = BuilderBag(builder=builder_class)
 
-        # Call the current handler (modifies comp_bag in place)
+        # Call the current handler
+        result = None
         if handler:
-            handler(comp_bag, **kwargs)
+            result = handler(comp_bag, **kwargs)
+
+        # Mount slot content into destination Bags
+        # Use Bag.set_item directly to bypass builder interception
+        if slots and isinstance(result, dict):
+            from genro_bag import BagNode
+
+            for slot_name, dest in result.items():
+                source_bag = slots.get(slot_name)
+                if source_bag is None or len(source_bag) == 0:
+                    continue
+
+                # dest can be a BagNode (from comp.container()) or a Bag
+                if isinstance(dest, BagNode):
+                    if not isinstance(dest.value, Bag):
+                        from .builder_bag import BuilderBag
+                        dest.value = BuilderBag(builder=builder_class)
+                    dest_bag = dest.value
+                else:
+                    dest_bag = dest
+
+                for node in source_bag:
+                    Bag.set_item(
+                        dest_bag,
+                        node.label,
+                        node.value,
+                        _attributes=dict(node.attr),
+                        node_tag=node.node_tag,
+                    )
 
         return comp_bag
 

@@ -286,6 +286,7 @@ def component(
     builder: type[BagBuilderBase] | None = None,
     based_on: str | None = None,
     compile_kwargs: dict[str, Any] | None = None,
+    slots: list[str] | None = None,
     **kwargs: Any,
 ) -> Callable:
     """Decorator to mark a method as component handler.
@@ -310,13 +311,22 @@ def component(
         builder: Optional builder class for the component's internal bag.
             If not specified, uses the same builder class as parent.
         compile_kwargs: Dict of compilation parameters (module, class, etc.).
+        slots: List of named slot names. When present, the component call
+            returns a ComponentProxy with slot Bags accessible as attributes.
+            The handler body should return a dict mapping slot names to
+            destination Bags where slot content will be mounted.
         **kwargs: Additional compile_* parameters are extracted and merged
             into compile_kwargs.
 
-    Handler signature:
+    Handler signature (without slots):
         def handler(self, component: Bag, **kwargs) -> None:
             # 'component' is the component's internal Bag to populate
             # Body is called ONLY at compile time (lazy expansion)
+
+    Handler signature (with slots):
+        def handler(self, component: Bag, **kwargs) -> dict[str, Bag]:
+            # Return dict mapping slot name → destination Bag
+            # Slot content is mounted into destination Bags at compile time
 
     Example - Closed component (sub_tags=''):
         @component(sub_tags='')
@@ -365,6 +375,7 @@ def component(
                 "builder": builder,
                 "based_on": based_on,
                 "compile_kwargs": merged_compile if merged_compile else None,
+                "slots": slots,
             }.items()
             if v is not None
         }
@@ -486,6 +497,7 @@ class BagBuilderBase(ABC):
             compile_kwargs = decorator_info.get("compile_kwargs")
             component_builder = decorator_info.get("builder")
             based_on = decorator_info.get("based_on")
+            component_slots = decorator_info.get("slots")
             documentation = obj.__doc__
             call_args_validations = _extract_validators_from_signature(obj)
 
@@ -498,6 +510,7 @@ class BagBuilderBase(ABC):
                         is_component=True,
                         component_builder=component_builder,
                         based_on=based_on,
+                        slots=component_slots,
                         sub_tags=sub_tags,
                         parent_tags=parent_tags,
                         compile_kwargs=compile_kwargs,
@@ -614,12 +627,16 @@ class BagBuilderBase(ABC):
         info: dict,
         node_tag: str,
         kwargs: dict,
-    ) -> Bag:
+    ) -> Any:
         """Handle component invocation - lazy registration with resolver.
 
         Registers the component node with a ComponentResolver. The handler
         body is NOT called here — it will be called lazily when the node
         is accessed with static=False (during expand or compile).
+
+        Always returns a ComponentProxy that delegates to destination_bag.
+        If the component has named slots, the proxy also provides access
+        to slot Bags via attribute access.
 
         Args:
             destination_bag: The parent Bag where component will be added.
@@ -628,8 +645,10 @@ class BagBuilderBase(ABC):
             kwargs: Arguments passed to the component (stored as attributes).
 
         Returns:
-            destination_bag for chaining at the same level.
+            ComponentProxy wrapping destination_bag (and optional slot Bags).
         """
+        from .builder_bag import BuilderBag
+        from .component_proxy import ComponentProxy
         from .component_resolver import ComponentResolver
 
         # Extract internal kwargs that need special handling
@@ -652,16 +671,21 @@ class BagBuilderBase(ABC):
         handler = getattr(self, handler_name) if handler_name else None
         builder_class = info.get("component_builder") or type(self)
         based_on = info.get("based_on")
+        slot_names = info.get("slots") or []
+
+        # Create slot Bags (empty, to be populated at recipe time)
+        slots = {name: BuilderBag(builder=builder_class) for name in slot_names}
 
         resolver = ComponentResolver(
             handler=handler,
             builder_class=builder_class,
             based_on=based_on,
             builder=self,
+            slots=slots if slots else None,
         )
         node.resolver = resolver
 
-        return destination_bag
+        return ComponentProxy(destination_bag, slots)
 
     def _add_element(
         self,
