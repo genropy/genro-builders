@@ -34,13 +34,15 @@ class BuilderManager:
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         original_init = cls.__dict__.get("__init__")
+        if original_init is None:
+            return
 
         def _wrapped_init(self: Any, *args: Any, **kw: Any) -> None:
-            self._data = Bag()
-            self._data.set_backref()
-            self._builders: dict[str, Any] = {}
-            if original_init is not None:
-                original_init(self, *args, **kw)
+            if not hasattr(self, "_data"):
+                self._data = Bag()
+                self._data.set_backref()
+                self._builders: dict[str, Any] = {}
+            original_init(self, *args, **kw)
 
         cls.__init__ = _wrapped_init  # type: ignore[attr-defined]
 

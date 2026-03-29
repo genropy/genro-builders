@@ -37,7 +37,8 @@ class TestManagerBasics:
         """Manager's data Bag has backref enabled by __init_subclass__."""
 
         class App(BuilderManager):
-            pass
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
 
         app = App()
         assert app.data.backref is True
@@ -92,7 +93,8 @@ class TestManagerMultipleBuilders:
         """Manager.data setter converts dict to Bag."""
 
         class App(BuilderManager):
-            pass
+            def __init__(self):
+                pass
 
         app = App()
         app.data = {"name": "test"}
