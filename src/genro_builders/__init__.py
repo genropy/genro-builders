@@ -20,6 +20,7 @@ from genro_builders.binding import BindingManager
 from genro_builders.builder import BagBuilderBase
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode
 from genro_builders.compiler import BagCompilerBase, compile_handler
+from genro_builders.compilers import YamlCompilerBase
 from genro_builders.component_proxy import ComponentProxy
 from genro_builders.component_resolver import ComponentResolver
 from genro_builders.manager import BuilderManager
@@ -37,6 +38,7 @@ __all__ = [
     "ComponentProxy",
     "ComponentResolver",
     "PointerInfo",
+    "YamlCompilerBase",
     "compile_handler",
     "is_pointer",
     "parse_pointer",
