@@ -1,21 +1,22 @@
 # Architecture
 
-## Builder Creation
+## Builder Structure
 
 ```{mermaid}
 flowchart TB
-    A["BuilderBag(builder=HtmlBuilder)"] --> B[Bag with .builder]
-    B --> C[HtmlBuilder]
-    C --> D[Schema: 112 HTML tags]
-    C --> E["Methods: div(), p(), ..."]
-    C --> F[Validation rules]
+    A["HtmlBuilder()"] --> B[source Bag]
+    A --> C[compiled Bag]
+    A --> D[data Bag]
+    A --> E[BindingManager]
+    A --> F[Compiler]
+    A --> G[Schema: 112 HTML tags]
 ```
 
 ## Method Call Flow
 
 ```{mermaid}
 flowchart TB
-    A["bag.div()"] --> B{"'div' valid at this position?"}
+    A["builder.source.div()"] --> B{"'div' valid at this position?"}
     B -->|Yes| C["Create BagNode with tag='div'"]
     C --> D{Has children?}
     D -->|Yes| E[Return Bag]
@@ -34,10 +35,9 @@ flowchart TB
 
 ```{mermaid}
 flowchart TB
-    A["doc.builder._compile()"] --> B[Walk Bag]
-    B --> C[For each node]
-    C --> D[Get compile_template from schema]
-    D --> E[Render node to output format]
-    E --> C
-    B --> F["Return compiled output (str, bytes)"]
+    A["builder.compile()"] --> B[Expand components]
+    B --> C["Resolve ^pointers against data"]
+    C --> D[Register subscriptions in BindingManager]
+    D --> E["Render compiled Bag to output"]
+    E --> F["builder.output"]
 ```

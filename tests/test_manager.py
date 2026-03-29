@@ -96,7 +96,7 @@ class TestManagerHook:
 
 
 class TestManagerAutonomousBuilder:
-    """Tests for autonomous builder created via manager."""
+    """Tests for builder created via manager."""
 
     def test_autonomous_builder_has_source(self):
         """Builder created via manager has source property."""
@@ -125,10 +125,10 @@ class TestManagerAutonomousBuilder:
 
 
 class TestStandaloneAutonomousBuilder:
-    """Tests for autonomous builder without manager."""
+    """Tests for builder without manager."""
 
     def test_standalone_builder(self):
-        """Builder without bag or manager enters autonomous mode."""
+        """Builder instantiated without arguments has own pipeline."""
         builder = TestBuilder()
         assert builder.source is not None
         assert builder.compiled is not None

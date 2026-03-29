@@ -2,8 +2,8 @@
 """BindingManager — reactive data binding for ^pointer resolution.
 
 Manages the flat subscription map and reactive updates. The map is populated
-by the app during compilation; the BindingManager handles data change
-notifications and applies updates to the compiled Bag.
+during compilation; the BindingManager handles data change notifications
+and applies updates to the compiled Bag.
 
 Subscription map structure (flat, string-only):
     {data_key → [compiled_entry, ...]}

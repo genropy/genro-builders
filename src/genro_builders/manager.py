@@ -1,9 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BuilderManager — mixin for managing multiple builders with shared data.
+"""BuilderManager — coordinate multiple builders with shared data.
 
-Coordinates multiple autonomous builders that share a common data bus.
-Each builder registers with the manager and receives the shared data
-automatically. Data changes propagate to all registered builders.
+Registers named builders and provides a shared data Bag. When data
+changes, all registered builders are rebound automatically.
 
 Example:
     >>> class MyApp(BuilderManager):

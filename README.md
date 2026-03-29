@@ -11,14 +11,14 @@ pip install genro-builders
 ## Quick start
 
 ```python
-from genro_builders import BuilderBag
 from genro_builders.builders import HtmlBuilder
 
-html = BuilderBag(builder=HtmlBuilder)
-body = html.body()
+builder = HtmlBuilder()
+body = builder.source.body()
 body.div(id='main').p('Hello, world!')
 
-print(html.builder._compile())
+builder.compile()
+print(builder.output)
 ```
 
 ## Features
@@ -26,21 +26,23 @@ print(html.builder._compile())
 - **Domain-specific grammars** — Define elements, validation rules, and components via decorators (`@element`, `@abstract`, `@component`)
 - **Named slots** — Components can declare insertion points (`slots=['left', 'right']`) for user content injection at recipe time
 - **Built-in builders** — HTML5, Markdown, XSD (schema-driven XML)
-- **Compilation pipeline** — Expand components, resolve `^pointer` bindings, render output
-- **Reactive applications** — `BagAppBase` provides automatic re-render on data or source changes
+- **Reactive pipeline** — Compile source, resolve `^pointer` bindings, render output. Data changes trigger automatic re-render
+- **Multi-builder coordination** — `BuilderManager` coordinates multiple builders with a shared data bus
 - **Validation** — `sub_tags` cardinality, `parent_tags` constraints, typed attribute validation
 
 ## Architecture
 
+A builder owns the full pipeline:
+
 ```text
-Source Bag (recipe)
-    ↓ compiler.compile()
-Compiled Bag (components expanded, ^pointers resolved)
+builder.source  (recipe: builder calls, components, ^pointer strings)
+    ↓ builder.compile()
+builder.compiled  (components expanded, ^pointers resolved, subscriptions active)
     ↓ compiler.render()
-Output (HTML, Markdown, XML, ...)
+builder.output  (HTML, Markdown, XML, ...)
 ```
 
-With `BagAppBase`, data changes trigger automatic updates via the `BindingManager` subscription map.
+Data changes trigger automatic updates via the `BindingManager` subscription map.
 
 ## Documentation
 

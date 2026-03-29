@@ -9,24 +9,24 @@ Builder system for [genro-bag](https://github.com/genropy/genro-bag) — grammar
 A builder defines a **domain-specific grammar** for creating structured Bag hierarchies. Instead of manually constructing nodes, you call named methods that enforce structure and validation:
 
 ```python
-from genro_builders import BuilderBag
 from genro_builders.builders import HtmlBuilder
 
-html = BuilderBag(builder=HtmlBuilder)
-body = html.body()
+builder = HtmlBuilder()
+body = builder.source.body()
 div = body.div(id='main')
 div.p('Hello, world!')
 
-print(html.builder._compile())
+builder.compile()
+print(builder.output)
 # <body><div id="main"><p>Hello, world!</p></div></body>
 ```
 
 ## Key Concepts
 
+- **BagBuilderBase** — Base class for defining grammars via `@element`, `@abstract`, and `@component` decorators. Owns the full pipeline: source, compiled, data, binding, compiler.
 - **BuilderBag** — A Bag extended with builder support. Calling methods like `.div()` or `.p()` creates validated nodes.
-- **BagBuilderBase** — Abstract base class for defining grammars via `@element`, `@abstract`, and `@component` decorators.
-- **BagCompilerBase** — Compiles a source bag (expanding components, resolving `^pointers`) and renders output.
-- **BagAppBase** — Reactive application runtime: recipe, compile, bind, render — with automatic updates on data or source changes.
+- **BagCompilerBase** — Compiles a source Bag (expanding components, resolving `^pointers`) and renders output.
+- **BuilderManager** — Coordinates multiple builders with a shared data bus.
 
 ## Built-in Builders
 
@@ -38,29 +38,28 @@ print(html.builder._compile())
 
 ## Reactive Pipeline
 
-genro-builders supports a 4-stage reactive pipeline via `BagAppBase`:
+Each builder owns a reactive pipeline:
 
-1. **Source Bag** — Recipe with builder calls, unexpanded components, `^pointer` strings
-2. **Compiled Bag** — Components expanded, `^pointers` resolved against data
-3. **Bound Bag** — Subscriptions active, data changes update nodes automatically
-4. **Output** — Rendered by the compiler (HTML, Markdown, etc.)
+1. **Source** — Recipe with builder calls, unexpanded components, `^pointer` strings
+2. **Compiled** — Components expanded, `^pointers` resolved, subscriptions registered
+3. **Output** — Rendered by the compiler (HTML, Markdown, etc.)
+
+Data changes trigger automatic re-render via the `BindingManager` subscription map.
 
 ```python
-from genro_builders import BagAppBase
 from genro_builders.builders import HtmlBuilder
 
-class MyApp(BagAppBase):
-    builder_class = HtmlBuilder
+builder = HtmlBuilder()
+builder.data['page.title'] = 'Hello'
+builder.data['content.text'] = 'World'
+builder.source.h1(value='^page.title')
+builder.source.p(value='^content.text')
+builder.compile()
+print(builder.output)
 
-    def recipe(self, source):
-        source.h1(value='^page.title')
-        source.p(value='^content.text')
-
-app = MyApp()
-app.data['page.title'] = 'Hello'
-app.data['content.text'] = 'World'
-app.setup()
-print(app.output)
+# Data changes trigger automatic re-render
+builder.data['page.title'] = 'Updated'
+print(builder.output)
 ```
 
 ---

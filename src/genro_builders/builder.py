@@ -1,17 +1,20 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BagBuilderBase - Abstract base class for Bag builders with validation.
+"""BagBuilderBase — base class for Bag builders with grammar and validation.
 
-Provides domain-specific methods for creating nodes in a Bag with
-validation support.
+A builder owns the full reactive pipeline: source, compiled, data,
+binding, and compiler. Define a domain-specific grammar via decorators
+(@element, @abstract, @component), populate the source Bag, compile,
+and render output. Optionally, a ``BuilderManager`` coordinates
+multiple builders that share the same data bus.
 
 Exports:
-    element: Decorator to mark methods as element handlers
-    abstract: Decorator to define abstract elements (for inheritance only)
-    component: Decorator to mark methods as component handlers (composite structures)
-    BagBuilderBase: Abstract base class for all builders
-    SchemaBuilder: Builder for creating schemas programmatically
-    Regex: Regex pattern constraint for string validation
-    Range: Range constraint for numeric validation
+    element: Decorator to mark methods as element handlers.
+    abstract: Decorator to define abstract elements (for inheritance only).
+    component: Decorator to mark methods as component handlers (lazy expansion).
+    BagBuilderBase: Base class for all builders.
+    SchemaBuilder: Builder for creating schemas programmatically.
+    Regex: Regex pattern constraint for string validation.
+    Range: Range constraint for numeric validation.
 
 Decorators:
     @element: Pure schema elements. Body MUST be empty (...). No logic allowed.
@@ -88,6 +91,32 @@ Example - @component (lazy expansion):
     ...         # Body called only at compile time, not at creation
     ...         component.input(name='username')
     ...         component.input(name='password')
+
+Example - Standalone builder:
+    >>> class HtmlBuilder(BagBuilderBase):
+    ...     _compiler_class = HtmlCompiler
+    ...     @element(sub_tags='*')
+    ...     def div(self): ...
+    ...     @element()
+    ...     def p(self): ...
+    >>>
+    >>> builder = HtmlBuilder()
+    >>> builder.source.div(id='main').p('Hello')
+    >>> builder.compile()
+    >>> print(builder.output)
+
+Example - Multiple builders with shared data (BuilderManager):
+    >>> from genro_builders import BuilderManager
+    >>>
+    >>> class MyApp(BuilderManager):
+    ...     def __init__(self):
+    ...         super().__init__()
+    ...         self.page = self.register_builder('page', HtmlBuilder)
+    >>>
+    >>> app = MyApp()
+    >>> app.data['title'] = 'Hello'
+    >>> app.page.source.div(value='^title')
+    >>> app.compile_all()
 
 SchemaBuilder Example:
     >>> from genro_builders import BuilderBag
@@ -544,17 +573,18 @@ class BagBuilderBase(ABC):
         manager: Any = None,
         data: Bag | None = None,
     ) -> None:
-        """Initialize the builder in legacy or autonomous mode.
+        """Initialize the builder.
 
-        Legacy mode (bag provided): builder is bound to the given Bag.
-        Autonomous mode (bag=None): builder owns source, compiled, data, binding.
+        Creates source, compiled, data, binding, and compiler internally.
+        If a ``manager`` is provided, data is shared across all builders
+        registered with that manager.
 
         Args:
-            bag: The Bag instance to bind to (legacy mode). If None,
-                creates autonomous builder with own source/compiled/data.
-            schema_path: Optional path to load schema from.
-            manager: Optional BuilderManager for shared data bus.
-            data: Optional initial data Bag (autonomous mode only).
+            bag: Reserved for internal use by BuilderBag. Do not pass
+                directly — instantiate the builder with no arguments.
+            schema_path: Optional path to load a pre-compiled schema from.
+            manager: Optional BuilderManager for shared data coordination.
+            data: Optional initial data Bag.
         """
         if schema_path is not None:
             self._schema = Bag().fill_from(schema_path)
@@ -562,12 +592,12 @@ class BagBuilderBase(ABC):
             self._schema = type(self)._class_schema
 
         if bag is not None:
-            # Legacy mode: builder bound to an external Bag
+            # Internal: BuilderBag passes itself as bag
             self._bag = bag
             self._bag.set_backref()
             self._manager = None
         else:
-            # Autonomous mode: builder owns the full pipeline
+            # Standard instantiation: builder owns the full pipeline
             self._manager = manager
 
             self._source_shell = BuilderBag(builder=type(self))
@@ -595,29 +625,29 @@ class BagBuilderBase(ABC):
                 self._compiler_instance = None
 
     # -------------------------------------------------------------------------
-    # Autonomous mode properties
+    # Pipeline properties
     # -------------------------------------------------------------------------
 
     @property
     def source(self) -> BuilderBag:
-        """The source Bag (recipe). Autonomous mode only."""
+        """The source Bag where the recipe is built."""
         return self._source_shell.get_item("root")
 
     @property
     def compiled(self) -> BuilderBag:
-        """The compiled Bag. Autonomous mode only."""
+        """The compiled Bag (components expanded, pointers resolved)."""
         return self._compiled_shell.get_item("root")
 
     @property
     def data(self) -> Bag:
-        """Data Bag. Proxied to manager if present."""
+        """The data Bag. Shared with the manager when one is present."""
         if self._manager is not None:
             return self._manager.data
         return self._data
 
     @data.setter
     def data(self, value: Bag | dict[str, Any]) -> None:
-        """Replace the data Bag. If manager present, delegates to manager."""
+        """Replace the data Bag. Delegates to the manager when present."""
         if self._manager is not None:
             self._manager.data = value
             return
@@ -631,7 +661,7 @@ class BagBuilderBase(ABC):
 
     @property
     def output(self) -> str | None:
-        """Last rendered output. Autonomous mode only."""
+        """Last rendered output string, or None before first compile."""
         return self._output
 
     def _rebind_data(self, new_data: Bag) -> None:
@@ -650,7 +680,7 @@ class BagBuilderBase(ABC):
         self._output = self.render(self.compiled)
 
     # -------------------------------------------------------------------------
-    # Autonomous mode: compile / render / rebuild
+    # Compile / render / rebuild
     # -------------------------------------------------------------------------
 
     def compile(self) -> str:

@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for autonomous builder — runtime pipeline without BagAppBase."""
+"""Tests for builder runtime pipeline — compile, render, reactivity."""
 from __future__ import annotations
 
 import pytest
@@ -34,7 +34,7 @@ SubtreeBuilder._compiler_class = TestCompiler
 
 
 class TestAutonomousLifecycle:
-    """Tests for basic autonomous builder lifecycle."""
+    """Tests for basic builder lifecycle."""
 
     def test_populate_and_compile(self):
         """Populate source, compile, get output."""
@@ -74,7 +74,7 @@ class TestAutonomousLifecycle:
 
 
 class TestAutonomousPointerResolution:
-    """Tests for ^pointer resolution in autonomous mode."""
+    """Tests for ^pointer resolution with standalone builder."""
 
     def test_pointer_in_value(self):
         """^pointer in node value is resolved from data."""
@@ -202,7 +202,7 @@ class TestAutonomousDataReplacement:
 
 
 class TestAutonomousWithComponent:
-    """Tests for component expansion in autonomous mode."""
+    """Tests for component expansion with standalone builder."""
 
     def test_component_expanded_and_bound(self):
         """Components are expanded and their pointers are resolved."""
