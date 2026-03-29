@@ -124,6 +124,9 @@ from typing import (
 
 from genro_bag import Bag
 
+from .binding import BindingManager
+from .builder_bag import BuilderBag
+
 if TYPE_CHECKING:
     from genro_bag import BagNode
 
@@ -533,21 +536,118 @@ class BagBuilderBase(ABC):
         # Check for name collisions with Bag and BagBuilderBase methods
         _rename_colliding_schema_tags(cls, cls._class_schema)
 
-    def __init__(self, bag: Bag, schema_path: str | Path | None = None) -> None:
-        """Bind builder to bag. Enables node.parent navigation.
+    def __init__(
+        self,
+        bag: Bag | None = None,
+        schema_path: str | Path | None = None,
+        *,
+        manager: Any = None,
+        data: Bag | None = None,
+    ) -> None:
+        """Initialize the builder in legacy or autonomous mode.
+
+        Legacy mode (bag provided): builder is bound to the given Bag.
+        Autonomous mode (bag=None): builder owns source, compiled, data, binding.
 
         Args:
-            bag: The Bag instance this builder is attached to.
-            schema_path: Optional path to load schema from. If not provided,
-                uses the class-level schema (_class_schema).
+            bag: The Bag instance to bind to (legacy mode). If None,
+                creates autonomous builder with own source/compiled/data.
+            schema_path: Optional path to load schema from.
+            manager: Optional BuilderManager for shared data bus.
+            data: Optional initial data Bag (autonomous mode only).
         """
-        self._bag = bag
-        self._bag.set_backref()
-
         if schema_path is not None:
             self._schema = Bag().fill_from(schema_path)
         else:
             self._schema = type(self)._class_schema
+
+        if bag is not None:
+            # Legacy mode: builder bound to an external Bag
+            self._bag = bag
+            self._bag.set_backref()
+            self._manager = None
+        else:
+            # Autonomous mode: builder owns the full pipeline
+            self._manager = manager
+
+            self._source_shell = BuilderBag(builder=type(self))
+            self._source_shell.set_backref()
+            self._source_shell.set_item("root", BuilderBag(builder=type(self)))
+
+            self._compiled_shell = BuilderBag(builder=type(self))
+            self._compiled_shell.set_backref()
+            self._compiled_shell.set_item("root", BuilderBag(builder=type(self)))
+
+            self._bag = self._source_shell.get_item("root")
+
+            self._data = data if data is not None else Bag()
+            if not self._data.backref:
+                self._data.set_backref()
+
+            self._binding = BindingManager(on_node_updated=self._on_node_updated)
+            self._auto_compile = False
+            self._output: str | None = None
+
+            compiler_cls = getattr(type(self), "_compiler_class", None)
+            if compiler_cls:
+                self._compiler_instance = compiler_cls(self)
+            else:
+                self._compiler_instance = None
+
+    # -------------------------------------------------------------------------
+    # Autonomous mode properties
+    # -------------------------------------------------------------------------
+
+    @property
+    def source(self) -> BuilderBag:
+        """The source Bag (recipe). Autonomous mode only."""
+        return self._source_shell.get_item("root")
+
+    @property
+    def compiled(self) -> BuilderBag:
+        """The compiled Bag. Autonomous mode only."""
+        return self._compiled_shell.get_item("root")
+
+    @property
+    def data(self) -> Bag:
+        """Data Bag. Proxied to manager if present."""
+        if self._manager is not None:
+            return self._manager.data
+        return self._data
+
+    @data.setter
+    def data(self, value: Bag | dict[str, Any]) -> None:
+        """Replace the data Bag. If manager present, delegates to manager."""
+        if self._manager is not None:
+            self._manager.data = value
+            return
+        new_data = Bag(source=value) if isinstance(value, dict) else value
+        if not new_data.backref:
+            new_data.set_backref()
+        self._data = new_data
+        if self._auto_compile:
+            self._binding.rebind(new_data)
+            self._rerender()
+
+    @property
+    def output(self) -> str | None:
+        """Last rendered output. Autonomous mode only."""
+        return self._output
+
+    def _rebind_data(self, new_data: Bag) -> None:
+        """Rebind this builder to new data. Called by BuilderManager."""
+        if self._auto_compile:
+            self._binding.rebind(new_data)
+            self._rerender()
+
+    def _on_node_updated(self, node: BagNode) -> None:
+        """Called by BindingManager when a bound node is updated."""
+        if self._auto_compile:
+            self._rerender()
+
+    def _rerender(self) -> None:
+        """Re-render the compiled bag without re-compiling."""
+        self._output = self.render(self.compiled)
 
     # -------------------------------------------------------------------------
     # Bag delegation
