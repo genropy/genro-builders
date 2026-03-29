@@ -50,6 +50,32 @@ class BuilderBagNode(BagNode):
 
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
+    def __dir__(self) -> list[str]:
+        """Return allowed child tags for autocompletion.
+
+        Uses the node's node_tag to look up sub_tags_compiled in the
+        builder schema, returning only the tags that are valid children.
+        """
+        base = set(super().__dir__())
+        builder = self._parent_bag._builder if self._parent_bag is not None else None
+        if builder is None or not self.node_tag:
+            return sorted(base)
+
+        info = builder._get_schema_info(self.node_tag)
+        sub_tags = info.get("sub_tags")
+        if sub_tags == "":
+            return sorted(base)
+
+        sub_tags_compiled = info.get("sub_tags_compiled")
+        if isinstance(sub_tags_compiled, dict):
+            base.update(sub_tags_compiled.keys())
+        elif sub_tags_compiled == "*" or sub_tags is None:
+            for schema_node in builder._schema:
+                name = schema_node.label
+                if not name.startswith("@"):
+                    base.add(name)
+        return sorted(base)
+
     # -------------------------------------------------------------------------
     # Data resolution
     # -------------------------------------------------------------------------
@@ -193,3 +219,13 @@ class BuilderBag(Bag):
             return self._builder._bag_call(self, name)
 
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    def __dir__(self) -> list[str]:
+        """Return all non-abstract schema elements for autocompletion."""
+        base = set(super().__dir__())
+        if self._builder is not None:
+            for schema_node in self._builder._schema:
+                name = schema_node.label
+                if not name.startswith("@"):
+                    base.add(name)
+        return sorted(base)

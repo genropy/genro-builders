@@ -66,6 +66,14 @@ class ComponentProxy:
         root = object.__getattribute__(self, "_root")
         return iter(root)
 
+    def __dir__(self) -> list[str]:
+        """Return slot names plus root's dir for autocompletion."""
+        slots = object.__getattribute__(self, "_slots")
+        root = object.__getattribute__(self, "_root")
+        base = set(dir(root))
+        base.update(slots.keys())
+        return sorted(base)
+
     def __repr__(self) -> str:
         slots = object.__getattribute__(self, "_slots")
         root = object.__getattribute__(self, "_root")
