@@ -650,6 +650,211 @@ class BagBuilderBase(ABC):
         self._output = self.render(self.compiled)
 
     # -------------------------------------------------------------------------
+    # Autonomous mode: compile / render / rebuild
+    # -------------------------------------------------------------------------
+
+    def compile(self) -> str:
+        """Full pipeline: compile source → subscribe → render.
+
+        Returns:
+            Compiled output string.
+
+        Raises:
+            RuntimeError: If no compiler is configured.
+        """
+        if self._compiler_instance is None:
+            raise RuntimeError(
+                f"{type(self).__name__} has no compiler. "
+                f"Set _compiler_class on the builder subclass."
+            )
+
+        self._clear_compiled()
+
+        self._compiler_instance.compile(
+            self.source, self.compiled, self.data, self._binding,
+        )
+
+        self._binding.subscribe(self.compiled, self.data)
+
+        self.source.subscribe(
+            "source_watcher",
+            delete=self._on_source_deleted,
+            insert=self._on_source_inserted,
+            update=self._on_source_updated,
+        )
+
+        self._output = self.render(self.compiled)
+        self._auto_compile = True
+        return self._output
+
+    def render(self, compiled_bag: Bag) -> str:
+        """Render a compiled Bag to output string.
+
+        Delegates to compiler.render() if available, otherwise
+        uses compiler's _walk_compile + join as fallback.
+
+        Args:
+            compiled_bag: The compiled Bag to render.
+
+        Returns:
+            Rendered output string.
+        """
+        if self._compiler_instance is None:
+            raise RuntimeError(
+                f"{type(self).__name__} has no compiler for rendering."
+            )
+        if hasattr(self._compiler_instance, "render"):
+            return self._compiler_instance.render(compiled_bag)
+        parts = list(self._compiler_instance._walk_compile(compiled_bag))
+        return "\n\n".join(p for p in parts if p)
+
+    def rebuild(self, recipe: Callable[..., Any] | None = None) -> str:
+        """Full rebuild: clear source, optionally re-populate, compile.
+
+        Args:
+            recipe: Optional callable(source) to populate the source bag.
+
+        Returns:
+            Compiled output string.
+        """
+        self.source.unsubscribe("source_watcher", any=True)
+        self._auto_compile = False
+        self._clear_source()
+        if recipe is not None:
+            recipe(self.source)
+        return self.compile()
+
+    def _clear_compiled(self) -> None:
+        """Clear the compiled bag without destroying the shell."""
+        self._binding.unbind()
+        self.compiled.clear()
+
+    def _clear_source(self) -> None:
+        """Clear the source bag without destroying the shell."""
+        new_root = BuilderBag(builder=type(self))
+        self._source_shell.set_item("root", new_root)
+        self._bag = self.source
+        if self._compiler_instance is not None:
+            self._compiler_instance.builder = self.source.builder
+
+    # -------------------------------------------------------------------------
+    # Source change handlers (incremental compile)
+    # -------------------------------------------------------------------------
+
+    def _on_source_deleted(
+        self,
+        node: BagNode | None = None,
+        pathlist: list | None = None,
+        ind: int | None = None,
+        evt: str = "",
+        **kwargs: Any,
+    ) -> None:
+        """Called when a node is deleted from the source."""
+        if not self._auto_compile or node is None:
+            return
+        parts = [str(p) for p in pathlist] if pathlist else []
+        parts.append(node.label)
+        path = ".".join(parts)
+        self._binding.unbind_path(path)
+        self.compiled.del_item(path, _reason="source")
+        self._rerender()
+
+    def _on_source_inserted(
+        self,
+        node: BagNode | None = None,
+        pathlist: list | None = None,
+        ind: int | None = None,
+        evt: str = "",
+        **kwargs: Any,
+    ) -> None:
+        """Called when a node is inserted into the source."""
+        if not self._auto_compile or node is None:
+            return
+        if self._compiler_instance is None:
+            return
+
+        parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
+
+        if parent_path:
+            target_bag = self.compiled.get_item(parent_path)
+            if not isinstance(target_bag, Bag):
+                return
+        else:
+            target_bag = self.compiled
+
+        node_path = f"{parent_path}.{node.label}" if parent_path else node.label
+
+        value = node.get_value(static=False) if node.resolver is not None else node.static_value
+
+        new_node = target_bag.set_item(
+            node.label,
+            value if not isinstance(value, Bag) else BuilderBag(builder=type(self)),
+            _attributes=dict(node.attr),
+            node_tag=node.node_tag,
+            node_position=ind,
+            _reason="source",
+        )
+
+        self._compiler_instance._resolve_and_register(
+            new_node, node_path, self.data, self._binding,
+        )
+
+        if isinstance(value, Bag):
+            self._compiler_instance.compile(
+                value, new_node.value, self.data, self._binding, prefix=node_path,
+            )
+
+        self._rerender()
+
+    def _on_source_updated(
+        self,
+        node: BagNode | None = None,
+        pathlist: list | None = None,
+        oldvalue: Any = None,
+        evt: str = "",
+        **kwargs: Any,
+    ) -> None:
+        """Called when a node in the source is updated (value or attributes)."""
+        if not self._auto_compile or pathlist is None:
+            return
+        if self._compiler_instance is None:
+            return
+
+        path = ".".join(str(p) for p in pathlist)
+        compiled_node = self.compiled.get_node(path)
+        if compiled_node is None:
+            return
+
+        if evt == "upd_value":
+            value = node.get_value(static=False) if node.resolver is not None else node.static_value
+
+            self._binding.unbind_path(path)
+
+            if isinstance(value, Bag):
+                compiled_node.set_value(BuilderBag(builder=type(self)), _reason="source")
+                self._compiler_instance._resolve_and_register(
+                    compiled_node, path, self.data, self._binding,
+                )
+                self._compiler_instance.compile(
+                    value, compiled_node.value, self.data, self._binding, prefix=path,
+                )
+            else:
+                compiled_node.set_value(value, _reason="source")
+                self._compiler_instance._resolve_and_register(
+                    compiled_node, path, self.data, self._binding,
+                )
+
+        elif evt == "upd_attrs":
+            if node is not None:
+                compiled_node.set_attr(dict(node.attr))
+                self._binding.unbind_path(path)
+                self._compiler_instance._resolve_and_register(
+                    compiled_node, path, self.data, self._binding,
+                )
+
+        self._rerender()
+
+    # -------------------------------------------------------------------------
     # Bag delegation
     # -------------------------------------------------------------------------
 
