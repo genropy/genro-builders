@@ -17,7 +17,7 @@ builder = HtmlBuilder()
 body = builder.source.body()
 body.div(id='main').p('Hello, world!')
 
-builder.compile()
+builder.build()
 print(builder.output)
 ```
 
@@ -26,8 +26,8 @@ print(builder.output)
 - **Domain-specific grammars** — Define elements, validation rules, and components via decorators (`@element`, `@abstract`, `@component`)
 - **Named slots** — Components can declare insertion points (`slots=['left', 'right']`) for user content injection at recipe time
 - **Built-in builders** — HTML5, Markdown, XSD (schema-driven XML)
-- **Reactive pipeline** — Compile source, resolve `^pointer` bindings, render output. Data changes trigger automatic re-render
-- **Multi-builder coordination** — `BuilderManager` coordinates multiple builders with a shared data bus
+- **Reactive pipeline** — Build source, resolve `^pointer` bindings, render output. Data changes trigger automatic re-render
+- **Multi-builder coordination** — `BuilderManager` mixin coordinates multiple builders with a shared data bus
 - **Validation** — `sub_tags` cardinality, `parent_tags` constraints, typed attribute validation
 
 ## Architecture
@@ -36,8 +36,8 @@ A builder owns the full pipeline:
 
 ```text
 builder.source  (recipe: builder calls, components, ^pointer strings)
-    ↓ builder.compile()
-builder.compiled  (components expanded, ^pointers resolved, subscriptions active)
+    ↓ builder.build()
+builder.built  (components expanded, ^pointers resolved, subscriptions active)
     ↓ compiler.render()
 builder.output  (HTML, Markdown, XML, ...)
 ```

@@ -1,11 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """BagBuilderBase — base class for Bag builders with grammar and validation.
 
-A builder owns the full reactive pipeline: source, compiled, data,
+A builder owns the full reactive pipeline: source, built, data,
 binding, and compiler. Define a domain-specific grammar via decorators
-(@element, @abstract, @component), populate the source Bag, compile,
-and render output. Optionally, a ``BuilderManager`` coordinates
-multiple builders that share the same data bus.
+(@element, @abstract, @component), populate the source Bag, build
+(materialize), and compile to output. Optionally, a ``BuilderManager``
+coordinates multiple builders that share the same data bus.
 
 Exports:
     element: Decorator to mark methods as element handlers.
@@ -102,7 +102,7 @@ Example - Standalone builder:
     >>>
     >>> builder = HtmlBuilder()
     >>> builder.source.div(id='main').p('Hello')
-    >>> builder.compile()
+    >>> builder.build()
     >>> print(builder.output)
 
 Example - Multiple builders with shared data (BuilderManager):
@@ -116,7 +116,7 @@ Example - Multiple builders with shared data (BuilderManager):
     >>> app = MyApp()
     >>> app.data['title'] = 'Hello'
     >>> app.page.source.div(value='^title')
-    >>> app.compile_all()
+    >>> app.build_all()
 
 SchemaBuilder Example:
     >>> from genro_builders import BuilderBag
@@ -575,7 +575,7 @@ class BagBuilderBase(ABC):
     ) -> None:
         """Initialize the builder.
 
-        Creates source, compiled, data, binding, and compiler internally.
+        Creates source, built, data, binding, and compiler internally.
         If a ``manager`` is provided, data is shared across all builders
         registered with that manager.
 
@@ -604,9 +604,9 @@ class BagBuilderBase(ABC):
             self._source_shell.set_backref()
             self._source_shell.set_item("root", BuilderBag(builder=type(self)))
 
-            self._compiled_shell = BuilderBag(builder=type(self))
-            self._compiled_shell.set_backref()
-            self._compiled_shell.set_item("root", BuilderBag(builder=type(self)))
+            self._built_shell = BuilderBag(builder=type(self))
+            self._built_shell.set_backref()
+            self._built_shell.set_item("root", BuilderBag(builder=type(self)))
 
             self._bag = self._source_shell.get_item("root")
 
@@ -634,9 +634,9 @@ class BagBuilderBase(ABC):
         return self._source_shell.get_item("root")
 
     @property
-    def compiled(self) -> BuilderBag:
-        """The compiled Bag (components expanded, pointers resolved)."""
-        return self._compiled_shell.get_item("root")
+    def built(self) -> BuilderBag:
+        """The built Bag (components expanded, pointers resolved)."""
+        return self._built_shell.get_item("root")
 
     @property
     def data(self) -> Bag:
@@ -676,18 +676,21 @@ class BagBuilderBase(ABC):
             self._rerender()
 
     def _rerender(self) -> None:
-        """Re-render the compiled bag without re-compiling."""
-        self._output = self.render(self.compiled)
+        """Re-render the built bag without re-building."""
+        self._output = self.render(self.built)
 
     # -------------------------------------------------------------------------
-    # Compile / render / rebuild
+    # Build / render / rebuild
     # -------------------------------------------------------------------------
 
-    def compile(self) -> str:
-        """Full pipeline: compile source → subscribe → render.
+    def build(self) -> str:
+        """Full pipeline: build source → subscribe → render.
+
+        Expands components, resolves ^pointers, registers subscriptions,
+        and renders the output.
 
         Returns:
-            Compiled output string.
+            Rendered output string.
 
         Raises:
             RuntimeError: If no compiler is configured.
@@ -698,13 +701,13 @@ class BagBuilderBase(ABC):
                 f"Set _compiler_class on the builder subclass."
             )
 
-        self._clear_compiled()
+        self._clear_built()
 
         self._compiler_instance.compile(
-            self.source, self.compiled, self.data, self._binding,
+            self.source, self.built, self.data, self._binding,
         )
 
-        self._binding.subscribe(self.compiled, self.data)
+        self._binding.subscribe(self.built, self.data)
 
         self.source.subscribe(
             "source_watcher",
@@ -713,18 +716,18 @@ class BagBuilderBase(ABC):
             update=self._on_source_updated,
         )
 
-        self._output = self.render(self.compiled)
+        self._output = self.render(self.built)
         self._auto_compile = True
         return self._output
 
-    def render(self, compiled_bag: Bag) -> str:
-        """Render a compiled Bag to output string.
+    def render(self, built_bag: Bag) -> str:
+        """Render the built Bag to output via the compiler.
 
         Delegates to compiler.render() if available, otherwise
         uses compiler's _walk_compile + join as fallback.
 
         Args:
-            compiled_bag: The compiled Bag to render.
+            built_bag: The built Bag to render.
 
         Returns:
             Rendered output string.
@@ -734,30 +737,30 @@ class BagBuilderBase(ABC):
                 f"{type(self).__name__} has no compiler for rendering."
             )
         if hasattr(self._compiler_instance, "render"):
-            return self._compiler_instance.render(compiled_bag)
-        parts = list(self._compiler_instance._walk_compile(compiled_bag))
+            return self._compiler_instance.render(built_bag)
+        parts = list(self._compiler_instance._walk_compile(built_bag))
         return "\n\n".join(p for p in parts if p)
 
     def rebuild(self, recipe: Callable[..., Any] | None = None) -> str:
-        """Full rebuild: clear source, optionally re-populate, compile.
+        """Full rebuild: clear source, optionally re-populate, build.
 
         Args:
             recipe: Optional callable(source) to populate the source bag.
 
         Returns:
-            Compiled output string.
+            Rendered output string.
         """
         self.source.unsubscribe("source_watcher", any=True)
         self._auto_compile = False
         self._clear_source()
         if recipe is not None:
             recipe(self.source)
-        return self.compile()
+        return self.build()
 
-    def _clear_compiled(self) -> None:
-        """Clear the compiled bag without destroying the shell."""
+    def _clear_built(self) -> None:
+        """Clear the built bag without destroying the shell."""
         self._binding.unbind()
-        self.compiled.clear()
+        self.built.clear()
 
     def _clear_source(self) -> None:
         """Clear the source bag without destroying the shell."""
@@ -786,7 +789,7 @@ class BagBuilderBase(ABC):
         parts.append(node.label)
         path = ".".join(parts)
         self._binding.unbind_path(path)
-        self.compiled.del_item(path, _reason="source")
+        self.built.del_item(path, _reason="source")
         self._rerender()
 
     def _on_source_inserted(
@@ -806,11 +809,11 @@ class BagBuilderBase(ABC):
         parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
 
         if parent_path:
-            target_bag = self.compiled.get_item(parent_path)
+            target_bag = self.built.get_item(parent_path)
             if not isinstance(target_bag, Bag):
                 return
         else:
-            target_bag = self.compiled
+            target_bag = self.built
 
         node_path = f"{parent_path}.{node.label}" if parent_path else node.label
 
@@ -851,8 +854,8 @@ class BagBuilderBase(ABC):
             return
 
         path = ".".join(str(p) for p in pathlist)
-        compiled_node = self.compiled.get_node(path)
-        if compiled_node is None:
+        built_node = self.built.get_node(path)
+        if built_node is None:
             return
 
         if evt == "upd_value":
@@ -861,25 +864,25 @@ class BagBuilderBase(ABC):
             self._binding.unbind_path(path)
 
             if isinstance(value, Bag):
-                compiled_node.set_value(BuilderBag(builder=type(self)), _reason="source")
+                built_node.set_value(BuilderBag(builder=type(self)), _reason="source")
                 self._compiler_instance._resolve_and_register(
-                    compiled_node, path, self.data, self._binding,
+                    built_node, path, self.data, self._binding,
                 )
                 self._compiler_instance.compile(
-                    value, compiled_node.value, self.data, self._binding, prefix=path,
+                    value, built_node.value, self.data, self._binding, prefix=path,
                 )
             else:
-                compiled_node.set_value(value, _reason="source")
+                built_node.set_value(value, _reason="source")
                 self._compiler_instance._resolve_and_register(
-                    compiled_node, path, self.data, self._binding,
+                    built_node, path, self.data, self._binding,
                 )
 
         elif evt == "upd_attrs":
             if node is not None:
-                compiled_node.set_attr(dict(node.attr))
+                built_node.set_attr(dict(node.attr))
                 self._binding.unbind_path(path)
                 self._compiler_instance._resolve_and_register(
-                    compiled_node, path, self.data, self._binding,
+                    built_node, path, self.data, self._binding,
                 )
 
         self._rerender()

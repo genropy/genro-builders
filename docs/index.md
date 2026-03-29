@@ -16,7 +16,7 @@ body = builder.source.body()
 div = body.div(id='main')
 div.p('Hello, world!')
 
-builder.compile()
+builder.build()
 print(builder.output)
 # <body><div id="main"><p>Hello, world!</p></div></body>
 ```
@@ -54,7 +54,7 @@ builder.data['page.title'] = 'Hello'
 builder.data['content.text'] = 'World'
 builder.source.h1(value='^page.title')
 builder.source.p(value='^content.text')
-builder.compile()
+builder.build()
 print(builder.output)
 
 # Data changes trigger automatic re-render

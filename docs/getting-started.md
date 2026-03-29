@@ -20,7 +20,7 @@ body = builder.source.body()
 body.h1('Welcome')
 body.p('This is a paragraph.')
 
-builder.compile()
+builder.build()
 print(builder.output)
 ```
 
@@ -68,7 +68,7 @@ builder.source.p('A paragraph of text.')
 builder.source.h2('Section')
 builder.source.code('print("hello")', lang='python')
 
-builder.compile()
+builder.build()
 print(builder.output)
 ```
 
@@ -122,7 +122,7 @@ builder.data['title'] = 'Hello'
 builder.data['text'] = 'World'
 builder.source.h1(value='^title')
 builder.source.p(value='^text')
-builder.compile()
+builder.build()
 print(builder.output)
 # <h1>Hello</h1>
 # <p>World</p>

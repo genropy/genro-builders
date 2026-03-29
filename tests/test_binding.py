@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from genro_bag import Bag
+
 from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag
 
@@ -12,18 +13,18 @@ def _setup_bound(data, bag, bindings):
 
     Args:
         data: The data Bag.
-        bag: The compiled Bag (already populated).
-        bindings: List of (data_key, compiled_entry) tuples.
+        bag: The built Bag (already populated).
+        bindings: List of (data_key, built_entry) tuples.
 
     Returns:
         BindingManager instance, subscribed and ready.
     """
     manager = BindingManager()
-    manager._compiled = bag  # set before resolve so _apply_to_compiled works
-    for data_key, compiled_entry in bindings:
-        manager.register(data_key, compiled_entry)
+    manager._built = bag  # set before resolve so _apply_to_built works
+    for data_key, built_entry in bindings:
+        manager.register(data_key, built_entry)
         resolved = manager._resolve_data_key(data, data_key)
-        manager._apply_to_compiled(compiled_entry, resolved, trigger=False)
+        manager._apply_to_built(built_entry, resolved, trigger=False)
     manager.subscribe(bag, data)
     return manager
 
@@ -31,11 +32,11 @@ def _setup_bound(data, bag, bindings):
 def _setup_bound_with_callback(data, bag, bindings, callback):
     """Like _setup_bound but with on_node_updated callback."""
     manager = BindingManager(on_node_updated=callback)
-    manager._compiled = bag  # set before resolve so _apply_to_compiled works
-    for data_key, compiled_entry in bindings:
-        manager.register(data_key, compiled_entry)
+    manager._built = bag  # set before resolve so _apply_to_built works
+    for data_key, built_entry in bindings:
+        manager.register(data_key, built_entry)
         resolved = manager._resolve_data_key(data, data_key)
-        manager._apply_to_compiled(compiled_entry, resolved, trigger=False)
+        manager._apply_to_built(built_entry, resolved, trigger=False)
     manager.subscribe(bag, data)
     return manager
 
@@ -62,7 +63,7 @@ class TestRegisterAndMap:
         assert len(smap["val"]) == 2
 
     def test_register_attr_pointer(self):
-        """data_key with ?attr suffix and compiled_entry with ?attr suffix."""
+        """data_key with ?attr suffix and built_entry with ?attr suffix."""
         manager = BindingManager()
         manager.register("theme.btn?color", "widget_0?bg")
 
@@ -214,7 +215,7 @@ class TestAntiLoop:
     """Tests for anti-loop mechanism via _reason."""
 
     def test_reason_skips_originating_node(self):
-        """Writing to data with _reason skips the originating compiled node."""
+        """Writing to data with _reason skips the originating built node."""
         data = Bag()
         data.set_item("val", "initial")
 
@@ -254,7 +255,7 @@ class TestAntiLoop:
         assert "n2" in updated
 
     def test_reason_nonmatching_updates_all(self):
-        """_reason that doesn't match any compiled path updates all nodes."""
+        """_reason that doesn't match any built path updates all nodes."""
         data = Bag()
         data.set_item("val", "initial")
 

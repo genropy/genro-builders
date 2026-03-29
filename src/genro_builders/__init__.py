@@ -4,14 +4,14 @@
 Define domain-specific grammars via decorators (@element, @abstract,
 @component) and build structured Bag hierarchies with validation.
 
-A builder owns the full reactive pipeline: source, compiled, data,
+A builder owns the full reactive pipeline: source, built, data,
 binding, and compiler. Optionally, a ``BuilderManager`` coordinates
 multiple builders that share the same data bus.
 
 Core classes:
     BagBuilderBase: Define grammars with @element, @abstract, @component.
     BuilderBag: Bag subclass with builder delegation.
-    BagCompilerBase: Compile source → target, render output.
+    BagCompilerBase: Transform built Bag into output (text or objects).
     BuilderManager: Coordinate multiple builders with shared data.
     BindingManager: Reactive ^pointer subscription map.
 """

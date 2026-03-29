@@ -6,7 +6,6 @@ import pytest
 from genro_bag import Bag
 
 from genro_builders.builder import BagBuilderBase, element
-from genro_builders.builder_bag import BuilderBag
 
 from .helpers import TestBuilder, TestCompiler
 
@@ -40,7 +39,7 @@ class TestAutonomousLifecycle:
         """Populate source, compile, get output."""
         builder = TestBuilder()
         builder.source.heading("Hello")
-        result = builder.compile()
+        result = builder.build()
 
         assert result == builder.output
         assert "[heading:Hello]" in result
@@ -49,7 +48,7 @@ class TestAutonomousLifecycle:
         """compile() returns the rendered output."""
         builder = TestBuilder()
         builder.source.text("content")
-        result = builder.compile()
+        result = builder.build()
 
         assert result == builder.output
         assert "[text:content]" in result
@@ -65,7 +64,7 @@ class TestAutonomousLifecycle:
         builder.source.div()
 
         with pytest.raises(RuntimeError, match="no compiler"):
-            builder.compile()
+            builder.build()
 
 
 # =============================================================================
@@ -81,7 +80,7 @@ class TestAutonomousPointerResolution:
         builder = TestBuilder()
         builder.data["page.title"] = "Hello World"
         builder.source.heading("^page.title")
-        builder.compile()
+        builder.build()
 
         assert "Hello World" in builder.output
 
@@ -90,7 +89,7 @@ class TestAutonomousPointerResolution:
         builder = TestBuilder()
         builder.data["theme.color"] = "blue"
         builder.source.item(color="^theme.color")
-        builder.compile()
+        builder.build()
 
         assert "color=blue" in builder.output
 
@@ -101,7 +100,7 @@ class TestAutonomousPointerResolution:
         builder.data["body"] = "Body text"
         builder.source.heading("^title")
         builder.source.text("^body")
-        builder.compile()
+        builder.build()
 
         assert "Title" in builder.output
         assert "Body text" in builder.output
@@ -120,7 +119,7 @@ class TestAutonomousReactivity:
         builder = TestBuilder()
         builder.data["title"] = "Original"
         builder.source.heading("^title")
-        builder.compile()
+        builder.build()
 
         assert "Original" in builder.output
 
@@ -134,7 +133,7 @@ class TestAutonomousReactivity:
         builder.data["title"] = "Hello"
         builder.source.heading("^title")
         builder.source.text("static content")
-        builder.compile()
+        builder.build()
 
         assert "Hello" in builder.output
         assert "static content" in builder.output
@@ -158,7 +157,7 @@ class TestAutonomousRebuild:
         builder = TestBuilder()
         builder.data["title"] = "v1"
         builder.source.heading("^title")
-        builder.compile()
+        builder.build()
 
         assert "v1" in builder.output
 
@@ -185,7 +184,7 @@ class TestAutonomousDataReplacement:
         builder = TestBuilder()
         builder.data["name"] = "Alice"
         builder.source.heading("^name")
-        builder.compile()
+        builder.build()
 
         assert "Alice" in builder.output
 
@@ -209,7 +208,7 @@ class TestAutonomousWithComponent:
         builder = TestBuilder()
         builder.data["section.title"] = "My Section"
         builder.source.section(title="^section.title")
-        builder.compile()
+        builder.build()
 
         assert "My Section" in builder.output
         assert "default content" in builder.output
@@ -228,7 +227,7 @@ class TestAutonomousSourceDelete:
         builder = TestBuilder()
         builder.source.heading("Title")
         builder.source.text("Content")
-        builder.compile()
+        builder.build()
 
         assert "[heading:Title]" in builder.output
         assert "[text:Content]" in builder.output
@@ -243,7 +242,7 @@ class TestAutonomousSourceDelete:
         builder.data["title"] = "Hello"
         builder.source.heading("^title")
         builder.source.text("static")
-        builder.compile()
+        builder.build()
 
         assert "Hello" in builder.output
         assert len(builder._binding.subscription_map) > 0
@@ -264,7 +263,7 @@ class TestAutonomousSourceDelete:
         inner = builder.source.group()
         inner.leaf("Child1")
         inner.leaf("Child2")
-        builder.compile()
+        builder.build()
 
         assert "Child1" in builder.output
         assert "Child2" in builder.output
@@ -287,7 +286,7 @@ class TestAutonomousSourceInsert:
         """Inserting a node into the source adds it to output."""
         builder = TestBuilder()
         builder.source.heading("Title")
-        builder.compile()
+        builder.build()
 
         assert "[heading:Title]" in builder.output
         assert "Extra" not in builder.output
@@ -302,7 +301,7 @@ class TestAutonomousSourceInsert:
         builder = TestBuilder()
         builder.data["dynamic"] = "Resolved"
         builder.source.heading("Static")
-        builder.compile()
+        builder.build()
 
         assert "Resolved" not in builder.output
 
@@ -315,7 +314,7 @@ class TestAutonomousSourceInsert:
         builder = TestBuilder()
         builder.source.heading("First")
         builder.source.heading("Third")
-        builder.compile()
+        builder.build()
 
         builder.source.text("Second", node_position=1)
 
@@ -338,7 +337,7 @@ class TestAutonomousSourceUpdate:
         """Updating a node value in the source updates the output."""
         builder = TestBuilder()
         builder.source.heading("Original")
-        builder.compile()
+        builder.build()
 
         assert "Original" in builder.output
 
@@ -351,7 +350,7 @@ class TestAutonomousSourceUpdate:
         """Updating a node attribute in the source updates the output."""
         builder = TestBuilder()
         builder.source.item(color="red")
-        builder.compile()
+        builder.build()
 
         assert "color=red" in builder.output
 
@@ -365,7 +364,7 @@ class TestAutonomousSourceUpdate:
         builder = TestBuilder()
         builder.data["title"] = "Dynamic"
         builder.source.heading("static")
-        builder.compile()
+        builder.build()
 
         assert "static" in builder.output
         assert "Dynamic" not in builder.output
@@ -382,7 +381,7 @@ class TestAutonomousSourceUpdate:
         inner = builder.source.group()
         inner.leaf("^child_a")
         inner.leaf("^child_b")
-        builder.compile()
+        builder.build()
 
         assert "A" in builder.output
         assert "B" in builder.output
@@ -417,9 +416,9 @@ class TestAutonomousCompiledObservable:
         builder = TestBuilder()
         builder.source.heading("Title")
         builder.source.text("Content")
-        builder.compile()
+        builder.build()
 
-        builder.compiled.subscribe(
+        builder.built.subscribe(
             "test", delete=lambda **kw: events.append(("del", kw.get("reason"))),
         )
 
@@ -433,9 +432,9 @@ class TestAutonomousCompiledObservable:
         events = []
         builder = TestBuilder()
         builder.source.heading("Title")
-        builder.compile()
+        builder.build()
 
-        builder.compiled.subscribe(
+        builder.built.subscribe(
             "test", insert=lambda **kw: events.append(("ins", kw.get("reason"))),
         )
 
@@ -449,9 +448,9 @@ class TestAutonomousCompiledObservable:
         events = []
         builder = TestBuilder()
         builder.source.heading("Original")
-        builder.compile()
+        builder.build()
 
-        builder.compiled.subscribe(
+        builder.built.subscribe(
             "test", update=lambda **kw: events.append(("upd", kw.get("reason"))),
         )
 
@@ -474,7 +473,7 @@ class TestAutonomousMapAdequacy:
         builder = TestBuilder()
         builder.data["dynamic"] = "Resolved"
         builder.source.heading("static")
-        builder.compile()
+        builder.build()
 
         assert len(builder._binding.subscription_map) == 0
 
@@ -491,7 +490,7 @@ class TestAutonomousMapAdequacy:
         builder.data["body"] = "B"
         builder.source.heading("^title")
         builder.source.text("^body")
-        builder.compile()
+        builder.build()
 
         smap = builder._binding.subscription_map
         assert "title" in smap
@@ -508,7 +507,7 @@ class TestAutonomousMapAdequacy:
         builder = TestBuilder()
         builder.data["title"] = "Dynamic"
         builder.source.heading("static")
-        builder.compile()
+        builder.build()
 
         assert len(builder._binding.subscription_map) == 0
 
@@ -523,7 +522,7 @@ class TestAutonomousMapAdequacy:
         builder = TestBuilder()
         builder.data["title"] = "Hello"
         builder.source.heading("^title")
-        builder.compile()
+        builder.build()
 
         assert "title" in builder._binding.subscription_map
 
@@ -536,7 +535,7 @@ class TestAutonomousMapAdequacy:
         builder = TestBuilder()
         builder.data["theme.color"] = "blue"
         builder.source.item(color="red")
-        builder.compile()
+        builder.build()
 
         assert len(builder._binding.subscription_map) == 0
 
@@ -551,7 +550,7 @@ class TestAutonomousMapAdequacy:
         builder = TestBuilder()
         builder.data["val"] = "first"
         builder.source.heading("static")
-        builder.compile()
+        builder.build()
 
         builder.source.text("^val")
         assert "first" in builder.output
@@ -559,20 +558,3 @@ class TestAutonomousMapAdequacy:
         builder.data["val"] = "second"
         assert "second" in builder.output
 
-
-# =============================================================================
-# Tests: Backward compatibility
-# =============================================================================
-
-
-class TestBackwardCompatibility:
-    """Ensure BuilderBag(builder=...) legacy mode still works."""
-
-    def test_builder_bag_with_builder_class(self):
-        """BuilderBag(builder=TestBuilder) creates a working builder bag."""
-        bag = BuilderBag(builder=TestBuilder)
-        bag.heading("Hello")
-        assert len(bag) == 1
-        node = bag.get_node("heading_0")
-        assert node is not None
-        assert node.static_value == "Hello"

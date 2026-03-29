@@ -1,19 +1,19 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BuilderManager — coordinate multiple builders with shared data.
+"""BuilderManager — mixin to coordinate builders with shared data.
 
-Registers named builders and provides a shared data Bag. When data
-changes, all registered builders are rebound automatically.
+Provides a shared data Bag and builder registry. Subclass state
+(_data, _builders) is initialized automatically via __init_subclass__,
+so subclasses do not need to call super().__init__().
 
 Example:
-    >>> class MyApp(BuilderManager):
+    >>> class MyPage(BuilderManager):
     ...     def __init__(self):
-    ...         super().__init__()
-    ...         self.page = self.register_builder('page', HtmlBuilder)
-    ...         self.sidebar = self.register_builder('sidebar', HtmlBuilder)
+    ...         self.page = self.set_builder('page', HtmlBuilder)
     ...
-    >>> app = MyApp()
-    >>> app.data['user.name'] = 'Alice'  # propagates to both builders
-    >>> app.compile_all()
+    >>> page = MyPage()
+    >>> page.data['title'] = 'Hello'
+    >>> page.page.source.div(value='^title')
+    >>> page.build_all()
 """
 from __future__ import annotations
 
@@ -23,16 +23,26 @@ from genro_bag import Bag
 
 
 class BuilderManager:
-    """Mixin for managing multiple builders with shared data bus.
+    """Mixin to coordinate one or more builders with shared data.
 
-    Provides a registry of named builders and a shared data Bag.
-    When data is replaced, all builders are rebound automatically.
+    Subclasses get ``_data`` (Bag with backref) and ``_builders`` (dict)
+    initialized automatically — no ``super().__init__()`` needed.
     """
 
-    def __init__(self) -> None:
-        self._builder_registry: dict[str, Any] = {}
-        self._data = Bag()
-        self._data.set_backref()
+    __slots__ = ("_data", "_builders")
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        original_init = cls.__dict__.get("__init__")
+
+        def _wrapped_init(self: Any, *args: Any, **kw: Any) -> None:
+            self._data = Bag()
+            self._data.set_backref()
+            self._builders: dict[str, Any] = {}
+            if original_init is not None:
+                original_init(self, *args, **kw)
+
+        cls.__init__ = _wrapped_init  # type: ignore[attr-defined]
 
     @property
     def data(self) -> Bag:
@@ -46,39 +56,25 @@ class BuilderManager:
         if not new_data.backref:
             new_data.set_backref()
         self._data = new_data
-        for builder in self._builder_registry.values():
+        for builder in self._builders.values():
             builder._rebind_data(new_data)
 
-    def register_builder(self, name: str, builder_class: type, **kwargs: Any) -> Any:
-        """Create and register a builder with this manager.
+    def set_builder(self, name: str, builder_class: type, **kwargs: Any) -> Any:
+        """Create a builder, register it, and return it.
 
         Args:
-            name: Unique name for the builder.
+            name: Name for the builder (used by build_all).
             builder_class: The BagBuilderBase subclass to instantiate.
-            **kwargs: Extra kwargs passed to builder constructor.
+            **kwargs: Extra kwargs passed to the builder constructor.
 
         Returns:
             The created builder instance.
         """
         builder = builder_class(manager=self, **kwargs)
-        self._builder_registry[name] = builder
+        self._builders[name] = builder
         return builder
 
-    def get_builder(self, name: str) -> Any:
-        """Get a registered builder by name."""
-        return self._builder_registry[name]
-
-    def compile_all(self) -> None:
-        """Compile all registered builders."""
-        for builder in self._builder_registry.values():
-            builder.compile()
-
-    def on_builder_changed(self, builder: Any, event: str) -> None:
-        """Hook called when a builder's state changes.
-
-        Override in subclass for cross-builder orchestration.
-
-        Args:
-            builder: The builder that changed.
-            event: Description of the change (e.g., 'compiled', 'data_changed').
-        """
+    def build_all(self) -> None:
+        """Build all registered builders."""
+        for builder in self._builders.values():
+            builder.build()

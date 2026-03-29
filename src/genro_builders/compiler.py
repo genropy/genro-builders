@@ -1,16 +1,16 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BagCompilerBase - Abstract base class for Bag compilers.
+"""BagCompilerBase — abstract base class for Bag compilers.
 
 A compiler has two distinct responsibilities:
 
 1. **compile(source, target, data, binding)** → None:
-   Single recursive walk: for each node, clean subscription map for the
-   subtree, expand components (via resolvers), resolve ^pointers against
-   data, register subscriptions in the binding map, recurse into children.
-   The same method handles full compile and incremental compile on subtrees.
+   Single recursive walk: for each node, expand components (via resolvers),
+   resolve ^pointers against data, register subscriptions in the binding
+   map, recurse into children. Populates the built (target) Bag.
 
 2. **Rendering** (subclass-defined):
-   Transform the CompiledBag into an output format (HTML, YAML, etc.).
+   Transform the built Bag into an output format (HTML, YAML, etc.)
+   or into live objects (Textual widgets, openpyxl workbooks, etc.).
    Subclasses define their own rendering methods, optionally using
    @compile_handler for tag-based dispatch.
 
@@ -24,8 +24,8 @@ Example:
     ...     def h1(self, node, ctx):
     ...         return f"# {ctx['node_value']}"
     ...
-    ...     def to_markdown(self, compiled_bag):
-    ...         parts = list(self._walk_compile(compiled_bag))
+    ...     def to_markdown(self, built_bag):
+    ...         parts = list(self._walk_compile(built_bag))
     ...         return '\\n\\n'.join(p for p in parts if p)
 """
 from __future__ import annotations
@@ -131,7 +131,7 @@ class BagCompilerBase(ABC):
 
         Args:
             source: The source Bag to compile from.
-            target: The compiled Bag to populate.
+            target: The built Bag to populate.
             data: Data Bag for ^pointer resolution.
             binding: BindingManager for subscription registration.
             prefix: Path prefix for subscription map keys.
@@ -139,10 +139,10 @@ class BagCompilerBase(ABC):
         from .builder_bag import BuilderBag
 
         for node in source:
-            compiled_path = f"{prefix}.{node.label}" if prefix else node.label
+            built_path = f"{prefix}.{node.label}" if prefix else node.label
 
             # 1. Clean subscription map for this subtree
-            binding.unbind_path(compiled_path)
+            binding.unbind_path(built_path)
 
             # 2. Expand component if resolver present
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
@@ -156,24 +156,24 @@ class BagCompilerBase(ABC):
             )
 
             # 4. Resolve ^pointers and register in map
-            self._resolve_and_register(new_node, compiled_path, data, binding)
+            self._resolve_and_register(new_node, built_path, data, binding)
 
             # 5. Recurse into children
             if isinstance(value, Bag):
-                self.compile(value, new_node.value, data, binding, prefix=compiled_path)
+                self.compile(value, new_node.value, data, binding, prefix=built_path)
 
     # -------------------------------------------------------------------------
     # Pointer resolution and registration
     # -------------------------------------------------------------------------
 
     def _resolve_and_register(
-        self, node: BagNode, compiled_path: str, data: Bag, binding: Any,
+        self, node: BagNode, built_path: str, data: Bag, binding: Any,
     ) -> None:
         """Resolve ^pointers on a node and register subscriptions in the map.
 
         Args:
-            node: The compiled BagNode to process.
-            compiled_path: The absolute path of this node in the compiled bag.
+            node: The built BagNode to process.
+            built_path: The absolute path of this node in the built bag.
             data: Data Bag for ^pointer resolution.
             binding: BindingManager for subscription registration.
         """
@@ -204,9 +204,9 @@ class BagCompilerBase(ABC):
 
             # Build map keys and register
             data_key = f"{data_path}?{pointer_info.attr}" if pointer_info.attr else data_path
-            compiled_entry = compiled_path if location == "value" else f"{compiled_path}?{location[5:]}"
+            built_entry = built_path if location == "value" else f"{built_path}?{location[5:]}"
 
-            binding.register(data_key, compiled_entry)
+            binding.register(data_key, built_entry)
 
     def _resolve_pointer(
         self, node: BagNode, pointer_info: Any, data_path: str, data: Bag,

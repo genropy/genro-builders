@@ -12,29 +12,48 @@ from .helpers import TestBuilder
 class TestManagerBasics:
     """Tests for basic BuilderManager operations."""
 
-    def test_register_builder(self):
-        """register_builder creates and returns a builder."""
-        mgr = BuilderManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        assert builder is not None
-        assert mgr.get_builder("page") is builder
+    def test_set_builder(self):
+        """set_builder creates and returns a builder."""
 
-    def test_builder_receives_manager(self):
-        """Registered builder has _manager set to the manager."""
-        mgr = BuilderManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        assert builder._manager is mgr
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
+        app = App()
+        assert app.page is not None
+        assert app.page._manager is app
 
     def test_builder_data_proxied_to_manager(self):
         """Builder.data returns the manager's shared data."""
-        mgr = BuilderManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        assert builder.data is mgr.data
+
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
+        app = App()
+        assert app.page.data is app.data
 
     def test_manager_data_is_backref_enabled(self):
-        """Manager's data Bag has backref enabled."""
-        mgr = BuilderManager()
-        assert mgr.data.backref is True
+        """Manager's data Bag has backref enabled by __init_subclass__."""
+
+        class App(BuilderManager):
+            pass
+
+        app = App()
+        assert app.data.backref is True
+
+    def test_no_super_init_needed(self):
+        """Subclass __init__ does not need super().__init__()."""
+
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+                self.custom = "value"
+
+        app = App()
+        assert app.custom == "value"
+        assert app.page is not None
+        assert isinstance(app.data, Bag)
 
 
 class TestManagerMultipleBuilders:
@@ -42,96 +61,110 @@ class TestManagerMultipleBuilders:
 
     def test_multiple_builders_share_data(self):
         """Two registered builders share the same data."""
-        mgr = BuilderManager()
-        b1 = mgr.register_builder("page", TestBuilder)
-        b2 = mgr.register_builder("sidebar", TestBuilder)
-        assert b1.data is b2.data
-        assert b1.data is mgr.data
+
+        class App(BuilderManager):
+            def __init__(self):
+                self.b1 = self.set_builder("page", TestBuilder)
+                self.b2 = self.set_builder("sidebar", TestBuilder)
+
+        app = App()
+        assert app.b1.data is app.b2.data
+        assert app.b1.data is app.data
 
     def test_data_replacement_propagates(self):
         """Replacing manager.data updates all builders."""
-        mgr = BuilderManager()
-        b1 = mgr.register_builder("page", TestBuilder)
-        b2 = mgr.register_builder("sidebar", TestBuilder)
 
+        class App(BuilderManager):
+            def __init__(self):
+                self.b1 = self.set_builder("page", TestBuilder)
+                self.b2 = self.set_builder("sidebar", TestBuilder)
+
+        app = App()
         new_data = Bag()
         new_data["key"] = "value"
-        mgr.data = new_data
+        app.data = new_data
 
-        assert b1.data is mgr.data
-        assert b2.data is mgr.data
-        assert b1.data["key"] == "value"
+        assert app.b1.data is app.data
+        assert app.b2.data is app.data
+        assert app.b1.data["key"] == "value"
 
     def test_data_setter_accepts_dict(self):
         """Manager.data setter converts dict to Bag."""
-        mgr = BuilderManager()
-        mgr.data = {"name": "test"}
-        assert isinstance(mgr.data, Bag)
-        assert mgr.data["name"] == "test"
+
+        class App(BuilderManager):
+            pass
+
+        app = App()
+        app.data = {"name": "test"}
+        assert isinstance(app.data, Bag)
+        assert app.data["name"] == "test"
 
 
-class TestManagerHook:
-    """Tests for on_builder_changed hook."""
+class TestManagerBuildAll:
+    """Tests for build_all."""
 
-    def test_on_builder_changed_is_callable(self):
-        """Default on_builder_changed does nothing (no error)."""
-        mgr = BuilderManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        mgr.on_builder_changed(builder, "compiled")
+    def test_build_all(self):
+        """build_all builds all registered builders."""
 
-    def test_on_builder_changed_override(self):
-        """Subclass can override on_builder_changed."""
-        events = []
+        class App(BuilderManager):
+            def __init__(self):
+                self.b1 = self.set_builder("page", TestBuilder)
+                self.b2 = self.set_builder("sidebar", TestBuilder)
 
-        class MyManager(BuilderManager):
-            def on_builder_changed(self, builder, event):
-                events.append((builder, event))
+        app = App()
+        app.b1.source.heading("Page")
+        app.b2.source.heading("Sidebar")
+        app.build_all()
 
-        mgr = MyManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        mgr.on_builder_changed(builder, "test_event")
-
-        assert len(events) == 1
-        assert events[0][1] == "test_event"
+        assert app.b1.output is not None
+        assert app.b2.output is not None
+        assert "Page" in app.b1.output
+        assert "Sidebar" in app.b2.output
 
 
-class TestManagerAutonomousBuilder:
+class TestManagerBuilderProperties:
     """Tests for builder created via manager."""
 
-    def test_autonomous_builder_has_source(self):
+    def test_builder_has_source(self):
         """Builder created via manager has source property."""
-        mgr = BuilderManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        assert builder.source is not None
 
-    def test_autonomous_builder_has_compiled(self):
-        """Builder created via manager has compiled property."""
-        mgr = BuilderManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        assert builder.compiled is not None
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
 
-    def test_autonomous_builder_source_is_builder_bag(self):
-        """Source bag has the builder attached."""
-        mgr = BuilderManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        assert builder.source.builder is not None
+        app = App()
+        assert app.page.source is not None
+
+    def test_builder_has_built(self):
+        """Builder created via manager has built property."""
+
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
+        app = App()
+        assert app.page.built is not None
 
     def test_builder_source_accepts_elements(self):
         """Can populate source with builder elements."""
-        mgr = BuilderManager()
-        builder = mgr.register_builder("page", TestBuilder)
-        builder.source.heading("Hello")
-        assert len(builder.source) == 1
+
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
+        app = App()
+        app.page.source.heading("Hello")
+        assert len(app.page.source) == 1
 
 
-class TestStandaloneAutonomousBuilder:
+class TestStandaloneBuilder:
     """Tests for builder without manager."""
 
     def test_standalone_builder(self):
         """Builder instantiated without arguments has own pipeline."""
         builder = TestBuilder()
         assert builder.source is not None
-        assert builder.compiled is not None
+        assert builder.built is not None
         assert builder.data is not None
 
     def test_standalone_data_is_own(self):
