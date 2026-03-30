@@ -31,7 +31,7 @@ class TestManagerBasics:
                 self.page = self.set_builder("page", TestBuilder)
 
         app = App()
-        assert app.page.data is app.data
+        assert app.page.data is app.reactive_store
 
     def test_manager_data_is_backref_enabled(self):
         """Manager's data Bag has backref enabled by __init_subclass__."""
@@ -41,7 +41,7 @@ class TestManagerBasics:
                 self.page = self.set_builder("page", TestBuilder)
 
         app = App()
-        assert app.data.backref is True
+        assert app.reactive_store.backref is True
 
     def test_no_super_init_needed(self):
         """Subclass __init__ does not need super().__init__()."""
@@ -54,7 +54,7 @@ class TestManagerBasics:
         app = App()
         assert app.custom == "value"
         assert app.page is not None
-        assert isinstance(app.data, Bag)
+        assert isinstance(app.reactive_store, Bag)
 
 
 class TestManagerMultipleBuilders:
@@ -70,7 +70,7 @@ class TestManagerMultipleBuilders:
 
         app = App()
         assert app.b1.data is app.b2.data
-        assert app.b1.data is app.data
+        assert app.b1.data is app.reactive_store
 
     def test_data_replacement_propagates(self):
         """Replacing manager.data updates all builders."""
@@ -83,10 +83,10 @@ class TestManagerMultipleBuilders:
         app = App()
         new_data = Bag()
         new_data["key"] = "value"
-        app.data = new_data
+        app.reactive_store = new_data
 
-        assert app.b1.data is app.data
-        assert app.b2.data is app.data
+        assert app.b1.data is app.reactive_store
+        assert app.b2.data is app.reactive_store
         assert app.b1.data["key"] == "value"
 
     def test_data_setter_accepts_dict(self):
@@ -97,9 +97,9 @@ class TestManagerMultipleBuilders:
                 pass
 
         app = App()
-        app.data = {"name": "test"}
-        assert isinstance(app.data, Bag)
-        assert app.data["name"] == "test"
+        app.reactive_store = {"name": "test"}
+        assert isinstance(app.reactive_store, Bag)
+        assert app.reactive_store["name"] == "test"
 
 
 class TestManagerBuildAll:

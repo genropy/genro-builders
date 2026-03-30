@@ -642,14 +642,14 @@ class BagBuilderBase(ABC):
     def data(self) -> Bag:
         """The data Bag. Shared with the manager when one is present."""
         if self._manager is not None:
-            return self._manager.data
+            return self._manager.reactive_store
         return self._data
 
     @data.setter
     def data(self, value: Bag | dict[str, Any]) -> None:
         """Replace the data Bag. Delegates to the manager when present."""
         if self._manager is not None:
-            self._manager.data = value
+            self._manager.reactive_store = value
             return
         new_data = Bag(source=value) if isinstance(value, dict) else value
         if not new_data.backref:
