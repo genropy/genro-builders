@@ -33,7 +33,7 @@ from typing import Any
 from genro_bag import Bag, BagNode
 
 from ...builder import BagBuilderBase, element
-from ...renderer import BagRendererBase, render_handler
+from ...renderer import BagRendererBase, renderer
 
 
 class MarkdownBuilder(BagBuilderBase):
@@ -189,56 +189,47 @@ class MarkdownRenderer(BagRendererBase):
         return "\n\n".join(p for p in parts if p)
 
     # -------------------------------------------------------------------------
-    # Headings
+    # Headings — declarative via template
     # -------------------------------------------------------------------------
 
-    @render_handler
-    def h1(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"# {ctx['node_value']}"
+    @renderer(template="# {node_value}")
+    def h1(self): ...
 
-    @render_handler
-    def h2(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"## {ctx['node_value']}"
+    @renderer(template="## {node_value}")
+    def h2(self): ...
 
-    @render_handler
-    def h3(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"### {ctx['node_value']}"
+    @renderer(template="### {node_value}")
+    def h3(self): ...
 
-    @render_handler
-    def h4(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"#### {ctx['node_value']}"
+    @renderer(template="#### {node_value}")
+    def h4(self): ...
 
-    @render_handler
-    def h5(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"##### {ctx['node_value']}"
+    @renderer(template="##### {node_value}")
+    def h5(self): ...
 
-    @render_handler
-    def h6(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"###### {ctx['node_value']}"
+    @renderer(template="###### {node_value}")
+    def h6(self): ...
 
     # -------------------------------------------------------------------------
     # Block elements
     # -------------------------------------------------------------------------
 
-    @render_handler
-    def code(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        lang = ctx.get("lang", "")
-        return f"```{lang}\n{ctx['node_value']}\n```"
+    @renderer(template="```{lang}\n{node_value}\n```")
+    def code(self): ...
 
-    @render_handler
+    @renderer()
     def blockquote(self, node: BagNode, ctx: dict[str, Any]) -> str:
         value = ctx["node_value"]
         return "\n".join(f"> {line}" for line in value.split("\n"))
 
-    @render_handler
-    def hr(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return "---"
+    @renderer(template="---")
+    def hr(self): ...
 
     # -------------------------------------------------------------------------
     # Table
     # -------------------------------------------------------------------------
 
-    @render_handler
+    @renderer()
     def table(self, node: BagNode, ctx: dict[str, Any]) -> str:
         lines: list[str] = []
         rows = node.value if isinstance(node.value, Bag) else []
@@ -262,11 +253,11 @@ class MarkdownRenderer(BagRendererBase):
     # Lists
     # -------------------------------------------------------------------------
 
-    @render_handler
+    @renderer()
     def ul(self, node: BagNode, ctx: dict[str, Any]) -> str:
         return self._render_list(node, "-")
 
-    @render_handler
+    @renderer()
     def ol(self, node: BagNode, ctx: dict[str, Any]) -> str:
         return self._render_list(node, "ol")
 
@@ -289,25 +280,20 @@ class MarkdownRenderer(BagRendererBase):
     # Inline elements
     # -------------------------------------------------------------------------
 
-    @render_handler
-    def link(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"[{ctx['node_value']}]({ctx['href']})"
+    @renderer(template="[{node_value}]({href})")
+    def link(self): ...
 
-    @render_handler
-    def img(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"![{ctx.get('alt', '')}]({ctx['src']})"
+    @renderer(template="![{alt}]({src})")
+    def img(self): ...
 
-    @render_handler
-    def bold(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"**{ctx['node_value']}**"
+    @renderer(template="**{node_value}**")
+    def bold(self): ...
 
-    @render_handler
-    def italic(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"*{ctx['node_value']}*"
+    @renderer(template="*{node_value}*")
+    def italic(self): ...
 
-    @render_handler
-    def inlinecode(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        return f"`{ctx['node_value']}`"
+    @renderer(template="`{node_value}`")
+    def inlinecode(self): ...
 
 
 # Register renderer on builder

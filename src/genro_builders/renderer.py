@@ -5,14 +5,18 @@ A renderer transforms a built Bag into a serialized output (string, bytes).
 It is a "dead" output: no live objects, no reactivity.
 
 Decorators:
-    @render_handler: Mark a method as render handler for a specific tag.
-                     Used by _walk_render() for automatic tag dispatch.
+    @renderer: Mark a method as render handler for a specific tag.
+               If body is empty (...), uses default_render with kwargs.
+               If body has logic, the method IS the handler.
 
 Example:
     >>> class MarkdownRenderer(BagRendererBase):
-    ...     @render_handler
-    ...     def h1(self, node, ctx):
-    ...         return f"# {ctx['node_value']}"
+    ...     @renderer(template="# {node_value}")
+    ...     def h1(self): ...           # declarative — uses template
+    ...
+    ...     @renderer()
+    ...     def table(self, node, ctx):  # logic — method is the handler
+    ...         return render_table(node)
     ...
     ...     def render(self, built_bag):
     ...         parts = list(self._walk_render(built_bag))
@@ -20,7 +24,9 @@ Example:
 """
 from __future__ import annotations
 
+import inspect
 from abc import ABC
+from collections import defaultdict
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -31,18 +37,45 @@ from genro_bag import Bag, BagNode
 # =============================================================================
 
 
-def render_handler(func: Callable) -> Callable:
+def _is_empty_body(func: Callable) -> bool:
+    """Check if a function has an empty body (only ..., pass, or docstring)."""
+    try:
+        source = inspect.getsource(func)
+    except (OSError, TypeError):
+        return False
+    lines = [line.strip() for line in source.splitlines()
+             if line.strip() and not line.strip().startswith(('#', '@', 'def ', '"""', "'''"))]
+    return all(line in ('...', 'pass', '') for line in lines)
+
+
+def renderer(**kwargs: Any) -> Callable:
     """Decorator to mark a method as render handler for a tag.
 
-    The method name becomes the tag it handles.
+    If the method body is empty (...), default_render uses the kwargs
+    (e.g. template) to produce output. If the method has logic,
+    it IS the render handler.
+
+    Args:
+        **kwargs: Render parameters (e.g. template, callback).
 
     Example:
-        @render_handler
-        def h1(self, node, ctx):
-            return f"# {ctx['node_value']}"
+        @renderer(template="# {node_value}")
+        def h1(self): ...
+
+        @renderer()
+        def table(self, node, ctx):
+            return render_table(node)
     """
-    func._render_handler = True  # type: ignore[attr-defined]
-    return func
+    def decorator(func: Callable) -> Callable:
+        func._renderer = True  # type: ignore[attr-defined]
+        func._renderer_kwargs = kwargs  # type: ignore[attr-defined]
+        func._renderer_empty = _is_empty_body(func)  # type: ignore[attr-defined]
+        return func
+    return decorator
+
+
+# Legacy alias
+render_handler = renderer
 
 
 # =============================================================================
@@ -54,39 +87,41 @@ class BagRendererBase(ABC):
     """Abstract base class for Bag renderers (dead output).
 
     Provides:
-        - @render_handler dispatch: tag-based rendering infrastructure
+        - @renderer dispatch: tag-based rendering infrastructure
         - _walk_render(), _build_context(), default_render(): rendering utilities
         - render(): main entry point (subclass should override or use as-is)
 
-    Subclasses define render handlers for specific tags and optionally
-    override render() for custom output assembly.
+    Subclasses define render handlers for specific tags using @renderer.
+    Empty-body handlers use default_render with decorator kwargs.
+    Handlers with logic are called directly.
     """
 
     _class_render_handlers: dict[str, Callable]
+    _class_render_kwargs: dict[str, dict[str, Any]]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Collect @render_handler decorated methods into _class_render_handlers."""
+        """Collect @renderer decorated methods."""
         super().__init_subclass__(**kwargs)
 
         cls._class_render_handlers = {}
+        cls._class_render_kwargs = {}
 
         for parent in cls.__mro__[1:]:
             if hasattr(parent, "_class_render_handlers"):
                 cls._class_render_handlers.update(parent._class_render_handlers)
+                cls._class_render_kwargs.update(parent._class_render_kwargs)
                 break
 
         for name, obj in cls.__dict__.items():
-            if callable(obj) and getattr(obj, "_render_handler", False):
+            if callable(obj) and getattr(obj, "_renderer", False):
                 cls._class_render_handlers[name] = obj
+                cls._class_render_kwargs[name] = getattr(obj, "_renderer_kwargs", {})
 
     def __init__(self, builder: Any) -> None:
-        """Initialize renderer with builder reference.
-
-        Args:
-            builder: The BagBuilderBase instance that owns this renderer.
-        """
+        """Initialize renderer with builder reference."""
         self.builder = builder
         self._render_handlers = dict(type(self)._class_render_handlers)
+        self._render_kwargs = dict(type(self)._class_render_kwargs)
 
     # -------------------------------------------------------------------------
     # Rendering
@@ -97,12 +132,6 @@ class BagRendererBase(ABC):
 
         Default implementation walks the bag and joins parts with newlines.
         Override for custom assembly logic.
-
-        Args:
-            built_bag: The built Bag to render.
-
-        Returns:
-            Rendered output string.
         """
         parts = list(self._walk_render(built_bag))
         return "\n".join(p for p in parts if p)
@@ -118,14 +147,18 @@ class BagRendererBase(ABC):
         """Render a single node.
 
         Resolution order:
-        1. @render_handler method matching tag name
-        2. default_render()
+        1. @renderer with logic body → call method
+        2. @renderer with empty body → default_render with kwargs
+        3. No handler → default_render with no kwargs
         """
         tag = node.node_tag or node.label
         ctx = self._build_context(node)
 
         handler = self._render_handlers.get(tag)
         if handler:
+            if getattr(handler, "_renderer_empty", False):
+                rk = self._render_kwargs.get(tag, {})
+                return self.default_render(node, ctx, **rk)
             return handler(self, node, ctx)
 
         return self.default_render(node, ctx)
@@ -166,11 +199,24 @@ class BagRendererBase(ABC):
     # Default render
     # -------------------------------------------------------------------------
 
-    def default_render(self, node: BagNode, ctx: dict[str, Any]) -> str | None:
-        """Default render: return value or children.
+    def default_render(
+        self, node: BagNode, ctx: dict[str, Any],
+        template: str | None = None, **kwargs: Any,
+    ) -> str | None:
+        """Default render with optional template.
 
-        Override in subclass for custom default behavior.
+        Args:
+            node: The BagNode being rendered.
+            ctx: Context dict with node_value, children, attributes.
+            template: Format string with ctx placeholders.
+            **kwargs: Additional render parameters from @renderer decorator.
         """
+        if template:
+            try:
+                return template.format_map(defaultdict(str, ctx))
+            except (KeyError, ValueError):
+                return template
+
         if ctx["node_value"]:
             return ctx["node_value"]
         if ctx["children"]:
