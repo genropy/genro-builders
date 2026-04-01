@@ -50,10 +50,10 @@ class TestCompiler(BagCompilerBase):
 
 
 def compile_and_render(builder) -> str:
-    """Helper: compile bag into target, then render to string."""
+    """Helper: build walk into target, then render to string via compiler."""
     compiler = builder._compiler
     target = Bag(builder=type(builder))
-    compiler.compile(builder._bag, target, DataBag(), BindingManager())
+    builder._build_walk(builder._bag, target, DataBag(), BindingManager())
     return compiler.render(target)
 
 

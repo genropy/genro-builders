@@ -11,7 +11,8 @@ multiple builders that share the same data bus.
 Core classes:
     BagBuilderBase: Define grammars with @element, @abstract, @component.
     BuilderBag: Bag subclass with builder delegation.
-    BagCompilerBase: Transform built Bag into output (text or objects).
+    BagRendererBase: Transform built Bag into serialized output (text, bytes).
+    BagCompilerBase: Transform built Bag into live objects (widgets, etc.).
     BuilderManager: Coordinate multiple builders with shared data.
     BindingManager: Reactive ^pointer subscription map.
 """
@@ -25,12 +26,14 @@ from genro_builders.component_proxy import ComponentProxy
 from genro_builders.component_resolver import ComponentResolver
 from genro_builders.manager import BuilderManager
 from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer
+from genro_builders.renderer import BagRendererBase, render_handler
 
 __version__ = "0.8.0"
 
 __all__ = [
     "BagBuilderBase",
     "BagCompilerBase",
+    "BagRendererBase",
     "BindingManager",
     "BuilderBag",
     "BuilderBagNode",
@@ -41,5 +44,6 @@ __all__ = [
     "YamlCompilerBase",
     "compile_handler",
     "is_pointer",
+    "render_handler",
     "parse_pointer",
 ]

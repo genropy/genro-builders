@@ -1,5 +1,9 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BagCompilerBase — compile() populates target, rendering is separate."""
+"""Tests for BagCompilerBase — rendering via @compile_handler dispatch.
+
+Build walk is now in BagBuilderBase._build_walk(). These tests verify
+the compiler's rendering infrastructure and the full build+render pipeline.
+"""
 from __future__ import annotations
 
 from genro_bag import Bag
@@ -27,16 +31,17 @@ class TagCompiler(BagCompilerBase):
 
     @compile_handler
     def container(self, node, ctx):
-        return f"[{ctx['children']}]" if ctx["children"] else "[]"
+        children = "\n".join(str(c) for c in ctx["children"]) if ctx["children"] else ""
+        return f"[{children}]" if children else "[]"
 
     @compile_handler
     def section(self, node, ctx):
-        return ctx["children"]
+        return "\n".join(str(c) for c in ctx["children"]) if ctx["children"] else ""
 
     def render(self, compiled_bag):
         """Render using _walk_compile dispatch."""
         parts = list(self._walk_compile(compiled_bag))
-        return "\n\n".join(p for p in parts if p)
+        return "\n\n".join(str(p) for p in parts if p)
 
 
 class TagBuilder(BagBuilderBase):
@@ -57,78 +62,77 @@ class TagBuilder(BagBuilderBase):
         comp.text("body content")
 
 
-def _compile(bag, data=None):
-    """Helper: compile bag into a new target with empty binding."""
-    compiler = TagCompiler(bag.builder)
+def _build_walk(bag, data=None):
+    """Helper: build walk from source bag into a new target."""
+    builder = bag.builder
     target = BuilderBag(builder=TagBuilder)
     binding = BindingManager()
     if data is None:
         data = Bag()
-    compiler.compile(bag, target, data, binding)
+    builder._build_walk(bag, target, data, binding)
     return target
 
 
-def compile_and_render(builder) -> str:
-    """Helper: compile bag → target → render to string."""
-    compiler = builder._compiler
+def build_and_render(builder) -> str:
+    """Helper: build walk → target → render to string via compiler."""
     target = BuilderBag(builder=TagBuilder)
     binding = BindingManager()
-    compiler.compile(builder._bag, target, Bag(), binding)
+    builder._build_walk(builder._bag, target, Bag(), binding)
+    compiler = TagCompiler(builder)
     return compiler.render(target)
 
 
 # =============================================================================
-# Tests for compile() → CompiledBag
+# Tests for build walk → target Bag
 # =============================================================================
 
 
-class TestCompileReturnsCompiledBag:
-    """compile() populates target Bag with expanded components and resolved pointers."""
+class TestBuildWalkPopulatesTarget:
+    """_build_walk() populates target Bag with expanded components and resolved pointers."""
 
-    def test_compile_returns_bag(self):
-        """compile() populates a target Bag."""
+    def test_build_walk_populates_target(self):
+        """_build_walk() populates a target Bag."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("Hello")
 
-        compiled = _compile(bag)
+        built = _build_walk(bag)
 
-        assert isinstance(compiled, Bag)
-        assert compiled.get_node("heading_0") is not None
+        assert isinstance(built, Bag)
+        assert built.get_node("heading_0") is not None
 
-    def test_compiled_bag_has_expanded_components(self):
-        """CompiledBag has components expanded."""
+    def test_build_walk_expands_components(self):
+        """Target has components expanded."""
         bag = BuilderBag(builder=TagBuilder)
         bag.section(title="Test")
 
-        compiled = _compile(bag)
+        built = _build_walk(bag)
 
-        # The section should be expanded — its children visible
-        section_node = compiled.get_node("section_0")
+        section_node = built.get_node("section_0")
         assert section_node is not None
         assert isinstance(section_node.value, Bag)
         assert section_node.value.get_node("heading_0") is not None
 
-    def test_compiled_bag_has_resolved_pointers(self):
-        """CompiledBag has ^pointers resolved when data is provided."""
+    def test_build_walk_resolves_pointers(self):
+        """Target has ^pointers resolved when data is provided."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
 
         data = Bag()
         data["title"] = "Resolved"
 
-        compiled = _compile(bag, data=data)
+        built = _build_walk(bag, data=data)
 
-        heading = compiled.get_node("heading_0")
+        heading = built.get_node("heading_0")
         assert heading.value == "Resolved"
 
-    def test_compile_without_data_keeps_pointers(self):
-        """Without data, ^pointers remain as-is in CompiledBag."""
+    def test_build_walk_without_data_keeps_pointers(self):
+        """Without data, ^pointers remain as-is in target."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
 
-        compiled = _compile(bag)
+        built = _build_walk(bag)
 
-        heading = compiled.get_node("heading_0")
+        heading = built.get_node("heading_0")
         assert heading.value == "^title"
 
 
@@ -146,7 +150,7 @@ class TestRendering:
         bag.heading("Hello")
         bag.text("World")
 
-        result = compile_and_render(bag.builder)
+        result = build_and_render(bag.builder)
 
         assert "# Hello" in result
         assert "World" in result
@@ -157,7 +161,7 @@ class TestRendering:
         container = bag.container()
         container.text("inside")
 
-        result = compile_and_render(bag.builder)
+        result = build_and_render(bag.builder)
         assert "[inside]" in result
 
     def test_render_expanded_component(self):
@@ -165,7 +169,7 @@ class TestRendering:
         bag = BuilderBag(builder=TagBuilder)
         bag.section(title="My Section")
 
-        result = compile_and_render(bag.builder)
+        result = build_and_render(bag.builder)
 
         assert "# My Section" in result
         assert "body content" in result
@@ -177,7 +181,7 @@ class TestRendering:
 
 
 class TestDefaultCompile:
-    """Tests for default_compile with templates and callbacks."""
+    """Tests for default_compile behavior."""
 
     def test_default_compile_returns_value(self):
         """Node without handler uses default_compile — returns value."""
@@ -189,97 +193,22 @@ class TestDefaultCompile:
         class ConcreteCompiler(BagCompilerBase):
             def render(self, compiled_bag):
                 parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(p for p in parts if p)
+                return "\n\n".join(str(p) for p in parts if p)
 
         MinimalBuilder._compiler_class = ConcreteCompiler
 
         bag = BuilderBag(builder=MinimalBuilder)
         bag.plain("raw text")
 
-        compiler = ConcreteCompiler(bag.builder)
         target = BuilderBag(builder=MinimalBuilder)
-        compiler.compile(bag, target, Bag(), BindingManager())
+        bag.builder._build_walk(bag, target, Bag(), BindingManager())
+        compiler = ConcreteCompiler(bag.builder)
         result = compiler.render(target)
 
         assert "raw text" in result
 
-    def test_compile_template(self):
-        """compile_kwargs with template formats the output."""
-
-        class TemplateBuilder(BagBuilderBase):
-            @element(compile_template="<{node_label}>{node_value}</{node_label}>")
-            def tag(self): ...
-
-        class Compiler(BagCompilerBase):
-            def render(self, compiled_bag):
-                parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(p for p in parts if p)
-
-        TemplateBuilder._compiler_class = Compiler
-
-        bag = BuilderBag(builder=TemplateBuilder)
-        bag.tag("content")
-
-        compiler = Compiler(bag.builder)
-        target = BuilderBag(builder=TemplateBuilder)
-        compiler.compile(bag, target, Bag(), BindingManager())
-        result = compiler.render(target)
-
-        assert "<tag_0>content</tag_0>" in result
-
-    def test_compile_template_missing_key(self):
-        """Template with missing placeholder returns template as-is."""
-
-        class BadTemplateBuilder(BagBuilderBase):
-            @element(compile_template="{missing_key}")
-            def tag(self): ...
-
-        class Compiler(BagCompilerBase):
-            def render(self, compiled_bag):
-                parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(p for p in parts if p)
-
-        BadTemplateBuilder._compiler_class = Compiler
-
-        bag = BuilderBag(builder=BadTemplateBuilder)
-        bag.tag("value")
-
-        compiler = Compiler(bag.builder)
-        target = BuilderBag(builder=BadTemplateBuilder)
-        compiler.compile(bag, target, Bag(), BindingManager())
-        result = compiler.render(target)
-
-        assert "{missing_key}" in result
-
-    def test_compile_callback(self):
-        """compile_kwargs with callback modifies context."""
-
-        class CbBuilder(BagBuilderBase):
-            @element(compile_callback="uppercase_value", compile_template="{node_value}")
-            def tag(self): ...
-
-        class CbCompiler(BagCompilerBase):
-            def uppercase_value(self, ctx):
-                ctx["node_value"] = ctx["node_value"].upper()
-
-            def render(self, compiled_bag):
-                parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(p for p in parts if p)
-
-        CbBuilder._compiler_class = CbCompiler
-
-        bag = BuilderBag(builder=CbBuilder)
-        bag.tag("hello")
-
-        compiler = CbCompiler(bag.builder)
-        target = BuilderBag(builder=CbBuilder)
-        compiler.compile(bag, target, Bag(), BindingManager())
-        result = compiler.render(target)
-
-        assert "HELLO" in result
-
     def test_default_compile_returns_children(self):
-        """default_compile returns children if value is empty."""
+        """default_compile returns children list if value is empty."""
 
         class NestBuilder(BagBuilderBase):
             @element(sub_tags="inner")
@@ -289,9 +218,7 @@ class TestDefaultCompile:
             def inner(self): ...
 
         class Compiler(BagCompilerBase):
-            def render(self, compiled_bag):
-                parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(p for p in parts if p)
+            pass
 
         NestBuilder._compiler_class = Compiler
 
@@ -299,12 +226,14 @@ class TestDefaultCompile:
         outer = bag.outer()
         outer.inner("child content")
 
-        compiler = Compiler(bag.builder)
         target = BuilderBag(builder=NestBuilder)
-        compiler.compile(bag, target, Bag(), BindingManager())
-        result = compiler.render(target)
+        bag.builder._build_walk(bag, target, Bag(), BindingManager())
+        compiler = Compiler(bag.builder)
 
-        assert "child content" in result
+        # default_compile returns children list for parent nodes
+        results = list(compiler._walk_compile(target))
+        # outer's default_compile returns ["child content"] (list of children)
+        assert any("child content" in str(r) for r in results)
 
     def test_default_compile_empty_node(self):
         """Empty node (no value, no children) produces nothing."""
@@ -316,31 +245,31 @@ class TestDefaultCompile:
         class Compiler(BagCompilerBase):
             def render(self, compiled_bag):
                 parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(p for p in parts if p)
+                return "\n\n".join(str(p) for p in parts if p)
 
         EmptyBuilder._compiler_class = Compiler
 
         bag = BuilderBag(builder=EmptyBuilder)
         bag.empty()
 
-        compiler = Compiler(bag.builder)
         target = BuilderBag(builder=EmptyBuilder)
-        compiler.compile(bag, target, Bag(), BindingManager())
+        bag.builder._build_walk(bag, target, Bag(), BindingManager())
+        compiler = Compiler(bag.builder)
         result = compiler.render(target)
 
         assert result == ""
 
 
 # =============================================================================
-# Tests for script-mode pointer resolution in compile()
+# Tests for pointer resolution in build walk
 # =============================================================================
 
 
-class TestScriptModeCompile:
-    """Tests for compiler.compile(data=data) resolving pointers."""
+class TestBuildWalkPointerResolution:
+    """Tests for _build_walk resolving pointers."""
 
-    def test_compile_with_data_resolves_pointers(self):
-        """Data resolves ^pointers in CompiledBag."""
+    def test_build_walk_with_data_resolves_pointers(self):
+        """Data resolves ^pointers in target."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
         bag.text("^body")
@@ -349,36 +278,36 @@ class TestScriptModeCompile:
         data["title"] = "Resolved Title"
         data["body"] = "Resolved Body"
 
-        compiler = TagCompiler(bag.builder)
         target = BuilderBag(builder=TagBuilder)
-        compiler.compile(bag, target, data, BindingManager())
+        bag.builder._build_walk(bag, target, data, BindingManager())
+        compiler = TagCompiler(bag.builder)
         result = compiler.render(target)
 
         assert "# Resolved Title" in result
         assert "Resolved Body" in result
 
-    def test_compile_without_data_keeps_pointers(self):
+    def test_build_walk_without_data_keeps_pointers(self):
         """Without data, ^pointers remain in rendering."""
+        built = _build_walk(BuilderBag(builder=TagBuilder))
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
-
-        compiled = _compile(bag)
+        built = _build_walk(bag)
         compiler = TagCompiler(bag.builder)
-        result = compiler.render(compiled)
+        result = compiler.render(built)
 
         assert "^title" in result
 
-    def test_compile_data_resolves_attr_pointers(self):
+    def test_build_walk_data_resolves_attr_pointers(self):
         """Data resolves ^pointers in attributes."""
 
         class AttrBuilder(BagBuilderBase):
-            @element(compile_template="color={color}")
+            @element()
             def widget(self): ...
 
         class Compiler(BagCompilerBase):
             def render(self, compiled_bag):
                 parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(p for p in parts if p)
+                return "\n\n".join(str(p) for p in parts if p)
 
         AttrBuilder._compiler_class = Compiler
 
@@ -388,9 +317,8 @@ class TestScriptModeCompile:
         data = Bag()
         data["theme.color"] = "blue"
 
-        compiler = Compiler(bag.builder)
         target = BuilderBag(builder=AttrBuilder)
-        compiler.compile(bag, target, data, BindingManager())
-        result = compiler.render(target)
+        bag.builder._build_walk(bag, target, data, BindingManager())
 
-        assert "color=blue" in result
+        widget = target.get_node("widget_0")
+        assert widget.attr.get("color") == "blue"
