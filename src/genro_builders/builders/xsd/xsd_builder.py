@@ -64,10 +64,14 @@ class XsdBuilder(BagBuilderBase):
             attrs: dict[str, Any] = {"sub_tags": sub_tags}
             if cav:
                 attrs["call_args_validations"] = cav
-            schema_bag.item(name, **attrs)
+            schema_bag.builder.item(name, **attrs)
 
         super().__init__(bag)
         self._schema = schema_bag
+        self._schema_tag_names = frozenset(
+            node.label for node in self._schema.nodes
+            if not node.label.startswith("@")
+        )
 
     def _compile(self, full_validate: bool = False) -> str:
         """Compile the bag to XML.

@@ -135,7 +135,6 @@ import inspect
 import re
 import sys
 import types
-import warnings
 from abc import ABC
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -562,8 +561,11 @@ class BagBuilderBase(ABC):
                         call_args_validations=call_args_validations,
                     )
 
-        # Check for name collisions with Bag and BagBuilderBase methods
-        _rename_colliding_schema_tags(cls, cls._class_schema)
+        # Precompute schema tag names for fast lookup in BuilderBag.__getattribute__
+        cls._schema_tag_names = frozenset(
+            node.label for node in cls._class_schema.nodes
+            if not node.label.startswith("@")
+        )
 
     def __init__(
         self,
@@ -590,6 +592,10 @@ class BagBuilderBase(ABC):
             self._schema = Bag().fill_from(schema_path)
         else:
             self._schema = type(self)._class_schema
+        self._schema_tag_names = frozenset(
+            node.label for node in self._schema.nodes
+            if not node.label.startswith("@")
+        )
 
         if bag is not None:
             # Internal: BuilderBag passes itself as bag
@@ -892,43 +898,19 @@ class BagBuilderBase(ABC):
     # -------------------------------------------------------------------------
 
     def _bag_call(self, bag: Bag, name: str) -> Any:
-        """Handle attribute access from a Bag.
+        """Return callable that creates a schema element in the bag.
 
-        Called by Bag.__getattr__ to resolve attribute requests. Decides whether
-        the name is a schema element (returns wrapped callable) or a builder
-        attribute (returns directly).
-
-        Args:
-            bag: The Bag requesting the attribute.
-            name: The attribute name requested.
-
-        Returns:
-            - For schema elements: a callable that creates elements in the bag
-            - For builder methods/properties: the attribute value directly
-
-        Raises:
-            AttributeError: If name is not in schema and not a builder attribute.
+        Precondition: name is in self._schema.
         """
-        # Check if it's in the schema
-        if name in self._schema:
-            handler = self.__getattr__(name)
-            return lambda node_value=None, node_label=None, node_position=None, **attr: handler(
-                bag,
-                _tag=name,
-                node_value=node_value,
-                node_label=node_label,
-                node_position=node_position,
-                **attr,
-            )
-
-        # Check if it's a builder attribute (method, property, etc.)
-        # Use object.__getattribute__ to avoid recursion
-        try:
-            return object.__getattribute__(self, name)
-        except AttributeError:
-            pass
-
-        raise AttributeError(f"'{type(self).__name__}' has no element or attribute '{name}'")
+        handler = self.__getattr__(name)
+        return lambda node_value=None, node_label=None, node_position=None, **attr: handler(
+            bag,
+            _tag=name,
+            node_value=node_value,
+            node_label=node_label,
+            node_position=node_position,
+            **attr,
+        )
 
     # -------------------------------------------------------------------------
     # Element dispatch
@@ -1936,48 +1918,6 @@ def _pop_decorated_methods(cls: type):
                 yield _decorated_method_info(name, obj)
 
 
-def _rename_colliding_schema_tags(cls: type, schema: Bag) -> None:
-    """Rename schema tags that collide with Bag or BagBuilderBase methods.
-
-    Tags that collide are renamed to 'el_<tag>' and a warning is emitted.
-    """
-    # Get all method names from Bag and BagBuilderBase
-    bag_methods = set(dir(Bag))
-    builder_methods = set(dir(BagBuilderBase))
-    reserved_names = bag_methods | builder_methods
-
-    # Get all tag names from schema (excluding @abstract tags)
-    schema_tags = {node.label for node in schema.nodes if not node.label.startswith("@")}
-
-    # Find collisions
-    collisions = schema_tags & reserved_names
-    if not collisions:
-        return
-
-    # Rename colliding tags
-    renamed = []
-    for tag in collisions:
-        new_tag = f"el_{tag}"
-        node = schema.get_node(tag)
-        if node is not None:
-            # Get node data and attributes
-            node_value = node.value
-            node_attrs = dict(node.attr)
-            # Remove old entry and add new one
-            schema.pop(tag)
-            schema.set_item(new_tag, node_value, **node_attrs)
-            renamed.append(f"'{tag}' -> '{new_tag}'")
-
-    # Emit warning
-    if renamed:
-        warnings.warn(
-            f"Builder {cls.__name__}: schema tags renamed to avoid collision with "
-            f"Bag/BagBuilderBase methods: {', '.join(sorted(renamed))}",
-            UserWarning,
-            stacklevel=3,
-        )
-
-
 # =============================================================================
 # SchemaBuilder
 # =============================================================================
@@ -1999,10 +1939,10 @@ class SchemaBuilder(BagBuilderBase):
 
     Usage:
         schema = Bag(builder=SchemaBuilder)
-        schema.item('@flow', sub_tags='p,span')
-        schema.item('div', inherits_from='@flow')
-        schema.item('li', parent_tags='ul,ol')  # li only inside ul or ol
-        schema.item('br', sub_tags='')  # void element
+        schema.builder.item('@flow', sub_tags='p,span')
+        schema.builder.item('div', inherits_from='@flow')
+        schema.builder.item('li', parent_tags='ul,ol')  # li only inside ul or ol
+        schema.builder.item('br', sub_tags='')  # void element
         schema.builder._compile('schema.msgpack')
     """
 

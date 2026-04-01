@@ -780,7 +780,7 @@ class TestAnnotatedValidation:
     def test_range_valid_via_schema(self):
         """Range constraint via SchemaBuilder accepts valid value."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "td",
             call_args_validations={
                 "colspan": (int, [Range(ge=1, le=10)], None),
@@ -797,7 +797,7 @@ class TestAnnotatedValidation:
     def test_range_min_invalid_via_schema(self):
         """Range constraint via SchemaBuilder rejects value below minimum."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "td",
             call_args_validations={
                 "colspan": (int, [Range(ge=1, le=10)], None),
@@ -815,7 +815,7 @@ class TestAnnotatedValidation:
     def test_range_max_invalid_via_schema(self):
         """Range constraint via SchemaBuilder rejects value above maximum."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "td",
             call_args_validations={
                 "colspan": (int, [Range(ge=1, le=10)], None),
@@ -833,7 +833,7 @@ class TestAnnotatedValidation:
     def test_literal_valid_via_schema(self):
         """Literal constraint via SchemaBuilder accepts valid value."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "td",
             call_args_validations={
                 "scope": (Literal["row", "col"], [], None),
@@ -850,7 +850,7 @@ class TestAnnotatedValidation:
     def test_literal_invalid_via_schema(self):
         """Literal constraint via SchemaBuilder rejects invalid value."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "td",
             call_args_validations={
                 "scope": (Literal["row", "col"], [], None),
@@ -868,7 +868,7 @@ class TestAnnotatedValidation:
     def test_regex_valid_via_schema(self):
         """Regex constraint via SchemaBuilder accepts matching value."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "email",
             call_args_validations={
                 "address": (str, [Regex(r"^[\w\.-]+@[\w\.-]+\.\w+$")], None),
@@ -885,7 +885,7 @@ class TestAnnotatedValidation:
     def test_regex_invalid_via_schema(self):
         """Regex constraint via SchemaBuilder rejects non-matching value."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "email",
             call_args_validations={
                 "address": (str, [Regex(r"^[\w\.-]+@[\w\.-]+\.\w+$")], None),
@@ -903,7 +903,7 @@ class TestAnnotatedValidation:
     def test_decimal_range_via_schema(self):
         """Decimal type with Range constraints via SchemaBuilder."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "payment",
             call_args_validations={
                 "amount": (Decimal, [Range(ge=0, le=1000)], None),
@@ -970,7 +970,7 @@ class TestBuilderIntrospection:
             def item(self): ...
 
         bag = Bag(builder=Builder)
-        with pytest.raises(AttributeError, match="has no element or attribute 'unknown'"):
+        with pytest.raises(AttributeError, match="has no attribute 'unknown'"):
             bag.unknown()
 
 
@@ -1019,7 +1019,7 @@ class TestValueValidation:
     def test_value_validation_type_via_schema(self):
         """node_value type is validated via schema."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "number",
             call_args_validations={
                 "node_value": (int, [], None),
@@ -1040,7 +1040,7 @@ class TestValueValidation:
     def test_value_validation_annotated_range_via_schema(self):
         """node_value with Annotated Range validator via schema."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "amount",
             call_args_validations={
                 "node_value": (Decimal, [Range(ge=0)], None),
@@ -1061,7 +1061,7 @@ class TestValueValidation:
     def test_value_validation_annotated_regex_via_schema(self):
         """node_value with Annotated Regex validator via schema."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "code",
             call_args_validations={
                 "node_value": (str, [Regex(r"^[A-Z]{3}$")], None),
@@ -1093,7 +1093,7 @@ class TestValueValidation:
     def test_attr_validated_when_typed_via_schema(self):
         """Typed attributes are validated via schema."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "input",
             call_args_validations={
                 "default": (str, [], None),
@@ -1408,7 +1408,7 @@ class TestSchemaBuilderCompileKwargs:
     def test_schema_builder_item_compile_kwargs_dict(self):
         """SchemaBuilder.item() with compile_kwargs dict stores in schema."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item("widget", compile_kwargs={"module": "textual.widgets", "class": "Button"})
+        schema.builder.item("widget", compile_kwargs={"module": "textual.widgets", "class": "Button"})
 
         info = schema.get_attr("widget")
         assert info["compile_kwargs"] == {"module": "textual.widgets", "class": "Button"}
@@ -1416,7 +1416,7 @@ class TestSchemaBuilderCompileKwargs:
     def test_schema_builder_item_compile_separate_params(self):
         """SchemaBuilder.item() with compile_* params extracts and merges."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item("container", compile_module="textual.containers", compile_class="Vertical")
+        schema.builder.item("container", compile_module="textual.containers", compile_class="Vertical")
 
         info = schema.get_attr("container")
         assert info["compile_kwargs"] == {"module": "textual.containers", "class": "Vertical"}
@@ -1424,7 +1424,7 @@ class TestSchemaBuilderCompileKwargs:
     def test_schema_builder_item_compile_mixed(self):
         """SchemaBuilder.item() with both compile_kwargs and compile_* params merges."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "horizontal",
             compile_kwargs={"module": "textual.containers"},
             compile_class="Horizontal",
@@ -1436,7 +1436,7 @@ class TestSchemaBuilderCompileKwargs:
     def test_schema_builder_item_without_compile_kwargs(self):
         """SchemaBuilder.item() without compile_kwargs has no compile_kwargs."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item("simple", sub_tags="child")
+        schema.builder.item("simple", sub_tags="child")
 
         info = schema.get_attr("simple")
         assert "compile_kwargs" not in info or info.get("compile_kwargs") is None
@@ -1487,7 +1487,7 @@ class TestDocumentation:
     def test_schema_builder_documentation_param(self):
         """SchemaBuilder.item() with documentation param stores in schema."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item("widget", documentation="A generic widget element.")
+        schema.builder.item("widget", documentation="A generic widget element.")
 
         info = schema.get_attr("widget")
         assert info["documentation"] == "A generic widget element."
@@ -1495,7 +1495,7 @@ class TestDocumentation:
     def test_schema_builder_no_documentation(self):
         """SchemaBuilder.item() without documentation has None."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item("simple")
+        schema.builder.item("simple")
 
         info = schema.get_attr("simple")
         assert info.get("documentation") is None
@@ -1821,15 +1821,73 @@ class TestPopDecoratedMethodsTags:
 
 
 # =============================================================================
-# Tests for _rename_colliding_schema_tags (coverage for lines 1404-1419)
+# Tests for grammar priority on source bags (Fase -1)
 # =============================================================================
 
 
-class TestRenameCollidingTags:
-    """Tests for _rename_colliding_schema_tags."""
+class TestGrammarPriority:
+    """Grammar tags have priority over Bag methods on source bags."""
 
-    def test_colliding_tag_renamed(self):
-        """Schema tags colliding with Bag methods are renamed."""
+    def test_colliding_tag_creates_element(self):
+        """source.keys() creates a grammar tag, not Bag.keys()."""
+
+        class Builder(BagBuilderBase):
+            @element()
+            def keys(self): ...
+
+        b = Builder()
+        b.source.keys(node_value="test")
+        assert b.source.get_node("keys_0") is not None
+
+    def test_bag_method_via_prefix(self):
+        """source.bag_keys() calls Bag.keys()."""
+
+        class Builder(BagBuilderBase):
+            @element()
+            def keys(self): ...
+
+        b = Builder()
+        b.source.keys(node_value="v1")
+        result = b.source.bag_keys()
+        assert isinstance(result, list)
+
+    def test_no_collision_tag_works_normally(self):
+        """Tags without collision work as before."""
+
+        class Builder(BagBuilderBase):
+            @element()
+            def mytag(self): ...
+
+        b = Builder()
+        b.source.mytag(node_value="hello")
+        assert b.source.get_node("mytag_0") is not None
+
+    def test_bag_method_without_collision(self):
+        """Bag methods without collision work normally (no prefix needed)."""
+
+        class Builder(BagBuilderBase):
+            @element()
+            def mytag(self): ...
+
+        b = Builder()
+        b.source.mytag(node_value="v")
+        result = b.source.get_item("mytag_0")
+        assert result is not None
+
+    def test_bag_prefix_works_without_collision(self):
+        """bag_ prefix works even when there's no collision."""
+
+        class Builder(BagBuilderBase):
+            @element()
+            def mytag(self): ...
+
+        b = Builder()
+        b.source.mytag(node_value="v")
+        result = b.source.bag_get_item("mytag_0")
+        assert result is not None
+
+    def test_no_rename_warning(self):
+        """No rename warning is emitted (el_ convention eliminated)."""
         import warnings
 
         with warnings.catch_warnings(record=True) as w:
@@ -1837,17 +1895,31 @@ class TestRenameCollidingTags:
 
             class Builder(BagBuilderBase):
                 @element()
-                def keys(self):  # 'keys' is a Bag method
-                    ...
+                def keys(self): ...
 
-            # Should have warning
-            assert len(w) == 1
-            assert "renamed" in str(w[0].message).lower()
-            assert "keys" in str(w[0].message)
+            rename_warnings = [x for x in w if "renamed" in str(x.message).lower()]
+            assert len(rename_warnings) == 0
 
-            # Tag should be renamed to 'el_keys'
-            assert Builder._class_schema.get_node("el_keys") is not None
-            assert Builder._class_schema.get_node("keys") is None
+    def test_schema_keeps_original_name(self):
+        """Schema stores the original tag name, not el_ prefixed."""
+
+        class Builder(BagBuilderBase):
+            @element()
+            def keys(self): ...
+
+        assert Builder._class_schema.get_node("keys") is not None
+        assert Builder._class_schema.get_node("el_keys") is None
+
+    def test_no_builder_delegation(self):
+        """Source bag does NOT delegate to builder for non-schema names."""
+
+        class Builder(BagBuilderBase):
+            @element()
+            def mytag(self): ...
+
+        b = Builder()
+        with pytest.raises(AttributeError):
+            b.source.render  # noqa: B018
 
 
 # =============================================================================
@@ -1861,8 +1933,8 @@ class TestSchemaBuilderCompile:
     def test_compile_saves_msgpack(self, tmp_path):
         """SchemaBuilder.compile saves schema to msgpack file."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item("div", sub_tags="span")
-        schema.item("span")
+        schema.builder.item("div", sub_tags="span")
+        schema.builder.item("span")
 
         # Use correct extension for msgpack files
         output_file = tmp_path / "test_schema.bag.mp"
@@ -2016,7 +2088,7 @@ class TestGetCallArgsValidations:
     def test_returns_validations_for_known_tag(self):
         """_get_call_args_validations returns validations for known tag."""
         schema = Bag(builder=SchemaBuilder)
-        schema.item(
+        schema.builder.item(
             "item",
             call_args_validations={
                 "name": (str, [], None),

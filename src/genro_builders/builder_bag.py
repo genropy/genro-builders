@@ -18,6 +18,8 @@ from typing import Any
 from genro_bag import Bag, BagNode
 from genro_toolbox.decorators import extract_kwargs
 
+_BUILDERBAG_PROTECTED = frozenset({"builder", "node_class"})
+
 
 class BuilderBagNode(BagNode):
     """BagNode with builder delegation and data resolution.
@@ -206,26 +208,41 @@ class BuilderBag(Bag):
         """Set the builder for this Bag."""
         self._builder = value
 
-    def __getattr__(self, name: str) -> Any:
-        """Delegate attribute access to builder if present.
+    def __getattribute__(self, name: str) -> Any:
+        """Grammar-first attribute resolution.
 
-        When a builder is set, delegates to builder._bag_call() which handles
-        both schema elements and builder methods/properties.
+        Resolution order:
+        1. _prefix/dunder → normal (fast path)
+        2. Infrastructure ('builder', 'node_class') → normal
+        3. 'bag_' prefix → strip prefix, Bag method
+        4. Builder set + name in schema → grammar tag (priority)
+        5. Normal resolution (Bag methods, etc.)
         """
         if name.startswith("_"):
-            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+            return super().__getattribute__(name)
 
-        if self._builder is not None:
-            return self._builder._bag_call(self, name)
+        if name in _BUILDERBAG_PROTECTED:
+            return super().__getattribute__(name)
 
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        if name.startswith("bag_"):
+            return super().__getattribute__(name[4:])
+
+        try:
+            builder = super().__getattribute__("_builder")
+        except AttributeError:
+            builder = None
+        if builder is not None and name in builder._schema_tag_names:
+            return builder._bag_call(self, name)
+
+        return super().__getattribute__(name)
 
     def __dir__(self) -> list[str]:
-        """Return all non-abstract schema elements for autocompletion."""
+        """Schema elements, bag_ aliases for colliders, and base attributes."""
         base = set(super().__dir__())
         if self._builder is not None:
-            for schema_node in self._builder._schema:
-                name = schema_node.label
-                if not name.startswith("@"):
-                    base.add(name)
+            schema_tags = self._builder._schema_tag_names
+            for tag in schema_tags:
+                base.add(tag)
+                if tag in base:
+                    base.add(f"bag_{tag}")
         return sorted(base)

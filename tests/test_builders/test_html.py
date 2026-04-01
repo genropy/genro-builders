@@ -75,7 +75,7 @@ class TestHtmlBuilder:
         """Invalid tag raises AttributeError."""
         bag = Bag(builder=HtmlBuilder)
 
-        with pytest.raises(AttributeError, match="has no element or attribute 'notarealtag'"):
+        with pytest.raises(AttributeError, match="has no attribute 'notarealtag'"):
             bag.notarealtag()
 
     def test_builder_inheritance_in_nested(self):
