@@ -154,6 +154,7 @@ from genro_bag import Bag
 
 from .binding import BindingManager
 from .builder_bag import BuilderBag
+from .pointer import scan_for_pointers
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
@@ -686,6 +687,96 @@ class BagBuilderBase(ABC):
         self._output = self.render(self.built)
 
     # -------------------------------------------------------------------------
+    # Build walk (source → built materialization)
+    # -------------------------------------------------------------------------
+
+    def _build_walk(
+        self,
+        source: Bag,
+        target: Bag,
+        data: Bag,
+        binding: Any,
+        prefix: str = "",
+    ) -> None:
+        """Recursive walk: expand components, resolve pointers, register bindings.
+
+        For each source node:
+        1. Clean subscription map for the subtree
+        2. Expand component if resolver present
+        3. Create node in target
+        4. Resolve ^pointers against data and register in binding map
+        5. Recurse into children
+
+        Args:
+            source: The source Bag to compile from.
+            target: The built Bag to populate.
+            data: Data Bag for ^pointer resolution.
+            binding: BindingManager for subscription registration.
+            prefix: Path prefix for subscription map keys.
+        """
+        for node in source:
+            built_path = f"{prefix}.{node.label}" if prefix else node.label
+
+            binding.unbind_path(built_path)
+
+            value = node.get_value(static=False) if node.resolver is not None else node.static_value
+
+            new_node = target.set_item(
+                node.label,
+                value if not isinstance(value, Bag) else BuilderBag(builder=type(self)),
+                _attributes=dict(node.attr),
+                node_tag=node.node_tag,
+            )
+
+            self._resolve_and_register(new_node, built_path, data, binding)
+
+            if isinstance(value, Bag):
+                self._build_walk(value, new_node.value, data, binding, prefix=built_path)
+
+    def _resolve_and_register(
+        self, node: BagNode, built_path: str, data: Bag, binding: Any,
+    ) -> None:
+        """Resolve ^pointers on a node and register subscriptions in the map."""
+        pointers = scan_for_pointers(node)
+        if not pointers:
+            return
+
+        for pointer_info, location in pointers:
+            datapath = ""
+            if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
+                datapath = node._resolve_datapath()
+
+            data_path = pointer_info.path
+            if pointer_info.is_relative:
+                rel = data_path[1:]
+                data_path = f"{datapath}.{rel}" if datapath else rel
+
+            resolved = self._resolve_pointer(node, pointer_info, data_path, data)
+            if resolved is not None:
+                if location == "value":
+                    node.set_value(resolved, trigger=False)
+                elif location.startswith("attr:"):
+                    attr_name = location[5:]
+                    node.set_attr({attr_name: resolved}, trigger=False)
+
+            data_key = f"{data_path}?{pointer_info.attr}" if pointer_info.attr else data_path
+            built_entry = built_path if location == "value" else f"{built_path}?{location[5:]}"
+
+            binding.register(data_key, built_entry)
+
+    def _resolve_pointer(
+        self, node: BagNode, pointer_info: Any, data_path: str, data: Bag,
+    ) -> Any:
+        """Resolve a single ^pointer value from the data Bag."""
+        if hasattr(node, "_get_relative_data"):
+            return node._get_relative_data(data, pointer_info.raw[1:])
+
+        if pointer_info.attr:
+            data_node = data.get_node(data_path)
+            return data_node.attr.get(pointer_info.attr) if data_node else None
+        return data.get_item(data_path)
+
+    # -------------------------------------------------------------------------
     # Build / render / rebuild
     # -------------------------------------------------------------------------
 
@@ -699,17 +790,11 @@ class BagBuilderBase(ABC):
             Rendered output string.
 
         Raises:
-            RuntimeError: If no compiler is configured.
+            RuntimeError: If no compiler is configured for rendering.
         """
-        if self._compiler_instance is None:
-            raise RuntimeError(
-                f"{type(self).__name__} has no compiler. "
-                f"Set _compiler_class on the builder subclass."
-            )
-
         self._clear_built()
 
-        self._compiler_instance.compile(
+        self._build_walk(
             self.source, self.built, self.data, self._binding,
         )
 
@@ -773,8 +858,6 @@ class BagBuilderBase(ABC):
         new_root = BuilderBag(builder=type(self))
         self._source_shell.set_item("root", new_root)
         self._bag = self.source
-        if self._compiler_instance is not None:
-            self._compiler_instance.builder = self.source.builder
 
     # -------------------------------------------------------------------------
     # Source change handlers (incremental compile)
@@ -809,8 +892,6 @@ class BagBuilderBase(ABC):
         """Called when a node is inserted into the source."""
         if not self._auto_compile or node is None:
             return
-        if self._compiler_instance is None:
-            return
 
         parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
 
@@ -834,12 +915,12 @@ class BagBuilderBase(ABC):
             _reason="source",
         )
 
-        self._compiler_instance._resolve_and_register(
+        self._resolve_and_register(
             new_node, node_path, self.data, self._binding,
         )
 
         if isinstance(value, Bag):
-            self._compiler_instance.compile(
+            self._build_walk(
                 value, new_node.value, self.data, self._binding, prefix=node_path,
             )
 
@@ -856,8 +937,6 @@ class BagBuilderBase(ABC):
         """Called when a node in the source is updated (value or attributes)."""
         if not self._auto_compile or pathlist is None:
             return
-        if self._compiler_instance is None:
-            return
 
         path = ".".join(str(p) for p in pathlist)
         built_node = self.built.get_node(path)
@@ -871,15 +950,15 @@ class BagBuilderBase(ABC):
 
             if isinstance(value, Bag):
                 built_node.set_value(BuilderBag(builder=type(self)), _reason="source")
-                self._compiler_instance._resolve_and_register(
+                self._resolve_and_register(
                     built_node, path, self.data, self._binding,
                 )
-                self._compiler_instance.compile(
+                self._build_walk(
                     value, built_node.value, self.data, self._binding, prefix=path,
                 )
             else:
                 built_node.set_value(value, _reason="source")
-                self._compiler_instance._resolve_and_register(
+                self._resolve_and_register(
                     built_node, path, self.data, self._binding,
                 )
 
@@ -887,7 +966,7 @@ class BagBuilderBase(ABC):
             if node is not None:
                 built_node.set_attr(dict(node.attr))
                 self._binding.unbind_path(path)
-                self._compiler_instance._resolve_and_register(
+                self._resolve_and_register(
                     built_node, path, self.data, self._binding,
                 )
 
@@ -1419,7 +1498,7 @@ class BagBuilderBase(ABC):
             target = BuilderBag(builder=type(self))
             data = kwargs.pop("data", None) or Bag()
             binding = kwargs.pop("binding", None) or BindingManager()
-            compiler.compile(self._bag, target, data, binding)
+            self._build_walk(self._bag, target, data, binding)
 
             destination = kwargs.get("destination")
             if hasattr(compiler, "render"):
