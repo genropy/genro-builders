@@ -53,8 +53,8 @@ class TestAutonomousLifecycle:
         assert result == builder.output
         assert "[text:content]" in result
 
-    def test_no_compiler_raises(self):
-        """Builder without compiler raises RuntimeError on compile."""
+    def test_no_renderer_or_compiler_raises(self):
+        """Builder without renderer or compiler raises RuntimeError on build."""
 
         class NoCompBuilder(BagBuilderBase):
             @element()
@@ -63,7 +63,7 @@ class TestAutonomousLifecycle:
         builder = NoCompBuilder()
         builder.source.div()
 
-        with pytest.raises(RuntimeError, match="no compiler"):
+        with pytest.raises(RuntimeError, match="no renderer or compiler"):
             builder.build()
 
 

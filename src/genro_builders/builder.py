@@ -144,6 +144,7 @@ from typing import (
     TYPE_CHECKING,
     Annotated,
     Any,
+    ClassVar,
     Literal,
     get_args,
     get_origin,
@@ -494,7 +495,9 @@ class BagBuilderBase(ABC):
 
     _class_schema: Bag  # Schema built from decorators at class definition
     _schema_path: str | Path | None = None  # Default schema path (class attribute)
-    _compiler_class: type | None = None  # Default compiler class for this builder
+    _compiler_class: type | None = None  # Legacy: default compiler class
+    _renderers: ClassVar[dict[str, type]] = {}  # Named renderer classes
+    _compilers: ClassVar[dict[str, type]] = {}  # Named compiler classes
 
     # -------------------------------------------------------------------------
     # Initialization
@@ -625,6 +628,15 @@ class BagBuilderBase(ABC):
             self._auto_compile = False
             self._output: str | None = None
 
+            # Instantiate registered renderers and compilers
+            self._renderer_instances: dict[str, Any] = {
+                name: cls(self) for name, cls in type(self)._renderers.items()
+            }
+            self._compiler_instances: dict[str, Any] = {
+                name: cls(self) for name, cls in type(self)._compilers.items()
+            }
+
+            # Legacy: _compiler_class → single compiler instance
             compiler_cls = getattr(type(self), "_compiler_class", None)
             if compiler_cls:
                 self._compiler_instance = compiler_cls(self)
@@ -811,26 +823,69 @@ class BagBuilderBase(ABC):
         self._auto_compile = True
         return self._output
 
-    def render(self, built_bag: Bag) -> str:
-        """Render the built Bag to output via the compiler.
-
-        Delegates to compiler.render() if available, otherwise
-        uses compiler's _walk_compile + join as fallback.
+    def render(self, built_bag: Bag | None = None, name: str | None = None) -> str:
+        """Render the built Bag to output string.
 
         Args:
-            built_bag: The built Bag to render.
+            built_bag: The built Bag to render. Defaults to self.built.
+            name: Renderer name. If None and only one renderer, uses that.
 
         Returns:
             Rendered output string.
         """
-        if self._compiler_instance is None:
-            raise RuntimeError(
-                f"{type(self).__name__} has no compiler for rendering."
-            )
-        if hasattr(self._compiler_instance, "render"):
-            return self._compiler_instance.render(built_bag)
-        parts = list(self._compiler_instance._walk_compile(built_bag))
-        return "\n\n".join(p for p in parts if p)
+        if built_bag is None:
+            built_bag = self.built
+        instance = self._get_output("renderer", self._renderer_instances, name)
+        if instance is not None:
+            return instance.render(built_bag)
+        # Legacy fallback: _compiler_instance
+        if self._compiler_instance is not None:
+            if hasattr(self._compiler_instance, "render"):
+                return self._compiler_instance.render(built_bag)
+            parts = list(self._compiler_instance._walk_compile(built_bag))
+            return "\n\n".join(p for p in parts if p)
+        raise RuntimeError(
+            f"{type(self).__name__} has no renderer or compiler for rendering."
+        )
+
+    def compile(self, built_bag: Bag | None = None, name: str | None = None) -> Any:
+        """Compile the built Bag into live objects.
+
+        Args:
+            built_bag: The built Bag to compile. Defaults to self.built.
+            name: Compiler name. If None and only one compiler, uses that.
+
+        Returns:
+            Compiled output (type depends on compiler).
+        """
+        if built_bag is None:
+            built_bag = self.built
+        instance = self._get_output("compiler", self._compiler_instances, name)
+        if instance is not None:
+            return instance.compile(built_bag)
+        raise RuntimeError(
+            f"{type(self).__name__} has no compiler registered."
+        )
+
+    def add_renderer(self, name: str, renderer_class: type) -> None:
+        """Register a renderer instance at runtime."""
+        self._renderer_instances[name] = renderer_class(self)
+
+    def add_compiler(self, name: str, compiler_class: type) -> None:
+        """Register a compiler instance at runtime."""
+        self._compiler_instances[name] = compiler_class(self)
+
+    def _get_output(self, kind: str, registry: dict[str, Any], name: str | None) -> Any:
+        """Resolve a named or single output instance from a registry."""
+        if not registry:
+            return None
+        if name is None:
+            if len(registry) == 1:
+                return next(iter(registry.values()))
+            raise RuntimeError(f"Multiple {kind}s registered, specify name")
+        if name not in registry:
+            raise KeyError(f"{kind} '{name}' not found")
+        return registry[name]
 
     def rebuild(self, recipe: Callable[..., Any] | None = None) -> str:
         """Full rebuild: clear source, optionally re-populate, build.
