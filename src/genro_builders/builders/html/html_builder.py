@@ -2,49 +2,42 @@
 """HtmlBuilder - HTML5 element builder with W3C schema validation.
 
 This module provides builders for generating HTML5 documents. The schema
-is loaded from a pre-compiled MessagePack file generated from W3C Validator
-RELAX NG schema files using SchemaBuilder.
+is defined as @element decorated methods in Html5Elements mixin, generated
+from W3C Validator RELAX NG schema files.
 
 Example:
     Creating an HTML document::
 
-        from genro_builders import BuilderBag
         from genro_builders.builders import HtmlBuilder
 
-        store = BuilderBag(builder=HtmlBuilder)
-        body = store.body()
+        b = HtmlBuilder()
+        body = b.source.body()
         div = body.div(id='main', class_='container')
-        div.h1(value='Welcome')
-        div.p(value='Hello, World!')
+        div.h1(node_value='Welcome')
+        div.p(node_value='Hello, World!')
         ul = div.ul()
-        ul.li(value='Item 1')
-        ul.li(value='Item 2')
+        ul.li(node_value='Item 1')
+        ul.li(node_value='Item 2')
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ...builder import BagBuilderBase
+from .html5_elements import Html5Elements
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from genro_bag import BagNode
 
 
-class HtmlBuilder(BagBuilderBase):
+class HtmlBuilder(BagBuilderBase, Html5Elements):
     """Builder for HTML5 elements.
 
-    Uses pre-compiled schema loaded via _schema_path. All element handling
-    is provided by BagBuilderBase.__getattr__.
-
-    Usage:
-        >>> bag = Bag(builder=HtmlBuilder)
-        >>> bag.div(id='main').p(value='Hello')
-        >>> bag.ul().li(value='Item 1')
+    All 112 HTML5 elements are defined as @element methods in Html5Elements.
     """
-
-    _schema_path = Path(__file__).parent / "html5_schema.bag.mp"
 
     def _compile(self, destination: str | Path | None = None) -> str:
         """Compile the bag to HTML.
@@ -55,6 +48,8 @@ class HtmlBuilder(BagBuilderBase):
         Returns:
             HTML string representation.
         """
+        from pathlib import Path
+
         lines = []
         for node in self._bag:
             lines.append(self._node_to_html(node, indent=0))
