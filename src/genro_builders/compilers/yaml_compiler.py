@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""YamlCompilerBase — compile a built Bag into a YAML-compatible dict.
+"""YamlRendererBase — render a built Bag into a YAML-compatible dict.
 
-Extends BagCompilerBase with YAML-specific rendering: walk a built Bag
+Extends BagRendererBase with YAML-specific rendering: walk a built Bag
 tree and produce a dict suitable for ``yaml.dump()``.
 
 For each node with tag T, calls ``builder.compile_T(node, result)``.
@@ -12,7 +12,7 @@ Subclasses override ``_render_attr_entry()`` for tool-specific attribute
 rendering (e.g. nested attrs for Traefik, flat for Compose).
 
 Example:
-    >>> class MyYamlCompiler(YamlCompilerBase):
+    >>> class MyYamlRenderer(YamlRendererBase):
     ...     def render(self, built_bag):
     ...         import yaml
     ...         root = next(iter(built_bag))
@@ -26,13 +26,13 @@ from typing import Any
 
 from genro_bag import Bag
 
-from genro_builders.compiler import BagCompilerBase
+from genro_builders.renderer import BagRendererBase
 
 
-class YamlCompilerBase(BagCompilerBase):
-    """YAML compiler — walk a built Bag and produce a dict.
+class YamlRendererBase(BagRendererBase):
+    """YAML renderer — walk a built Bag and produce a dict.
 
-    BagCompilerBase handles: component expansion, ^pointer resolution.
+    BagBuilderBase handles: component expansion, ^pointer resolution.
     This class handles: walk-to-dict, compile_TAG dispatch, attr rendering.
     """
 
@@ -41,7 +41,7 @@ class YamlCompilerBase(BagCompilerBase):
             super().__init__(builder)
         else:
             self.builder = None
-            self._compile_handlers = dict(type(self)._class_compile_handlers)
+            self._render_handlers = dict(type(self)._class_render_handlers)
 
     def compile_to_dict(self, root_node: Any, builder: Any) -> dict[str, Any]:
         """Compile a BagNode root to a YAML-compatible dict.

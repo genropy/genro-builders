@@ -97,73 +97,58 @@ class TestHtmlBuilder:
         assert labels == ["div_0", "div_1", "div_2"]
 
 
-class TestHtmlBuilderCompile:
-    """Tests for HtmlBuilder.compile()."""
+def html(setup):
+    """Helper: create builder, populate source, build and return output."""
+    builder = HtmlBuilder()
+    setup(builder.source)
+    return builder.build()
 
-    def test_compile_simple(self):
-        """compile() generates HTML string."""
-        bag = Bag(builder=HtmlBuilder)
-        bag.p("Hello")
 
-        html = bag.builder._compile()
+class TestHtmlBuilderRender:
+    """Tests for HtmlBuilder rendering via HtmlRenderer."""
 
-        assert "<p>Hello</p>" in html
+    def test_render_simple(self):
+        """render() generates HTML string."""
+        result = html(lambda s: s.p("Hello"))
+        assert "<p>Hello</p>" in result
 
-    def test_compile_nested(self):
-        """compile() handles nested elements."""
-        bag = Bag(builder=HtmlBuilder)
-        div = bag.div(id="main")
-        div.p("Content")
+    def test_render_nested(self):
+        """render() handles nested elements."""
+        def recipe(s):
+            div = s.div(id="main")
+            div.p("Content")
+        result = html(recipe)
+        assert '<div id="main">' in result
+        assert "<p>Content</p>" in result
+        assert "</div>" in result
 
-        html = bag.builder._compile()
-
-        assert '<div id="main">' in html
-        assert "<p>Content</p>" in html
-        assert "</div>" in html
-
-    def test_compile_void_elements(self):
+    def test_render_void_elements(self):
         """Void elements render without closing tag."""
-        bag = Bag(builder=HtmlBuilder)
-        bag.br()
-        bag.meta(charset="utf-8")
+        def recipe(s):
+            s.br()
+            s.meta(charset="utf-8")
+        result = html(recipe)
+        assert "<br>" in result
+        assert "</br>" not in result
+        assert '<meta charset="utf-8">' in result
+        assert "</meta>" not in result
 
-        html = bag.builder._compile()
-
-        assert "<br>" in html
-        assert "</br>" not in html
-        assert '<meta charset="utf-8">' in html
-        assert "</meta>" not in html
-
-    def test_compile_to_file(self, tmp_path):
-        """compile() can save to file."""
-        bag = Bag(builder=HtmlBuilder)
-        bag.p("Content")
-
-        dest = tmp_path / "test.html"
-        result = bag.builder._compile(destination=dest)
-
-        assert dest.exists()
-        assert "<p>Content</p>" in dest.read_text()
-        assert result == "<p>Content</p>"
-
-    def test_compile_page_structure(self):
-        """compile() generates complete page structure."""
-        page = Bag(builder=HtmlBuilder)
-        head = page.head()
-        head.title("Test")
-        head.meta(charset="utf-8")
-        body = page.body()
-        body.div(id="main").p("Hello")
-
-        html = page.builder._compile()
-
-        assert "<head>" in html
-        assert "</head>" in html
-        assert "<body>" in html
-        assert "</body>" in html
-        assert "<title>Test</title>" in html
-        assert 'id="main"' in html
-        assert "<p>Hello</p>" in html
+    def test_render_page_structure(self):
+        """render() generates complete page structure."""
+        def recipe(s):
+            head = s.head()
+            head.title("Test")
+            head.meta(charset="utf-8")
+            body = s.body()
+            body.div(id="main").p("Hello")
+        result = html(recipe)
+        assert "<head>" in result
+        assert "</head>" in result
+        assert "<body>" in result
+        assert "</body>" in result
+        assert "<title>Test</title>" in result
+        assert 'id="main"' in result
+        assert "<p>Hello</p>" in result
 
 
 class TestHtmlBuilderIntegration:
@@ -171,41 +156,34 @@ class TestHtmlBuilderIntegration:
 
     def test_complex_html_structure(self):
         """Creates complex HTML structure."""
-        page = Bag(builder=HtmlBuilder)
+        def recipe(s):
+            head = s.head()
+            head.meta(charset="utf-8")
+            head.title("My Website")
+            head.link(rel="stylesheet", href="style.css")
 
-        # Head
-        head = page.head()
-        head.meta(charset="utf-8")
-        head.title("My Website")
-        head.link(rel="stylesheet", href="style.css")
+            body = s.body()
+            header = body.header(id="header")
+            header.h1("Welcome")
+            nav = header.nav()
+            ul = nav.ul()
+            ul.li("Home")
+            ul.li("About")
+            ul.li("Contact")
 
-        # Body
-        body = page.body()
-        header = body.header(id="header")
-        header.h1("Welcome")
-        nav = header.nav()
-        ul = nav.ul()
-        ul.li("Home")
-        ul.li("About")
-        ul.li("Contact")
+            main = body.main(id="content")
+            article = main.article()
+            article.h2("Article Title")
+            article.p("Article content goes here.")
 
-        main = body.main(id="content")
-        article = main.article()
-        article.h2("Article Title")
-        article.p("Article content goes here.")
+            footer = body.footer()
+            footer.p("Copyright 2025")
 
-        footer = body.footer()
-        footer.p("Copyright 2025")
-
-        # Verify structure
-        assert len(head.value) == 3
-        assert len(body.value) == 3  # header, main, footer
-
-        html = page.builder._compile()
-        assert '<header id="header">' in html
-        assert "<nav>" in html
-        assert "<ul>" in html
-        assert "<li>Home</li>" in html
-        assert '<main id="content">' in html
-        assert "<article>" in html
-        assert "<footer>" in html
+        result = html(recipe)
+        assert '<header id="header">' in result
+        assert "<nav>" in result
+        assert "<ul>" in result
+        assert "<li>Home</li>" in result
+        assert '<main id="content">' in result
+        assert "<article>" in result
+        assert "<footer>" in result

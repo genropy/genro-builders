@@ -1,6 +1,9 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Built-in compilers for genro-builders."""
+"""Built-in renderers for genro-builders."""
 
-from genro_builders.compilers.yaml_compiler import YamlCompilerBase
+from genro_builders.compilers.yaml_compiler import YamlRendererBase
 
-__all__ = ["YamlCompilerBase"]
+# Legacy alias
+YamlCompilerBase = YamlRendererBase
+
+__all__ = ["YamlCompilerBase", "YamlRendererBase"]

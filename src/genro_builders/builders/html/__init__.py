@@ -12,6 +12,6 @@ Example:
     >>> doc.body().div(id='main').p(value='Hello')
 """
 
-from .html_builder import HtmlBuilder
+from .html_builder import HtmlBuilder, HtmlRenderer
 
-__all__ = ["HtmlBuilder"]
+__all__ = ["HtmlBuilder", "HtmlRenderer"]
