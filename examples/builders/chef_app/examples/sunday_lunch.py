@@ -20,7 +20,7 @@ from ..chef_app import ChefApp
 class SundayLunchMenu(ChefApp):
     """Traditional Sunday Lunch menu."""
 
-    def recipe(self, menu: Bag) -> None:
+    def main(self, menu: Bag) -> None:
         # -----------------------------------------------------------------
         # FIRST COURSES
         # -----------------------------------------------------------------

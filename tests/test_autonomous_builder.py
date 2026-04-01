@@ -163,10 +163,10 @@ class TestAutonomousRebuild:
 
         builder.data["title"] = "v2"
 
-        def new_recipe(source):
+        def new_main(source):
             source.heading("^title")
 
-        builder.rebuild(recipe=new_recipe)
+        builder.rebuild(main=new_main)
 
         assert "v2" in builder.output
 

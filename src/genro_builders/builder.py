@@ -1,11 +1,13 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """BagBuilderBase — base class for Bag builders with grammar and validation.
 
-A builder owns the full reactive pipeline: source, built, data,
-binding, and compiler. Define a domain-specific grammar via decorators
-(@element, @abstract, @component), populate the source Bag, build
-(materialize), and compile to output. Optionally, a ``BuilderManager``
-coordinates multiple builders that share the same data bus.
+A builder owns the full reactive pipeline: source, built, data, and
+binding. Define a domain-specific grammar via decorators (@element,
+@abstract, @component), populate the source Bag, build (materialize),
+and render/compile to output. Named renderers (BagRendererBase) produce
+serialized output; named compilers (BagCompilerBase) produce live objects.
+Optionally, a ``BuilderManager`` coordinates multiple builders that share
+the same data bus.
 
 Exports:
     element: Decorator to mark methods as element handlers.
@@ -601,6 +603,8 @@ class BagBuilderBase(ABC):
             if not node.label.startswith("@")
         )
 
+        self._node_id_map: dict[str, BagNode] = {}
+
         if bag is not None:
             # Internal: BuilderBag passes itself as bag
             self._bag = bag
@@ -649,7 +653,7 @@ class BagBuilderBase(ABC):
 
     @property
     def source(self) -> BuilderBag:
-        """The source Bag where the recipe is built."""
+        """The source Bag where elements are added."""
         return self._source_shell.get_item("root")
 
     @property
@@ -792,10 +796,31 @@ class BagBuilderBase(ABC):
     # Build / render / rebuild
     # -------------------------------------------------------------------------
 
-    def build(self) -> str:
-        """Full pipeline: build source → subscribe → render.
+    def store(self, store: Bag) -> None:
+        """Populate the data store. Override in subclass.
 
-        Expands components, resolves ^pointers, registers subscriptions,
+        Called by ``build()`` before ``main()``. Receives the data Bag.
+
+        Args:
+            store: The data Bag to populate.
+        """
+
+    def main(self, source: BuilderBag) -> None:
+        """Entry point: populate the source Bag. Override in subclass.
+
+        Called by ``build()`` after ``store()``. Receives the source Bag.
+        The user can define helper methods and call them from here.
+
+        Args:
+            source: The source Bag to populate with elements.
+        """
+
+    def build(self) -> str:
+        """Full pipeline: store → main → build walk → subscribe → render.
+
+        If the subclass defines ``store()``, it is called with self.data.
+        If the subclass defines ``main()``, it is called with self.source.
+        Then expands components, resolves ^pointers, registers subscriptions,
         and renders the output.
 
         Returns:
@@ -804,6 +829,12 @@ class BagBuilderBase(ABC):
         Raises:
             RuntimeError: If no compiler is configured for rendering.
         """
+        # Call store() and main() hooks if overridden by subclass
+        if type(self).store is not BagBuilderBase.store:
+            self.store(self.data)
+        if type(self).main is not BagBuilderBase.main:
+            self.main(self.source)
+
         self._clear_built()
 
         self._build_walk(
@@ -875,6 +906,31 @@ class BagBuilderBase(ABC):
         """Register a compiler instance at runtime."""
         self._compiler_instances[name] = compiler_class(self)
 
+    def node_by_id(self, node_id: str) -> BagNode:
+        """Retrieve a node by its unique node_id.
+
+        Searches this builder's map first, then the source builder's map
+        (in standalone mode, the source Bag has its own builder instance).
+
+        Args:
+            node_id: The unique identifier assigned via node_id= attribute.
+
+        Returns:
+            The BagNode with the given node_id.
+
+        Raises:
+            KeyError: If no node with the given node_id exists.
+        """
+        if node_id in self._node_id_map:
+            return self._node_id_map[node_id]
+        # In standalone mode, source has its own builder with its own map
+        if hasattr(self, "_source_shell"):
+            source_builder = self.source._builder
+            if source_builder is not None and source_builder is not self:
+                if node_id in source_builder._node_id_map:
+                    return source_builder._node_id_map[node_id]
+        raise KeyError(f"No node with node_id '{node_id}'") from None
+
     def _get_output(self, kind: str, registry: dict[str, Any], name: str | None) -> Any:
         """Resolve a named or single output instance from a registry."""
         if not registry:
@@ -887,11 +943,12 @@ class BagBuilderBase(ABC):
             raise KeyError(f"{kind} '{name}' not found")
         return registry[name]
 
-    def rebuild(self, recipe: Callable[..., Any] | None = None) -> str:
+    def rebuild(self, main: Callable[..., Any] | None = None) -> str:
         """Full rebuild: clear source, optionally re-populate, build.
 
         Args:
-            recipe: Optional callable(source) to populate the source bag.
+            main: Optional callable(source) to populate the source bag.
+                If not provided, uses the subclass main() if defined.
 
         Returns:
             Rendered output string.
@@ -899,8 +956,8 @@ class BagBuilderBase(ABC):
         self.source.unsubscribe("source_watcher", any=True)
         self._auto_compile = False
         self._clear_source()
-        if recipe is not None:
-            recipe(self.source)
+        if main is not None:
+            main(self.source)
         return self.build()
 
     def _clear_built(self) -> None:
@@ -909,7 +966,8 @@ class BagBuilderBase(ABC):
         self.built.clear()
 
     def _clear_source(self) -> None:
-        """Clear the source bag without destroying the shell."""
+        """Clear the source bag and the node_id map."""
+        self._node_id_map.clear()
         new_root = BuilderBag(builder=type(self))
         self._source_shell.set_item("root", new_root)
         self._bag = self.source
@@ -1183,11 +1241,25 @@ class BagBuilderBase(ABC):
         child_info = self._get_schema_info(node_tag)
         self._validate_parent_tags(child_info, parent_node)
 
+        # Extract node_id before passing attrs to set_item
+        node_id = attr.pop("node_id", None)
+
         node_label = node_label or self._auto_label(build_where, node_tag)
         child_node = build_where.set_item(
             node_label, node_value, _attributes=dict(attr),
             node_position=node_position, node_tag=node_tag,
         )
+
+        # Register node_id if provided
+        if node_id is not None:
+            if hasattr(self, "_node_id_map"):
+                if node_id in self._node_id_map:
+                    raise ValueError(
+                        f"Duplicate node_id '{node_id}': already assigned to "
+                        f"node '{self._node_id_map[node_id].label}'"
+                    )
+                self._node_id_map[node_id] = child_node
+            child_node.set_attr({"node_id": node_id}, trigger=False)
 
         if parent_node and parent_node.node_tag:
             self._validate_sub_tags(parent_node, parent_info)

@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BuilderManager hooks: common_data, recipe, reactive_store."""
+"""Tests for BuilderManager hooks: store, main, reactive_store."""
 from __future__ import annotations
 
 from genro_bag import Bag
@@ -9,27 +9,27 @@ from genro_builders.manager import BuilderManager
 from .helpers import TestBuilder
 
 
-class TestCommonData:
-    """Tests for common_data hook."""
+class TestStore:
+    """Tests for store hook."""
 
-    def test_common_data_populates_store(self):
-        """common_data sets shared values at store root."""
+    def test_store_populates_store(self):
+        """store() sets shared values at store root."""
 
         class App(BuilderManager):
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def common_data(self, store):
+            def store(self, store):
                 store["title"] = "Hello"
 
-            def recipe(self, source, common, data):
+            def main(self, source):
                 source.heading("^title")
 
         app = App()
         app.build()
         assert "Hello" in app.page.output
 
-    def test_common_data_accessible_by_all_builders(self):
+    def test_store_accessible_by_all_builders(self):
         """Shared data is accessible by all builders."""
 
         class App(BuilderManager):
@@ -37,13 +37,13 @@ class TestCommonData:
                 self.a = self.set_builder("a", TestBuilder)
                 self.b = self.set_builder("b", TestBuilder)
 
-            def common_data(self, store):
+            def store(self, store):
                 store["shared"] = "Common Value"
 
-            def recipe_a(self, source, common, data):
+            def main_a(self, source):
                 source.heading("^shared")
 
-            def recipe_b(self, source, common, data):
+            def main_b(self, source):
                 source.text("^shared")
 
         app = App()
@@ -52,53 +52,53 @@ class TestCommonData:
         assert "Common Value" in app.b.output
 
 
-class TestRecipeHook:
-    """Tests for recipe dispatch."""
+class TestMainHook:
+    """Tests for main dispatch."""
 
-    def test_single_builder_uses_recipe(self):
-        """Single builder calls recipe(source, common, data)."""
+    def test_single_builder_uses_main(self):
+        """Single builder calls main(source)."""
 
         class App(BuilderManager):
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def recipe(self, source, common, data):
-                source.heading("From Recipe")
+            def main(self, source):
+                source.heading("From Main")
 
         app = App()
         app.build()
-        assert "From Recipe" in app.page.output
+        assert "From Main" in app.page.output
 
-    def test_multi_builder_uses_recipe_name(self):
-        """Multiple builders call recipe_<name>(source, common, data)."""
+    def test_multi_builder_uses_main_name(self):
+        """Multiple builders call main_<name>(source)."""
 
         class App(BuilderManager):
             def __init__(self):
-                self.main = self.set_builder("main", TestBuilder)
+                self.content = self.set_builder("content", TestBuilder)
                 self.sidebar = self.set_builder("sidebar", TestBuilder)
 
-            def recipe_main(self, source, common, data):
+            def main_content(self, source):
                 source.heading("Main Content")
 
-            def recipe_sidebar(self, source, common, data):
+            def main_sidebar(self, source):
                 source.text("Sidebar")
 
         app = App()
         app.build()
-        assert "Main Content" in app.main.output
+        assert "Main Content" in app.content.output
         assert "Sidebar" in app.sidebar.output
 
-    def test_recipe_name_takes_precedence(self):
-        """recipe_<name> takes precedence over recipe."""
+    def test_main_name_takes_precedence(self):
+        """main_<name> takes precedence over main."""
 
         class App(BuilderManager):
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def recipe(self, source, common, data):
+            def main(self, source):
                 source.heading("Generic")
 
-            def recipe_page(self, source, common, data):
+            def main_page(self, source):
                 source.heading("Specific")
 
         app = App()
@@ -124,37 +124,39 @@ class TestPrivateData:
         assert page_data is not None
         assert isinstance(page_data, Bag)
 
-    def test_recipe_receives_private_data(self):
-        """Recipe data argument is the builder's private namespace."""
+    def test_store_sets_private_data(self):
+        """Private data can be set via store()."""
 
         class App(BuilderManager):
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def recipe(self, source, common, data):
-                data["color"] = "blue"
+            def store(self, store):
+                store["builders.page.color"] = "blue"
+
+            def main(self, source):
                 source.heading("test")
 
         app = App()
         app.build()
         assert app.reactive_store["builders.page.color"] == "blue"
 
-    def test_recipe_common_is_store_root(self):
-        """Recipe common argument is the reactive store root."""
+    def test_store_root_is_reactive_store(self):
+        """Store argument is the reactive store root."""
 
         class App(BuilderManager):
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def common_data(self, store):
+            def store(self, store):
                 store["title"] = "Hello"
 
-            def recipe(self, source, common, data):
-                assert common["title"] == "Hello"
+            def main(self, source):
                 source.heading("^title")
 
         app = App()
         app.build()
+        assert "Hello" in app.page.output
 
     def test_multi_builder_private_data_isolated(self):
         """Each builder's private data is isolated."""
@@ -164,12 +166,14 @@ class TestPrivateData:
                 self.a = self.set_builder("a", TestBuilder)
                 self.b = self.set_builder("b", TestBuilder)
 
-            def recipe_a(self, source, common, data):
-                data["value"] = "A-private"
+            def store(self, store):
+                store["builders.a.value"] = "A-private"
+                store["builders.b.value"] = "B-private"
+
+            def main_a(self, source):
                 source.heading("test")
 
-            def recipe_b(self, source, common, data):
-                data["value"] = "B-private"
+            def main_b(self, source):
                 source.heading("test")
 
         app = App()
@@ -182,24 +186,24 @@ class TestBuildPipeline:
     """Tests for full build pipeline."""
 
     def test_pipeline_order(self):
-        """common_data → recipe → build in correct order."""
+        """store → main → build in correct order."""
         order = []
 
         class App(BuilderManager):
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def common_data(self, store):
-                order.append("common_data")
+            def store(self, store):
+                order.append("store")
                 store["title"] = "Hello"
 
-            def recipe(self, source, common, data):
-                order.append("recipe")
+            def main(self, source):
+                order.append("main")
                 source.heading("^title")
 
         app = App()
         app.build()
-        assert order == ["common_data", "recipe"]
+        assert order == ["store", "main"]
         assert "Hello" in app.page.output
 
     def test_reactive_store_property(self):

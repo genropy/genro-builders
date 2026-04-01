@@ -10,7 +10,7 @@ Example:
     from examples.builders.chef_app import ChefApp
 
     class SundayLunch(ChefApp):
-        def recipe(self, menu):
+        def main(self, menu):
             first = menu.first_courses()
             lasagne = first.pasta(name="Bolognese Lasagne")
             lasagne.lasagne_sauce()
@@ -40,7 +40,7 @@ class ChefApp:
     def __init__(self, name: str = "Menu") -> None:
         self._store = Bag(builder=MenuBuilder)
         self._menu = self._store.menu(name=name)
-        self.recipe(self._menu)
+        self.main(self._menu)
 
     @property
     def store(self) -> Bag:
@@ -52,7 +52,7 @@ class ChefApp:
         """The menu Bag (returned by menu() element)."""
         return self._menu
 
-    def recipe(self, menu: Bag) -> None:
+    def main(self, menu: Bag) -> None:
         """Override to build your menu.
 
         Args:
