@@ -1591,10 +1591,10 @@ class BagBuilderBase(ABC):
         Returns:
             Markdown string with schema documentation.
         """
-        from .builder_bag import BuilderBag
         from .builders.markdown import MarkdownBuilder
 
-        doc = BuilderBag(builder=MarkdownBuilder)
+        md_builder = MarkdownBuilder()
+        doc = md_builder.source
         builder_name = title or type(self).__name__
 
         doc.h1(f"Schema: {builder_name}")
@@ -1675,7 +1675,7 @@ class BagBuilderBase(ABC):
 
                 row.td(info.get("documentation") or "-")
 
-        return doc.builder._compile()
+        return md_builder.build()
 
     # -------------------------------------------------------------------------
     # Value rendering (for compile)

@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for MarkdownBuilder.
+"""Tests for MarkdownBuilder with MarkdownRenderer.
 
 Tests cover:
 - Heading elements (h1-h6)
@@ -8,11 +8,17 @@ Tests cover:
 - Tables with headers and rows
 - Lists (ordered and unordered)
 - Inline elements (bold, italic, link)
-- compile() output
+- build() output
 """
 
-from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builders import MarkdownBuilder
+
+
+def md(setup):
+    """Helper: create builder, populate source, build and return output."""
+    builder = MarkdownBuilder()
+    setup(builder.source)
+    return builder.build()
 
 
 class TestMarkdownHeadings:
@@ -20,31 +26,25 @@ class TestMarkdownHeadings:
 
     def test_h1(self):
         """h1 generates # prefix."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.h1("Title")
-        result = doc.builder._compile()
+        result = md(lambda s: s.h1("Title"))
         assert result == "# Title"
 
     def test_h2(self):
         """h2 generates ## prefix."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.h2("Subtitle")
-        result = doc.builder._compile()
+        result = md(lambda s: s.h2("Subtitle"))
         assert result == "## Subtitle"
 
     def test_h3(self):
         """h3 generates ### prefix."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.h3("Section")
-        result = doc.builder._compile()
+        result = md(lambda s: s.h3("Section"))
         assert result == "### Section"
 
     def test_multiple_headings(self):
         """Multiple headings separated by blank lines."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.h1("Title")
-        doc.h2("Subtitle")
-        result = doc.builder._compile()
+        def recipe(s):
+            s.h1("Title")
+            s.h2("Subtitle")
+        result = md(recipe)
         assert "# Title" in result
         assert "## Subtitle" in result
         assert "\n\n" in result
@@ -55,17 +55,15 @@ class TestMarkdownParagraph:
 
     def test_paragraph(self):
         """p generates plain text."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.p("This is a paragraph.")
-        result = doc.builder._compile()
+        result = md(lambda s: s.p("This is a paragraph."))
         assert result == "This is a paragraph."
 
     def test_multiple_paragraphs(self):
         """Multiple paragraphs separated by blank lines."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.p("First paragraph.")
-        doc.p("Second paragraph.")
-        result = doc.builder._compile()
+        def recipe(s):
+            s.p("First paragraph.")
+            s.p("Second paragraph.")
+        result = md(recipe)
         assert "First paragraph." in result
         assert "Second paragraph." in result
         assert "\n\n" in result
@@ -76,17 +74,13 @@ class TestMarkdownCode:
 
     def test_code_block(self):
         """code generates fenced code block."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.code("print('hello')")
-        result = doc.builder._compile()
+        result = md(lambda s: s.code("print('hello')"))
         assert "```" in result
         assert "print('hello')" in result
 
     def test_code_block_with_language(self):
         """code with lang attribute adds language."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.code("def foo(): pass", lang="python")
-        result = doc.builder._compile()
+        result = md(lambda s: s.code("def foo(): pass", lang="python"))
         assert "```python" in result
         assert "def foo(): pass" in result
 
@@ -96,16 +90,12 @@ class TestMarkdownBlockquote:
 
     def test_blockquote(self):
         """blockquote generates > prefix."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.blockquote("A quote.")
-        result = doc.builder._compile()
+        result = md(lambda s: s.blockquote("A quote."))
         assert result == "> A quote."
 
     def test_blockquote_multiline(self):
         """blockquote handles multiple lines."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.blockquote("Line 1\nLine 2")
-        result = doc.builder._compile()
+        result = md(lambda s: s.blockquote("Line 1\nLine 2"))
         assert "> Line 1" in result
         assert "> Line 2" in result
 
@@ -115,9 +105,7 @@ class TestMarkdownHorizontalRule:
 
     def test_hr(self):
         """hr generates ---."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.hr()
-        result = doc.builder._compile()
+        result = md(lambda s: s.hr())
         assert result == "---"
 
 
@@ -126,33 +114,31 @@ class TestMarkdownTable:
 
     def test_simple_table(self):
         """Table with header and rows."""
-        doc = Bag(builder=MarkdownBuilder)
-        table = doc.table()
-        header = table.tr()
-        header.th("Name")
-        header.th("Value")
-        row = table.tr()
-        row.td("foo")
-        row.td("bar")
-
-        result = doc.builder._compile()
+        def recipe(s):
+            table = s.table()
+            header = table.tr()
+            header.th("Name")
+            header.th("Value")
+            row = table.tr()
+            row.td("foo")
+            row.td("bar")
+        result = md(recipe)
         assert "| Name | Value |" in result
         assert "| --- | --- |" in result
         assert "| foo | bar |" in result
 
     def test_table_multiple_rows(self):
         """Table with multiple data rows."""
-        doc = Bag(builder=MarkdownBuilder)
-        table = doc.table()
-        header = table.tr()
-        header.th("A")
-        header.th("B")
-        for i in range(3):
-            row = table.tr()
-            row.td(f"a{i}")
-            row.td(f"b{i}")
-
-        result = doc.builder._compile()
+        def recipe(s):
+            table = s.table()
+            header = table.tr()
+            header.th("A")
+            header.th("B")
+            for i in range(3):
+                row = table.tr()
+                row.td(f"a{i}")
+                row.td(f"b{i}")
+        result = md(recipe)
         assert "| a0 | b0 |" in result
         assert "| a1 | b1 |" in result
         assert "| a2 | b2 |" in result
@@ -163,26 +149,24 @@ class TestMarkdownLists:
 
     def test_unordered_list(self):
         """ul generates - prefix."""
-        doc = Bag(builder=MarkdownBuilder)
-        ul = doc.ul()
-        ul.li("Item 1")
-        ul.li("Item 2")
-        ul.li("Item 3")
-
-        result = doc.builder._compile()
+        def recipe(s):
+            ul = s.ul()
+            ul.li("Item 1")
+            ul.li("Item 2")
+            ul.li("Item 3")
+        result = md(recipe)
         assert "- Item 1" in result
         assert "- Item 2" in result
         assert "- Item 3" in result
 
     def test_ordered_list(self):
         """ol generates numbered prefix."""
-        doc = Bag(builder=MarkdownBuilder)
-        ol = doc.ol()
-        ol.li("First")
-        ol.li("Second")
-        ol.li("Third")
-
-        result = doc.builder._compile()
+        def recipe(s):
+            ol = s.ol()
+            ol.li("First")
+            ol.li("Second")
+            ol.li("Third")
+        result = md(recipe)
         assert "1. First" in result
         assert "2. Second" in result
         assert "3. Third" in result
@@ -193,61 +177,37 @@ class TestMarkdownInline:
 
     def test_link(self):
         """link generates [text](href)."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.link("Click here", href="https://example.com")
-
-        result = doc.builder._compile()
+        result = md(lambda s: s.link("Click here", href="https://example.com"))
         assert "[Click here](https://example.com)" in result
 
     def test_img(self):
         """img generates ![alt](src)."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.img(src="image.png", alt="My Image")
-
-        result = doc.builder._compile()
+        result = md(lambda s: s.img(src="image.png", alt="My Image"))
         assert "![My Image](image.png)" in result
 
     def test_bold(self):
         """bold generates **text**."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.bold("important")
-
-        result = doc.builder._compile()
+        result = md(lambda s: s.bold("important"))
         assert "**important**" in result
 
     def test_italic(self):
         """italic generates *text*."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.italic("emphasis")
-
-        result = doc.builder._compile()
+        result = md(lambda s: s.italic("emphasis"))
         assert "*emphasis*" in result
 
 
-class TestMarkdownCompile:
-    """Tests for MarkdownBuilder.compile()."""
+class TestMarkdownBuild:
+    """Tests for MarkdownBuilder.build()."""
 
-    def test_compile_returns_string(self):
-        """compile() returns markdown string."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.h1("Test")
-        doc.p("Content")
-
-        result = doc.builder._compile()
+    def test_build_returns_string(self):
+        """build() returns markdown string."""
+        def recipe(s):
+            s.h1("Test")
+            s.p("Content")
+        result = md(recipe)
         assert isinstance(result, str)
         assert "# Test" in result
         assert "Content" in result
-
-    def test_compile_to_file(self, tmp_path):
-        """compile() can write to file."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.h1("File Test")
-
-        output_file = tmp_path / "test.md"
-        result = doc.builder._compile(destination=output_file)
-
-        assert output_file.exists()
-        assert output_file.read_text() == result
 
 
 class TestMarkdownCompleteDocument:
@@ -255,28 +215,25 @@ class TestMarkdownCompleteDocument:
 
     def test_full_document(self):
         """Build a complete document with multiple elements."""
-        doc = Bag(builder=MarkdownBuilder)
-        doc.h1("My Document")
-        doc.p("Introduction paragraph.")
+        def recipe(s):
+            s.h1("My Document")
+            s.p("Introduction paragraph.")
+            s.h2("Code Example")
+            s.code("x = 1 + 2", lang="python")
+            s.h2("Data Table")
+            table = s.table()
+            header = table.tr()
+            header.th("Column A")
+            header.th("Column B")
+            row = table.tr()
+            row.td("value1")
+            row.td("value2")
+            s.h2("Steps")
+            ol = s.ol()
+            ol.li("First step")
+            ol.li("Second step")
 
-        doc.h2("Code Example")
-        doc.code("x = 1 + 2", lang="python")
-
-        doc.h2("Data Table")
-        table = doc.table()
-        header = table.tr()
-        header.th("Column A")
-        header.th("Column B")
-        row = table.tr()
-        row.td("value1")
-        row.td("value2")
-
-        doc.h2("Steps")
-        ol = doc.ol()
-        ol.li("First step")
-        ol.li("Second step")
-
-        result = doc.builder._compile()
+        result = md(recipe)
 
         assert "# My Document" in result
         assert "## Code Example" in result
