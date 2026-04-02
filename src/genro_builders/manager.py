@@ -22,8 +22,8 @@ Example — single builder:
     ...     def __init__(self):
     ...         self.page = self.set_builder('page', HtmlBuilder)
     ...
-    ...     def store(self, store):
-    ...         store['title'] = 'Hello'
+    ...     def store(self, data):
+    ...         data['title'] = 'Hello'
     ...
     ...     def main(self, source):
     ...         source.h1(value='^title')
@@ -37,9 +37,9 @@ Example — multiple builders with shared and private data:
     ...         self.compose = self.set_builder('compose', ComposeBuilder)
     ...         self.traefik = self.set_builder('traefik', TraefikBuilder)
     ...
-    ...     def store(self, store):
-    ...         store['domain'] = 'example.com'
-    ...         store['env'] = 'production'
+    ...     def store(self, data):
+    ...         data['domain'] = 'example.com'
+    ...         data['env'] = 'production'
     ...
     ...     def main_compose(self, source):
     ...         source.service(
@@ -76,7 +76,7 @@ class BuilderManager:
             Each call registers the builder and creates its private
             namespace at ``reactive_store['builders.<name>']``.
 
-        ``store(store)``: Override to set shared data values
+        ``store(data)``: Override to set shared data values
             at the store root. Called once during ``build()``.
 
         ``main(source)`` (single builder) or
@@ -162,7 +162,7 @@ class BuilderManager:
 
         return builder
 
-    def store(self, store: Bag) -> None:
+    def store(self, data: Bag) -> None:
         """Populate shared data at the store root. Override in subclass.
 
         Called once during ``build()``, before main methods.
@@ -170,7 +170,7 @@ class BuilderManager:
         ``^pointer`` paths (e.g., ``^domain``).
 
         Args:
-            store: The reactive store root Bag.
+            data: The reactive store root Bag.
         """
 
     def main(self, source: Any) -> None:

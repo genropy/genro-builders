@@ -118,6 +118,61 @@ class BuilderBagNode(BagNode):
         else:
             data.set_item(resolved_path, value)
 
+    def abs_datapath(self, path: str) -> str:
+        """Resolve any path form to an absolute datapath.
+
+        Supports three forms:
+            'user.name'         — absolute: returned as-is
+            '.name'             — relative: resolved from this node's datapath
+            '#address.street'   — symbolic: resolved via node_id lookup
+
+        Args:
+            path: The path to resolve.
+
+        Returns:
+            Absolute datapath string.
+
+        Raises:
+            KeyError: If a #node_id reference cannot be found.
+        """
+        if path.startswith("#"):
+            return self._resolve_symbolic(path)
+        if path.startswith("."):
+            datapath = self._resolve_datapath()
+            return f"{datapath}.{path[1:]}" if datapath else path[1:]
+        return path
+
+    def _resolve_symbolic(self, path: str) -> str:
+        """Resolve a #node_id symbolic path to absolute.
+
+        '#address.street' → find node_id 'address', get its datapath,
+        append '.street'.
+        """
+        without_hash = path[1:]
+        dot_pos = without_hash.find(".")
+        if dot_pos >= 0:
+            node_id = without_hash[:dot_pos]
+            rest = without_hash[dot_pos + 1:]
+        else:
+            node_id = without_hash
+            rest = ""
+
+        builder = self._parent_bag._builder if self._parent_bag is not None else None
+        if builder is None:
+            raise KeyError(f"Cannot resolve symbolic path '{path}': no builder")
+
+        target_node = builder.node_by_id(node_id)
+        target_datapath = target_node.attr.get("datapath", "")
+
+        if not target_datapath:
+            # Target node has no datapath — resolve its position
+            if hasattr(target_node, "_resolve_datapath"):
+                target_datapath = target_node._resolve_datapath()
+
+        if rest:
+            return f"{target_datapath}.{rest}" if target_datapath else rest
+        return target_datapath
+
     def _resolve_path(self, path: str) -> tuple[str, str | None]:
         """Parse and resolve a data path.
 
@@ -128,9 +183,7 @@ class BuilderBagNode(BagNode):
         if "?" in path:
             path, attr_name = path.split("?", 1)
 
-        if path.startswith("."):
-            datapath = self._resolve_datapath()
-            path = f"{datapath}.{path[1:]}" if datapath else path[1:]
+        path = self.abs_datapath(path)
 
         return path, attr_name
 

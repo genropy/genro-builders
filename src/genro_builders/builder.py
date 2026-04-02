@@ -94,31 +94,44 @@ Example - @component (lazy expansion):
     ...         component.input(name='username')
     ...         component.input(name='password')
 
-Example - Standalone builder:
-    >>> class HtmlBuilder(BagBuilderBase):
-    ...     _compiler_class = HtmlCompiler
+Example - Standalone builder with main/store:
+    >>> class MyBuilder(BagBuilderBase):
+    ...     _renderers = {'html': MyRenderer}
     ...     @element(sub_tags='*')
     ...     def div(self): ...
     ...     @element()
     ...     def p(self): ...
     >>>
-    >>> builder = HtmlBuilder()
-    >>> builder.source.div(id='main').p('Hello')
-    >>> builder.build()
-    >>> print(builder.output)
+    >>> class MyPage(MyBuilder):
+    ...     def store(self, data):
+    ...         data['title'] = 'Hello'
+    ...     def main(self, source):
+    ...         source.div(id='main').p(value='^title')
+    >>>
+    >>> page = MyPage()
+    >>> page.build()
+    >>> print(page.output)
 
 Example - Multiple builders with shared data (BuilderManager):
     >>> from genro_builders import BuilderManager
     >>>
     >>> class MyApp(BuilderManager):
     ...     def __init__(self):
-    ...         super().__init__()
-    ...         self.page = self.register_builder('page', HtmlBuilder)
+    ...         self.page = self.set_builder('page', HtmlBuilder)
+    ...
+    ...     def store(self, data):
+    ...         data['title'] = 'Hello'
+    ...
+    ...     def main(self, source):
+    ...         source.h1(value='^title')
     >>>
     >>> app = MyApp()
-    >>> app.data['title'] = 'Hello'
-    >>> app.page.source.div(value='^title')
-    >>> app.build_all()
+    >>> app.build()
+
+Example - node_id for direct node lookup:
+    >>> builder = MyBuilder()
+    >>> builder.source.div(node_id='header').p('Title')
+    >>> node = builder.node_by_id('header')  # O(1) lookup
 
 SchemaBuilder Example:
     >>> from genro_builders import BuilderBag
@@ -796,13 +809,13 @@ class BagBuilderBase(ABC):
     # Build / render / rebuild
     # -------------------------------------------------------------------------
 
-    def store(self, store: Bag) -> None:
+    def store(self, data: Bag) -> None:
         """Populate the data store. Override in subclass.
 
         Called by ``build()`` before ``main()``. Receives the data Bag.
 
         Args:
-            store: The data Bag to populate.
+            data: The data Bag to populate.
         """
 
     def main(self, source: BuilderBag) -> None:

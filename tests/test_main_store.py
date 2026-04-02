@@ -23,8 +23,8 @@ class TestMainStore:
         """Subclass store() populates data before main."""
 
         class MyBuilder(TestBuilder):
-            def store(self, store):
-                store["msg"] = "hello"
+            def store(self, data):
+                data["msg"] = "hello"
 
             def main(self, source):
                 source.heading(value="^msg")
@@ -38,7 +38,7 @@ class TestMainStore:
         order = []
 
         class MyBuilder(TestBuilder):
-            def store(self, store):
+            def store(self, data):
                 order.append("store")
 
             def main(self, source):
@@ -79,8 +79,8 @@ class TestMainStore:
         """Only store() without main() — user populates manually."""
 
         class MyBuilder(TestBuilder):
-            def store(self, store):
-                store["title"] = "Hello"
+            def store(self, data):
+                data["title"] = "Hello"
 
         b = MyBuilder()
         b.source.heading(value="^title")

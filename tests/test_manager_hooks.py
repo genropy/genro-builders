@@ -19,8 +19,8 @@ class TestStore:
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def store(self, store):
-                store["title"] = "Hello"
+            def store(self, data):
+                data["title"] = "Hello"
 
             def main(self, source):
                 source.heading("^title")
@@ -37,8 +37,8 @@ class TestStore:
                 self.a = self.set_builder("a", TestBuilder)
                 self.b = self.set_builder("b", TestBuilder)
 
-            def store(self, store):
-                store["shared"] = "Common Value"
+            def store(self, data):
+                data["shared"] = "Common Value"
 
             def main_a(self, source):
                 source.heading("^shared")
@@ -131,8 +131,8 @@ class TestPrivateData:
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def store(self, store):
-                store["builders.page.color"] = "blue"
+            def store(self, data):
+                data["builders.page.color"] = "blue"
 
             def main(self, source):
                 source.heading("test")
@@ -148,8 +148,8 @@ class TestPrivateData:
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def store(self, store):
-                store["title"] = "Hello"
+            def store(self, data):
+                data["title"] = "Hello"
 
             def main(self, source):
                 source.heading("^title")
@@ -166,9 +166,9 @@ class TestPrivateData:
                 self.a = self.set_builder("a", TestBuilder)
                 self.b = self.set_builder("b", TestBuilder)
 
-            def store(self, store):
-                store["builders.a.value"] = "A-private"
-                store["builders.b.value"] = "B-private"
+            def store(self, data):
+                data["builders.a.value"] = "A-private"
+                data["builders.b.value"] = "B-private"
 
             def main_a(self, source):
                 source.heading("test")
@@ -193,9 +193,9 @@ class TestBuildPipeline:
             def __init__(self):
                 self.page = self.set_builder("page", TestBuilder)
 
-            def store(self, store):
+            def store(self, data):
                 order.append("store")
-                store["title"] = "Hello"
+                data["title"] = "Hello"
 
             def main(self, source):
                 order.append("main")

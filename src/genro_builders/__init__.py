@@ -28,7 +28,7 @@ from genro_builders.manager import BuilderManager
 from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer
 from genro_builders.renderer import BagRendererBase, render_handler
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = [
     "BagBuilderBase",

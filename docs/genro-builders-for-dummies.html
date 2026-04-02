@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genro Builders for Dummies</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #232733;
+    --border: #2d3140;
+    --text: #e1e4ed;
+    --text-dim: #8b90a0;
+    --accent: #6c9eff;
+    --accent2: #a78bfa;
+    --green: #4ade80;
+    --orange: #fb923c;
+    --red: #f87171;
+    --cyan: #22d3ee;
+    --pink: #f472b6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 1.2rem 2rem 0;
+    background: linear-gradient(180deg, #161926 0%, var(--bg) 100%);
+    flex-shrink: 0;
+    text-align: center;
+    position: relative;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse 500px 200px at 50% 20%, rgba(108,158,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  header h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.2rem;
+  }
+  header .subtitle {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+  }
+
+  /* ── Tab bar ── */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    flex-shrink: 0;
+    overflow-x: auto;
+    background: var(--bg);
+    scrollbar-width: none;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: 0.7rem 1.2rem;
+    border: none;
+    background: none;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Tab content ── */
+  .tab-panels { flex: 1; overflow: hidden; position: relative; }
+  .tab-panel {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    padding: 2rem;
+    display: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .tab-panel.active { display: block; }
+  .tab-panel .content { max-width: 860px; margin: 0 auto; }
+
+  /* ── Typography ── */
+  h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1.2rem; letter-spacing: -0.02em; }
+  h3 { font-size: 1.1rem; font-weight: 600; margin: 2rem 0 0.8rem; color: var(--accent); }
+  h3:first-child { margin-top: 0; }
+  p { margin-bottom: 1rem; }
+  p.dim { color: var(--text-dim); }
+  ul { color: var(--text-dim); margin: 1rem 0; padding-left: 1.5rem; }
+  li { margin-bottom: 0.3rem; }
+
+  /* ── SVG diagrams ── */
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+  }
+  .diagram svg { max-width: 100%; height: auto; }
+
+  /* ── Code ── */
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.5rem;
+    padding-right: 3.5rem;
+    overflow-x: auto;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.85rem;
+    line-height: 1.65;
+    position: relative;
+  }
+  code { font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace; font-size: 0.85rem; }
+  pre code { color: var(--text); }
+  .kw { color: var(--accent2); }
+  .fn { color: var(--accent); }
+  .str { color: var(--green); }
+  .cmt { color: var(--text-dim); font-style: italic; }
+  .dec { color: var(--orange); }
+  .cls { color: var(--cyan); }
+  .num { color: var(--orange); }
+  code.il {
+    background: var(--surface2);
+    padding: 0.15em 0.45em;
+    border-radius: 5px;
+    font-size: 0.83em;
+  }
+
+  /* ── Copy button ── */
+  .copy-btn {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    z-index: 1;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+  /* ── Cards ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.4rem; }
+  .card p { font-size: 0.85rem; color: var(--text-dim); margin: 0; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: 0.88rem; }
+  th, td { padding: 0.6rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-dim); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Callout ── */
+  .callout {
+    background: rgba(108,158,255,0.06);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 0.9rem 1.2rem;
+    margin: 1.2rem 0;
+  }
+  .callout p { margin: 0; font-size: 0.9rem; }
+
+  /* ── Footer ── */
+  .tab-footer {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    margin-top: 2rem;
+    border-top: 1px solid var(--border);
+  }
+  .tab-footer a { color: var(--accent); text-decoration: none; }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    header h1 { font-size: 1.4rem; }
+    .tab-btn { padding: 0.6rem 0.8rem; font-size: 0.8rem; }
+    .tab-panel { padding: 1.2rem; }
+    pre { font-size: 0.78rem; padding: 0.9rem; white-space: pre-wrap; word-break: break-all; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Genro Builders for Dummies</h1>
+  <p class="subtitle">Domain-specific grammars for structured output &mdash; define once, render anywhere</p>
+</header>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="why">Why</button>
+  <button class="tab-btn" data-tab="quickstart">Quick Start</button>
+  <button class="tab-btn" data-tab="grammar">Grammar</button>
+  <button class="tab-btn" data-tab="mainstorepattern">main / store</button>
+  <button class="tab-btn" data-tab="pointers">^Pointers</button>
+  <button class="tab-btn" data-tab="renderers">Renderers</button>
+  <button class="tab-btn" data-tab="compilers">Compilers</button>
+  <button class="tab-btn" data-tab="manager">Multi-Builder</button>
+  <button class="tab-btn" data-tab="compose">Composition</button>
+  <button class="tab-btn" data-tab="cheat">Cheat Sheet</button>
+</nav>
+
+<div class="tab-panels">
+
+<!-- ═══════════════════════ WHY ═══════════════════════ -->
+<div class="tab-panel active" id="tab-why">
+<div class="content">
+
+<h2>The Problem</h2>
+
+<p>You need to generate structured output &mdash; HTML pages, Markdown documents, XML files, configuration files, PDF reports. You start with string concatenation. Then templates. Then a DSL. Each project reinvents the same pattern: <em>define a structure, validate it, produce output.</em></p>
+
+<p>Worse: what if the same data needs to become HTML <em>and</em> PDF <em>and</em> a live widget tree? Now you have three generators that don't share anything.</p>
+
+<div class="callout">
+<p><strong>Genro Builders separates structure from output.</strong> You define a grammar (what tags exist, what can contain what), describe your content as a tree, and then render it to any format. One description, many outputs. And it's reactive &mdash; change the data, the output updates automatically.</p>
+</div>
+
+<div class="diagram">
+<svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">
+  <defs><marker id="a1" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8b90a0"/></marker></defs>
+
+  <rect x="250" y="15" width="220" height="55" rx="10" fill="#232733" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="360" y="38" text-anchor="middle" fill="#a78bfa" font-size="11" font-weight="600">GRAMMAR</text>
+  <text x="360" y="56" text-anchor="middle" fill="#8b90a0" font-size="10">@element &bull; @abstract &bull; @component</text>
+
+  <rect x="250" y="95" width="220" height="55" rx="10" fill="#232733" stroke="#6c9eff" stroke-width="1.5"/>
+  <text x="360" y="118" text-anchor="middle" fill="#6c9eff" font-size="11" font-weight="600">SOURCE</text>
+  <text x="360" y="136" text-anchor="middle" fill="#8b90a0" font-size="10">Your content tree + ^pointers</text>
+
+  <rect x="250" y="175" width="220" height="55" rx="10" fill="#232733" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="360" y="198" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="600">BUILT</text>
+  <text x="360" y="216" text-anchor="middle" fill="#8b90a0" font-size="10">Components expanded, pointers resolved</text>
+
+  <rect x="60" y="260" width="130" height="35" rx="8" fill="#232733" stroke="#fb923c" stroke-width="1"/>
+  <text x="125" y="282" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">HTML</text>
+  <rect x="215" y="260" width="130" height="35" rx="8" fill="#232733" stroke="#fb923c" stroke-width="1"/>
+  <text x="280" y="282" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">Markdown</text>
+  <rect x="370" y="260" width="130" height="35" rx="8" fill="#232733" stroke="#fb923c" stroke-width="1"/>
+  <text x="435" y="282" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">PDF</text>
+  <rect x="525" y="260" width="130" height="35" rx="8" fill="#232733" stroke="#22d3ee" stroke-width="1"/>
+  <text x="590" y="282" text-anchor="middle" fill="#22d3ee" font-size="10" font-weight="600">Live Widgets</text>
+
+  <line x1="360" y1="70" x2="360" y2="95" stroke="#8b90a0" stroke-width="1" marker-end="url(#a1)"/>
+  <line x1="360" y1="150" x2="360" y2="175" stroke="#8b90a0" stroke-width="1" marker-end="url(#a1)"/>
+  <path d="M 360 230 L 360 245 L 125 245 L 125 260" fill="none" stroke="#8b90a0" stroke-width="1" marker-end="url(#a1)"/>
+  <path d="M 360 230 L 360 245 L 280 245 L 280 260" fill="none" stroke="#8b90a0" stroke-width="1" marker-end="url(#a1)"/>
+  <path d="M 360 230 L 360 245 L 435 245 L 435 260" fill="none" stroke="#8b90a0" stroke-width="1" marker-end="url(#a1)"/>
+  <path d="M 360 230 L 360 245 L 590 245 L 590 260" fill="none" stroke="#8b90a0" stroke-width="1" marker-end="url(#a1)"/>
+
+  <text x="480" y="168" fill="#8b90a0" font-size="9">build()</text>
+  <text x="200" y="248" fill="#8b90a0" font-size="9">render()</text>
+  <text x="550" y="248" fill="#8b90a0" font-size="9">compile()</text>
+</svg>
+</div>
+
+<h3>When does this actually matter?</h3>
+
+<div class="cards">
+  <div class="card"><h4>Same data, many formats</h4><p>A report that needs to be HTML for the web, PDF for printing, and Markdown for documentation &mdash; from the same source tree.</p></div>
+  <div class="card"><h4>Validated structure</h4><p>The grammar catches mistakes at creation time: wrong children, missing required elements, cardinality violations. No broken output.</p></div>
+  <div class="card"><h4>Reactive output</h4><p>Change a data value after build &mdash; the output updates automatically. No manual re-rendering.</p></div>
+  <div class="card"><h4>Reusable components</h4><p><code class="il">@component</code> defines composite structures that expand lazily. A <em>login_form</em> always generates the right inputs.</p></div>
+  <div class="card"><h4>Domain-specific API</h4><p>Your code reads like the domain: <code class="il">menu.first_courses().pasta(name="Lasagne")</code> &mdash; not generic tree manipulation.</p></div>
+  <div class="card"><h4>Subclass = document</h4><p>Extend a builder, define <code class="il">main()</code> and <code class="il">store()</code> &mdash; your class <em>is</em> the document. Reusable, testable, composable.</p></div>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ QUICK START ═══════════════════════ -->
+<div class="tab-panel" id="tab-quickstart">
+<div class="content">
+
+<h2>Your First Builder in 30 Seconds</h2>
+
+<pre><code><span class="kw">from</span> genro_builders.builders <span class="kw">import</span> <span class="cls">MarkdownBuilder</span>
+
+builder = <span class="cls">MarkdownBuilder</span>()
+builder.source.<span class="fn">h1</span>(<span class="str">"My Document"</span>)
+builder.source.<span class="fn">p</span>(<span class="str">"A paragraph of text."</span>)
+builder.source.<span class="fn">h2</span>(<span class="str">"Code Example"</span>)
+builder.source.<span class="fn">code</span>(<span class="str">"print('hello')"</span>, lang=<span class="str">"python"</span>)
+
+builder.<span class="fn">build</span>()
+<span class="fn">print</span>(builder.output)</code></pre>
+
+<p>Output:</p>
+
+<pre><code># My Document
+
+A paragraph of text.
+
+## Code Example
+
+```python
+print('hello')
+```</code></pre>
+
+<div class="callout">
+<p><strong>Key insight:</strong> you never write output format strings. You call <code class="il">h1()</code>, <code class="il">p()</code>, <code class="il">code()</code> &mdash; the builder knows the grammar, the renderer knows the format. Swap <code class="il">MarkdownBuilder</code> for <code class="il">HtmlBuilder</code> and the same structure produces HTML.</p>
+</div>
+
+<h3>With a test</h3>
+
+<pre><code>builder = <span class="cls">MarkdownBuilder</span>()
+builder.source.<span class="fn">h1</span>(<span class="str">"Title"</span>)
+builder.<span class="fn">build</span>()
+<span class="kw">assert</span> <span class="str">"# Title"</span> <span class="kw">in</span> builder.output</code></pre>
+
+<p>No HTTP, no server, no mock. Just instantiate, populate, build, assert.</p>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ GRAMMAR ═══════════════════════ -->
+<div class="tab-panel" id="tab-grammar">
+<div class="content">
+
+<h2>The Three Decorators</h2>
+
+<p>A builder's grammar is defined with three decorators. Each decorator marks a method on the builder class:</p>
+
+<h3>@element &mdash; a pure tag</h3>
+
+<p>Declares that a tag exists and what it can contain. The body <strong>must be empty</strong> (<code class="il">...</code>).</p>
+
+<pre><code><span class="dec">@element</span>(sub_tags=<span class="str">""</span>)           <span class="cmt"># leaf: no children allowed</span>
+<span class="kw">def</span> <span class="fn">ingredient</span>(<span class="kw">self</span>): ...
+
+<span class="dec">@element</span>(sub_tags=<span class="str">"pasta, risotto"</span>)  <span class="cmt"># container: these children only</span>
+<span class="kw">def</span> <span class="fn">first_courses</span>(<span class="kw">self</span>): ...
+
+<span class="dec">@element</span>(sub_tags=<span class="str">"*"</span>)            <span class="cmt"># wildcard: any children</span>
+<span class="kw">def</span> <span class="fn">div</span>(<span class="kw">self</span>): ...</code></pre>
+
+<h3>@abstract &mdash; inheritance base</h3>
+
+<p>Cannot be used directly. Defines <code class="il">sub_tags</code> that concrete elements inherit.</p>
+
+<pre><code><span class="dec">@abstract</span>(sub_tags=<span class="str">"ingredient, note"</span>)
+<span class="kw">def</span> <span class="fn">base_dish</span>(<span class="kw">self</span>): ...
+
+<span class="dec">@element</span>(inherits_from=<span class="str">"@base_dish"</span>)   <span class="cmt"># inherits sub_tags</span>
+<span class="kw">def</span> <span class="fn">pasta</span>(<span class="kw">self</span>): ...</code></pre>
+
+<h3>@component &mdash; reusable structure</h3>
+
+<p>Has a body with logic. The body is <strong>NOT executed at call time</strong> &mdash; only during <code class="il">build()</code>, lazily.</p>
+
+<pre><code><span class="dec">@component</span>(sub_tags=<span class="str">""</span>)
+<span class="kw">def</span> <span class="fn">soffritto</span>(<span class="kw">self</span>, comp, **kw):
+    comp.<span class="fn">ingredient</span>(<span class="str">"onion"</span>)
+    comp.<span class="fn">ingredient</span>(<span class="str">"carrot"</span>)
+    comp.<span class="fn">ingredient</span>(<span class="str">"celery"</span>)</code></pre>
+
+<div class="callout">
+<p><strong>Lazy expansion</strong>: when you call <code class="il">source.soffritto()</code>, only a placeholder node is created. At <code class="il">build()</code> time, the body runs and the three ingredients appear. The source stays a clean "recipe" until materialization.</p>
+</div>
+
+<h3>sub_tags cardinality</h3>
+
+<table>
+  <tr><th>Syntax</th><th>Meaning</th></tr>
+  <tr><td><code class="il">""</code></td><td>Leaf &mdash; no children allowed</td></tr>
+  <tr><td><code class="il">"*"</code></td><td>Any children</td></tr>
+  <tr><td><code class="il">"a, b"</code></td><td>Only a and b (any count)</td></tr>
+  <tr><td><code class="il">"a[1]"</code></td><td>Exactly 1 of a</td></tr>
+  <tr><td><code class="il">"a[:2]"</code></td><td>0 to 2 of a</td></tr>
+  <tr><td><code class="il">"a[1:3]"</code></td><td>1 to 3 of a</td></tr>
+</table>
+
+<h3>Return value: leaf vs container</h3>
+
+<pre><code><span class="cmt"># h1 is leaf (sub_tags="") &rarr; returns PARENT &rarr; p is sibling</span>
+source.<span class="fn">h1</span>(<span class="str">"Title"</span>).<span class="fn">p</span>(<span class="str">"Subtitle"</span>)
+
+<span class="cmt"># div is container (sub_tags="*") &rarr; returns SELF &rarr; p is inside</span>
+div = source.<span class="fn">div</span>(id=<span class="str">"main"</span>)
+div.<span class="fn">p</span>(<span class="str">"Inside the div"</span>)</code></pre>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ MAIN / STORE ═══════════════════════ -->
+<div class="tab-panel" id="tab-mainstorepattern">
+<div class="content">
+
+<h2>The main() / store() Pattern</h2>
+
+<p>Instead of manipulating <code class="il">builder.source</code> from outside, you <strong>subclass</strong> the builder and define two callback methods. The framework calls them in the right order.</p>
+
+<pre><code><span class="kw">from</span> genro_builders.builders <span class="kw">import</span> <span class="cls">MarkdownBuilder</span>
+
+<span class="kw">class</span> <span class="cls">MonthlyReport</span>(<span class="cls">MarkdownBuilder</span>):
+    <span class="kw">def</span> <span class="fn">store</span>(<span class="kw">self</span>, data):
+        <span class="cmt"># Populate data. Called first.</span>
+        data[<span class="str">'title'</span>] = <span class="str">'January 2026 Report'</span>
+        data[<span class="str">'author'</span>] = <span class="str">'Giovanni'</span>
+
+    <span class="kw">def</span> <span class="fn">main</span>(<span class="kw">self</span>, source):
+        <span class="cmt"># Entry point: build the tree. Called after store().</span>
+        source.<span class="fn">h1</span>(value=<span class="str">'^title'</span>)
+        source.<span class="fn">p</span>(value=<span class="str">'^author'</span>)
+        <span class="kw">self</span>.<span class="fn">sections</span>(source)
+
+    <span class="kw">def</span> <span class="fn">sections</span>(<span class="kw">self</span>, source):
+        <span class="cmt"># Helper method &mdash; organize as you like</span>
+        source.<span class="fn">h2</span>(<span class="str">'Sales'</span>)
+        source.<span class="fn">p</span>(<span class="str">'Sales increased by 15%.'</span>)
+
+report = <span class="cls">MonthlyReport</span>()
+report.<span class="fn">build</span>()
+<span class="fn">print</span>(report.output)</code></pre>
+
+<div class="callout">
+<p><strong>The class IS the document.</strong> Subclass = reusable document template. <code class="il">main()</code> is the entry point, and you can split the work across helper methods. <code class="il">store()</code> sets up the data that <code class="il">^pointers</code> will resolve against.</p>
+</div>
+
+<h3>Both are optional</h3>
+
+<table>
+  <tr><th>What you define</th><th>What happens</th></tr>
+  <tr><td><code class="il">main()</code> only</td><td>Builds from main, data populated manually or via <code class="il">^pointer</code></td></tr>
+  <tr><td><code class="il">store()</code> only</td><td>Data populated, source populated manually from outside</td></tr>
+  <tr><td>Both</td><td><code class="il">store()</code> &rarr; <code class="il">main()</code> &rarr; build pipeline</td></tr>
+  <tr><td>Neither</td><td>Classic manual: <code class="il">builder.source.h1("...")</code> then <code class="il">build()</code></td></tr>
+</table>
+
+<h3>node_id: find nodes directly</h3>
+
+<pre><code><span class="kw">class</span> <span class="cls">MyPage</span>(<span class="cls">HtmlBuilder</span>):
+    <span class="kw">def</span> <span class="fn">main</span>(<span class="kw">self</span>, source):
+        source.<span class="fn">div</span>(node_id=<span class="str">'header'</span>).<span class="fn">h1</span>(<span class="str">'Title'</span>)
+        source.<span class="fn">div</span>(node_id=<span class="str">'content'</span>).<span class="fn">p</span>(<span class="str">'Body'</span>)
+
+page = <span class="cls">MyPage</span>()
+page.<span class="fn">build</span>()
+
+header = page.<span class="fn">node_by_id</span>(<span class="str">'header'</span>)   <span class="cmt"># O(1) dict lookup</span></code></pre>
+
+<p>Duplicate <code class="il">node_id</code> raises <code class="il">ValueError</code>.</p>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ POINTERS ═══════════════════════ -->
+<div class="tab-panel" id="tab-pointers">
+<div class="content">
+
+<h2>^Pointers: Data Binding</h2>
+
+<p>A <code class="il">^pointer</code> connects a node in the tree to a value in the data store. At <code class="il">build()</code> time, pointers are resolved. After build, changing the data triggers automatic re-rendering.</p>
+
+<pre><code>builder.data[<span class="str">'user'</span>] = <span class="str">'Giovanni'</span>
+builder.source.<span class="fn">h1</span>(value=<span class="str">'^user'</span>)
+builder.<span class="fn">build</span>()
+<span class="cmt"># h1 shows "Giovanni"</span>
+
+builder.data[<span class="str">'user'</span>] = <span class="str">'Marco'</span>
+<span class="cmt"># h1 automatically updates to "Marco"</span></code></pre>
+
+<h3>Three path forms</h3>
+
+<table>
+  <tr><th>Syntax</th><th>Type</th><th>Resolves to</th></tr>
+  <tr><td><code class="il">^user.name</code></td><td>Absolute</td><td><code class="il">data['user.name']</code></td></tr>
+  <tr><td><code class="il">^.name</code></td><td>Relative</td><td>From this node's <code class="il">datapath</code> ancestor chain</td></tr>
+  <tr><td><code class="il">^#header.title</code></td><td>Symbolic</td><td>Find <code class="il">node_id='header'</code>, use its datapath</td></tr>
+</table>
+
+<h3>Relative paths with datapath</h3>
+
+<pre><code>outer = source.<span class="fn">div</span>(datapath=<span class="str">'customer'</span>)
+outer.<span class="fn">p</span>(value=<span class="str">'^.name'</span>)      <span class="cmt"># resolves to ^customer.name</span>
+outer.<span class="fn">p</span>(value=<span class="str">'^.email'</span>)     <span class="cmt"># resolves to ^customer.email</span></code></pre>
+
+<h3>Symbolic paths with #node_id</h3>
+
+<pre><code>source.<span class="fn">div</span>(node_id=<span class="str">'addr'</span>, datapath=<span class="str">'customer.address'</span>)
+
+<span class="cmt"># Anywhere else in the tree:</span>
+source.<span class="fn">span</span>(value=<span class="str">'^#addr.street'</span>)  <span class="cmt"># resolves to ^customer.address.street</span></code></pre>
+
+<div class="callout">
+<p><strong>abs_datapath()</strong> resolves any form to absolute: <code class="il">node.abs_datapath('.name')</code> returns the full path. Works with absolute, relative, and symbolic paths.</p>
+</div>
+
+<h3>Attribute pointers</h3>
+
+<pre><code><span class="cmt"># Read attribute 'color' from data node 'theme.button'</span>
+source.<span class="fn">div</span>(bg=<span class="str">'^theme.button?color'</span>)</code></pre>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ RENDERERS ═══════════════════════ -->
+<div class="tab-panel" id="tab-renderers">
+<div class="content">
+
+<h2>Renderers: Serialized Output</h2>
+
+<p>A renderer transforms the built Bag into a string (HTML, Markdown, XML, etc.). It's "dead" output &mdash; no live objects, no reactivity in the result itself.</p>
+
+<h3>Two styles</h3>
+
+<pre><code><span class="kw">from</span> genro_builders.renderer <span class="kw">import</span> <span class="cls">BagRendererBase</span>, <span class="fn">renderer</span>
+
+<span class="kw">class</span> <span class="cls">MyRenderer</span>(<span class="cls">BagRendererBase</span>):
+
+    <span class="cmt"># Declarative: empty body + template</span>
+    <span class="dec">@renderer</span>(template=<span class="str">"# {node_value}"</span>)
+    <span class="kw">def</span> <span class="fn">h1</span>(<span class="kw">self</span>): ...
+
+    <span class="cmt"># Logic: method receives (self, node, ctx)</span>
+    <span class="dec">@renderer</span>()
+    <span class="kw">def</span> <span class="fn">table</span>(<span class="kw">self</span>, node, ctx):
+        lines = []
+        <span class="kw">for</span> row <span class="kw">in</span> node.value:
+            cells = [str(c.static_value) <span class="kw">for</span> c <span class="kw">in</span> row.value]
+            lines.append(<span class="str">"| "</span> + <span class="str">" | "</span>.join(cells) + <span class="str">" |"</span>)
+        <span class="kw">return</span> <span class="str">"\n"</span>.join(lines)</code></pre>
+
+<h3>Template variables</h3>
+
+<p>The context (<code class="il">ctx</code>) passed to handlers and templates contains:</p>
+
+<table>
+  <tr><th>Variable</th><th>Content</th></tr>
+  <tr><td><code class="il">{node_value}</code></td><td>The node's value as string</td></tr>
+  <tr><td><code class="il">{node_label}</code></td><td>The node's label</td></tr>
+  <tr><td><code class="il">{children}</code></td><td>Rendered children joined together</td></tr>
+  <tr><td><code class="il">{<em>any_attr</em>}</code></td><td>Any node attribute (e.g. <code class="il">{href}</code>, <code class="il">{lang}</code>)</td></tr>
+</table>
+
+<h3>Register on builder</h3>
+
+<pre><code><span class="kw">class</span> <span class="cls">MyBuilder</span>(<span class="cls">BagBuilderBase</span>):
+    _renderers = {<span class="str">'markdown'</span>: <span class="cls">MyRenderer</span>}</code></pre>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ COMPILERS ═══════════════════════ -->
+<div class="tab-panel" id="tab-compilers">
+<div class="content">
+
+<h2>Compilers: Live Objects</h2>
+
+<p>A compiler produces <em>live</em> objects &mdash; Textual widgets, openpyxl workbooks, GUI elements. Same concept as renderer, different output type.</p>
+
+<pre><code><span class="kw">from</span> genro_builders.compiler <span class="kw">import</span> <span class="cls">BagCompilerBase</span>, <span class="fn">compiler</span>
+
+<span class="kw">class</span> <span class="cls">TextualCompiler</span>(<span class="cls">BagCompilerBase</span>):
+
+    <span class="cmt"># Declarative: module + class to instantiate</span>
+    <span class="dec">@compiler</span>(module=<span class="str">"textual.widgets"</span>, cls=<span class="str">"Button"</span>)
+    <span class="kw">def</span> <span class="fn">button</span>(<span class="kw">self</span>): ...
+
+    <span class="cmt"># Logic: build the object manually</span>
+    <span class="dec">@compiler</span>()
+    <span class="kw">def</span> <span class="fn">datatable</span>(<span class="kw">self</span>, node, ctx):
+        <span class="kw">return</span> <span class="fn">build_datatable</span>(node)
+
+    <span class="kw">def</span> <span class="fn">compile</span>(<span class="kw">self</span>, built_bag):     <span class="cmt"># must override</span>
+        <span class="kw">return</span> <span class="fn">list</span>(<span class="kw">self</span>.<span class="fn">_walk_compile</span>(built_bag))</code></pre>
+
+<h3>Register on builder</h3>
+
+<pre><code><span class="kw">class</span> <span class="cls">MyBuilder</span>(<span class="cls">BagBuilderBase</span>):
+    _renderers  = {<span class="str">'html'</span>: <span class="cls">HtmlRenderer</span>}
+    _compilers  = {<span class="str">'textual'</span>: <span class="cls">TextualCompiler</span>}
+
+<span class="cmt"># Use:</span>
+builder.<span class="fn">build</span>()                       <span class="cmt"># build + render</span>
+html = builder.<span class="fn">render</span>()               <span class="cmt"># string output</span>
+widgets = builder.<span class="fn">compile</span>(name=<span class="str">'textual'</span>)  <span class="cmt"># live objects</span></code></pre>
+
+<div class="callout">
+<p><strong>render() = strings. compile() = objects.</strong> A builder can have both. Multiple renderers and compilers are supported &mdash; select by name.</p>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ MANAGER ═══════════════════════ -->
+<div class="tab-panel" id="tab-manager">
+<div class="content">
+
+<h2>BuilderManager: Multiple Builders, Shared Data</h2>
+
+<p>When you need the same data to produce different outputs (HTML + PDF, or page + sidebar), a <code class="il">BuilderManager</code> coordinates multiple builders with a shared data store.</p>
+
+<pre><code><span class="kw">from</span> genro_builders <span class="kw">import</span> <span class="cls">BuilderManager</span>
+
+<span class="kw">class</span> <span class="cls">MyReport</span>(<span class="cls">BuilderManager</span>):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="kw">self</span>):
+        <span class="kw">self</span>.html = <span class="kw">self</span>.<span class="fn">set_builder</span>(<span class="str">'html'</span>, <span class="cls">HtmlBuilder</span>)
+        <span class="kw">self</span>.pdf  = <span class="kw">self</span>.<span class="fn">set_builder</span>(<span class="str">'pdf'</span>, <span class="cls">PdfBuilder</span>)
+
+    <span class="kw">def</span> <span class="fn">store</span>(<span class="kw">self</span>, data):
+        <span class="cmt"># Shared data &mdash; all builders see this</span>
+        data[<span class="str">'title'</span>] = <span class="str">'Q1 Report'</span>
+        data[<span class="str">'author'</span>] = <span class="str">'Giovanni'</span>
+
+    <span class="kw">def</span> <span class="fn">main_html</span>(<span class="kw">self</span>, source):
+        source.<span class="fn">h1</span>(value=<span class="str">'^title'</span>)
+        source.<span class="fn">p</span>(value=<span class="str">'^author'</span>)
+
+    <span class="kw">def</span> <span class="fn">main_pdf</span>(<span class="kw">self</span>, source):
+        source.<span class="fn">title</span>(value=<span class="str">'^title'</span>)
+        source.<span class="fn">subtitle</span>(value=<span class="str">'^author'</span>)
+
+report = <span class="cls">MyReport</span>()
+report.<span class="fn">build</span>()  <span class="cmt"># store &rarr; main_html &rarr; main_pdf &rarr; build_all</span></code></pre>
+
+<h3>Data namespaces</h3>
+
+<table>
+  <tr><th>Pointer</th><th>Reads from</th></tr>
+  <tr><td><code class="il">^title</code></td><td>Shared store root</td></tr>
+  <tr><td><code class="il">^.subtitle</code></td><td>Builder's private namespace (<code class="il">builders.html.subtitle</code>)</td></tr>
+</table>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ COMPOSITION ═══════════════════════ -->
+<div class="tab-panel" id="tab-compose">
+<div class="content">
+
+<h2>Putting It All Together</h2>
+
+<p>A complete custom builder: grammar + renderer + subclass usage.</p>
+
+<pre><code><span class="kw">from</span> genro_builders <span class="kw">import</span> <span class="cls">BagBuilderBase</span>
+<span class="kw">from</span> genro_builders.builders <span class="kw">import</span> <span class="fn">element</span>, <span class="fn">component</span>
+<span class="kw">from</span> genro_builders.renderer <span class="kw">import</span> <span class="cls">BagRendererBase</span>, <span class="fn">renderer</span>
+
+
+<span class="cmt"># ── 1. Grammar ──</span>
+
+<span class="kw">class</span> <span class="cls">InvoiceBuilder</span>(<span class="cls">BagBuilderBase</span>):
+
+    <span class="dec">@element</span>(sub_tags=<span class="str">"line_item, note"</span>)
+    <span class="kw">def</span> <span class="fn">invoice</span>(<span class="kw">self</span>): ...
+
+    <span class="dec">@element</span>(sub_tags=<span class="str">""</span>)
+    <span class="kw">def</span> <span class="fn">line_item</span>(<span class="kw">self</span>, description: str, qty: int = <span class="num">1</span>,
+                  price: float = <span class="num">0</span>): ...
+
+    <span class="dec">@element</span>(sub_tags=<span class="str">""</span>)
+    <span class="kw">def</span> <span class="fn">note</span>(<span class="kw">self</span>): ...
+
+    <span class="dec">@component</span>(sub_tags=<span class="str">""</span>)
+    <span class="kw">def</span> <span class="fn">standard_footer</span>(<span class="kw">self</span>, comp, **kw):
+        comp.<span class="fn">note</span>(<span class="str">"Payment within 30 days"</span>)
+        comp.<span class="fn">note</span>(<span class="str">"VAT included"</span>)
+
+
+<span class="cmt"># ── 2. Renderer ──</span>
+
+<span class="kw">class</span> <span class="cls">InvoiceRenderer</span>(<span class="cls">BagRendererBase</span>):
+
+    <span class="dec">@renderer</span>(template=<span class="str">"=== INVOICE ===\n{children}"</span>)
+    <span class="kw">def</span> <span class="fn">invoice</span>(<span class="kw">self</span>): ...
+
+    <span class="dec">@renderer</span>()
+    <span class="kw">def</span> <span class="fn">line_item</span>(<span class="kw">self</span>, node, ctx):
+        <span class="kw">return</span> f<span class="str">"  {ctx['description']} x{ctx['qty']} @ EUR {ctx['price']}"</span>
+
+    <span class="dec">@renderer</span>(template=<span class="str">"  NOTE: {node_value}"</span>)
+    <span class="kw">def</span> <span class="fn">note</span>(<span class="kw">self</span>): ...
+
+<span class="cls">InvoiceBuilder</span>._renderers = {<span class="str">'text'</span>: <span class="cls">InvoiceRenderer</span>}
+
+
+<span class="cmt"># ── 3. Use ──</span>
+
+<span class="kw">class</span> <span class="cls">MyInvoice</span>(<span class="cls">InvoiceBuilder</span>):
+    <span class="kw">def</span> <span class="fn">store</span>(<span class="kw">self</span>, data):
+        data[<span class="str">'client'</span>] = <span class="str">'Acme Corp'</span>
+
+    <span class="kw">def</span> <span class="fn">main</span>(<span class="kw">self</span>, source):
+        inv = source.<span class="fn">invoice</span>()
+        inv.<span class="fn">line_item</span>(description=<span class="str">"Widget A"</span>, qty=<span class="num">10</span>, price=<span class="num">5.99</span>)
+        inv.<span class="fn">line_item</span>(description=<span class="str">"Widget B"</span>, qty=<span class="num">3</span>, price=<span class="num">12.50</span>)
+        inv.<span class="fn">standard_footer</span>()
+
+invoice = <span class="cls">MyInvoice</span>()
+invoice.<span class="fn">build</span>()
+<span class="fn">print</span>(invoice.output)</code></pre>
+
+<div class="diagram">
+<svg viewBox="0 0 720 180" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">
+  <defs><marker id="a2" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8b90a0"/></marker></defs>
+
+  <rect x="20" y="60" width="140" height="50" rx="10" fill="#232733" stroke="#a78bfa" stroke-width="1.5"/>
+  <text x="90" y="82" text-anchor="middle" fill="#a78bfa" font-size="10" font-weight="600">InvoiceBuilder</text>
+  <text x="90" y="98" text-anchor="middle" fill="#8b90a0" font-size="9">grammar</text>
+
+  <rect x="200" y="60" width="140" height="50" rx="10" fill="#232733" stroke="#fb923c" stroke-width="1.5"/>
+  <text x="270" y="82" text-anchor="middle" fill="#fb923c" font-size="10" font-weight="600">InvoiceRenderer</text>
+  <text x="270" y="98" text-anchor="middle" fill="#8b90a0" font-size="9">@renderer handlers</text>
+
+  <rect x="380" y="60" width="140" height="50" rx="10" fill="#232733" stroke="#6c9eff" stroke-width="1.5"/>
+  <text x="450" y="82" text-anchor="middle" fill="#6c9eff" font-size="10" font-weight="600">MyInvoice</text>
+  <text x="450" y="98" text-anchor="middle" fill="#8b90a0" font-size="9">store() + main()</text>
+
+  <rect x="560" y="60" width="140" height="50" rx="10" fill="#232733" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="630" y="82" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="600">output</text>
+  <text x="630" y="98" text-anchor="middle" fill="#8b90a0" font-size="9">text string</text>
+
+  <line x1="160" y1="85" x2="200" y2="85" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+  <line x1="340" y1="85" x2="380" y2="85" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+  <line x1="520" y1="85" x2="560" y2="85" stroke="#8b90a0" stroke-width="1" marker-end="url(#a2)"/>
+
+  <text x="175" y="78" fill="#8b90a0" font-size="8">registers</text>
+  <text x="350" y="78" fill="#8b90a0" font-size="8">extends</text>
+  <text x="533" y="78" fill="#8b90a0" font-size="8">build()</text>
+</svg>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════ CHEAT SHEET ═══════════════════════ -->
+<div class="tab-panel" id="tab-cheat">
+<div class="content">
+
+<h2>Cheat Sheet</h2>
+
+<h3>I want to&hellip;</h3>
+
+<table>
+  <tr><th>I want to&hellip;</th><th>How</th></tr>
+  <tr><td>Create a builder</td><td><code class="il">class MyBuilder(BagBuilderBase): ...</code></td></tr>
+  <tr><td>Define a tag</td><td><code class="il">@element(sub_tags="child1, child2")</code></td></tr>
+  <tr><td>Define a leaf tag</td><td><code class="il">@element(sub_tags="")</code></td></tr>
+  <tr><td>Define a wildcard container</td><td><code class="il">@element(sub_tags="*")</code></td></tr>
+  <tr><td>Inherit sub_tags from abstract</td><td><code class="il">@element(inherits_from="@base")</code></td></tr>
+  <tr><td>Create a reusable component</td><td><code class="il">@component(sub_tags="")</code> with body</td></tr>
+  <tr><td>Limit where a tag can go</td><td><code class="il">@element(parent_tags="ul,ol")</code></td></tr>
+  <tr><td>Limit children count</td><td><code class="il">sub_tags="item[1:3]"</code> (1 to 3)</td></tr>
+  <tr><td>Map multiple tags to one handler</td><td><code class="il">@element(tags="wine, beer, juice")</code></td></tr>
+  <tr><td>Bind a node to data</td><td><code class="il">source.h1(value='^title')</code></td></tr>
+  <tr><td>Use relative data path</td><td><code class="il">source.div(datapath='user').p(value='^.name')</code></td></tr>
+  <tr><td>Use symbolic data path</td><td><code class="il">source.span(value='^#header.title')</code></td></tr>
+  <tr><td>Identify a node for lookup</td><td><code class="il">source.div(node_id='header')</code></td></tr>
+  <tr><td>Find a node by id</td><td><code class="il">builder.node_by_id('header')</code></td></tr>
+  <tr><td>Resolve any path to absolute</td><td><code class="il">node.abs_datapath('.name')</code></td></tr>
+  <tr><td>Define a template renderer</td><td><code class="il">@renderer(template="# {node_value}")</code></td></tr>
+  <tr><td>Define a logic renderer</td><td><code class="il">@renderer()</code> + method body</td></tr>
+  <tr><td>Define a compiler handler</td><td><code class="il">@compiler(module="x", cls="Y")</code></td></tr>
+  <tr><td>Register renderer on builder</td><td><code class="il">_renderers = {'name': MyRenderer}</code></td></tr>
+  <tr><td>Register compiler on builder</td><td><code class="il">_compilers = {'name': MyCompiler}</code></td></tr>
+  <tr><td>Coordinate multiple builders</td><td>Subclass <code class="il">BuilderManager</code> + <code class="il">set_builder()</code></td></tr>
+  <tr><td>Set shared data (manager)</td><td>Override <code class="il">store(data)</code></td></tr>
+  <tr><td>Build each builder's source</td><td>Override <code class="il">main_html(source)</code>, <code class="il">main_pdf(source)</code>, etc.</td></tr>
+  <tr><td>Validate structure</td><td><code class="il">builder._check(bag)</code></td></tr>
+  <tr><td>Validate attribute types</td><td>Type hints + <code class="il">Annotated[str, Regex(...)]</code></td></tr>
+  <tr><td>Rebuild with new content</td><td><code class="il">builder.rebuild(main=my_func)</code></td></tr>
+</table>
+
+<h3>Pipeline summary</h3>
+
+<table>
+  <tr><th>Step</th><th>What happens</th></tr>
+  <tr><td><code class="il">store(data)</code></td><td>Populate the data Bag (optional)</td></tr>
+  <tr><td><code class="il">main(source)</code></td><td>Build the element tree (optional)</td></tr>
+  <tr><td><code class="il">build()</code></td><td>Expand @components, resolve ^pointers, register subscriptions</td></tr>
+  <tr><td><code class="il">render()</code></td><td>Produce string output via BagRendererBase</td></tr>
+  <tr><td><code class="il">compile()</code></td><td>Produce live objects via BagCompilerBase</td></tr>
+</table>
+
+<h3>Built-in builders</h3>
+
+<table>
+  <tr><th>Builder</th><th>Import</th><th>Output</th></tr>
+  <tr><td>HtmlBuilder</td><td><code class="il">from genro_builders.builders import HtmlBuilder</code></td><td>HTML5</td></tr>
+  <tr><td>MarkdownBuilder</td><td><code class="il">from genro_builders.builders import MarkdownBuilder</code></td><td>Markdown</td></tr>
+  <tr><td>XsdBuilder</td><td><code class="il">from genro_builders.builders.xsd import XsdBuilder</code></td><td>XML from XSD</td></tr>
+</table>
+
+<div class="tab-footer">
+  <strong>Genro Builders</strong> &mdash; Domain-specific grammars for structured output<br>
+  <a href="https://github.com/genropy/genro-builders">GitHub</a> &bull;
+  <a href="https://pypi.org/project/genro-builders/">PyPI</a> &bull;
+  <a href="https://genro-builders.readthedocs.io/">Docs</a>
+  <br><br>Apache License 2.0 &mdash; Softwell S.r.l.
+</div>
+
+</div>
+</div>
+
+</div><!-- /tab-panels -->
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// Copy buttons on code blocks
+document.querySelectorAll('pre').forEach(pre => {
+  const btn = document.createElement('button');
+  btn.className = 'copy-btn';
+  btn.textContent = 'Copy';
+  btn.addEventListener('click', () => {
+    const code = pre.querySelector('code');
+    const text = (code || pre).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  });
+  pre.appendChild(btn);
+});
+</script>
+
+</body>
+</html>

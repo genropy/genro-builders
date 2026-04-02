@@ -93,6 +93,36 @@ db.setting('localhost', node_label='host')
 db.setting(5432, node_label='port')
 ```
 
+## The `main()` / `store()` pattern
+
+Instead of populating the source manually, you can subclass a builder
+and define `main()` (entry point) and `store()` (data population):
+
+```python
+from genro_builders.builders import MarkdownBuilder
+
+class MyDoc(MarkdownBuilder):
+    def store(self, data):
+        data['title'] = 'Monthly Report'
+        data['author'] = 'Giovanni'
+
+    def main(self, source):
+        source.h1(value='^title')
+        source.p(value='^author')
+        self.sections(source)
+
+    def sections(self, source):
+        source.h2('Summary')
+        source.p('...')
+
+doc = MyDoc()
+doc.build()
+print(doc.output)
+```
+
+`store()` is called before `main()`. Both are optional — you can use
+either, both, or neither (populating the source manually).
+
 ## Reactive data binding
 
 Builders support `^pointer` syntax for reactive data binding. When data
@@ -100,22 +130,6 @@ changes, the output updates automatically:
 
 ```python
 from genro_builders.builders import HtmlBuilder
-from genro_builders.compiler import BagCompilerBase, compile_handler
-
-class MyCompiler(BagCompilerBase):
-    @compile_handler
-    def h1(self, node, ctx):
-        return f"<h1>{ctx['node_value']}</h1>"
-
-    @compile_handler
-    def p(self, node, ctx):
-        return f"<p>{ctx['node_value']}</p>"
-
-    def render(self, compiled_bag):
-        parts = list(self._walk_compile(compiled_bag))
-        return '\n'.join(p for p in parts if p)
-
-HtmlBuilder._compiler_class = MyCompiler
 
 builder = HtmlBuilder()
 builder.data['title'] = 'Hello'
@@ -124,15 +138,31 @@ builder.source.h1(value='^title')
 builder.source.p(value='^text')
 builder.build()
 print(builder.output)
-# <h1>Hello</h1>
-# <p>World</p>
 
 # Change data — output updates automatically
 builder.data['title'] = 'Updated'
 print(builder.output)
-# <h1>Updated</h1>
-# <p>World</p>
 ```
+
+## Node identification
+
+Assign a unique `node_id` to any element for direct access:
+
+```python
+from genro_builders.builders import HtmlBuilder
+
+class MyPage(HtmlBuilder):
+    def main(self, source):
+        source.div(node_id='header').h1('Title')
+        source.div(node_id='content').p('Body text')
+
+page = MyPage()
+page.build()
+
+header = page.node_by_id('header')   # O(1) lookup
+```
+
+Duplicate `node_id` values raise `ValueError`.
 
 ---
 

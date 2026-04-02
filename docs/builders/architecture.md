@@ -5,10 +5,10 @@
 ```{mermaid}
 flowchart TB
     A["HtmlBuilder()"] --> B[source Bag]
-    A --> C[compiled Bag]
+    A --> C[built Bag]
     A --> D[data Bag]
     A --> E[BindingManager]
-    A --> F[Compiler]
+    A --> F["Renderers / Compilers"]
     A --> G[Schema: 112 HTML tags]
 ```
 
@@ -31,13 +31,20 @@ flowchart TB
 | `@element(sub_tags='')` | BagNode | Leaf, no children |
 | `@element()` | BagNode | Leaf, no children |
 
-## compile() Flow
+## build() Flow
 
 ```{mermaid}
 flowchart TB
-    A["builder.compile()"] --> B[Expand components]
-    B --> C["Resolve ^pointers against data"]
-    C --> D[Register subscriptions in BindingManager]
-    D --> E["Render compiled Bag to output"]
-    E --> F["builder.output"]
+    A["store(data)"] --> B["main(source)"]
+    B --> C["build()"]
+    C --> D[Expand components]
+    D --> E["Resolve ^pointers against data"]
+    E --> F[Register subscriptions in BindingManager]
+    F --> G["render() or compile()"]
+    G --> H["builder.output"]
 ```
+
+- **store(data)** / **main(source)** — called if overridden by subclass
+- **build()** — materializes source into built Bag
+- **render()** — produces serialized output via `BagRendererBase`
+- **compile()** — produces live objects via `BagCompilerBase`

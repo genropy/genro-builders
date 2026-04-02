@@ -23,10 +23,11 @@ print(builder.output)
 
 ## Key Concepts
 
-- **BagBuilderBase** — Base class for defining grammars via `@element`, `@abstract`, and `@component` decorators. Owns the full pipeline: source, compiled, data, binding, compiler.
+- **BagBuilderBase** — Base class for defining grammars via `@element`, `@abstract`, and `@component` decorators. Owns the full pipeline: source, built, data, binding, renderers, compilers.
 - **BuilderBag** — A Bag extended with builder support. Calling methods like `.div()` or `.p()` creates validated nodes.
-- **BagCompilerBase** — Compiles a source Bag (expanding components, resolving `^pointers`) and renders output.
-- **BuilderManager** — Coordinates multiple builders with a shared data bus.
+- **BagRendererBase** — Transforms a built Bag into serialized output (strings, bytes) via `@renderer` handlers.
+- **BagCompilerBase** — Transforms a built Bag into live objects (widgets, workbooks) via `@compiler` handlers.
+- **BuilderManager** — Coordinates multiple builders with a shared data store.
 
 ## Built-in Builders
 
@@ -40,9 +41,14 @@ print(builder.output)
 
 Each builder owns a reactive pipeline:
 
-1. **Source** — Recipe with builder calls, unexpanded components, `^pointer` strings
-2. **Compiled** — Components expanded, `^pointers` resolved, subscriptions registered
-3. **Output** — Rendered by the compiler (HTML, Markdown, etc.)
+```text
+store(data)  →  main(source)  →  build()  →  render() / compile()  →  output
+```
+
+1. **store(data)** — optional: populate the data Bag
+2. **main(source)** — entry point: build the element tree with `@element`, `@component`, `^pointer` strings
+3. **build()** — materialize: expand components, resolve `^pointer` bindings, register subscriptions
+4. **render() / compile()** — produce serialized output (`BagRendererBase`) or live objects (`BagCompilerBase`)
 
 Data changes trigger automatic re-render via the `BindingManager` subscription map.
 
@@ -50,15 +56,15 @@ Data changes trigger automatic re-render via the `BindingManager` subscription m
 from genro_builders.builders import HtmlBuilder
 
 builder = HtmlBuilder()
-builder.data['page.title'] = 'Hello'
-builder.data['content.text'] = 'World'
-builder.source.h1(value='^page.title')
-builder.source.p(value='^content.text')
+builder.data['title'] = 'Hello'
+builder.data['text'] = 'World'
+builder.source.h1(value='^title')
+builder.source.p(value='^text')
 builder.build()
 print(builder.output)
 
 # Data changes trigger automatic re-render
-builder.data['page.title'] = 'Updated'
+builder.data['title'] = 'Updated'
 print(builder.output)
 ```
 

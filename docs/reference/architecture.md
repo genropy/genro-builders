@@ -236,20 +236,41 @@ classDiagram
         <<abstract>>
         +_class_schema: Bag
         +_schema_path: str
-        +_compiler_class: type
+        +_renderers: dict
+        +_compilers: dict
+        +_node_id_map: dict
+        +store(data)
+        +main(source)
+        +build() str
+        +render(name) str
+        +compile(name) Any
+        +node_by_id(id) BagNode
         +_add_element(bag, tag, ...)
         +_validate_sub_tags(node, info)
         +_validate_parent_tags(info, parent)
         +_check(bag) list
     }
 
+    class BagRendererBase {
+        <<abstract>>
+        +render(built_bag) str
+        +_walk_render(bag)
+        +default_render(node, ctx)
+    }
+
+    class BagCompilerBase {
+        <<abstract>>
+        +compile(built_bag) Any
+        +_walk_compile(bag)
+        +default_compile(node, ctx)
+    }
+
     class HtmlBuilder {
-        +_schema_path: Path
-        +_compile() str
+        +_renderers: HtmlRenderer
     }
 
     class MarkdownBuilder {
-        +_compiler_class: MarkdownCompiler
+        +_renderers: MarkdownRenderer
     }
 
     class XsdBuilder {
@@ -260,6 +281,8 @@ classDiagram
     BagBuilderBase <|-- HtmlBuilder
     BagBuilderBase <|-- MarkdownBuilder
     BagBuilderBase <|-- XsdBuilder
+    BagBuilderBase o-- BagRendererBase
+    BagBuilderBase o-- BagCompilerBase
 ```
 
 ## Serialization

@@ -2,9 +2,9 @@
 
 ## Elements
 
-| Name | Inherits | Sub Tags | Call Args | Compile | Documentation |
+| Name | Inherits | Sub Tags | Call Args | Render | Documentation |
 | --- | --- | --- | --- | --- | --- |
-| `blockquote` | - | - | `node_value` | `callback: _compile_blockquote` | Blockquote. |
+| `blockquote` | - | - | `node_value` | `@renderer (logic)` | Blockquote. |
 | `bold` | - | - | `node_value` | `template: **{node_value}**` | Bold text. |
 | `code` | - | - | `node_value, lang` | `template: \`\`\`{lang}\n{node_value}\n\`\`\`` | Code block with optional language. |
 | `h1` | - | - | `node_value` | `template: # {node_value}` | Level 1 heading. |
@@ -19,11 +19,11 @@
 | `italic` | - | - | `node_value` | `template: *{node_value}*` | Italic text. |
 | `li` | - | - | `node_value, idx` | - | List item. |
 | `link` | - | - | `node_value, href` | `template: [{node_value}]({href})` | Hyperlink. |
-| `ol` | - | `li` | - | `callback: _compile_ol` | Ordered list. |
+| `ol` | - | `li` | - | `@renderer (logic)` | Ordered list. |
 | `p` | - | - | `node_value` | - | Paragraph. |
-| `table` | - | `tr` | - | `callback: _compile_table` | Table container. |
+| `table` | - | `tr` | - | `@renderer (logic)` | Table container. |
 | `td` | - | - | `node_value` | - | Table data cell. |
 | `text` | - | - | `node_value` | - | Plain text. |
 | `th` | - | - | `node_value` | - | Table header cell. |
 | `tr` | - | `th,td` | - | - | Table row. |
-| `ul` | - | `li` | - | `callback: _compile_ul` | Unordered list. |
+| `ul` | - | `li` | - | `@renderer (logic)` | Unordered list. |
