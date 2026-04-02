@@ -164,10 +164,8 @@ class BuilderBagNode(BagNode):
         target_node = builder.node_by_id(node_id)
         target_datapath = target_node.attr.get("datapath", "")
 
-        if not target_datapath:
-            # Target node has no datapath — resolve its position
-            if hasattr(target_node, "_resolve_datapath"):
-                target_datapath = target_node._resolve_datapath()
+        if not target_datapath and hasattr(target_node, "_resolve_datapath"):
+            target_datapath = target_node._resolve_datapath()
 
         if rest:
             return f"{target_datapath}.{rest}" if target_datapath else rest

@@ -809,7 +809,7 @@ class BagBuilderBase(ABC):
     # Build / render / rebuild
     # -------------------------------------------------------------------------
 
-    def store(self, data: Bag) -> None:
+    def store(self, data: Bag) -> None:  # noqa: B027
         """Populate the data store. Override in subclass.
 
         Called by ``build()`` before ``main()``. Receives the data Bag.
@@ -818,7 +818,7 @@ class BagBuilderBase(ABC):
             data: The data Bag to populate.
         """
 
-    def main(self, source: BuilderBag) -> None:
+    def main(self, source: BuilderBag) -> None:  # noqa: B027
         """Entry point: populate the source Bag. Override in subclass.
 
         Called by ``build()`` after ``store()``. Receives the source Bag.
@@ -867,12 +867,17 @@ class BagBuilderBase(ABC):
         self._auto_compile = True
         return self._output
 
-    def render(self, built_bag: Bag | None = None, name: str | None = None) -> str:
+    def render(
+        self, built_bag: Bag | None = None, name: str | None = None,
+        output: Any = None,
+    ) -> str:
         """Render the built Bag to output string.
 
         Args:
             built_bag: The built Bag to render. Defaults to self.built.
             name: Renderer name. If None and only one renderer, uses that.
+            output: Optional destination (file path, stream, etc.).
+                Interpretation depends on the renderer implementation.
 
         Returns:
             Rendered output string.
@@ -881,7 +886,7 @@ class BagBuilderBase(ABC):
             built_bag = self.built
         instance = self._get_output("renderer", self._renderer_instances, name)
         if instance is not None:
-            return instance.render(built_bag)
+            return instance.render(built_bag, output=output)
         # Legacy fallback: _compiler_instance
         if self._compiler_instance is not None:
             if hasattr(self._compiler_instance, "render"):
@@ -892,12 +897,17 @@ class BagBuilderBase(ABC):
             f"{type(self).__name__} has no renderer or compiler for rendering."
         )
 
-    def compile(self, built_bag: Bag | None = None, name: str | None = None) -> Any:
+    def compile(
+        self, built_bag: Bag | None = None, name: str | None = None,
+        target: Any = None,
+    ) -> Any:
         """Compile the built Bag into live objects.
 
         Args:
             built_bag: The built Bag to compile. Defaults to self.built.
             name: Compiler name. If None and only one compiler, uses that.
+            target: Optional target (parent widget, container, etc.).
+                Interpretation depends on the compiler implementation.
 
         Returns:
             Compiled output (type depends on compiler).
@@ -906,7 +916,7 @@ class BagBuilderBase(ABC):
             built_bag = self.built
         instance = self._get_output("compiler", self._compiler_instances, name)
         if instance is not None:
-            return instance.compile(built_bag)
+            return instance.compile(built_bag, target=target)
         raise RuntimeError(
             f"{type(self).__name__} has no compiler registered."
         )
@@ -939,9 +949,8 @@ class BagBuilderBase(ABC):
         # In standalone mode, source has its own builder with its own map
         if hasattr(self, "_source_shell"):
             source_builder = self.source._builder
-            if source_builder is not None and source_builder is not self:
-                if node_id in source_builder._node_id_map:
-                    return source_builder._node_id_map[node_id]
+            if source_builder is not None and source_builder is not self and node_id in source_builder._node_id_map:  # noqa: SIM102
+                return source_builder._node_id_map[node_id]
         raise KeyError(f"No node with node_id '{node_id}'") from None
 
     def _get_output(self, kind: str, registry: dict[str, Any], name: str | None) -> Any:

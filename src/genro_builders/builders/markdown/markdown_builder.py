@@ -183,7 +183,7 @@ class MarkdownBuilder(BagBuilderBase):
 class MarkdownRenderer(BagRendererBase):
     """Renderer for Markdown documents."""
 
-    def render(self, built_bag: Bag) -> str:
+    def render(self, built_bag: Bag, output: Any = None) -> str:
         """Render built bag to Markdown string."""
         parts = list(self._walk_render(built_bag))
         return "\n\n".join(p for p in parts if p)

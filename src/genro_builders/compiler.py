@@ -19,7 +19,7 @@ Example:
     ...     def datatable(self, node, ctx):  # logic
     ...         return build_datatable(node)
     ...
-    ...     def compile(self, built_bag):
+    ...     def compile(self, built_bag, target=None):
     ...         return list(self._walk_compile(built_bag))
 """
 from __future__ import annotations
@@ -130,8 +130,14 @@ class BagCompilerBase(ABC):
     # Compilation (subclass must override)
     # -------------------------------------------------------------------------
 
-    def compile(self, built_bag: Bag) -> Any:
-        """Transform built Bag into live objects. Subclass must override."""
+    def compile(self, built_bag: Bag, target: Any = None) -> Any:
+        """Transform built Bag into live objects. Subclass must override.
+
+        Args:
+            built_bag: The built Bag to compile.
+            target: Optional target (parent widget, container, etc.).
+                Interpretation depends on the subclass.
+        """
         raise NotImplementedError
 
     # -------------------------------------------------------------------------

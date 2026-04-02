@@ -23,6 +23,8 @@ Example:
 
 from __future__ import annotations
 
+from typing import Any
+
 from genro_bag import Bag, BagNode
 
 from ...builder import BagBuilderBase
@@ -33,7 +35,7 @@ from .html5_elements import Html5Elements
 class HtmlRenderer(BagRendererBase):
     """Renderer for HTML5 documents."""
 
-    def render(self, built_bag: Bag) -> str:
+    def render(self, built_bag: Bag, output: Any = None) -> str:
         """Render the built Bag to HTML string."""
         lines = []
         for node in built_bag:

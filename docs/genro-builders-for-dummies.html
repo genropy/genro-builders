@@ -322,41 +322,78 @@
 
 <h2>Your First Builder in 30 Seconds</h2>
 
-<pre><code><span class="kw">from</span> genro_builders.builders <span class="kw">import</span> <span class="cls">MarkdownBuilder</span>
+<p>A contact list page &mdash; with a loop, because that's where builders shine over templates:</p>
 
-builder = <span class="cls">MarkdownBuilder</span>()
-builder.source.<span class="fn">h1</span>(<span class="str">"My Document"</span>)
-builder.source.<span class="fn">p</span>(<span class="str">"A paragraph of text."</span>)
-builder.source.<span class="fn">h2</span>(<span class="str">"Code Example"</span>)
-builder.source.<span class="fn">code</span>(<span class="str">"print('hello')"</span>, lang=<span class="str">"python"</span>)
+<pre><code><span class="kw">from</span> genro_builders.builders <span class="kw">import</span> <span class="cls">HtmlBuilder</span>
+
+contacts = [
+    (<span class="str">"Giovanni"</span>, <span class="str">"giovanni@example.com"</span>),
+    (<span class="str">"Maria"</span>, <span class="str">"maria@example.com"</span>),
+    (<span class="str">"Luca"</span>, <span class="str">"luca@example.com"</span>),
+]
+
+builder = <span class="cls">HtmlBuilder</span>()
+body = builder.source.<span class="fn">body</span>()
+body.<span class="fn">h1</span>(<span class="str">"Contacts"</span>)
+
+table = body.<span class="fn">table</span>()
+header = table.<span class="fn">tr</span>()
+header.<span class="fn">th</span>(<span class="str">"Name"</span>)
+header.<span class="fn">th</span>(<span class="str">"Email"</span>)
+
+<span class="kw">for</span> name, email <span class="kw">in</span> contacts:
+    tr = table.<span class="fn">tr</span>()
+    tr.<span class="fn">td</span>(name)
+    tr.<span class="fn">td</span>(email)
 
 builder.<span class="fn">build</span>()
 <span class="fn">print</span>(builder.output)</code></pre>
 
 <p>Output:</p>
 
-<pre><code># My Document
-
-A paragraph of text.
-
-## Code Example
-
-```python
-print('hello')
-```</code></pre>
+<pre><code>&lt;body&gt;
+  &lt;h1&gt;Contacts&lt;/h1&gt;
+  &lt;table&gt;
+    &lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Email&lt;/th&gt;&lt;/tr&gt;
+    &lt;tr&gt;&lt;td&gt;Giovanni&lt;/td&gt;&lt;td&gt;giovanni@example.com&lt;/td&gt;&lt;/tr&gt;
+    &lt;tr&gt;&lt;td&gt;Maria&lt;/td&gt;&lt;td&gt;maria@example.com&lt;/td&gt;&lt;/tr&gt;
+    &lt;tr&gt;&lt;td&gt;Luca&lt;/td&gt;&lt;td&gt;luca@example.com&lt;/td&gt;&lt;/tr&gt;
+  &lt;/table&gt;
+&lt;/body&gt;</code></pre>
 
 <div class="callout">
-<p><strong>Key insight:</strong> you never write output format strings. You call <code class="il">h1()</code>, <code class="il">p()</code>, <code class="il">code()</code> &mdash; the builder knows the grammar, the renderer knows the format. Swap <code class="il">MarkdownBuilder</code> for <code class="il">HtmlBuilder</code> and the same structure produces HTML.</p>
+<p><strong>Key insight:</strong> this is plain Python &mdash; loops, conditionals, variables. No template language, no string concatenation. The builder validates the structure as you go: <code class="il">th</code> can only go inside <code class="il">tr</code>, <code class="il">tr</code> can only go inside <code class="il">table</code>. Try putting a <code class="il">td</code> directly in <code class="il">body</code> and you get an error immediately.</p>
 </div>
 
-<h3>With a test</h3>
+<h3>As a reusable class</h3>
 
-<pre><code>builder = <span class="cls">MarkdownBuilder</span>()
-builder.source.<span class="fn">h1</span>(<span class="str">"Title"</span>)
-builder.<span class="fn">build</span>()
-<span class="kw">assert</span> <span class="str">"# Title"</span> <span class="kw">in</span> builder.output</code></pre>
+<pre><code><span class="kw">class</span> <span class="cls">ContactPage</span>(<span class="cls">HtmlBuilder</span>):
+    <span class="kw">def</span> <span class="fn">store</span>(<span class="kw">self</span>, data):
+        data[<span class="str">'contacts'</span>] = [
+            {<span class="str">'name'</span>: <span class="str">'Giovanni'</span>, <span class="str">'email'</span>: <span class="str">'giovanni@example.com'</span>},
+            {<span class="str">'name'</span>: <span class="str">'Maria'</span>, <span class="str">'email'</span>: <span class="str">'maria@example.com'</span>},
+        ]
 
-<p>No HTTP, no server, no mock. Just instantiate, populate, build, assert.</p>
+    <span class="kw">def</span> <span class="fn">main</span>(<span class="kw">self</span>, source):
+        body = source.<span class="fn">body</span>()
+        body.<span class="fn">h1</span>(<span class="str">"Contacts"</span>)
+        <span class="kw">self</span>.<span class="fn">contact_table</span>(body)
+
+    <span class="kw">def</span> <span class="fn">contact_table</span>(<span class="kw">self</span>, parent):
+        table = parent.<span class="fn">table</span>()
+        header = table.<span class="fn">tr</span>()
+        header.<span class="fn">th</span>(<span class="str">"Name"</span>)
+        header.<span class="fn">th</span>(<span class="str">"Email"</span>)
+        <span class="kw">for</span> c <span class="kw">in</span> <span class="kw">self</span>.data[<span class="str">'contacts'</span>]:
+            tr = table.<span class="fn">tr</span>()
+            tr.<span class="fn">td</span>(c[<span class="str">'name'</span>])
+            tr.<span class="fn">td</span>(c[<span class="str">'email'</span>])
+
+page = <span class="cls">ContactPage</span>()
+page.<span class="fn">build</span>()
+<span class="fn">print</span>(page.output)</code></pre>
+
+<p>Same output &mdash; but now the page is a class you can subclass, test, and reuse. Change the data, rebuild, get a different page.</p>
 
 </div>
 </div>
@@ -610,7 +647,7 @@ source.<span class="fn">div</span>(bg=<span class="str">'^theme.button?color'</s
     <span class="kw">def</span> <span class="fn">datatable</span>(<span class="kw">self</span>, node, ctx):
         <span class="kw">return</span> <span class="fn">build_datatable</span>(node)
 
-    <span class="kw">def</span> <span class="fn">compile</span>(<span class="kw">self</span>, built_bag):     <span class="cmt"># must override</span>
+    <span class="kw">def</span> <span class="fn">compile</span>(<span class="kw">self</span>, built_bag, target=<span class="kw">None</span>):  <span class="cmt"># must override</span>
         <span class="kw">return</span> <span class="fn">list</span>(<span class="kw">self</span>.<span class="fn">_walk_compile</span>(built_bag))</code></pre>
 
 <h3>Register on builder</h3>
@@ -622,7 +659,9 @@ source.<span class="fn">div</span>(bg=<span class="str">'^theme.button?color'</s
 <span class="cmt"># Use:</span>
 builder.<span class="fn">build</span>()                       <span class="cmt"># build + render</span>
 html = builder.<span class="fn">render</span>()               <span class="cmt"># string output</span>
-widgets = builder.<span class="fn">compile</span>(name=<span class="str">'textual'</span>)  <span class="cmt"># live objects</span></code></pre>
+html = builder.<span class="fn">render</span>(output=<span class="str">'page.html'</span>)  <span class="cmt"># with destination</span>
+widgets = builder.<span class="fn">compile</span>(name=<span class="str">'textual'</span>)  <span class="cmt"># live objects</span>
+widgets = builder.<span class="fn">compile</span>(name=<span class="str">'textual'</span>, target=container)  <span class="cmt"># with target</span></code></pre>
 
 <div class="callout">
 <p><strong>render() = strings. compile() = objects.</strong> A builder can have both. Multiple renderers and compilers are supported &mdash; select by name.</p>
@@ -802,6 +841,8 @@ invoice.<span class="fn">build</span>()
   <tr><td>Define a compiler handler</td><td><code class="il">@compiler(module="x", cls="Y")</code></td></tr>
   <tr><td>Register renderer on builder</td><td><code class="il">_renderers = {'name': MyRenderer}</code></td></tr>
   <tr><td>Register compiler on builder</td><td><code class="il">_compilers = {'name': MyCompiler}</code></td></tr>
+  <tr><td>Render to a file/stream</td><td><code class="il">builder.render(output='page.html')</code></td></tr>
+  <tr><td>Compile with a target container</td><td><code class="il">builder.compile(target=parent_widget)</code></td></tr>
   <tr><td>Coordinate multiple builders</td><td>Subclass <code class="il">BuilderManager</code> + <code class="il">set_builder()</code></td></tr>
   <tr><td>Set shared data (manager)</td><td>Override <code class="il">store(data)</code></td></tr>
   <tr><td>Build each builder's source</td><td>Override <code class="il">main_html(source)</code>, <code class="il">main_pdf(source)</code>, etc.</td></tr>

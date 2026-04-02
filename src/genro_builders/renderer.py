@@ -18,7 +18,7 @@ Example:
     ...     def table(self, node, ctx):  # logic — method is the handler
     ...         return render_table(node)
     ...
-    ...     def render(self, built_bag):
+    ...     def render(self, built_bag, output=None):
     ...         parts = list(self._walk_render(built_bag))
     ...         return '\\n\\n'.join(p for p in parts if p)
 """
@@ -131,11 +131,16 @@ class BagRendererBase(ABC):
     # Rendering
     # -------------------------------------------------------------------------
 
-    def render(self, built_bag: Bag) -> str:
+    def render(self, built_bag: Bag, output: Any = None) -> str:
         """Render the built Bag to output string.
 
         Default implementation walks the bag and joins parts with newlines.
         Override for custom assembly logic.
+
+        Args:
+            built_bag: The built Bag to render.
+            output: Optional destination (file path, stream, etc.).
+                Interpretation depends on the subclass.
         """
         parts = list(self._walk_render(built_bag))
         return "\n".join(p for p in parts if p)
