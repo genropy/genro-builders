@@ -1308,138 +1308,108 @@ class TestBuilderCompile:
 # =============================================================================
 
 
-class TestCompileKwargs:
-    """Tests for compile_kwargs in @element and @abstract decorators."""
+class TestMeta:
+    """Tests for _meta in @element and @abstract decorators."""
 
-    def test_element_compile_kwargs_dict(self):
-        """@element with compile_kwargs dict stores in schema."""
+    def test_element_meta_dict(self):
+        """@element with _meta dict stores in schema."""
 
         class Builder(BagBuilderBase):
-            @element(compile_kwargs={"module": "textual.containers", "class": "Vertical"})
+            @element(_meta={"compile_module": "textual.containers", "compile_class": "Vertical"})
             def vertical(self): ...
 
         info = Builder._class_schema.get_attr("vertical")
-        assert info["compile_kwargs"] == {"module": "textual.containers", "class": "Vertical"}
+        assert info["_meta"] == {"compile_module": "textual.containers", "compile_class": "Vertical"}
 
-    def test_element_compile_separate_params(self):
-        """@element with compile_* params extracts and merges."""
-
-        class Builder(BagBuilderBase):
-            @element(compile_module="textual.widgets", compile_class="Button")
-            def button(self): ...
-
-        info = Builder._class_schema.get_attr("button")
-        assert info["compile_kwargs"] == {"module": "textual.widgets", "class": "Button"}
-
-    def test_element_compile_mixed(self):
-        """@element with both compile_kwargs and compile_* params merges."""
+    def test_abstract_meta(self):
+        """@abstract with _meta stores in schema."""
 
         class Builder(BagBuilderBase):
-            @element(
-                compile_kwargs={"module": "textual.containers"},
-                compile_class="Horizontal",
-            )
-            def horizontal(self): ...
-
-        info = Builder._class_schema.get_attr("horizontal")
-        assert info["compile_kwargs"] == {"module": "textual.containers", "class": "Horizontal"}
-
-    def test_abstract_compile_kwargs(self):
-        """@abstract with compile_* params stores in schema."""
-
-        class Builder(BagBuilderBase):
-            @abstract(sub_tags="child", compile_module="textual.containers")
+            @abstract(sub_tags="child", _meta={"compile_module": "textual.containers"})
             def base_container(self): ...
 
         info = Builder._class_schema.get_attr("@base_container")
-        assert info["compile_kwargs"] == {"module": "textual.containers"}
+        assert info["_meta"] == {"compile_module": "textual.containers"}
 
-    def test_inherits_compile_kwargs_merge(self):
-        """Element inherits and merges compile_kwargs from abstract."""
+    def test_inherits_meta_merge(self):
+        """Element inherits and merges _meta from abstract."""
 
         class Builder(BagBuilderBase):
-            @abstract(sub_tags="child", compile_module="textual.containers")
+            @abstract(sub_tags="child", _meta={"compile_module": "textual.containers"})
             def base_container(self): ...
 
-            @element(inherits_from="@base_container", compile_class="Vertical")
+            @element(inherits_from="@base_container", _meta={"compile_class": "Vertical"})
             def vertical(self): ...
 
         bag = Bag(builder=Builder)
         info = bag.builder._get_schema_info("vertical")
 
-        # Should have merged: module from abstract + class from element
-        assert info["compile_kwargs"] == {"module": "textual.containers", "class": "Vertical"}
+        assert info["_meta"] == {"compile_module": "textual.containers", "compile_class": "Vertical"}
 
-    def test_inherits_compile_kwargs_override(self):
-        """Element can override inherited compile_kwargs values."""
+    def test_inherits_meta_override(self):
+        """Element can override inherited _meta values."""
 
         class Builder(BagBuilderBase):
             @abstract(
                 sub_tags="child",
-                compile_module="textual.containers",
-                compile_class="Container",
+                _meta={"compile_module": "textual.containers", "compile_class": "Container"},
             )
             def base_container(self): ...
 
-            @element(inherits_from="@base_container", compile_class="Vertical")
+            @element(inherits_from="@base_container", _meta={"compile_class": "Vertical"})
             def vertical(self): ...
 
         bag = Bag(builder=Builder)
         info = bag.builder._get_schema_info("vertical")
 
-        # class should be overridden, module inherited
-        assert info["compile_kwargs"]["module"] == "textual.containers"
-        assert info["compile_kwargs"]["class"] == "Vertical"
+        assert info["_meta"]["compile_module"] == "textual.containers"
+        assert info["_meta"]["compile_class"] == "Vertical"
 
-    def test_element_without_compile_kwargs(self):
-        """Element without compile_kwargs has no compile_kwargs in schema."""
+    def test_element_without_meta(self):
+        """Element without _meta has no _meta in schema."""
 
         class Builder(BagBuilderBase):
             @element()
             def simple(self): ...
 
         info = Builder._class_schema.get_attr("simple")
-        assert "compile_kwargs" not in info or info.get("compile_kwargs") is None
+        assert "_meta" not in info or info.get("_meta") is None
+
+    def test_meta_with_mixed_keys(self):
+        """_meta can contain any keys for any output."""
+
+        class Builder(BagBuilderBase):
+            @element(_meta={
+                "compile_class": "Container",
+                "renderer_svg_style": "rounded",
+                "pdf_page_break": True,
+            })
+            def section(self): ...
+
+        info = Builder._class_schema.get_attr("section")
+        assert info["_meta"]["compile_class"] == "Container"
+        assert info["_meta"]["renderer_svg_style"] == "rounded"
+        assert info["_meta"]["pdf_page_break"] is True
 
 
-class TestSchemaBuilderCompileKwargs:
-    """Tests for compile_kwargs in SchemaBuilder.item()."""
+class TestSchemaBuilderMeta:
+    """Tests for _meta in SchemaBuilder.item()."""
 
-    def test_schema_builder_item_compile_kwargs_dict(self):
-        """SchemaBuilder.item() with compile_kwargs dict stores in schema."""
+    def test_schema_builder_item_meta_dict(self):
+        """SchemaBuilder.item() with _meta dict stores in schema."""
         schema = Bag(builder=SchemaBuilder)
-        schema.builder.item("widget", compile_kwargs={"module": "textual.widgets", "class": "Button"})
+        schema.builder.item("widget", _meta={"compile_module": "textual.widgets", "compile_class": "Button"})
 
         info = schema.get_attr("widget")
-        assert info["compile_kwargs"] == {"module": "textual.widgets", "class": "Button"}
+        assert info["_meta"] == {"compile_module": "textual.widgets", "compile_class": "Button"}
 
-    def test_schema_builder_item_compile_separate_params(self):
-        """SchemaBuilder.item() with compile_* params extracts and merges."""
-        schema = Bag(builder=SchemaBuilder)
-        schema.builder.item("container", compile_module="textual.containers", compile_class="Vertical")
-
-        info = schema.get_attr("container")
-        assert info["compile_kwargs"] == {"module": "textual.containers", "class": "Vertical"}
-
-    def test_schema_builder_item_compile_mixed(self):
-        """SchemaBuilder.item() with both compile_kwargs and compile_* params merges."""
-        schema = Bag(builder=SchemaBuilder)
-        schema.builder.item(
-            "horizontal",
-            compile_kwargs={"module": "textual.containers"},
-            compile_class="Horizontal",
-        )
-
-        info = schema.get_attr("horizontal")
-        assert info["compile_kwargs"] == {"module": "textual.containers", "class": "Horizontal"}
-
-    def test_schema_builder_item_without_compile_kwargs(self):
-        """SchemaBuilder.item() without compile_kwargs has no compile_kwargs."""
+    def test_schema_builder_item_without_meta(self):
+        """SchemaBuilder.item() without _meta has no _meta."""
         schema = Bag(builder=SchemaBuilder)
         schema.builder.item("simple", sub_tags="child")
 
         info = schema.get_attr("simple")
-        assert "compile_kwargs" not in info or info.get("compile_kwargs") is None
+        assert "_meta" not in info or info.get("_meta") is None
 
 
 # =============================================================================
@@ -1567,18 +1537,18 @@ class TestSchemaToMd:
         assert "## Elements" in md
         assert "`div`" in md
 
-    def test_schema_to_md_with_compile_kwargs(self):
-        """schema_to_md() shows compile_kwargs."""
+    def test_schema_to_md_with_meta(self):
+        """schema_to_md() shows _meta."""
 
         class Builder(BagBuilderBase):
-            @element(compile_module="textual.widgets", compile_class="Button")
+            @element(_meta={"compile_module": "textual.widgets", "compile_class": "Button"})
             def button(self): ...
 
         bag = Bag(builder=Builder)
         md = bag.builder._schema_to_md()
 
-        assert "module: textual.widgets" in md
-        assert "class: Button" in md
+        assert "compile_module: textual.widgets" in md
+        assert "compile_class: Button" in md
 
     def test_schema_to_md_custom_title(self):
         """schema_to_md() accepts custom title."""
@@ -1997,7 +1967,7 @@ class TestRenderValue:
         """_render_value calls compile_callback to modify context."""
 
         class Builder(BagBuilderBase):
-            @element(compile_callback="uppercase_value")
+            @element(_meta={"callback": "uppercase_value"})
             def loud(self): ...
 
             def uppercase_value(self, ctx):
@@ -2015,7 +1985,7 @@ class TestRenderValue:
         """_render_value applies compile_format from schema."""
 
         class Builder(BagBuilderBase):
-            @element(compile_format="[{}]")
+            @element(_meta={"format": "[{}]"})
             def bracketed(self): ...
 
         bag = Bag(builder=Builder)

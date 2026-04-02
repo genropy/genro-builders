@@ -48,15 +48,13 @@ sub_tags cardinality syntax (when not "*"):
     foo[:2]  -> 0 to 2
     foo[1:3] -> 1 to 3
 
-compile_* parameters:
-    Both @element and @abstract support compile_* parameters for code generation.
-    Parameters can be passed as:
-    - compile_kwargs dict: compile_kwargs={'module': 'x', 'class': 'Y'}
-    - Individual kwargs: compile_module='x', compile_class='Y'
-    - Mixed: both approaches are merged (individual kwargs override dict)
+_meta parameter:
+    All decorators (@element, @abstract, @component) accept a ``_meta`` dict
+    for storing arbitrary metadata used by renderers and compilers:
+        _meta={'compile_class': 'Container', 'renderer_svg_style': 'rounded'}
 
-    When using inherits_from, compile_kwargs are inherited from the abstract
-    and merged with the element's own compile_kwargs (element overrides abstract).
+    When using inherits_from, _meta is inherited from the abstract
+    and merged with the element's own _meta (element overrides abstract).
 
 Constraint classes for use with Annotated:
     Regex: regex pattern for strings
@@ -138,8 +136,8 @@ SchemaBuilder Example:
     >>> from genro_builders.builders import SchemaBuilder
     >>>
     >>> schema = BuilderBag(builder=SchemaBuilder)
-    >>> schema.item('@container', sub_tags='child', compile_module='textual.containers')
-    >>> schema.item('vertical', inherits_from='@container', compile_class='Vertical')
+    >>> schema.item('@container', sub_tags='child', _meta={'compile_module': 'textual.containers'})
+    >>> schema.item('vertical', inherits_from='@container', _meta={'compile_class': 'Vertical'})
     >>> schema.item('br', sub_tags='')  # void element
     >>> schema.builder._compile('schema.msgpack')
 """
@@ -209,8 +207,7 @@ def element(
     sub_tags: str | tuple[str, ...] | None = None,
     parent_tags: str | None = None,
     inherits_from: str | None = None,
-    compile_kwargs: dict[str, Any] | None = None,
-    **kwargs: Any,
+    _meta: dict[str, Any] | None = None,
 ) -> Callable:
     """Decorator to mark a method as element handler.
 
@@ -224,9 +221,8 @@ def element(
         parent_tags: Valid parent tags (comma-separated). If specified,
             element can only be placed inside one of these parents.
         inherits_from: Abstract element name to inherit sub_tags from.
-        compile_kwargs: Dict of compilation parameters (module, class, etc.).
-        **kwargs: Additional compile_* parameters are extracted and merged
-            into compile_kwargs. E.g., compile_module='x' -> {'module': 'x'}.
+        _meta: Dict of metadata for renderers/compilers (e.g.
+            compile_class, compile_module, renderer_svg_style).
 
     Example:
         @element(sub_tags='header,content[],footer')
@@ -234,20 +230,13 @@ def element(
 
         @element(
             sub_tags='child',
-            compile_kwargs={'module': 'textual.containers'},
-            compile_class='Vertical',  # merged into compile_kwargs
+            _meta={'compile_module': 'textual.containers', 'compile_class': 'Container'},
         )
         def container(self): ...
 
         @element(parent_tags='ul,ol')  # can only be inside ul or ol
         def li(self): ...
     """
-    # Extract compile_* from kwargs and merge with compile_kwargs
-    merged_compile = dict(compile_kwargs) if compile_kwargs else {}
-    for key, value in kwargs.items():
-        if key.startswith("compile_"):
-            merged_compile[key[8:]] = value  # strip "compile_" prefix
-
     def decorator(func: Callable) -> Callable:
         # Elements MUST have empty body (ellipsis only)
         if not _is_empty_body(func):
@@ -263,7 +252,7 @@ def element(
                 "sub_tags": sub_tags,
                 "parent_tags": parent_tags,
                 "inherits_from": inherits_from,
-                "compile_kwargs": merged_compile if merged_compile else None,
+                "_meta": _meta,
             }.items()
             if v is not None
         }
@@ -276,8 +265,7 @@ def abstract(
     sub_tags: str | tuple[str, ...] = "",
     parent_tags: str | tuple[str, ...] | None = None,
     inherits_from: str | None = None,
-    compile_kwargs: dict[str, Any] | None = None,
-    **kwargs: Any,
+    _meta: dict[str, Any] | None = None,
 ) -> Callable:
     """Decorator to define an abstract element (for inheritance only).
 
@@ -288,9 +276,7 @@ def abstract(
         sub_tags: Valid child tags with cardinality (see element decorator).
         parent_tags: Valid parent tags with cardinality.
         inherits_from: Comma-separated list of abstract names to inherit from.
-        compile_kwargs: Dict of compilation parameters (module, class, etc.).
-        **kwargs: Additional compile_* parameters are extracted and merged
-            into compile_kwargs. E.g., compile_module='x' -> {'module': 'x'}.
+        _meta: Dict of metadata for renderers/compilers.
 
     Example:
         @abstract(sub_tags='span,a,em,strong')
@@ -301,16 +287,10 @@ def abstract(
 
         @abstract(
             sub_tags='child',
-            compile_module='textual.containers',
+            _meta={'compile_module': 'textual.containers'},
         )
         def base_container(self): ...
     """
-    # Extract compile_* from kwargs and merge with compile_kwargs
-    merged_compile = dict(compile_kwargs) if compile_kwargs else {}
-    for key, value in kwargs.items():
-        if key.startswith("compile_"):
-            merged_compile[key[8:]] = value  # strip "compile_" prefix
-
     def decorator(func: Callable) -> Callable:
         result: dict[str, Any] = {
             "abstract": True,
@@ -319,8 +299,8 @@ def abstract(
         }
         if parent_tags is not None:
             result["parent_tags"] = parent_tags
-        if merged_compile:
-            result["compile_kwargs"] = merged_compile
+        if _meta:
+            result["_meta"] = _meta
         func._decorator = result  # type: ignore[attr-defined]
         return func
 
@@ -333,9 +313,8 @@ def component(
     parent_tags: str | None = None,
     builder: type[BagBuilderBase] | None = None,
     based_on: str | None = None,
-    compile_kwargs: dict[str, Any] | None = None,
+    _meta: dict[str, Any] | None = None,
     slots: list[str] | None = None,
-    **kwargs: Any,
 ) -> Callable:
     """Decorator to mark a method as component handler.
 
@@ -358,13 +337,11 @@ def component(
             component can only be placed inside one of these parents.
         builder: Optional builder class for the component's internal bag.
             If not specified, uses the same builder class as parent.
-        compile_kwargs: Dict of compilation parameters (module, class, etc.).
+        _meta: Dict of metadata for renderers/compilers.
         slots: List of named slot names. When present, the component call
             returns a ComponentProxy with slot Bags accessible as attributes.
             The handler body should return a dict mapping slot names to
             destination Bags where slot content will be mounted.
-        **kwargs: Additional compile_* parameters are extracted and merged
-            into compile_kwargs.
 
     Handler signature (without slots):
         def handler(self, component: Bag, **kwargs) -> None:
@@ -379,33 +356,22 @@ def component(
     Example - Closed component (sub_tags=''):
         @component(sub_tags='')
         def login_form(self, component: Bag, **kwargs):
-            # This body is NOT called when login_form() is invoked
-            # It's called only during compile to expand the component
             component.input(name='username')
             component.input(name='password')
             component.button('Login')
 
-        # Usage: returns parent for chaining (node registered but not expanded)
         page.login_form()
         page.other_element()  # continues at same level
 
     Example - Open component (sub_tags defined):
         @component(sub_tags='item')
         def mylist(self, component: Bag, title='', **kwargs):
-            # Body called at compile time
             component.header(title=title)
 
-        # Usage: returns internal bag for adding children
         lst = page.mylist(title='My List')
-        lst.item('First')  # Added to component's internal bag
+        lst.item('First')
         lst.item('Second')
     """
-    # Extract compile_* from kwargs and merge with compile_kwargs
-    merged_compile = dict(compile_kwargs) if compile_kwargs else {}
-    for key, value in kwargs.items():
-        if key.startswith("compile_"):
-            merged_compile[key[8:]] = value
-
     def decorator(func: Callable) -> Callable:
         # Components MUST have a real body (not ellipsis)
         if _is_empty_body(func):
@@ -422,7 +388,7 @@ def component(
                 "parent_tags": parent_tags,
                 "builder": builder,
                 "based_on": based_on,
-                "compile_kwargs": merged_compile if merged_compile else None,
+                "_meta": _meta,
                 "slots": slots,
             }.items()
             if v is not None
@@ -544,7 +510,7 @@ class BagBuilderBase(ABC):
             sub_tags = decorator_info.get("sub_tags") if is_component else decorator_info.get("sub_tags", "")
             parent_tags = decorator_info.get("parent_tags")
             inherits_from = decorator_info.get("inherits_from", "")
-            compile_kwargs = decorator_info.get("compile_kwargs")
+            meta = decorator_info.get("_meta")
             component_builder = decorator_info.get("builder")
             based_on = decorator_info.get("based_on")
             component_slots = decorator_info.get("slots")
@@ -563,7 +529,7 @@ class BagBuilderBase(ABC):
                         slots=component_slots,
                         sub_tags=sub_tags,
                         parent_tags=parent_tags,
-                        compile_kwargs=compile_kwargs,
+                        _meta=meta,
                         documentation=documentation,
                         call_args_validations=call_args_validations,
                     )
@@ -575,7 +541,7 @@ class BagBuilderBase(ABC):
                         sub_tags=sub_tags,
                         parent_tags=parent_tags,
                         inherits_from=inherits_from,
-                        compile_kwargs=compile_kwargs,
+                        _meta=meta,
                         documentation=documentation,
                         call_args_validations=call_args_validations,
                     )
@@ -1546,11 +1512,11 @@ class BagBuilderBase(ABC):
                         # Skip inherits_from from abstract - don't propagate it
                         if k == "inherits_from":
                             continue
-                        if k == "compile_kwargs":
-                            # Merge compile_kwargs: abstract base + element overrides
+                        if k == "_meta":
+                            # Merge meta: abstract base + element overrides
                             inherited = v or {}
-                            current = result.get("compile_kwargs") or {}
-                            result["compile_kwargs"] = {**inherited, **current}
+                            current = result.get("_meta") or {}
+                            result["_meta"] = {**inherited, **current}
                         elif k not in result or not result[k]:
                             result[k] = v
 
@@ -1749,17 +1715,17 @@ class BagBuilderBase(ABC):
                 else:
                     row.td("-")
 
-                compile_kwargs = info.get("compile_kwargs") or {}
+                meta = info.get("_meta") or {}
                 compile_parts = []
-                if "template" in compile_kwargs:
+                if "template" in meta:
                     # Escape backticks in template for markdown display
-                    tmpl = compile_kwargs["template"].replace("`", "\\`")
+                    tmpl = meta["template"].replace("`", "\\`")
                     tmpl = tmpl.replace("\n", "\\n")
                     compile_parts.append(f"template: {tmpl}")
-                if "callback" in compile_kwargs:
-                    compile_parts.append(f"callback: {compile_kwargs['callback']}")
-                # Other compile_kwargs (module, class, etc.)
-                for k, v in compile_kwargs.items():
+                if "callback" in meta:
+                    compile_parts.append(f"callback: {meta['callback']}")
+                # Other meta (module, class, etc.)
+                for k, v in meta.items():
                     if k not in ("template", "callback"):
                         compile_parts.append(f"{k}: {v}")
                 if compile_parts:
@@ -1830,17 +1796,17 @@ class BagBuilderBase(ABC):
             template_ctx["node_value"] = node_value
 
         # 3-5. compile_callback, compile_format and compile_template from schema
-        compile_kwargs = info.get("compile_kwargs") or {}
+        meta = info.get("_meta") or {}
 
         # 3. compile_callback - call method to modify context in place
-        compile_callback = compile_kwargs.get("callback")
+        compile_callback = meta.get("callback")
         if compile_callback:
             method = getattr(self, compile_callback)
             method(template_ctx)
             node_value = template_ctx["node_value"]
 
         # 4. compile_format from schema
-        compile_format = compile_kwargs.get("format")
+        compile_format = meta.get("format")
         if compile_format:
             try:
                 node_value = compile_format.format(node_value)
@@ -1849,7 +1815,7 @@ class BagBuilderBase(ABC):
                 pass
 
         # 5. compile_template from schema
-        compile_template = compile_kwargs.get("template")
+        compile_template = meta.get("template")
         if compile_template:
             node_value = compile_template.format(**template_ctx)
 
@@ -2181,9 +2147,8 @@ class SchemaBuilder(BagBuilderBase):
         parent_tags: str | None = None,
         inherits_from: str | None = None,
         call_args_validations: dict[str, tuple[Any, list, Any]] | None = None,
-        compile_kwargs: dict[str, Any] | None = None,
+        _meta: dict[str, Any] | None = None,
         documentation: str | None = None,
-        **kwargs: Any,
     ) -> BagNode:
         """Define a schema item (element definition).
 
@@ -2193,22 +2158,12 @@ class SchemaBuilder(BagBuilderBase):
             parent_tags: Comma-separated list of valid parent tags for this element.
             inherits_from: Abstract element name to inherit sub_tags from.
             call_args_validations: Validation spec for element attributes.
-            compile_kwargs: Dict of compilation parameters (module, class, etc.).
+            _meta: Dict of metadata for renderers/compilers.
             documentation: Documentation string for the element.
-            **kwargs: Additional compile_* parameters are extracted and merged
-                into compile_kwargs. E.g., compile_module='x' -> {'module': 'x'}.
 
         Returns:
             The created BagNode.
         """
-        # Extract compile_* from kwargs and merge with compile_kwargs
-        merged_compile = dict(compile_kwargs) if compile_kwargs else {}
-        for key, value in list(kwargs.items()):
-            if key.startswith("compile_"):
-                merged_compile[key[8:]] = value  # strip "compile_" prefix
-                del kwargs[key]
-
-        # Build attributes dict, excluding None values
         attrs: dict[str, Any] = {}
         if sub_tags is not None:
             attrs["sub_tags"] = sub_tags
@@ -2218,8 +2173,8 @@ class SchemaBuilder(BagBuilderBase):
             attrs["inherits_from"] = inherits_from
         if call_args_validations is not None:
             attrs["call_args_validations"] = call_args_validations
-        if merged_compile:
-            attrs["compile_kwargs"] = merged_compile
+        if _meta:
+            attrs["_meta"] = _meta
         if documentation is not None:
             attrs["documentation"] = documentation
 
