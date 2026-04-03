@@ -159,6 +159,7 @@ from typing import (
 )
 
 from genro_bag import Bag
+from genro_toolbox.smarttimer import cancel_timer, set_interval, set_timeout
 
 from .binding import BindingManager
 from .builder_bag import BuilderBag
@@ -642,6 +643,7 @@ class BagBuilderBase(ABC):
 
             self._binding = BindingManager(on_node_updated=self._on_node_updated)
             self._formula_registry: dict[str, dict[str, Any]] = {}
+            self._active_timers: dict[str, str] = {}  # entry_id → timer_id
             self._auto_compile = False
             self._output_suspended = False
             self._output_pending = False
@@ -836,6 +838,8 @@ class BagBuilderBase(ABC):
         Uses _formula_order (topological sort) to ensure dependent formulas
         execute after their dependencies. Cascades: if formula A writes to
         a path that formula B depends on, B re-executes after A.
+
+        Entries with _delay use set_timeout for debounce.
         """
         if pathlist is None or not self._formula_registry:
             return
@@ -855,13 +859,44 @@ class BagBuilderBase(ABC):
                         or dep_path.startswith(cp + ".")
                         for cp in changed_paths
                     ):
-                        self._reexecute_formula(entry)
+                        delay = entry.get("_delay")
+                        if delay is not None:
+                            self._schedule_delayed_formula(entry_id, entry, delay)
+                        else:
+                            self._reexecute_formula(entry)
                         rerun_needed = True
                         if entry["path"] is not None:
                             changed_paths.add(entry["path"])
                         break
 
         if rerun_needed:
+            self._rerender()
+
+    def _schedule_delayed_formula(
+        self, entry_id: str, entry: dict[str, Any], delay: float,
+    ) -> None:
+        """Schedule a delayed formula re-execution (debounce).
+
+        Cancels any pending timer for the same entry, then schedules
+        a new one. Only the last trigger within the delay window executes.
+        """
+        old_timer = self._active_timers.get(entry_id)
+        if old_timer is not None:
+            cancel_timer(old_timer)
+
+        def on_timeout() -> None:
+            self._active_timers.pop(entry_id, None)
+            self._reexecute_formula(entry)
+            self._rerender()
+
+        timer_id = set_timeout(delay, on_timeout)
+        self._active_timers[entry_id] = timer_id
+
+    def _on_interval_tick(self, entry_id: str) -> None:
+        """Periodic re-execution of a formula/controller with _interval."""
+        entry = self._formula_registry.get(entry_id)
+        if entry is not None:
+            self._reexecute_formula(entry)
             self._rerender()
 
     def _resolve_pointer_path(self, raw: str, node: BagNode) -> str:
@@ -988,13 +1023,17 @@ class BagBuilderBase(ABC):
 
         # Register formula/controller with pointer deps for reactivity
         if tag in ("data_formula", "data_controller"):
+            delay = attrs.get("_delay")
+            interval = attrs.get("_interval")
             has_pointer_deps = any(is_pointer(v) for v in raw_attrs.values())
-            if has_pointer_deps:
+            if has_pointer_deps or interval is not None:
                 self._formula_registry[node.label] = {
                     "node": node,
                     "tag": tag,
                     "path": path,
                     "raw_attrs": raw_attrs,
+                    "_delay": delay,
+                    "_interval": interval,
                 }
 
         # Collect _onBuilt hooks
@@ -1209,6 +1248,17 @@ class BagBuilderBase(ABC):
                 any=self._on_formula_data_changed,
             )
 
+        # Start interval timers for formula/controller with _interval
+        for entry_id, entry in self._formula_registry.items():
+            interval = entry.get("_interval")
+            if interval is not None:
+                timer_id = set_interval(
+                    interval,
+                    self._on_interval_tick,
+                    entry_id,
+                )
+                self._active_timers[f"interval:{entry_id}"] = timer_id
+
         self._auto_compile = True
         self._rerender()
 
@@ -1329,6 +1379,9 @@ class BagBuilderBase(ABC):
         self._binding.unbind()
         if self._data is not None:
             self._data.unsubscribe("formula_watcher", any=True)
+        for timer_id in self._active_timers.values():
+            cancel_timer(timer_id)
+        self._active_timers = {}
         self._formula_registry = {}
         self.built.clear()
 
