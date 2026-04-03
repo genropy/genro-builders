@@ -641,6 +641,7 @@ class BagBuilderBase(ABC):
                 self._data.set_backref()
 
             self._binding = BindingManager(on_node_updated=self._on_node_updated)
+            self._formula_registry: dict[str, dict[str, Any]] = {}
             self._auto_compile = False
             self._output: str | None = None
 
@@ -734,6 +735,70 @@ class BagBuilderBase(ABC):
         self._output = self.render(self.built)
 
     # -------------------------------------------------------------------------
+    # Formula/controller reactivity
+    # -------------------------------------------------------------------------
+
+    def _on_formula_data_changed(
+        self,
+        node: BagNode | None = None,
+        pathlist: list | None = None,
+        oldvalue: Any = None,
+        evt: str = "",
+        **kwargs: Any,
+    ) -> None:
+        """Re-execute formula/controller when their dependencies change."""
+        if pathlist is None or not self._formula_registry:
+            return
+
+        changed_path = ".".join(str(p) for p in pathlist)
+        rerun_needed = False
+
+        for entry in self._formula_registry.values():
+            for v in entry["raw_attrs"].values():
+                if is_pointer(v):
+                    dep_path = self._resolve_pointer_path(v, entry["node"])
+                    if (dep_path == changed_path
+                            or changed_path.startswith(dep_path + ".")
+                            or dep_path.startswith(changed_path + ".")):
+                        self._reexecute_formula(entry)
+                        rerun_needed = True
+                        break
+
+        if rerun_needed:
+            self._rerender()
+
+    def _resolve_pointer_path(self, raw: str, node: BagNode) -> str:
+        """Extract absolute data path from a ^pointer string."""
+        pointer_info = parse_pointer(raw)
+        data_path = pointer_info.path
+        if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
+            datapath = node._resolve_datapath()
+            rel = data_path[1:]
+            data_path = f"{datapath}.{rel}" if datapath else rel
+        return data_path
+
+    def _reexecute_formula(self, entry: dict[str, Any]) -> None:
+        """Re-execute a single formula/controller with fresh data."""
+        node = entry["node"]
+        path = entry["path"]
+        raw_attrs = entry["raw_attrs"]
+        tag = entry["tag"]
+
+        resolved = self._resolve_infra_kwargs(raw_attrs, node, self.data)
+
+        if tag == "data_formula":
+            func = resolved.pop("func", None)
+            if func is not None and path is not None:
+                result = self._call_with_node(func, node, resolved)
+                if isinstance(result, dict):
+                    result = Bag(source=result)
+                self.data.set_item(path, result)
+        elif tag == "data_controller":
+            func = resolved.pop("func", None)
+            if func is not None:
+                self._call_with_node(func, node, resolved)
+
+    # -------------------------------------------------------------------------
     # Build walk (source → built materialization)
     # -------------------------------------------------------------------------
 
@@ -790,6 +855,8 @@ class BagBuilderBase(ABC):
 
         Resolves ^pointers in attributes, then executes the appropriate
         action: data_setter writes value, data_formula computes, data_controller executes.
+        Registers formula/controller with ^pointer deps for reactivity.
+        Injects _node into callable kwargs if the callable accepts it.
         """
         attrs = dict(node.attr)
         path = attrs.pop("_data_path", None)
@@ -799,6 +866,8 @@ class BagBuilderBase(ABC):
         if path is not None and path.startswith(".") and hasattr(node, "abs_datapath"):
             path = node.abs_datapath(path)
 
+        # Keep raw attrs (with ^pointers) for reactivity registration
+        raw_attrs = {k: v for k, v in attrs.items() if not k.startswith("_")}
         resolved = self._resolve_infra_kwargs(attrs, node, data)
 
         tag = node.node_tag
@@ -811,19 +880,42 @@ class BagBuilderBase(ABC):
         elif tag == "data_formula":
             func = resolved.pop("func", None)
             if func is not None and path is not None:
-                result = func(**resolved)
+                result = self._call_with_node(func, node, resolved)
                 if isinstance(result, dict):
                     result = Bag(source=result)
                 data.set_item(path, result)
         elif tag == "data_controller":
             func = resolved.pop("func", None)
             if func is not None:
-                func(**resolved)
+                self._call_with_node(func, node, resolved)
+
+        # Register formula/controller with pointer deps for reactivity
+        if tag in ("data_formula", "data_controller"):
+            has_pointer_deps = any(is_pointer(v) for v in raw_attrs.values())
+            if has_pointer_deps:
+                self._formula_registry[node.label] = {
+                    "node": node,
+                    "tag": tag,
+                    "path": path,
+                    "raw_attrs": raw_attrs,
+                }
 
         # Collect _onBuilt hooks
         on_built = attrs.get("_onBuilt")
         if callable(on_built):
             self._infra_on_built_hooks.append(on_built)
+
+    def _call_with_node(
+        self, func: Any, node: BagNode, resolved: dict[str, Any],
+    ) -> Any:
+        """Call func with resolved kwargs, injecting _node if accepted."""
+        sig = inspect.signature(func)
+        if "_node" in sig.parameters or any(
+            p.kind == inspect.Parameter.VAR_KEYWORD
+            for p in sig.parameters.values()
+        ):
+            resolved["_node"] = node
+        return func(**resolved)
 
     def _resolve_infra_kwargs(
         self, attrs: dict[str, Any], node: BagNode, data: Bag,
@@ -935,6 +1027,7 @@ class BagBuilderBase(ABC):
         Does NOT activate reactivity — call ``subscribe()`` separately.
         """
         self._clear_built()
+        self._formula_registry = {}
         self._infra_on_built_hooks: list[Any] = []
 
         self._build_walk(
@@ -949,7 +1042,8 @@ class BagBuilderBase(ABC):
         """Activate reactive bindings on the built Bag.
 
         After this call, changes to data are propagated to built nodes
-        and output is re-rendered automatically.
+        and output is re-rendered automatically. Formula/controller with
+        ^pointer dependencies are re-executed when their sources change.
         Call after ``build()``.
         """
         self._binding.subscribe(self.built, self.data)
@@ -960,6 +1054,12 @@ class BagBuilderBase(ABC):
             insert=self._on_source_inserted,
             update=self._on_source_updated,
         )
+
+        if self._formula_registry:
+            self.data.subscribe(
+                "formula_watcher",
+                any=self._on_formula_data_changed,
+            )
 
         self._auto_compile = True
         self._rerender()
@@ -1079,6 +1179,9 @@ class BagBuilderBase(ABC):
     def _clear_built(self) -> None:
         """Clear the built bag without destroying the shell."""
         self._binding.unbind()
+        if self._data is not None:
+            self._data.unsubscribe("formula_watcher", any=True)
+        self._formula_registry = {}
         self.built.clear()
 
     def _clear_source(self) -> None:

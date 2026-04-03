@@ -289,3 +289,127 @@ class TestDataElementEdgeCases:
 
         builder.build()
         assert len(called) == 2  # Called again on rebuild
+
+
+# =============================================================================
+# Reactivity (formula/controller re-execute on data change)
+# =============================================================================
+
+
+class TestFormulaReactivity:
+    """Tests for reactive re-execution of data_formula and data_controller."""
+
+    def test_formula_reexecutes_on_data_change(self):
+        """After subscribe, changing a dependency re-executes the formula."""
+        builder = TestBuilder()
+        builder.data["input"] = 10
+        builder.source.data_formula(
+            "result", func=lambda x: x * 2, x="^input",
+        )
+        builder.source.heading("^result")
+        builder.build()
+        builder.subscribe()
+
+        assert builder.data["result"] == 20
+        assert "20" in builder.output
+
+        builder.data["input"] = 5
+        assert builder.data["result"] == 10
+        assert "10" in builder.output
+
+    def test_formula_multiple_deps(self):
+        """Formula with multiple ^pointer deps re-executes on any change."""
+        builder = TestBuilder()
+        builder.data["a"] = 3
+        builder.data["b"] = 4
+        builder.source.data_formula(
+            "sum", func=lambda a, b: a + b, a="^a", b="^b",
+        )
+        builder.build()
+        builder.subscribe()
+
+        assert builder.data["sum"] == 7
+
+        builder.data["a"] = 10
+        assert builder.data["sum"] == 14
+
+        builder.data["b"] = 1
+        assert builder.data["sum"] == 11
+
+    def test_controller_reexecutes_on_data_change(self):
+        """Controller re-executes when dependency changes."""
+        log = []
+        builder = TestBuilder()
+        builder.data["trigger"] = "first"
+        builder.source.data_controller(
+            func=lambda val: log.append(val), val="^trigger",
+        )
+        builder.build()
+        builder.subscribe()
+
+        assert log == ["first"]
+
+        builder.data["trigger"] = "second"
+        assert log == ["first", "second"]
+
+    def test_formula_no_pointer_no_reactivity(self):
+        """Formula without ^pointer deps is not in the registry."""
+        builder = TestBuilder()
+        builder.source.data_formula(
+            "static", func=lambda: 42,
+        )
+        builder.build()
+
+        assert len(builder._formula_registry) == 0
+
+
+# =============================================================================
+# _node injection
+# =============================================================================
+
+
+class TestNodeInjection:
+    """Tests for _node automatic injection in formula/controller callables."""
+
+    def test_node_injected_in_formula(self):
+        """Callable that declares _node receives the source node."""
+        received_nodes = []
+
+        def my_func(x, _node=None):
+            received_nodes.append(_node)
+            return x * 2
+
+        builder = TestBuilder()
+        builder.data["val"] = 5
+        builder.source.data_formula("result", func=my_func, x="^val")
+        builder.build()
+
+        assert len(received_nodes) == 1
+        assert received_nodes[0] is not None
+        assert received_nodes[0].node_tag == "data_formula"
+
+    def test_node_not_required(self):
+        """Callable without _node works fine (no injection)."""
+        builder = TestBuilder()
+        builder.data["val"] = 5
+        builder.source.data_formula(
+            "result", func=lambda x: x * 2, x="^val",
+        )
+        builder.build()
+
+        assert builder.data["result"] == 10
+
+    def test_node_injected_with_kwargs(self):
+        """Callable with **kwargs receives _node."""
+        received = {}
+
+        def my_func(x, **kwargs):
+            received.update(kwargs)
+            return x
+
+        builder = TestBuilder()
+        builder.data["val"] = 5
+        builder.source.data_formula("result", func=my_func, x="^val")
+        builder.build()
+
+        assert "_node" in received
