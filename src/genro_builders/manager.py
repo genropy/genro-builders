@@ -13,14 +13,23 @@ pointers against it:
 
 Lifecycle:
     1. ``__init__``: create builders via ``set_builder()``.
-    2. ``store(store)``: populate shared data at the store root.
-    3. ``main_<name>(source)``: populate each builder's source.
-    4. ``build()``: orchestrate the full pipeline.
+    2. ``setup()``: populate data and source (calls ``store()`` then ``main()``).
+    3. ``build()``: materialize all builders (source → built).
+    4. ``subscribe()``: activate reactive bindings (optional).
 
 Example — single builder:
-    >>> class MyPage(BuilderManager):
+    >>> class HtmlManager(BuilderManager):
     ...     def __init__(self):
     ...         self.page = self.set_builder('page', HtmlBuilder)
+    ...
+    ...     def render(self):
+    ...         return self.page.render()
+
+    >>> class SalesPage(HtmlManager):
+    ...     def __init__(self):
+    ...         super().__init__()
+    ...         self.setup()
+    ...         self.build()
     ...
     ...     def store(self, data):
     ...         data['title'] = 'Hello'
@@ -28,8 +37,8 @@ Example — single builder:
     ...     def main(self, source):
     ...         source.h1(value='^title')
     ...
-    >>> page = MyPage()
-    >>> page.build()
+    >>> page = SalesPage()
+    >>> print(page.render())
 
 Example — multiple builders with shared and private data:
     >>> class InfraStack(BuilderManager):
@@ -54,7 +63,9 @@ Example — multiple builders with shared and private data:
     ...         )
     ...
     >>> stack = InfraStack()
+    >>> stack.setup()
     >>> stack.build()
+    >>> stack.subscribe()
     >>> # Change shared data — propagates to all builders
     >>> stack.reactive_store['domain'] = 'newapp.example.com'
 """
@@ -73,19 +84,17 @@ class BuilderManager:
 
     Subclass lifecycle:
         ``__init__``: Create builders via ``set_builder(name, class)``.
-            Each call registers the builder and creates its private
-            namespace at ``reactive_store['builders.<name>']``.
 
-        ``store(data)``: Override to set shared data values
-            at the store root. Called once during ``build()``.
+        ``store(data)``: Override to populate shared data at the store root.
 
-        ``main(source)`` (single builder) or
-        ``main_<name>(source)`` (multiple builders):
-            Override to define each builder's source. Receives:
-                - source: the builder's source Bag to populate.
+        ``main(source)`` or ``main_<name>(source)``: Override to populate
+            each builder's source Bag.
 
-        ``build()``: Runs the full pipeline —
-            store → main → build_all.
+        ``setup()``: Orchestrates store → main. Call from ``__init__``.
+
+        ``build()``: Materializes all builders (source → built).
+
+        ``subscribe()``: Activates reactive bindings (optional).
 
     Subclasses get ``_data`` and ``_builders`` initialized automatically
     via ``__init_subclass__`` — no ``super().__init__()`` needed.
@@ -165,7 +174,7 @@ class BuilderManager:
     def store(self, data: Bag) -> None:
         """Populate shared data at the store root. Override in subclass.
 
-        Called once during ``build()``, before main methods.
+        Called by ``setup()`` before main methods.
         Values set here are accessible to all builders via absolute
         ``^pointer`` paths (e.g., ``^domain``).
 
@@ -176,25 +185,21 @@ class BuilderManager:
     def main(self, source: Any) -> None:
         """Populate the source of a single-builder manager. Override in subclass.
 
-        Called during ``build()`` when there is exactly one builder and
+        Called by ``setup()`` when there is exactly one builder and
         no ``main_<name>`` method is defined.
 
         Args:
             source: The builder's source Bag to populate with elements.
         """
 
-    def build(self) -> None:
-        """Run the full pipeline: store → main → build_all.
+    def setup(self) -> None:
+        """Populate data and source: store → main.
 
-        1. Calls ``store(reactive_store)`` to populate shared data.
-        2. For each builder named N, calls ``main_N(source)``
-           where source is the builder's source Bag.
-           If only one builder and no ``main_N`` exists, calls
-           ``main(source)`` instead.
-        3. Materializes all builders via ``build_all()``.
+        Calls ``store(reactive_store)`` to populate shared data, then
+        for each builder named N calls ``main_N(source)``. If only one
+        builder and no ``main_N`` exists, calls ``main(source)`` instead.
         """
-        reactive_store = self.reactive_store
-        self.store(reactive_store)
+        self.store(self.reactive_store)
 
         for name, builder in self._builders.items():
             main_method = getattr(self, f"main_{name}", None)
@@ -203,9 +208,12 @@ class BuilderManager:
             elif len(self._builders) == 1:
                 self.main(builder.source)
 
-        self.build_all()
-
-    def build_all(self) -> None:
-        """Build all registered builders (without calling hooks)."""
+    def build(self) -> None:
+        """Materialize all builders: source → built."""
         for builder in self._builders.values():
             builder.build()
+
+    def subscribe(self) -> None:
+        """Activate reactive bindings on all builders."""
+        for builder in self._builders.values():
+            builder.subscribe()

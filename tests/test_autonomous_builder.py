@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for builder runtime pipeline — compile, render, reactivity."""
+"""Tests for builder runtime pipeline — build, render, subscribe, reactivity."""
 from __future__ import annotations
 
 import pytest
@@ -35,26 +35,26 @@ SubtreeBuilder._compiler_class = TestCompiler
 class TestAutonomousLifecycle:
     """Tests for basic builder lifecycle."""
 
-    def test_populate_and_compile(self):
-        """Populate source, compile, get output."""
+    def test_populate_and_render(self):
+        """Populate source, build, render output."""
         builder = TestBuilder()
         builder.source.heading("Hello")
-        result = builder.build()
+        builder.build()
+        result = builder.render()
 
-        assert result == builder.output
         assert "[heading:Hello]" in result
 
-    def test_compile_returns_output(self):
-        """compile() returns the rendered output."""
+    def test_build_then_render(self):
+        """build() materializes, render() produces output."""
         builder = TestBuilder()
         builder.source.text("content")
-        result = builder.build()
+        builder.build()
+        result = builder.render()
 
-        assert result == builder.output
         assert "[text:content]" in result
 
     def test_no_renderer_or_compiler_raises(self):
-        """Builder without renderer or compiler raises RuntimeError on build."""
+        """Builder without renderer or compiler raises RuntimeError on render."""
 
         class NoCompBuilder(BagBuilderBase):
             @element()
@@ -62,9 +62,10 @@ class TestAutonomousLifecycle:
 
         builder = NoCompBuilder()
         builder.source.div()
+        builder.build()
 
         with pytest.raises(RuntimeError, match="no renderer or compiler"):
-            builder.build()
+            builder.render()
 
 
 # =============================================================================
@@ -82,7 +83,7 @@ class TestAutonomousPointerResolution:
         builder.source.heading("^page.title")
         builder.build()
 
-        assert "Hello World" in builder.output
+        assert "Hello World" in builder.render()
 
     def test_pointer_in_attr(self):
         """^pointer in node attribute is resolved from data."""
@@ -91,7 +92,7 @@ class TestAutonomousPointerResolution:
         builder.source.item(color="^theme.color")
         builder.build()
 
-        assert "color=blue" in builder.output
+        assert "color=blue" in builder.render()
 
     def test_multiple_pointers(self):
         """Multiple pointers in same source."""
@@ -102,12 +103,13 @@ class TestAutonomousPointerResolution:
         builder.source.text("^body")
         builder.build()
 
-        assert "Title" in builder.output
-        assert "Body text" in builder.output
+        output = builder.render()
+        assert "Title" in output
+        assert "Body text" in output
 
 
 # =============================================================================
-# Tests: Reactivity
+# Tests: Reactivity (requires subscribe)
 # =============================================================================
 
 
@@ -115,11 +117,12 @@ class TestAutonomousReactivity:
     """Tests for reactive data updates."""
 
     def test_data_change_updates_output(self):
-        """Changing data after compile updates the output."""
+        """Changing data after subscribe updates the output."""
         builder = TestBuilder()
         builder.data["title"] = "Original"
         builder.source.heading("^title")
         builder.build()
+        builder.subscribe()
 
         assert "Original" in builder.output
 
@@ -134,6 +137,7 @@ class TestAutonomousReactivity:
         builder.source.heading("^title")
         builder.source.text("static content")
         builder.build()
+        builder.subscribe()
 
         assert "Hello" in builder.output
         assert "static content" in builder.output
@@ -158,6 +162,7 @@ class TestAutonomousRebuild:
         builder.data["title"] = "v1"
         builder.source.heading("^title")
         builder.build()
+        builder.subscribe()
 
         assert "v1" in builder.output
 
@@ -167,6 +172,7 @@ class TestAutonomousRebuild:
             source.heading("^title")
 
         builder.rebuild(main=new_main)
+        builder.subscribe()
 
         assert "v2" in builder.output
 
@@ -185,6 +191,7 @@ class TestAutonomousDataReplacement:
         builder.data["name"] = "Alice"
         builder.source.heading("^name")
         builder.build()
+        builder.subscribe()
 
         assert "Alice" in builder.output
 
@@ -210,12 +217,13 @@ class TestAutonomousWithComponent:
         builder.source.section(title="^section.title")
         builder.build()
 
-        assert "My Section" in builder.output
-        assert "default content" in builder.output
+        output = builder.render()
+        assert "My Section" in output
+        assert "default content" in output
 
 
 # =============================================================================
-# Tests: Source delete
+# Tests: Source delete (requires subscribe for reactivity)
 # =============================================================================
 
 
@@ -228,6 +236,7 @@ class TestAutonomousSourceDelete:
         builder.source.heading("Title")
         builder.source.text("Content")
         builder.build()
+        builder.subscribe()
 
         assert "[heading:Title]" in builder.output
         assert "[text:Content]" in builder.output
@@ -243,6 +252,7 @@ class TestAutonomousSourceDelete:
         builder.source.heading("^title")
         builder.source.text("static")
         builder.build()
+        builder.subscribe()
 
         assert "Hello" in builder.output
         assert len(builder._binding.subscription_map) > 0
@@ -264,6 +274,7 @@ class TestAutonomousSourceDelete:
         inner.leaf("Child1")
         inner.leaf("Child2")
         builder.build()
+        builder.subscribe()
 
         assert "Child1" in builder.output
         assert "Child2" in builder.output
@@ -275,7 +286,7 @@ class TestAutonomousSourceDelete:
 
 
 # =============================================================================
-# Tests: Source insert
+# Tests: Source insert (requires subscribe for reactivity)
 # =============================================================================
 
 
@@ -287,6 +298,7 @@ class TestAutonomousSourceInsert:
         builder = TestBuilder()
         builder.source.heading("Title")
         builder.build()
+        builder.subscribe()
 
         assert "[heading:Title]" in builder.output
         assert "Extra" not in builder.output
@@ -302,6 +314,7 @@ class TestAutonomousSourceInsert:
         builder.data["dynamic"] = "Resolved"
         builder.source.heading("Static")
         builder.build()
+        builder.subscribe()
 
         assert "Resolved" not in builder.output
 
@@ -315,6 +328,7 @@ class TestAutonomousSourceInsert:
         builder.source.heading("First")
         builder.source.heading("Third")
         builder.build()
+        builder.subscribe()
 
         builder.source.text("Second", node_position=1)
 
@@ -326,7 +340,7 @@ class TestAutonomousSourceInsert:
 
 
 # =============================================================================
-# Tests: Source update
+# Tests: Source update (requires subscribe for reactivity)
 # =============================================================================
 
 
@@ -338,6 +352,7 @@ class TestAutonomousSourceUpdate:
         builder = TestBuilder()
         builder.source.heading("Original")
         builder.build()
+        builder.subscribe()
 
         assert "Original" in builder.output
 
@@ -351,6 +366,7 @@ class TestAutonomousSourceUpdate:
         builder = TestBuilder()
         builder.source.item(color="red")
         builder.build()
+        builder.subscribe()
 
         assert "color=red" in builder.output
 
@@ -365,6 +381,7 @@ class TestAutonomousSourceUpdate:
         builder.data["title"] = "Dynamic"
         builder.source.heading("static")
         builder.build()
+        builder.subscribe()
 
         assert "static" in builder.output
         assert "Dynamic" not in builder.output
@@ -382,6 +399,7 @@ class TestAutonomousSourceUpdate:
         inner.leaf("^child_a")
         inner.leaf("^child_b")
         builder.build()
+        builder.subscribe()
 
         assert "A" in builder.output
         assert "B" in builder.output
@@ -403,7 +421,7 @@ class TestAutonomousSourceUpdate:
 
 
 # =============================================================================
-# Tests: Compiled observability
+# Tests: Compiled observability (requires subscribe)
 # =============================================================================
 
 
@@ -417,6 +435,7 @@ class TestAutonomousCompiledObservable:
         builder.source.heading("Title")
         builder.source.text("Content")
         builder.build()
+        builder.subscribe()
 
         builder.built.subscribe(
             "test", delete=lambda **kw: events.append(("del", kw.get("reason"))),
@@ -433,6 +452,7 @@ class TestAutonomousCompiledObservable:
         builder = TestBuilder()
         builder.source.heading("Title")
         builder.build()
+        builder.subscribe()
 
         builder.built.subscribe(
             "test", insert=lambda **kw: events.append(("ins", kw.get("reason"))),
@@ -449,6 +469,7 @@ class TestAutonomousCompiledObservable:
         builder = TestBuilder()
         builder.source.heading("Original")
         builder.build()
+        builder.subscribe()
 
         builder.built.subscribe(
             "test", update=lambda **kw: events.append(("upd", kw.get("reason"))),
@@ -461,7 +482,7 @@ class TestAutonomousCompiledObservable:
 
 
 # =============================================================================
-# Tests: Map adequacy
+# Tests: Map adequacy (requires subscribe for reactivity)
 # =============================================================================
 
 
@@ -474,6 +495,7 @@ class TestAutonomousMapAdequacy:
         builder.data["dynamic"] = "Resolved"
         builder.source.heading("static")
         builder.build()
+        builder.subscribe()
 
         assert len(builder._binding.subscription_map) == 0
 
@@ -491,6 +513,7 @@ class TestAutonomousMapAdequacy:
         builder.source.heading("^title")
         builder.source.text("^body")
         builder.build()
+        builder.subscribe()
 
         smap = builder._binding.subscription_map
         assert "title" in smap
@@ -508,6 +531,7 @@ class TestAutonomousMapAdequacy:
         builder.data["title"] = "Dynamic"
         builder.source.heading("static")
         builder.build()
+        builder.subscribe()
 
         assert len(builder._binding.subscription_map) == 0
 
@@ -523,6 +547,7 @@ class TestAutonomousMapAdequacy:
         builder.data["title"] = "Hello"
         builder.source.heading("^title")
         builder.build()
+        builder.subscribe()
 
         assert "title" in builder._binding.subscription_map
 
@@ -536,6 +561,7 @@ class TestAutonomousMapAdequacy:
         builder.data["theme.color"] = "blue"
         builder.source.item(color="red")
         builder.build()
+        builder.subscribe()
 
         assert len(builder._binding.subscription_map) == 0
 
@@ -551,10 +577,10 @@ class TestAutonomousMapAdequacy:
         builder.data["val"] = "first"
         builder.source.heading("static")
         builder.build()
+        builder.subscribe()
 
         builder.source.text("^val")
         assert "first" in builder.output
 
         builder.data["val"] = "second"
         assert "second" in builder.output
-

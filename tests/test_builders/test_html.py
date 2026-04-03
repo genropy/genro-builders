@@ -98,10 +98,11 @@ class TestHtmlBuilder:
 
 
 def html(setup):
-    """Helper: create builder, populate source, build and return output."""
+    """Helper: create builder, populate source, build and return rendered output."""
     builder = HtmlBuilder()
     setup(builder.source)
-    return builder.build()
+    builder.build()
+    return builder.render()
 
 
 class TestHtmlBuilderRender:
@@ -114,20 +115,20 @@ class TestHtmlBuilderRender:
 
     def test_render_nested(self):
         """render() handles nested elements."""
-        def recipe(s):
+        def populate(s):
             div = s.div(id="main")
             div.p("Content")
-        result = html(recipe)
+        result = html(populate)
         assert '<div id="main">' in result
         assert "<p>Content</p>" in result
         assert "</div>" in result
 
     def test_render_void_elements(self):
         """Void elements render without closing tag."""
-        def recipe(s):
+        def populate(s):
             s.br()
             s.meta(charset="utf-8")
-        result = html(recipe)
+        result = html(populate)
         assert "<br>" in result
         assert "</br>" not in result
         assert '<meta charset="utf-8">' in result
@@ -135,13 +136,13 @@ class TestHtmlBuilderRender:
 
     def test_render_page_structure(self):
         """render() generates complete page structure."""
-        def recipe(s):
+        def populate(s):
             head = s.head()
             head.title("Test")
             head.meta(charset="utf-8")
             body = s.body()
             body.div(id="main").p("Hello")
-        result = html(recipe)
+        result = html(populate)
         assert "<head>" in result
         assert "</head>" in result
         assert "<body>" in result
@@ -156,7 +157,7 @@ class TestHtmlBuilderIntegration:
 
     def test_complex_html_structure(self):
         """Creates complex HTML structure."""
-        def recipe(s):
+        def populate(s):
             head = s.head()
             head.meta(charset="utf-8")
             head.title("My Website")
@@ -179,7 +180,7 @@ class TestHtmlBuilderIntegration:
             footer = body.footer()
             footer.p("Copyright 2025")
 
-        result = html(recipe)
+        result = html(populate)
         assert '<header id="header">' in result
         assert "<nav>" in result
         assert "<ul>" in result

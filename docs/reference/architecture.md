@@ -239,9 +239,8 @@ classDiagram
         +_renderers: dict
         +_compilers: dict
         +_node_id_map: dict
-        +store(data)
-        +main(source)
-        +build() str
+        +build()
+        +subscribe()
         +render(name) str
         +compile(name) Any
         +node_by_id(id) BagNode

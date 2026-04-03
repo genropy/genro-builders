@@ -102,11 +102,11 @@ class TestManagerMultipleBuilders:
         assert app.reactive_store["name"] == "test"
 
 
-class TestManagerBuildAll:
-    """Tests for build_all."""
+class TestManagerBuild:
+    """Tests for build (materializes all builders)."""
 
-    def test_build_all(self):
-        """build_all builds all registered builders."""
+    def test_build(self):
+        """build() materializes all registered builders."""
 
         class App(BuilderManager):
             def __init__(self):
@@ -116,12 +116,10 @@ class TestManagerBuildAll:
         app = App()
         app.b1.source.heading("Page")
         app.b2.source.heading("Sidebar")
-        app.build_all()
+        app.build()
 
-        assert app.b1.output is not None
-        assert app.b2.output is not None
-        assert "Page" in app.b1.output
-        assert "Sidebar" in app.b2.output
+        assert "Page" in app.b1.render()
+        assert "Sidebar" in app.b2.render()
 
 
 class TestManagerBuilderProperties:

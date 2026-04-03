@@ -1,19 +1,24 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Builder system for genro-bag — grammar, validation, compilation, reactivity.
+"""Builder system for genro-bag — grammar, validation, rendering, reactivity.
 
 Define domain-specific grammars via decorators (@element, @abstract,
 @component) and build structured Bag hierarchies with validation.
 
-A builder owns the full reactive pipeline: source, built, data,
-binding, and compiler. Optionally, a ``BuilderManager`` coordinates
-multiple builders that share the same data bus.
+A builder is a machine: it materializes a source Bag into a built Bag,
+expanding components and resolving ^pointers. A ``BuilderManager`` mixin
+coordinates one or more builders with a shared reactive data store.
+
+Lifecycle: setup (populate) → build (materialize) → subscribe (optional
+reactivity) → render/compile (output).
 
 Core classes:
-    BagBuilderBase: Define grammars with @element, @abstract, @component.
-    BuilderBag: Bag subclass with builder delegation.
+    BagBuilderBase: Grammar machine — @element, @abstract, @component,
+        build, subscribe, render, compile.
+    BuilderBag: Bag subclass with grammar-first attribute resolution.
     BagRendererBase: Transform built Bag into serialized output (text, bytes).
     BagCompilerBase: Transform built Bag into live objects (widgets, etc.).
-    BuilderManager: Coordinate multiple builders with shared data.
+    BuilderManager: Mixin to coordinate builders with shared data.
+        Provides setup (store → main), build, and subscribe.
     BindingManager: Reactive ^pointer subscription map.
 """
 

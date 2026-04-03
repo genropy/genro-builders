@@ -1,13 +1,13 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """BagBuilderBase — base class for Bag builders with grammar and validation.
 
-A builder owns the full reactive pipeline: source, built, data, and
-binding. Define a domain-specific grammar via decorators (@element,
-@abstract, @component), populate the source Bag, build (materialize),
-and render/compile to output. Named renderers (BagRendererBase) produce
-serialized output; named compilers (BagCompilerBase) produce live objects.
-Optionally, a ``BuilderManager`` coordinates multiple builders that share
-the same data bus.
+A builder is a machine: it defines a domain-specific grammar via decorators
+(@element, @abstract, @component), materializes a source Bag into a built
+Bag (expanding components and resolving ^pointers), and produces output via
+named renderers (BagRendererBase, serialized) or compilers (BagCompilerBase,
+live objects). A ``BuilderManager`` mixin coordinates one or more builders
+with a shared reactive data store, providing the store/main hooks for
+population and the setup/build/subscribe lifecycle.
 
 Exports:
     element: Decorator to mark methods as element handlers.
@@ -92,39 +92,33 @@ Example - @component (lazy expansion):
     ...         component.input(name='username')
     ...         component.input(name='password')
 
-Example - Standalone builder with main/store:
-    >>> class MyBuilder(BagBuilderBase):
-    ...     _renderers = {'html': MyRenderer}
-    ...     @element(sub_tags='*')
-    ...     def div(self): ...
-    ...     @element()
-    ...     def p(self): ...
-    >>>
-    >>> class MyPage(MyBuilder):
-    ...     def store(self, data):
-    ...         data['title'] = 'Hello'
-    ...     def main(self, source):
-    ...         source.div(id='main').p(value='^title')
-    >>>
-    >>> page = MyPage()
-    >>> page.build()
-    >>> print(page.output)
+Example - Builder as a machine (direct usage in tests):
+    >>> builder = MyBuilder()
+    >>> builder.source.div(id='main').p('Hello')
+    >>> builder.build()           # materialize source → built
+    >>> print(builder.render())   # produce output
 
-Example - Multiple builders with shared data (BuilderManager):
+Example - BuilderManager with store/main hooks:
     >>> from genro_builders import BuilderManager
     >>>
-    >>> class MyApp(BuilderManager):
+    >>> class HtmlManager(BuilderManager):
     ...     def __init__(self):
     ...         self.page = self.set_builder('page', HtmlBuilder)
-    ...
+    ...     def render(self):
+    ...         return self.page.render()
+    >>>
+    >>> class SalesPage(HtmlManager):
+    ...     def __init__(self):
+    ...         super().__init__()
+    ...         self.setup()      # store → main
+    ...         self.build()      # source → built
     ...     def store(self, data):
     ...         data['title'] = 'Hello'
-    ...
     ...     def main(self, source):
     ...         source.h1(value='^title')
     >>>
-    >>> app = MyApp()
-    >>> app.build()
+    >>> page = SalesPage()
+    >>> print(page.render())
 
 Example - node_id for direct node lookup:
     >>> builder = MyBuilder()
@@ -468,10 +462,10 @@ class BagBuilderBase(ABC):
         3. @element and @component decorated methods
 
     Usage:
-        >>> bag = Bag(builder=MyBuilder)
-        >>> bag.div()  # looks up 'div' in schema, calls handler
-        >>> # With custom schema:
-        >>> bag = Bag(builder=MyBuilder, builder_schema_path='custom.bag.mp')
+        >>> builder = MyBuilder()
+        >>> builder.source.div()     # populate source
+        >>> builder.build()          # materialize source → built
+        >>> builder.render()         # produce output
     """
 
     _class_schema: Bag  # Schema built from decorators at class definition
@@ -775,51 +769,25 @@ class BagBuilderBase(ABC):
     # Build / render / rebuild
     # -------------------------------------------------------------------------
 
-    def store(self, data: Bag) -> None:  # noqa: B027
-        """Populate the data store. Override in subclass.
+    def build(self) -> None:
+        """Materialize source → built.
 
-        Called by ``build()`` before ``main()``. Receives the data Bag.
-
-        Args:
-            data: The data Bag to populate.
+        Expands components, resolves ^pointers, registers binding entries.
+        Does NOT activate reactivity — call ``subscribe()`` separately.
         """
-
-    def main(self, source: BuilderBag) -> None:  # noqa: B027
-        """Entry point: populate the source Bag. Override in subclass.
-
-        Called by ``build()`` after ``store()``. Receives the source Bag.
-        The user can define helper methods and call them from here.
-
-        Args:
-            source: The source Bag to populate with elements.
-        """
-
-    def build(self) -> str:
-        """Full pipeline: store → main → build walk → subscribe → render.
-
-        If the subclass defines ``store()``, it is called with self.data.
-        If the subclass defines ``main()``, it is called with self.source.
-        Then expands components, resolves ^pointers, registers subscriptions,
-        and renders the output.
-
-        Returns:
-            Rendered output string.
-
-        Raises:
-            RuntimeError: If no compiler is configured for rendering.
-        """
-        # Call store() and main() hooks if overridden by subclass
-        if type(self).store is not BagBuilderBase.store:
-            self.store(self.data)
-        if type(self).main is not BagBuilderBase.main:
-            self.main(self.source)
-
         self._clear_built()
 
         self._build_walk(
             self.source, self.built, self.data, self._binding,
         )
 
+    def subscribe(self) -> None:
+        """Activate reactive bindings on the built Bag.
+
+        After this call, changes to data are propagated to built nodes
+        and output is re-rendered automatically.
+        Call after ``build()``.
+        """
         self._binding.subscribe(self.built, self.data)
 
         self.source.subscribe(
@@ -829,9 +797,8 @@ class BagBuilderBase(ABC):
             update=self._on_source_updated,
         )
 
-        self._output = self.render(self.built)
         self._auto_compile = True
-        return self._output
+        self._rerender()
 
     def render(
         self, built_bag: Bag | None = None, name: str | None = None,
@@ -931,22 +898,19 @@ class BagBuilderBase(ABC):
             raise KeyError(f"{kind} '{name}' not found")
         return registry[name]
 
-    def rebuild(self, main: Callable[..., Any] | None = None) -> str:
+    def rebuild(self, main: Callable[..., Any] | None = None) -> None:
         """Full rebuild: clear source, optionally re-populate, build.
 
         Args:
             main: Optional callable(source) to populate the source bag.
-                If not provided, uses the subclass main() if defined.
-
-        Returns:
-            Rendered output string.
+                If not provided, only clears and rebuilds from current source.
         """
         self.source.unsubscribe("source_watcher", any=True)
         self._auto_compile = False
         self._clear_source()
         if main is not None:
             main(self.source)
-        return self.build()
+        self.build()
 
     def _clear_built(self) -> None:
         """Clear the built bag without destroying the shell."""
@@ -1716,26 +1680,25 @@ class BagBuilderBase(ABC):
                     row.td("-")
 
                 meta = info.get("_meta") or {}
-                compile_parts = []
+                meta_parts = []
                 if "template" in meta:
-                    # Escape backticks in template for markdown display
                     tmpl = meta["template"].replace("`", "\\`")
                     tmpl = tmpl.replace("\n", "\\n")
-                    compile_parts.append(f"template: {tmpl}")
+                    meta_parts.append(f"template: {tmpl}")
                 if "callback" in meta:
-                    compile_parts.append(f"callback: {meta['callback']}")
-                # Other meta (module, class, etc.)
+                    meta_parts.append(f"callback: {meta['callback']}")
                 for k, v in meta.items():
                     if k not in ("template", "callback"):
-                        compile_parts.append(f"{k}: {v}")
-                if compile_parts:
-                    row.td("`" + ", ".join(compile_parts) + "`")
+                        meta_parts.append(f"{k}: {v}")
+                if meta_parts:
+                    row.td("`" + ", ".join(meta_parts) + "`")
                 else:
                     row.td("-")
 
                 row.td(info.get("documentation") or "-")
 
-        return md_builder.build()
+        md_builder.build()
+        return md_builder.render()
 
     # -------------------------------------------------------------------------
     # Value rendering (for compile)
@@ -1747,9 +1710,9 @@ class BagBuilderBase(ABC):
         Applies transformations in order:
         1. value_format (node attr) - format the raw value
         2. value_template (node attr) - apply runtime template
-        3. compile_callback (schema) - call method to modify context in place
-        4. compile_format (schema) - format from decorator
-        5. compile_template (schema) - structural template from decorator
+        3. _meta callback - call method to modify context in place
+        4. _meta format - format from decorator
+        5. _meta template - structural template from decorator
 
         Template placeholders available:
         - {node_value}: the node value
@@ -1795,29 +1758,29 @@ class BagBuilderBase(ABC):
             node_value = value_template.format(**template_ctx)
             template_ctx["node_value"] = node_value
 
-        # 3-5. compile_callback, compile_format and compile_template from schema
+        # 3-5. _meta callback, format, template from schema
         meta = info.get("_meta") or {}
 
-        # 3. compile_callback - call method to modify context in place
-        compile_callback = meta.get("callback")
-        if compile_callback:
-            method = getattr(self, compile_callback)
+        # 3. callback - call method to modify context in place
+        callback = meta.get("callback")
+        if callback:
+            method = getattr(self, callback)
             method(template_ctx)
             node_value = template_ctx["node_value"]
 
-        # 4. compile_format from schema
-        compile_format = meta.get("format")
-        if compile_format:
+        # 4. format from _meta
+        fmt = meta.get("format")
+        if fmt:
             try:
-                node_value = compile_format.format(node_value)
+                node_value = fmt.format(node_value)
                 template_ctx["node_value"] = node_value
             except (ValueError, KeyError):
                 pass
 
-        # 5. compile_template from schema
-        compile_template = meta.get("template")
-        if compile_template:
-            node_value = compile_template.format(**template_ctx)
+        # 5. template from _meta
+        template = meta.get("template")
+        if template:
+            node_value = template.format(**template_ctx)
 
         return node_value
 

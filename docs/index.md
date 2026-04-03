@@ -17,17 +17,17 @@ div = body.div(id='main')
 div.p('Hello, world!')
 
 builder.build()
-print(builder.output)
+print(builder.render())
 # <body><div id="main"><p>Hello, world!</p></div></body>
 ```
 
 ## Key Concepts
 
-- **BagBuilderBase** — Base class for defining grammars via `@element`, `@abstract`, and `@component` decorators. Owns the full pipeline: source, built, data, binding, renderers, compilers.
+- **BagBuilderBase** — Base class for defining grammars via `@element`, `@abstract`, and `@component` decorators. A builder is a machine: it materializes a source Bag into a built Bag.
 - **BuilderBag** — A Bag extended with builder support. Calling methods like `.div()` or `.p()` creates validated nodes.
 - **BagRendererBase** — Transforms a built Bag into serialized output (strings, bytes) via `@renderer` handlers.
 - **BagCompilerBase** — Transforms a built Bag into live objects (widgets, workbooks) via `@compiler` handlers.
-- **BuilderManager** — Coordinates multiple builders with a shared data store.
+- **BuilderManager** — Mixin to coordinate one or more builders with a shared reactive data store. Provides `setup()`, `build()`, and `subscribe()`.
 
 ## Built-in Builders
 
@@ -37,20 +37,18 @@ print(builder.output)
 | **MarkdownBuilder** | Markdown | Headings, paragraphs, lists, tables, code blocks |
 | **XsdBuilder** | XML | Schema-driven XML from XSD files |
 
-## Reactive Pipeline
-
-Each builder owns a reactive pipeline:
+## Lifecycle
 
 ```text
-store(data)  →  main(source)  →  build()  →  render() / compile()  →  output
+setup()           →  build()         →  subscribe()     →  render() / compile()
+store + main         source → built     activate            output
+(populate)           (materialize)      reactivity
 ```
 
-1. **store(data)** — optional: populate the data Bag
-2. **main(source)** — entry point: build the element tree with `@element`, `@component`, `^pointer` strings
-3. **build()** — materialize: expand components, resolve `^pointer` bindings, register subscriptions
+1. **setup()** — on manager: calls `store(data)` then `main(source)` to populate
+2. **build()** — materialize: expand components, resolve `^pointer` bindings
+3. **subscribe()** — optional: activate reactive bindings (data changes trigger re-render)
 4. **render() / compile()** — produce serialized output (`BagRendererBase`) or live objects (`BagCompilerBase`)
-
-Data changes trigger automatic re-render via the `BindingManager` subscription map.
 
 ```python
 from genro_builders.builders import HtmlBuilder
@@ -61,6 +59,7 @@ builder.data['text'] = 'World'
 builder.source.h1(value='^title')
 builder.source.p(value='^text')
 builder.build()
+builder.subscribe()          # activate reactivity
 print(builder.output)
 
 # Data changes trigger automatic re-render

@@ -1,6 +1,6 @@
 # MarkdownBuilder
 
-The `MarkdownBuilder` provides elements for building Markdown documents programmatically. The `_compile()` method walks the Bag and renders each node using the `compile_template` or `compile_callback` from the schema.
+The `MarkdownBuilder` provides elements for building Markdown documents programmatically. The `MarkdownRenderer` walks the built Bag and renders each node using `@renderer` handlers (declarative templates or logic methods).
 
 ## Basic Usage
 

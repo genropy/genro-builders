@@ -1304,7 +1304,7 @@ class TestBuilderCompile:
 
 
 # =============================================================================
-# Tests for compile_kwargs
+# Tests for _meta
 # =============================================================================
 
 
@@ -1963,8 +1963,8 @@ class TestRenderValue:
 
         assert result == "Hello, World!"
 
-    def test_compile_callback(self):
-        """_render_value calls compile_callback to modify context."""
+    def test_meta_callback(self):
+        """_render_value calls _meta callback to modify context."""
 
         class Builder(BagBuilderBase):
             @element(_meta={"callback": "uppercase_value"})
@@ -1981,8 +1981,8 @@ class TestRenderValue:
 
         assert result == "HELLO"
 
-    def test_compile_format_schema(self):
-        """_render_value applies compile_format from schema."""
+    def test_meta_format_schema(self):
+        """_render_value applies _meta format from schema."""
 
         class Builder(BagBuilderBase):
             @element(_meta={"format": "[{}]"})

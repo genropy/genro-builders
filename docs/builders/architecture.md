@@ -31,20 +31,22 @@ flowchart TB
 | `@element(sub_tags='')` | BagNode | Leaf, no children |
 | `@element()` | BagNode | Leaf, no children |
 
-## build() Flow
+## Lifecycle
 
 ```{mermaid}
 flowchart TB
-    A["store(data)"] --> B["main(source)"]
-    B --> C["build()"]
-    C --> D[Expand components]
-    D --> E["Resolve ^pointers against data"]
-    E --> F[Register subscriptions in BindingManager]
-    F --> G["render() or compile()"]
-    G --> H["builder.output"]
+    A["setup()"] --> B["store(data)"]
+    B --> C["main(source)"]
+    C --> D["build()"]
+    D --> E[Expand components]
+    E --> F["Resolve ^pointers against data"]
+    F --> G["subscribe() — optional"]
+    G --> H[Register subscriptions in BindingManager]
+    H --> I["render() or compile()"]
 ```
 
-- **store(data)** / **main(source)** — called if overridden by subclass
-- **build()** — materializes source into built Bag
+- **setup()** — on manager: calls `store(data)` then `main(source)` to populate
+- **build()** — materializes source into built Bag (expand components, resolve pointers)
+- **subscribe()** — optional: activates reactive bindings (data changes trigger re-render)
 - **render()** — produces serialized output via `BagRendererBase`
 - **compile()** — produces live objects via `BagCompilerBase`

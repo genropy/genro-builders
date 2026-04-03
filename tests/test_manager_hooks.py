@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BuilderManager hooks: store, main, reactive_store."""
+"""Tests for BuilderManager hooks: store, main, setup, build, subscribe."""
 from __future__ import annotations
 
 from genro_bag import Bag
@@ -26,8 +26,9 @@ class TestStore:
                 source.heading("^title")
 
         app = App()
+        app.setup()
         app.build()
-        assert "Hello" in app.page.output
+        assert "Hello" in app.page.render()
 
     def test_store_accessible_by_all_builders(self):
         """Shared data is accessible by all builders."""
@@ -47,9 +48,10 @@ class TestStore:
                 source.text("^shared")
 
         app = App()
+        app.setup()
         app.build()
-        assert "Common Value" in app.a.output
-        assert "Common Value" in app.b.output
+        assert "Common Value" in app.a.render()
+        assert "Common Value" in app.b.render()
 
 
 class TestMainHook:
@@ -66,8 +68,9 @@ class TestMainHook:
                 source.heading("From Main")
 
         app = App()
+        app.setup()
         app.build()
-        assert "From Main" in app.page.output
+        assert "From Main" in app.page.render()
 
     def test_multi_builder_uses_main_name(self):
         """Multiple builders call main_<name>(source)."""
@@ -84,9 +87,10 @@ class TestMainHook:
                 source.text("Sidebar")
 
         app = App()
+        app.setup()
         app.build()
-        assert "Main Content" in app.content.output
-        assert "Sidebar" in app.sidebar.output
+        assert "Main Content" in app.content.render()
+        assert "Sidebar" in app.sidebar.render()
 
     def test_main_name_takes_precedence(self):
         """main_<name> takes precedence over main."""
@@ -102,8 +106,9 @@ class TestMainHook:
                 source.heading("Specific")
 
         app = App()
+        app.setup()
         app.build()
-        assert "Specific" in app.page.output
+        assert "Specific" in app.page.render()
 
 
 class TestPrivateData:
@@ -138,6 +143,7 @@ class TestPrivateData:
                 source.heading("test")
 
         app = App()
+        app.setup()
         app.build()
         assert app.reactive_store["builders.page.color"] == "blue"
 
@@ -155,8 +161,9 @@ class TestPrivateData:
                 source.heading("^title")
 
         app = App()
+        app.setup()
         app.build()
-        assert "Hello" in app.page.output
+        assert "Hello" in app.page.render()
 
     def test_multi_builder_private_data_isolated(self):
         """Each builder's private data is isolated."""
@@ -177,6 +184,7 @@ class TestPrivateData:
                 source.heading("test")
 
         app = App()
+        app.setup()
         app.build()
         assert app.reactive_store["builders.a.value"] == "A-private"
         assert app.reactive_store["builders.b.value"] == "B-private"
@@ -185,8 +193,8 @@ class TestPrivateData:
 class TestBuildPipeline:
     """Tests for full build pipeline."""
 
-    def test_pipeline_order(self):
-        """store → main → build in correct order."""
+    def test_setup_then_build(self):
+        """setup → build in correct order."""
         order = []
 
         class App(BuilderManager):
@@ -202,9 +210,10 @@ class TestBuildPipeline:
                 source.heading("^title")
 
         app = App()
+        app.setup()
         app.build()
         assert order == ["store", "main"]
-        assert "Hello" in app.page.output
+        assert "Hello" in app.page.render()
 
     def test_reactive_store_property(self):
         """reactive_store property returns the data Bag."""
@@ -218,7 +227,7 @@ class TestBuildPipeline:
         assert app.reactive_store.backref is True
 
     def test_no_hooks_manual_usage(self):
-        """Manager without hooks — user populates manually."""
+        """Manager without hooks — user populates source manually."""
 
         class App(BuilderManager):
             def __init__(self):
@@ -226,5 +235,5 @@ class TestBuildPipeline:
 
         app = App()
         app.page.source.heading("Manual")
-        app.build_all()
-        assert "Manual" in app.page.output
+        app.build()
+        assert "Manual" in app.page.render()

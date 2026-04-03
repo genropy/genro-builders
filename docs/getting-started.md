@@ -21,7 +21,7 @@ body.h1('Welcome')
 body.p('This is a paragraph.')
 
 builder.build()
-print(builder.output)
+print(builder.render())
 ```
 
 Output:
@@ -69,7 +69,7 @@ builder.source.h2('Section')
 builder.source.code('print("hello")', lang='python')
 
 builder.build()
-print(builder.output)
+print(builder.render())
 ```
 
 ## Custom builders
@@ -93,15 +93,28 @@ db.setting('localhost', node_label='host')
 db.setting(5432, node_label='port')
 ```
 
-## The `main()` / `store()` pattern
+## The manager pattern — `store()` and `main()`
 
-Instead of populating the source manually, you can subclass a builder
-and define `main()` (entry point) and `store()` (data population):
+A builder is a machine — it knows *how* to build, not *what*. To define
+the content declaratively, use a `BuilderManager`:
 
 ```python
 from genro_builders.builders import MarkdownBuilder
+from genro_builders.manager import BuilderManager
 
-class MyDoc(MarkdownBuilder):
+class MarkdownManager(BuilderManager):
+    def __init__(self):
+        self.doc = self.set_builder('doc', MarkdownBuilder)
+
+    def render(self):
+        return self.doc.render()
+
+class MyDoc(MarkdownManager):
+    def __init__(self):
+        super().__init__()
+        self.setup()       # store → main
+        self.build()       # source → built
+
     def store(self, data):
         data['title'] = 'Monthly Report'
         data['author'] = 'Giovanni'
@@ -116,17 +129,16 @@ class MyDoc(MarkdownBuilder):
         source.p('...')
 
 doc = MyDoc()
-doc.build()
-print(doc.output)
+print(doc.render())
 ```
 
-`store()` is called before `main()`. Both are optional — you can use
-either, both, or neither (populating the source manually).
+`setup()` calls `store()` then `main()`. `build()` materializes the source
+into the built Bag. Both are separate steps.
 
 ## Reactive data binding
 
-Builders support `^pointer` syntax for reactive data binding. When data
-changes, the output updates automatically:
+Builders support `^pointer` syntax for reactive data binding. After
+calling `subscribe()`, data changes trigger automatic re-render:
 
 ```python
 from genro_builders.builders import HtmlBuilder
@@ -137,6 +149,7 @@ builder.data['text'] = 'World'
 builder.source.h1(value='^title')
 builder.source.p(value='^text')
 builder.build()
+builder.subscribe()          # activate reactivity
 print(builder.output)
 
 # Change data — output updates automatically
@@ -151,15 +164,12 @@ Assign a unique `node_id` to any element for direct access:
 ```python
 from genro_builders.builders import HtmlBuilder
 
-class MyPage(HtmlBuilder):
-    def main(self, source):
-        source.div(node_id='header').h1('Title')
-        source.div(node_id='content').p('Body text')
+builder = HtmlBuilder()
+builder.source.div(node_id='header').h1('Title')
+builder.source.div(node_id='content').p('Body text')
+builder.build()
 
-page = MyPage()
-page.build()
-
-header = page.node_by_id('header')   # O(1) lookup
+header = builder.node_by_id('header')   # O(1) lookup
 ```
 
 Duplicate `node_id` values raise `ValueError`.

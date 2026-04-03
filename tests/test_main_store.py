@@ -1,43 +1,56 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for main()/store() pattern on standalone builders."""
+"""Tests for main()/store() pattern via BuilderManager."""
 from __future__ import annotations
+
+from genro_builders.manager import BuilderManager
 
 from .helpers import TestBuilder
 
 
 class TestMainStore:
-    """Tests for main/store pattern on standalone builder."""
+    """Tests for main/store pattern on BuilderManager."""
 
     def test_main_populates_source(self):
         """Subclass main() is called to populate source."""
 
-        class MyBuilder(TestBuilder):
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
             def main(self, source):
                 source.heading("from main")
 
-        b = MyBuilder()
-        b.build()
-        assert "from main" in b.output
+        app = App()
+        app.setup()
+        app.build()
+        assert "from main" in app.page.render()
 
     def test_store_populates_data(self):
         """Subclass store() populates data before main."""
 
-        class MyBuilder(TestBuilder):
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
             def store(self, data):
                 data["msg"] = "hello"
 
             def main(self, source):
                 source.heading(value="^msg")
 
-        b = MyBuilder()
-        b.build()
-        assert "hello" in b.output
+        app = App()
+        app.setup()
+        app.build()
+        assert "hello" in app.page.render()
 
     def test_store_called_before_main(self):
         """store() is called before main()."""
         order = []
 
-        class MyBuilder(TestBuilder):
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
             def store(self, data):
                 order.append("store")
 
@@ -45,21 +58,30 @@ class TestMainStore:
                 order.append("main")
                 source.heading("test")
 
-        b = MyBuilder()
-        b.build()
+        app = App()
+        app.setup()
+        app.build()
         assert order == ["store", "main"]
 
     def test_no_main_no_store_still_works(self):
-        """Builder without main/store works as before (manual population)."""
-        b = TestBuilder()
-        b.source.heading("manual")
-        b.build()
-        assert "manual" in b.output
+        """Manager without main/store works (manual population)."""
+
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
+        app = App()
+        app.page.source.heading("manual")
+        app.build()
+        assert "manual" in app.page.render()
 
     def test_main_with_helpers(self):
         """main() can call helper methods on self."""
 
-        class MyBuilder(TestBuilder):
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
             def main(self, source):
                 self.header(source)
                 self.body(source)
@@ -70,19 +92,25 @@ class TestMainStore:
             def body(self, source):
                 source.text("body")
 
-        b = MyBuilder()
-        b.build()
-        assert "header" in b.output
-        assert "body" in b.output
+        app = App()
+        app.setup()
+        app.build()
+        output = app.page.render()
+        assert "header" in output
+        assert "body" in output
 
     def test_store_only_no_main(self):
-        """Only store() without main() — user populates manually."""
+        """Only store() without main() — user populates source manually."""
 
-        class MyBuilder(TestBuilder):
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+
             def store(self, data):
                 data["title"] = "Hello"
 
-        b = MyBuilder()
-        b.source.heading(value="^title")
-        b.build()
-        assert "Hello" in b.output
+        app = App()
+        app.setup()
+        app.page.source.heading(value="^title")
+        app.build()
+        assert "Hello" in app.page.render()

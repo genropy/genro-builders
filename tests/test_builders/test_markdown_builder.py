@@ -15,10 +15,11 @@ from genro_builders.builders import MarkdownBuilder
 
 
 def md(setup):
-    """Helper: create builder, populate source, build and return output."""
+    """Helper: create builder, populate source, build and return rendered output."""
     builder = MarkdownBuilder()
     setup(builder.source)
-    return builder.build()
+    builder.build()
+    return builder.render()
 
 
 class TestMarkdownHeadings:
@@ -41,10 +42,10 @@ class TestMarkdownHeadings:
 
     def test_multiple_headings(self):
         """Multiple headings separated by blank lines."""
-        def recipe(s):
+        def populate(s):
             s.h1("Title")
             s.h2("Subtitle")
-        result = md(recipe)
+        result = md(populate)
         assert "# Title" in result
         assert "## Subtitle" in result
         assert "\n\n" in result
@@ -60,10 +61,10 @@ class TestMarkdownParagraph:
 
     def test_multiple_paragraphs(self):
         """Multiple paragraphs separated by blank lines."""
-        def recipe(s):
+        def populate(s):
             s.p("First paragraph.")
             s.p("Second paragraph.")
-        result = md(recipe)
+        result = md(populate)
         assert "First paragraph." in result
         assert "Second paragraph." in result
         assert "\n\n" in result
@@ -114,7 +115,7 @@ class TestMarkdownTable:
 
     def test_simple_table(self):
         """Table with header and rows."""
-        def recipe(s):
+        def populate(s):
             table = s.table()
             header = table.tr()
             header.th("Name")
@@ -122,14 +123,14 @@ class TestMarkdownTable:
             row = table.tr()
             row.td("foo")
             row.td("bar")
-        result = md(recipe)
+        result = md(populate)
         assert "| Name | Value |" in result
         assert "| --- | --- |" in result
         assert "| foo | bar |" in result
 
     def test_table_multiple_rows(self):
         """Table with multiple data rows."""
-        def recipe(s):
+        def populate(s):
             table = s.table()
             header = table.tr()
             header.th("A")
@@ -138,7 +139,7 @@ class TestMarkdownTable:
                 row = table.tr()
                 row.td(f"a{i}")
                 row.td(f"b{i}")
-        result = md(recipe)
+        result = md(populate)
         assert "| a0 | b0 |" in result
         assert "| a1 | b1 |" in result
         assert "| a2 | b2 |" in result
@@ -149,24 +150,24 @@ class TestMarkdownLists:
 
     def test_unordered_list(self):
         """ul generates - prefix."""
-        def recipe(s):
+        def populate(s):
             ul = s.ul()
             ul.li("Item 1")
             ul.li("Item 2")
             ul.li("Item 3")
-        result = md(recipe)
+        result = md(populate)
         assert "- Item 1" in result
         assert "- Item 2" in result
         assert "- Item 3" in result
 
     def test_ordered_list(self):
         """ol generates numbered prefix."""
-        def recipe(s):
+        def populate(s):
             ol = s.ol()
             ol.li("First")
             ol.li("Second")
             ol.li("Third")
-        result = md(recipe)
+        result = md(populate)
         assert "1. First" in result
         assert "2. Second" in result
         assert "3. Third" in result
@@ -201,10 +202,10 @@ class TestMarkdownBuild:
 
     def test_build_returns_string(self):
         """build() returns markdown string."""
-        def recipe(s):
+        def populate(s):
             s.h1("Test")
             s.p("Content")
-        result = md(recipe)
+        result = md(populate)
         assert isinstance(result, str)
         assert "# Test" in result
         assert "Content" in result
@@ -215,7 +216,7 @@ class TestMarkdownCompleteDocument:
 
     def test_full_document(self):
         """Build a complete document with multiple elements."""
-        def recipe(s):
+        def populate(s):
             s.h1("My Document")
             s.p("Introduction paragraph.")
             s.h2("Code Example")
@@ -233,7 +234,7 @@ class TestMarkdownCompleteDocument:
             ol.li("First step")
             ol.li("Second step")
 
-        result = md(recipe)
+        result = md(populate)
 
         assert "# My Document" in result
         assert "## Code Example" in result
