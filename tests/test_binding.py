@@ -319,3 +319,86 @@ class TestUnbindPath:
         assert "a" not in smap
         assert "b" in smap
         assert smap["b"] == ["other"]
+
+
+class TestThreeLevelPropagation:
+    """Tests for 3-level trigger reason: node, container, child."""
+
+    def test_node_exact_match(self):
+        """Exact path match triggers notification (node level)."""
+        data = Bag()
+        data.set_item("user.name", "Alice")
+
+        bag = BuilderBag()
+        bag.set_item("display", "^user.name")
+
+        updated = []
+        _setup_bound(data, bag, [("user.name", "display")],
+                     callback=lambda node: updated.append(node.label))
+
+        data.set_item("user.name", "Bob")
+        assert "display" in updated
+
+    def test_container_ancestor_changed(self):
+        """Ancestor change triggers notification (container level).
+
+        Watching 'user.name', changing 'user' (replace entire subtree).
+        """
+        data = Bag()
+        data.set_item("user.name", "Alice")
+
+        bag = BuilderBag()
+        bag.set_item("display", "^user.name")
+
+        updated = []
+        _setup_bound(data, bag, [("user.name", "display")],
+                     callback=lambda node: updated.append(node.label))
+
+        # Replace entire 'user' — ancestor of 'user.name'
+        new_user = Bag()
+        new_user["name"] = "Bob"
+        data.set_item("user", new_user)
+        assert "display" in updated
+
+    def test_child_descendant_changed(self):
+        """Descendant change triggers notification (child level).
+
+        Watching 'user', changing 'user.name' (a child path).
+        """
+        data = Bag()
+        data.set_item("user.name", "Alice")
+
+        bag = BuilderBag()
+        bag.set_item("display", "^user")
+
+        updated = []
+        _setup_bound(data, bag, [("user", "display")],
+                     callback=lambda node: updated.append(node.label))
+
+        data.set_item("user.name", "Bob")
+        assert "display" in updated
+
+    def test_unrelated_path_no_trigger(self):
+        """Unrelated path change does not trigger notification."""
+        data = Bag()
+        data.set_item("user.name", "Alice")
+        data.set_item("config.theme", "dark")
+
+        bag = BuilderBag()
+        bag.set_item("display", "^user.name")
+
+        updated = []
+        _setup_bound(data, bag, [("user.name", "display")],
+                     callback=lambda node: updated.append(node.label))
+
+        data.set_item("config.theme", "light")
+        assert len(updated) == 0
+
+    def test_get_trigger_reason_method(self):
+        """Direct test of _get_trigger_reason logic."""
+        manager = BindingManager()
+        assert manager._get_trigger_reason("user.name", "user.name") == "node"
+        assert manager._get_trigger_reason("user.name", "user") == "container"
+        assert manager._get_trigger_reason("user", "user.name") == "child"
+        assert manager._get_trigger_reason("user.name", "config") is None
+        assert manager._get_trigger_reason("user", "username") is None

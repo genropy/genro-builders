@@ -187,23 +187,59 @@ class BindingManager:
             self._update_bound_nodes(changed_path, reason=reason)
 
     def _update_bound_nodes(self, data_key: str, reason: str | None = None) -> None:
-        """Notify all built nodes bound to a specific data key.
+        """Notify all built nodes bound to a data key, with 3-level matching.
 
-        The built Bag is NOT modified — ^pointer strings stay.
-        Only signals re-render via _on_node_updated callback.
+        For each subscription entry, determines the relationship between
+        the watched path and the changed path:
+
+            - node: exact match (watched == changed)
+            - container: ancestor changed (watched starts with changed.)
+            - child: descendant changed (changed starts with watched.)
+
+        All three trigger a re-render notification.
 
         Args:
-            data_key: The data key that changed.
-            reason: Optional built path of the node that originated the change.
-                    Used for anti-loop: skip if built entry matches reason.
+            data_key: The data key that changed (without ?attr suffix for
+                      container/child matching).
+            reason: Optional built path for anti-loop protection.
         """
-        entries = self._subscription_map.get(data_key, [])
-        if not entries or self._data is None or self._built is None:
+        if self._data is None or self._built is None:
             return
 
-        for built_entry in entries:
-            node_path = built_entry.partition("?")[0]
-            if reason and node_path == reason:
-                continue
+        changed_path = data_key.partition("?")[0]
 
-            self._notify_node(built_entry)
+        for watched_key, entries in self._subscription_map.items():
+            watched_path = watched_key.partition("?")[0]
+
+            trigger_reason = self._get_trigger_reason(watched_path, changed_path)
+            if trigger_reason is None:
+                # For attr-level keys, also check exact match on full key
+                if watched_key == data_key:
+                    trigger_reason = "node"
+                else:
+                    continue
+
+            for built_entry in entries:
+                node_path = built_entry.partition("?")[0]
+                if reason and node_path == reason:
+                    continue
+                self._notify_node(built_entry)
+
+    def _get_trigger_reason(
+        self, watched_path: str, changed_path: str,
+    ) -> str | None:
+        """Determine relationship between watched and changed paths.
+
+        Returns 'node', 'container', 'child', or None.
+
+        - node: exact match
+        - container: watched is a descendant of changed (ancestor changed)
+        - child: changed is a descendant of watched (child changed)
+        """
+        if watched_path == changed_path:
+            return "node"
+        if watched_path.startswith(changed_path + "."):
+            return "container"
+        if changed_path.startswith(watched_path + "."):
+            return "child"
+        return None
