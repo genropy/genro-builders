@@ -938,8 +938,20 @@ class BagBuilderBase(ABC):
 
         The built node keeps the ^pointer string intact. Resolution happens
         just-in-time during render/compile via _resolve_node.
+
+        Also registers dependencies from computed attributes (callables
+        with ^pointer defaults in their parameters).
         """
         pointers = scan_for_pointers(node)
+
+        # Scan callable attributes for ^pointer defaults
+        for attr_name, attr_value in node.attr.items():
+            if attr_name.startswith("_") or not callable(attr_value):
+                continue
+            for pointer_raw in self._extract_pointer_defaults(attr_value):
+                pointer_info = parse_pointer(pointer_raw)
+                pointers.append((pointer_info, f"attr:{attr_name}"))
+
         if not pointers:
             return
 
@@ -957,6 +969,15 @@ class BagBuilderBase(ABC):
             built_entry = built_path if location == "value" else f"{built_path}?{location[5:]}"
 
             binding.register(data_key, built_entry)
+
+    def _extract_pointer_defaults(self, func: Any) -> list[str]:
+        """Extract ^pointer strings from callable parameter defaults."""
+        result: list[str] = []
+        sig = inspect.signature(func)
+        for param in sig.parameters.values():
+            if param.default is not inspect.Parameter.empty and is_pointer(param.default):
+                result.append(param.default)
+        return result
 
     def _resolve_pointer(
         self, node: BagNode, pointer_info: Any, data_path: str, data: Bag,
@@ -994,6 +1015,11 @@ class BagBuilderBase(ABC):
         Returns a dict with resolved value and attributes. The built node
         is NOT modified — ^pointer strings stay in the built Bag.
 
+        Handles three kinds of attribute values:
+        - ^pointer strings: resolved from data
+        - callables: defaults inspected for ^pointer deps, called with resolved args
+        - plain values: passed through
+
         Used by renderer/compiler _build_context for just-in-time resolution.
         """
         raw_value = node.get_value(static=True)
@@ -1006,6 +1032,8 @@ class BagBuilderBase(ABC):
         for k, v in node.attr.items():
             if is_pointer(v):
                 resolved_attrs[k] = self._resolve_pointer_from_data(v, node, data)
+            elif callable(v) and not k.startswith("_"):
+                resolved_attrs[k] = self._resolve_computed_attr(v, node, data)
             else:
                 resolved_attrs[k] = v
 
@@ -1014,6 +1042,26 @@ class BagBuilderBase(ABC):
             "attrs": resolved_attrs,
             "node": node,
         }
+
+    def _resolve_computed_attr(
+        self, func: Any, node: BagNode, data: Bag,
+    ) -> Any:
+        """Resolve a computed attribute (callable with ^pointer defaults).
+
+        Inspects the callable's parameter defaults for ^pointer strings,
+        resolves them from data, and calls the callable with resolved values.
+        """
+        sig = inspect.signature(func)
+        kwargs: dict[str, Any] = {}
+        for param_name, param in sig.parameters.items():
+            if param.default is inspect.Parameter.empty:
+                continue
+            default = param.default
+            if is_pointer(default):
+                kwargs[param_name] = self._resolve_pointer_from_data(default, node, data)
+            else:
+                kwargs[param_name] = default
+        return func(**kwargs)
 
     # -------------------------------------------------------------------------
     # Build / render / rebuild

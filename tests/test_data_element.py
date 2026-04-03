@@ -413,3 +413,75 @@ class TestNodeInjection:
         builder.build()
 
         assert "_node" in received
+
+
+# =============================================================================
+# Computed attributes (callable on attrs with ^pointer defaults)
+# =============================================================================
+
+
+class TestComputedAttributes:
+    """Tests for computed attributes: callable with ^pointer defaults."""
+
+    def test_computed_attr_resolved_at_render(self):
+        """Callable attribute is resolved at render time."""
+        builder = TestBuilder()
+        builder.data["selected"] = True
+        builder.source.item(
+            color=lambda selected='^selected': 'red' if selected else 'blue',
+        )
+        builder.build()
+
+        output = builder.render()
+        assert "red" in output
+
+    def test_computed_attr_updates_on_data_change(self):
+        """Computed attr reflects data changes after subscribe."""
+        builder = TestBuilder()
+        builder.data["selected"] = True
+        builder.source.item(
+            color=lambda selected='^selected': 'red' if selected else 'blue',
+        )
+        builder.build()
+        builder.subscribe()
+
+        assert "red" in builder.output
+
+        builder.data["selected"] = False
+        assert "blue" in builder.output
+
+    def test_computed_attr_multiple_deps(self):
+        """Callable with multiple ^pointer defaults."""
+        builder = TestBuilder()
+        builder.data["name"] = "Alice"
+        builder.data["role"] = "Admin"
+        builder.source.item(
+            label=lambda name='^name', role='^role': f'{name} ({role})',
+        )
+        builder.build()
+
+        output = builder.render()
+        assert "Alice (Admin)" in output
+
+    def test_computed_attr_preserved_in_built(self):
+        """Callable stays in built node attrs — not resolved until render."""
+        builder = TestBuilder()
+        builder.data["x"] = 1
+        builder.source.item(
+            value=lambda x='^x': x * 10,
+        )
+        builder.build()
+
+        node = builder.built.get_node("item_0")
+        assert callable(node.attr.get("value"))
+
+    def test_plain_callable_without_pointer_defaults(self):
+        """Callable without ^pointer defaults is called with its plain defaults."""
+        builder = TestBuilder()
+        builder.source.item(
+            value=lambda x=5: x * 2,
+        )
+        builder.build()
+
+        output = builder.render()
+        assert "10" in output
