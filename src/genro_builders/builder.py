@@ -643,6 +643,8 @@ class BagBuilderBase(ABC):
             self._binding = BindingManager(on_node_updated=self._on_node_updated)
             self._formula_registry: dict[str, dict[str, Any]] = {}
             self._auto_compile = False
+            self._output_suspended = False
+            self._output_pending = False
             self._output: str | None = None
 
             # Instantiate registered renderers and compilers
@@ -731,8 +733,34 @@ class BagBuilderBase(ABC):
             self._rerender()
 
     def _rerender(self) -> None:
-        """Re-render the built bag without re-building."""
+        """Re-render the built bag without re-building.
+
+        If output is suspended, marks as pending and returns.
+        The actual render happens on resume_output().
+        """
+        if self._output_suspended:
+            self._output_pending = True
+            return
         self._output = self.render(self.built)
+
+    def suspend_output(self) -> None:
+        """Suspend render/compile output.
+
+        While suspended, data changes and formula re-executions still
+        happen normally, but no render/compile is triggered.
+        Call resume_output() to flush a single render.
+        """
+        self._output_suspended = True
+
+    def resume_output(self) -> None:
+        """Resume render/compile output.
+
+        If any render was pending during suspension, triggers one now.
+        """
+        self._output_suspended = False
+        if self._output_pending:
+            self._output_pending = False
+            self._rerender()
 
     # -------------------------------------------------------------------------
     # Formula/controller reactivity

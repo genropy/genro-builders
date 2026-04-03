@@ -576,3 +576,73 @@ class TestTopologicalSort:
         idx1 = builder._formula_order.index("data_formula_0")
         idx2 = builder._formula_order.index("data_formula_1")
         assert idx1 < idx2
+
+
+# =============================================================================
+# Suspend / resume output
+# =============================================================================
+
+
+class TestSuspendResumeOutput:
+    """Tests for suspend_output / resume_output."""
+
+    def test_suspend_prevents_rerender(self):
+        """While suspended, data changes don't trigger render."""
+        builder = TestBuilder()
+        builder.data["title"] = "Original"
+        builder.source.heading("^title")
+        builder.build()
+        builder.subscribe()
+
+        assert "Original" in builder.output
+
+        builder.suspend_output()
+        builder.data["title"] = "Changed"
+        # output NOT updated — still shows Original
+        assert "Original" in builder.output
+
+    def test_resume_flushes_pending(self):
+        """resume_output triggers render if anything was pending."""
+        builder = TestBuilder()
+        builder.data["title"] = "Original"
+        builder.source.heading("^title")
+        builder.build()
+        builder.subscribe()
+
+        builder.suspend_output()
+        builder.data["title"] = "Updated"
+        assert "Original" in builder.output
+
+        builder.resume_output()
+        assert "Updated" in builder.output
+
+    def test_resume_no_pending_no_render(self):
+        """resume_output with no pending changes doesn't re-render."""
+        builder = TestBuilder()
+        builder.data["title"] = "Hello"
+        builder.source.heading("^title")
+        builder.build()
+        builder.subscribe()
+
+        original_output = builder.output
+        builder.suspend_output()
+        builder.resume_output()
+        assert builder.output == original_output
+
+    def test_multiple_changes_single_render(self):
+        """Multiple data changes during suspend result in one render."""
+        builder = TestBuilder()
+        builder.data["a"] = "1"
+        builder.data["b"] = "2"
+        builder.source.heading("^a")
+        builder.source.text("^b")
+        builder.build()
+        builder.subscribe()
+
+        builder.suspend_output()
+        builder.data["a"] = "X"
+        builder.data["b"] = "Y"
+        builder.resume_output()
+
+        assert "X" in builder.output
+        assert "Y" in builder.output
