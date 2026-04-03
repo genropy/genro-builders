@@ -485,3 +485,94 @@ class TestComputedAttributes:
 
         output = builder.render()
         assert "10" in output
+
+
+# =============================================================================
+# Topological sort and cycle detection
+# =============================================================================
+
+
+class TestTopologicalSort:
+    """Tests for formula dependency ordering and cycle detection."""
+
+    def test_formula_cascade_order(self):
+        """Formula B depends on formula A — A executes first."""
+        builder = TestBuilder()
+        builder.data["input"] = 10
+        # A: result_a = input * 2
+        builder.source.data_formula(
+            "result_a", func=lambda x: x * 2, x="^input",
+        )
+        # B: result_b = result_a + 1 (depends on A's output)
+        builder.source.data_formula(
+            "result_b", func=lambda x: x + 1, x="^result_a",
+        )
+        builder.build()
+
+        assert builder.data["result_a"] == 20
+        assert builder.data["result_b"] == 21
+
+    def test_formula_cascade_reactive(self):
+        """After subscribe, changing input cascades through A then B."""
+        builder = TestBuilder()
+        builder.data["input"] = 10
+        builder.source.data_formula(
+            "result_a", func=lambda x: x * 2, x="^input",
+        )
+        builder.source.data_formula(
+            "result_b", func=lambda x: x + 1, x="^result_a",
+        )
+        builder.build()
+        builder.subscribe()
+
+        builder.data["input"] = 5
+        assert builder.data["result_a"] == 10
+        assert builder.data["result_b"] == 11
+
+    def test_cycle_detection(self):
+        """Circular dependency raises ValueError at build time."""
+        builder = TestBuilder()
+        builder.data["a"] = 1
+        builder.data["b"] = 1
+        # a depends on b, b depends on a
+        builder.source.data_formula(
+            "a", func=lambda x: x + 1, x="^b",
+        )
+        builder.source.data_formula(
+            "b", func=lambda x: x + 1, x="^a",
+        )
+        with pytest.raises(ValueError, match="Circular dependency"):
+            builder.build()
+
+    def test_independent_formulas_no_error(self):
+        """Independent formulas (no shared paths) don't cause cycle error."""
+        builder = TestBuilder()
+        builder.data["x"] = 1
+        builder.data["y"] = 2
+        builder.source.data_formula(
+            "rx", func=lambda x: x * 10, x="^x",
+        )
+        builder.source.data_formula(
+            "ry", func=lambda y: y * 10, y="^y",
+        )
+        builder.build()
+
+        assert builder.data["rx"] == 10
+        assert builder.data["ry"] == 20
+
+    def test_formula_order_stored(self):
+        """_formula_order contains entry_ids in topological order."""
+        builder = TestBuilder()
+        builder.data["input"] = 1
+        builder.source.data_formula(
+            "step1", func=lambda x: x + 1, x="^input",
+        )
+        builder.source.data_formula(
+            "step2", func=lambda x: x * 2, x="^step1",
+        )
+        builder.build()
+
+        # step1 must come before step2 in the order
+        idx1 = builder._formula_order.index("data_formula_0")
+        idx2 = builder._formula_order.index("data_formula_1")
+        assert idx1 < idx2

@@ -738,6 +738,63 @@ class BagBuilderBase(ABC):
     # Formula/controller reactivity
     # -------------------------------------------------------------------------
 
+    def _topological_sort_formulas(self) -> list[str]:
+        """Sort formula entries by dependency order. Detect cycles.
+
+        Builds a DAG from formula dependencies: if formula A writes to
+        path X, and formula B has ^X in its kwargs, then A must execute
+        before B.
+
+        Returns:
+            List of entry_ids in execution order (dependencies first).
+
+        Raises:
+            ValueError: If a circular dependency is detected.
+        """
+        if not self._formula_registry:
+            return []
+
+        # Build: path → entry_id (which formula writes to which path)
+        path_to_entry: dict[str, str] = {}
+        for entry_id, entry in self._formula_registry.items():
+            if entry["path"] is not None:
+                path_to_entry[entry["path"]] = entry_id
+
+        # Build adjacency: entry_id → set of entry_ids it depends on
+        deps: dict[str, set[str]] = {eid: set() for eid in self._formula_registry}
+        for entry_id, entry in self._formula_registry.items():
+            for v in entry["raw_attrs"].values():
+                if is_pointer(v):
+                    dep_path = self._resolve_pointer_path(v, entry["node"])
+                    dep_entry = path_to_entry.get(dep_path)
+                    if dep_entry is not None and dep_entry != entry_id:
+                        deps[entry_id].add(dep_entry)
+
+        # Topological sort (Kahn's algorithm)
+        visited: set[str] = set()
+        in_stack: set[str] = set()
+        order: list[str] = []
+
+        def visit(eid: str) -> None:
+            if eid in in_stack:
+                cycle_path = self._formula_registry[eid].get("path", eid)
+                raise ValueError(
+                    f"Circular dependency in data_formula: {cycle_path}"
+                )
+            if eid in visited:
+                return
+            in_stack.add(eid)
+            for dep_eid in deps.get(eid, ()):
+                visit(dep_eid)
+            in_stack.discard(eid)
+            visited.add(eid)
+            order.append(eid)
+
+        for eid in self._formula_registry:
+            visit(eid)
+
+        return order
+
     def _on_formula_data_changed(
         self,
         node: BagNode | None = None,
@@ -746,22 +803,34 @@ class BagBuilderBase(ABC):
         evt: str = "",
         **kwargs: Any,
     ) -> None:
-        """Re-execute formula/controller when their dependencies change."""
+        """Re-execute formula/controller when their dependencies change.
+
+        Uses _formula_order (topological sort) to ensure dependent formulas
+        execute after their dependencies. Cascades: if formula A writes to
+        a path that formula B depends on, B re-executes after A.
+        """
         if pathlist is None or not self._formula_registry:
             return
 
         changed_path = ".".join(str(p) for p in pathlist)
+        changed_paths = {changed_path}
         rerun_needed = False
 
-        for entry in self._formula_registry.values():
+        for entry_id in self._formula_order:
+            entry = self._formula_registry[entry_id]
             for v in entry["raw_attrs"].values():
                 if is_pointer(v):
                     dep_path = self._resolve_pointer_path(v, entry["node"])
-                    if (dep_path == changed_path
-                            or changed_path.startswith(dep_path + ".")
-                            or dep_path.startswith(changed_path + ".")):
+                    if any(
+                        dep_path == cp
+                        or cp.startswith(dep_path + ".")
+                        or dep_path.startswith(cp + ".")
+                        for cp in changed_paths
+                    ):
                         self._reexecute_formula(entry)
                         rerun_needed = True
+                        if entry["path"] is not None:
+                            changed_paths.add(entry["path"])
                         break
 
         if rerun_needed:
@@ -1071,16 +1140,19 @@ class BagBuilderBase(ABC):
         """Materialize source → built.
 
         Two-pass walk: data_elements first, then normal elements.
-        After walk, calls _onBuilt hooks from data_controllers.
+        After walk, sorts formula by dependency order and calls _onBuilt hooks.
         Does NOT activate reactivity — call ``subscribe()`` separately.
         """
         self._clear_built()
         self._formula_registry = {}
+        self._formula_order: list[str] = []
         self._infra_on_built_hooks: list[Any] = []
 
         self._build_walk(
             self.source, self.built, self.data, self._binding,
         )
+
+        self._formula_order = self._topological_sort_formulas()
 
         for hook in self._infra_on_built_hooks:
             hook(self)
