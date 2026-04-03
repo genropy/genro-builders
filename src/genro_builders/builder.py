@@ -162,7 +162,7 @@ from genro_bag import Bag
 
 from .binding import BindingManager
 from .builder_bag import BuilderBag
-from .pointer import scan_for_pointers
+from .pointer import is_pointer, parse_pointer, scan_for_pointers
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
@@ -583,6 +583,7 @@ class BagBuilderBase(ABC):
             self._bag = bag
             self._bag.set_backref()
             self._manager = None
+            self._data = data if data is not None else Bag()
         else:
             # Standard instantiation: builder owns the full pipeline
             self._manager = manager
@@ -717,15 +718,19 @@ class BagBuilderBase(ABC):
                 node_tag=node.node_tag,
             )
 
-            self._resolve_and_register(new_node, built_path, data, binding)
+            self._register_bindings(new_node, built_path, data, binding)
 
             if isinstance(value, Bag):
                 self._build_walk(value, new_node.value, data, binding, prefix=built_path)
 
-    def _resolve_and_register(
+    def _register_bindings(
         self, node: BagNode, built_path: str, data: Bag, binding: Any,
     ) -> None:
-        """Resolve ^pointers on a node and register subscriptions in the map."""
+        """Register ^pointer subscriptions without resolving values.
+
+        The built node keeps the ^pointer string intact. Resolution happens
+        just-in-time during render/compile via _resolve_node.
+        """
         pointers = scan_for_pointers(node)
         if not pointers:
             return
@@ -739,14 +744,6 @@ class BagBuilderBase(ABC):
             if pointer_info.is_relative:
                 rel = data_path[1:]
                 data_path = f"{datapath}.{rel}" if datapath else rel
-
-            resolved = self._resolve_pointer(node, pointer_info, data_path, data)
-            if resolved is not None:
-                if location == "value":
-                    node.set_value(resolved, trigger=False)
-                elif location.startswith("attr:"):
-                    attr_name = location[5:]
-                    node.set_attr({attr_name: resolved}, trigger=False)
 
             data_key = f"{data_path}?{pointer_info.attr}" if pointer_info.attr else data_path
             built_entry = built_path if location == "value" else f"{built_path}?{location[5:]}"
@@ -765,6 +762,51 @@ class BagBuilderBase(ABC):
             return data_node.attr.get(pointer_info.attr) if data_node else None
         return data.get_item(data_path)
 
+    def _resolve_pointer_from_data(
+        self, raw: str, node: BagNode, data: Bag,
+    ) -> Any:
+        """Resolve a ^pointer string to its current value from data.
+
+        Used by _resolve_node for just-in-time resolution during render/compile.
+        The built node is NOT modified.
+        """
+        pointer_info = parse_pointer(raw)
+
+        data_path = pointer_info.path
+        if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
+            datapath = node._resolve_datapath()
+            rel = data_path[1:]
+            data_path = f"{datapath}.{rel}" if datapath else rel
+
+        return self._resolve_pointer(node, pointer_info, data_path, data)
+
+    def _resolve_node(self, node: BagNode, data: Bag) -> dict[str, Any]:
+        """Produce a resolved view of a built node.
+
+        Returns a dict with resolved value and attributes. The built node
+        is NOT modified — ^pointer strings stay in the built Bag.
+
+        Used by renderer/compiler _build_context for just-in-time resolution.
+        """
+        raw_value = node.get_value(static=True)
+
+        resolved_value = raw_value
+        if is_pointer(raw_value):
+            resolved_value = self._resolve_pointer_from_data(raw_value, node, data)
+
+        resolved_attrs: dict[str, Any] = {}
+        for k, v in node.attr.items():
+            if is_pointer(v):
+                resolved_attrs[k] = self._resolve_pointer_from_data(v, node, data)
+            else:
+                resolved_attrs[k] = v
+
+        return {
+            "node_value": resolved_value,
+            "attrs": resolved_attrs,
+            "node": node,
+        }
+
     # -------------------------------------------------------------------------
     # Build / render / rebuild
     # -------------------------------------------------------------------------
@@ -772,7 +814,7 @@ class BagBuilderBase(ABC):
     def build(self) -> None:
         """Materialize source → built.
 
-        Expands components, resolves ^pointers, registers binding entries.
+        Expands components, registers binding entries.
         Does NOT activate reactivity — call ``subscribe()`` separately.
         """
         self._clear_built()
@@ -980,7 +1022,7 @@ class BagBuilderBase(ABC):
             _reason="source",
         )
 
-        self._resolve_and_register(
+        self._register_bindings(
             new_node, node_path, self.data, self._binding,
         )
 
@@ -1015,7 +1057,7 @@ class BagBuilderBase(ABC):
 
             if isinstance(value, Bag):
                 built_node.set_value(BuilderBag(builder=type(self)), _reason="source")
-                self._resolve_and_register(
+                self._register_bindings(
                     built_node, path, self.data, self._binding,
                 )
                 self._build_walk(
@@ -1023,7 +1065,7 @@ class BagBuilderBase(ABC):
                 )
             else:
                 built_node.set_value(value, _reason="source")
-                self._resolve_and_register(
+                self._register_bindings(
                     built_node, path, self.data, self._binding,
                 )
 
@@ -1031,7 +1073,7 @@ class BagBuilderBase(ABC):
             if node is not None:
                 built_node.set_attr(dict(node.attr))
                 self._binding.unbind_path(path)
-                self._resolve_and_register(
+                self._register_bindings(
                     built_node, path, self.data, self._binding,
                 )
 

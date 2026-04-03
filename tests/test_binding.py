@@ -1,5 +1,9 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BindingManager — flat subscription map and reactive updates."""
+"""Tests for BindingManager — flat subscription map and reactive notifications.
+
+The BindingManager does NOT modify the built Bag. It only signals re-render
+via the on_node_updated callback when data changes.
+"""
 from __future__ import annotations
 
 from genro_bag import Bag
@@ -8,35 +12,21 @@ from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag
 
 
-def _setup_bound(data, bag, bindings):
-    """Helper: register bindings, resolve initial values, subscribe.
+def _setup_bound(data, bag, bindings, callback=None):
+    """Helper: register bindings, subscribe.
 
     Args:
         data: The data Bag.
         bag: The built Bag (already populated).
         bindings: List of (data_key, built_entry) tuples.
+        callback: Optional on_node_updated callback.
 
     Returns:
         BindingManager instance, subscribed and ready.
     """
-    manager = BindingManager()
-    manager._built = bag  # set before resolve so _apply_to_built works
-    for data_key, built_entry in bindings:
-        manager.register(data_key, built_entry)
-        resolved = manager._resolve_data_key(data, data_key)
-        manager._apply_to_built(built_entry, resolved, trigger=False)
-    manager.subscribe(bag, data)
-    return manager
-
-
-def _setup_bound_with_callback(data, bag, bindings, callback):
-    """Like _setup_bound but with on_node_updated callback."""
     manager = BindingManager(on_node_updated=callback)
-    manager._built = bag  # set before resolve so _apply_to_built works
     for data_key, built_entry in bindings:
         manager.register(data_key, built_entry)
-        resolved = manager._resolve_data_key(data, data_key)
-        manager._apply_to_built(built_entry, resolved, trigger=False)
     manager.subscribe(bag, data)
     return manager
 
@@ -86,41 +76,64 @@ class TestRegisterAndMap:
         assert len(manager.subscription_map) == 0
 
 
-class TestReactiveUpdate:
-    """Tests for reactive node updates on data change."""
+class TestReactiveNotification:
+    """Tests for reactive notifications on data change.
 
-    def test_data_change_updates_value(self):
-        """Changing data updates bound node value."""
+    The BindingManager does NOT write values to the built Bag.
+    It calls on_node_updated to signal that a re-render is needed.
+    """
+
+    def test_data_change_notifies_bound_node(self):
+        """Changing data calls on_node_updated for bound node."""
         data = Bag()
         data.set_item("user.name", "Giovanni")
 
         bag = BuilderBag()
         bag.set_item("display", "^user.name")
 
-        manager = _setup_bound(data, bag, [("user.name", "display")])
-
-        assert bag.get_node("display").value == "Giovanni"
+        updated = []
+        _setup_bound(data, bag, [("user.name", "display")],
+                     callback=lambda node: updated.append(node.label))
 
         data.set_item("user.name", "Marco")
-        assert bag.get_node("display").value == "Marco"
+        assert "display" in updated
 
-    def test_data_change_updates_attr(self):
-        """Changing data updates bound node attribute."""
+    def test_data_change_preserves_pointer_in_built(self):
+        """Data change does NOT modify the built node — pointer stays."""
+        data = Bag()
+        data.set_item("user.name", "Giovanni")
+
+        bag = BuilderBag()
+        bag.set_item("display", "^user.name")
+
+        _setup_bound(data, bag, [("user.name", "display")])
+
+        # Built node keeps the pointer string
+        assert bag.get_node("display").static_value == "^user.name"
+
+        data.set_item("user.name", "Marco")
+        # Still pointer, not resolved value
+        assert bag.get_node("display").static_value == "^user.name"
+
+    def test_data_change_notifies_attr_binding(self):
+        """Changing data notifies node with attribute binding."""
         data = Bag()
         data.set_item("theme.color", "blue")
 
         bag = BuilderBag()
         bag.set_item("widget", None, bg="^theme.color")
 
-        manager = _setup_bound(data, bag, [("theme.color", "widget?bg")])
-
-        assert bag.get_node("widget").attr.get("bg") == "blue"
+        updated = []
+        _setup_bound(data, bag, [("theme.color", "widget?bg")],
+                     callback=lambda node: updated.append(node.label))
 
         data.set_item("theme.color", "red")
-        assert bag.get_node("widget").attr.get("bg") == "red"
+        assert "widget" in updated
+        # Attr keeps the pointer
+        assert bag.get_node("widget").attr.get("bg") == "^theme.color"
 
     def test_data_change_calls_callback(self):
-        """on_node_updated callback is called on data change."""
+        """on_node_updated callback receives the correct node."""
         updated_nodes = []
 
         data = Bag()
@@ -129,17 +142,15 @@ class TestReactiveUpdate:
         bag = BuilderBag()
         bag.set_item("n", "^x")
 
-        manager = _setup_bound_with_callback(
-            data, bag, [("x", "n")],
-            lambda node: updated_nodes.append(node),
-        )
+        _setup_bound(data, bag, [("x", "n")],
+                     callback=lambda node: updated_nodes.append(node))
 
         data.set_item("x", 2)
         assert len(updated_nodes) == 1
         assert updated_nodes[0].label == "n"
 
-    def test_multiple_nodes_updated(self):
-        """All nodes bound to changed path are updated."""
+    def test_multiple_nodes_notified(self):
+        """All nodes bound to changed path are notified."""
         data = Bag()
         data.set_item("val", "old")
 
@@ -147,14 +158,16 @@ class TestReactiveUpdate:
         bag.set_item("n1", "^val")
         bag.set_item("n2", "^val")
 
-        manager = _setup_bound(data, bag, [("val", "n1"), ("val", "n2")])
+        updated = []
+        _setup_bound(data, bag, [("val", "n1"), ("val", "n2")],
+                     callback=lambda node: updated.append(node.label))
 
         data.set_item("val", "new")
-        assert bag.get_node("n1").value == "new"
-        assert bag.get_node("n2").value == "new"
+        assert "n1" in updated
+        assert "n2" in updated
 
-    def test_unrelated_change_no_update(self):
-        """Changing unrelated data does not affect bound nodes."""
+    def test_unrelated_change_no_notification(self):
+        """Changing unrelated data does not trigger notification."""
         data = Bag()
         data.set_item("a", "original")
         data.set_item("b", "other")
@@ -163,52 +176,53 @@ class TestReactiveUpdate:
         bag.set_item("n", "^a")
 
         updated = []
-        manager = _setup_bound_with_callback(
-            data, bag, [("a", "n")],
-            lambda node: updated.append(node),
-        )
+        _setup_bound(data, bag, [("a", "n")],
+                     callback=lambda node: updated.append(node))
 
         data.set_item("b", "changed")
         assert len(updated) == 0
-        assert bag.get_node("n").value == "original"
 
 
 class TestRebind:
     """Tests for rebind with new data."""
 
-    def test_rebind_updates_values(self):
-        """rebind() re-resolves pointers against new data."""
+    def test_rebind_notifies_all_bound_nodes(self):
+        """rebind() triggers notification for all bound nodes."""
         data1 = Bag()
         data1.set_item("name", "Alice")
 
         bag = BuilderBag()
         bag.set_item("display", "^name")
 
-        manager = _setup_bound(data1, bag, [("name", "display")])
-        assert bag.get_node("display").value == "Alice"
+        updated = []
+        manager = _setup_bound(data1, bag, [("name", "display")],
+                               callback=lambda node: updated.append(node.label))
 
         data2 = Bag()
         data2.set_item("name", "Bob")
         manager.rebind(data2)
 
-        assert bag.get_node("display").value == "Bob"
+        assert "display" in updated
 
     def test_rebind_subscribes_to_new_data(self):
-        """After rebind, changes to new data trigger updates."""
+        """After rebind, changes to new data trigger notifications."""
         data1 = Bag()
         data1.set_item("x", 1)
 
         bag = BuilderBag()
         bag.set_item("n", "^x")
 
-        manager = _setup_bound(data1, bag, [("x", "n")])
+        updated = []
+        manager = _setup_bound(data1, bag, [("x", "n")],
+                               callback=lambda node: updated.append(node.label))
 
         data2 = Bag()
         data2.set_item("x", 10)
         manager.rebind(data2)
+        updated.clear()
 
         data2.set_item("x", 20)
-        assert bag.get_node("n").value == 20
+        assert "n" in updated
 
 
 class TestAntiLoop:
@@ -224,19 +238,16 @@ class TestAntiLoop:
         bag.set_item("label_0", "^val")
 
         updated = []
-        manager = _setup_bound_with_callback(
-            data, bag, [("val", "input_0"), ("val", "label_0")],
-            lambda node: updated.append(node.label),
-        )
+        _setup_bound(data, bag, [("val", "input_0"), ("val", "label_0")],
+                     callback=lambda node: updated.append(node.label))
 
         data.set_item("val", "from_input", _reason="input_0")
 
         assert "label_0" in updated
         assert "input_0" not in updated
-        assert bag.get_node("label_0").value == "from_input"
 
     def test_no_reason_updates_all(self):
-        """Without _reason, all bound nodes are updated."""
+        """Without _reason, all bound nodes are notified."""
         data = Bag()
         data.set_item("val", "initial")
 
@@ -245,17 +256,15 @@ class TestAntiLoop:
         bag.set_item("n2", "^val")
 
         updated = []
-        manager = _setup_bound_with_callback(
-            data, bag, [("val", "n1"), ("val", "n2")],
-            lambda node: updated.append(node.label),
-        )
+        _setup_bound(data, bag, [("val", "n1"), ("val", "n2")],
+                     callback=lambda node: updated.append(node.label))
 
         data.set_item("val", "changed")
         assert "n1" in updated
         assert "n2" in updated
 
     def test_reason_nonmatching_updates_all(self):
-        """_reason that doesn't match any built path updates all nodes."""
+        """_reason that doesn't match any built path notifies all nodes."""
         data = Bag()
         data.set_item("val", "initial")
 
@@ -264,10 +273,8 @@ class TestAntiLoop:
         bag.set_item("n2", "^val")
 
         updated = []
-        manager = _setup_bound_with_callback(
-            data, bag, [("val", "n1"), ("val", "n2")],
-            lambda node: updated.append(node.label),
-        )
+        _setup_bound(data, bag, [("val", "n1"), ("val", "n2")],
+                     callback=lambda node: updated.append(node.label))
 
         data.set_item("val", "changed", _reason="nonexistent_node")
         assert "n1" in updated

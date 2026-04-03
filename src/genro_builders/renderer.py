@@ -175,14 +175,18 @@ class BagRendererBase(ABC):
     def _build_context(self, node: BagNode) -> dict[str, Any]:
         """Build context dict for render handlers.
 
+        Resolves ^pointer values just-in-time from builder.data.
+        The built node is NOT modified — ^pointer strings stay.
+
         Context contains:
-            - node_value: The node's value (string)
+            - node_value: The resolved node value (string)
             - node_label: The node's label
             - _node: The full BagNode (for advanced access)
             - children: Rendered children (if node has Bag value)
-            - All node attributes
+            - All resolved node attributes
         """
-        node_value = node.get_value(static=True)
+        resolved = self.builder._resolve_node(node, self.builder.data)
+        node_value = resolved["node_value"]
 
         ctx: dict[str, Any] = {
             "node_value": "" if node_value is None or isinstance(node_value, Bag) else str(node_value),
@@ -190,7 +194,7 @@ class BagRendererBase(ABC):
             "_node": node,
         }
 
-        ctx.update(node.attr)
+        ctx.update(resolved["attrs"])
 
         if isinstance(node_value, Bag):
             children_parts = list(self._walk_render(node_value))

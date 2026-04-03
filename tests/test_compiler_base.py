@@ -112,8 +112,8 @@ class TestBuildWalkPopulatesTarget:
         assert isinstance(section_node.value, Bag)
         assert section_node.value.get_node("heading_0") is not None
 
-    def test_build_walk_resolves_pointers(self):
-        """Target has ^pointers resolved when data is provided."""
+    def test_build_walk_preserves_pointers_in_built(self):
+        """Built keeps ^pointer strings — resolution happens at render time."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
 
@@ -123,7 +123,7 @@ class TestBuildWalkPopulatesTarget:
         built = _build_walk(bag, data=data)
 
         heading = built.get_node("heading_0")
-        assert heading.value == "Resolved"
+        assert heading.static_value == "^title"
 
     def test_build_walk_without_data_keeps_pointers(self):
         """Without data, ^pointers remain as-is in target."""
@@ -133,7 +133,7 @@ class TestBuildWalkPopulatesTarget:
         built = _build_walk(bag)
 
         heading = built.get_node("heading_0")
-        assert heading.value == "^title"
+        assert heading.static_value == "^title"
 
 
 # =============================================================================
@@ -268,8 +268,8 @@ class TestDefaultCompile:
 class TestBuildWalkPointerResolution:
     """Tests for _build_walk resolving pointers."""
 
-    def test_build_walk_with_data_resolves_pointers(self):
-        """Data resolves ^pointers in target."""
+    def test_build_walk_with_data_resolves_at_render(self):
+        """Pointers in built are resolved at render time via compiler."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
         bag.text("^body")
@@ -279,6 +279,7 @@ class TestBuildWalkPointerResolution:
         data["body"] = "Resolved Body"
 
         target = BuilderBag(builder=TagBuilder)
+        bag.builder._data = data
         bag.builder._build_walk(bag, target, data, BindingManager())
         compiler = TagCompiler(bag.builder)
         result = compiler.render(target)
@@ -286,19 +287,22 @@ class TestBuildWalkPointerResolution:
         assert "# Resolved Title" in result
         assert "Resolved Body" in result
 
-    def test_build_walk_without_data_keeps_pointers(self):
-        """Without data, ^pointers remain in rendering."""
-        built = _build_walk(BuilderBag(builder=TagBuilder))
+    def test_build_walk_without_data_resolves_to_none(self):
+        """Without data, ^pointers resolve to None at render time."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("^title")
         built = _build_walk(bag)
+
+        # Built preserves the pointer
+        assert built.get_node("heading_0").static_value == "^title"
+
+        # Render resolves it — with empty data, value is None → empty string
         compiler = TagCompiler(bag.builder)
         result = compiler.render(built)
+        assert result == "# "
 
-        assert "^title" in result
-
-    def test_build_walk_data_resolves_attr_pointers(self):
-        """Data resolves ^pointers in attributes."""
+    def test_build_walk_preserves_attr_pointers_in_built(self):
+        """Built keeps ^pointer strings in attributes."""
 
         class AttrBuilder(BagBuilderBase):
             @element()
@@ -321,4 +325,4 @@ class TestBuildWalkPointerResolution:
         bag.builder._build_walk(bag, target, data, BindingManager())
 
         widget = target.get_node("widget_0")
-        assert widget.attr.get("color") == "blue"
+        assert widget.attr.get("color") == "^theme.color"

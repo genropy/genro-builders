@@ -27,7 +27,7 @@ class TestBuilder(BagBuilderBase):
 
 
 class TestCompiler(BagCompilerBase):
-    """Simple compiler that renders tags with values."""
+    """Simple compiler that renders tags with resolved values."""
 
     def render(self, compiled_bag):
         return self._render_bag(compiled_bag)
@@ -36,16 +36,18 @@ class TestCompiler(BagCompilerBase):
         parts = []
         for node in bag:
             tag = node.node_tag or node.label
-            value = node.static_value
+            resolved = self.builder._resolve_node(node, self.builder.data)
+            value = resolved["node_value"]
+            attrs = resolved["attrs"]
             if isinstance(value, Bag):
                 children = self._render_bag(value)
                 parts.append(f"[{tag}:{children}]")
             elif value is not None:
                 parts.append(f"[{tag}:{value}]")
             else:
-                attrs = {k: v for k, v in node.attr.items() if not k.startswith("_")}
-                if attrs:
-                    attr_str = ",".join(f"{k}={v}" for k, v in attrs.items())
+                filtered = {k: v for k, v in attrs.items() if not k.startswith("_")}
+                if filtered:
+                    attr_str = ",".join(f"{k}={v}" for k, v in filtered.items())
                     parts.append(f"[{tag}:{attr_str}]")
                 else:
                     parts.append(f"[{tag}]")

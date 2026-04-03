@@ -1,9 +1,9 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BindingManager — reactive data binding for ^pointer resolution.
+"""BindingManager — reactive data binding for ^pointer subscriptions.
 
-Manages the flat subscription map and reactive updates. The map is populated
-during the build phase; the BindingManager handles data change notifications
-and applies updates to the built Bag.
+Manages the flat subscription map and reactive notifications. The map is
+populated during the build phase; the BindingManager handles data change
+notifications and signals re-render (without modifying the built Bag).
 
 Subscription map structure (flat, string-only):
     {data_key → [built_entry, ...]}
@@ -31,11 +31,11 @@ from genro_bag import Bag, BagNode
 
 
 class BindingManager:
-    """Manages the subscription map and reactive data updates.
+    """Manages the subscription map and reactive notifications.
 
     Entries are registered during the build phase. The BindingManager
-    subscribes to data changes and updates built nodes via
-    set_item/set_attr when data changes.
+    subscribes to data changes and signals re-render via the
+    on_node_updated callback. The built Bag is never modified.
     """
 
     def __init__(self, on_node_updated: Callable[[BagNode], None] | None = None):
@@ -119,10 +119,10 @@ class BindingManager:
             del self._subscription_map[key]
 
     def rebind(self, data: Bag) -> None:
-        """Re-resolve all pointers against new data.
+        """Switch to new data and trigger re-render.
 
-        Iterates the flat subscription map, resolves each data_key from
-        the new data Bag, and applies the value to each built entry.
+        The built Bag is NOT modified — ^pointer strings stay.
+        The next render will resolve pointers from the new data.
 
         Args:
             data: The new data Bag.
@@ -135,10 +135,9 @@ class BindingManager:
             data.set_backref()
 
         if self._built is not None:
-            for data_key, built_entries in self._subscription_map.items():
-                resolved = self._resolve_data_key(data, data_key)
+            for built_entries in self._subscription_map.values():
                 for built_entry in built_entries:
-                    self._apply_to_built(built_entry, resolved, trigger=False)
+                    self._notify_node(built_entry)
 
         data.subscribe(self._subscriber_id, any=self._on_data_changed)
 
@@ -146,25 +145,19 @@ class BindingManager:
     # Internal
     # -------------------------------------------------------------------------
 
-    def _apply_to_built(self, built_entry: str, value: Any, trigger: bool = True) -> None:
-        """Apply a resolved value to a built node via path."""
+    def _notify_node(self, built_entry: str) -> None:
+        """Signal that a built node needs re-render.
+
+        The built node is NOT modified — ^pointer strings stay.
+        The renderer resolves values just-in-time from data.
+        """
         if self._built is None:
             return
-        node_path, _, write_attr = built_entry.partition("?")
-        if write_attr:
-            node = self._built.get_node(node_path)
-            if node:
-                node.set_attr({write_attr: value}, trigger=trigger)
-        else:
-            self._built.set_item(node_path, value, do_trigger=trigger)
-
-    def _resolve_data_key(self, data: Bag, data_key: str) -> Any:
-        """Resolve a value from the data Bag given a data_key string."""
-        data_path, _, data_attr = data_key.partition("?")
-        if data_attr:
-            data_node = data.get_node(data_path)
-            return data_node.attr.get(data_attr) if data_node else None
-        return data.get_item(data_path)
+        node_path = built_entry.partition("?")[0]
+        if self._on_node_updated:
+            target_node = self._built.get_node(node_path)
+            if target_node:
+                self._on_node_updated(target_node)
 
     def _built_path_under(self, built_entry: str, prefix: str) -> bool:
         """Check if a built entry's path is at or under the given prefix."""
@@ -194,7 +187,10 @@ class BindingManager:
             self._update_bound_nodes(changed_path, reason=reason)
 
     def _update_bound_nodes(self, data_key: str, reason: str | None = None) -> None:
-        """Update all built nodes bound to a specific data key.
+        """Notify all built nodes bound to a specific data key.
+
+        The built Bag is NOT modified — ^pointer strings stay.
+        Only signals re-render via _on_node_updated callback.
 
         Args:
             data_key: The data key that changed.
@@ -205,16 +201,9 @@ class BindingManager:
         if not entries or self._data is None or self._built is None:
             return
 
-        resolved = self._resolve_data_key(self._data, data_key)
-
         for built_entry in entries:
             node_path = built_entry.partition("?")[0]
             if reason and node_path == reason:
                 continue
 
-            self._apply_to_built(built_entry, resolved)
-
-            if self._on_node_updated:
-                target_node = self._built.get_node(node_path)
-                if target_node:
-                    self._on_node_updated(target_node)
+            self._notify_node(built_entry)
