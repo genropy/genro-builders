@@ -7,11 +7,11 @@ the compiler's rendering infrastructure and the full build+render pipeline.
 from __future__ import annotations
 
 from genro_bag import Bag
+
 from genro_builders import BagBuilderBase, BagCompilerBase, compile_handler
 from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag
 from genro_builders.builders import component, element
-
 
 # =============================================================================
 # Test compiler with @compile_handler for rendering

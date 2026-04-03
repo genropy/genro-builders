@@ -29,6 +29,7 @@ from genro_builders.builder import (
     SchemaBuilder,
     abstract,
     component,
+    data_element,
     element,
 )
 from genro_builders.builders.html import HtmlBuilder
@@ -39,6 +40,7 @@ __all__ = [
     "BagBuilderBase",
     "abstract",
     "component",
+    "data_element",
     "element",
     "Range",
     "Regex",

@@ -949,7 +949,7 @@ class TestBuilderIntrospection:
         repr_str = repr(bag.builder)
 
         assert "Builder" in repr_str
-        assert "3 elements" in repr_str  # Includes @flow
+        assert "6 elements" in repr_str  # div, span, @flow + 3 data_elements
 
     def test_get_schema_info_raises_on_unknown(self):
         """get_schema_info raises KeyError for unknown element."""

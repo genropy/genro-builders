@@ -392,6 +392,35 @@ def component(
     return decorator
 
 
+def data_element(
+    tags: str | tuple[str, ...] | None = None,
+) -> Callable:
+    """Decorator for data infrastructure elements.
+
+    Data elements have a preprocessor body that returns (path, attrs_dict).
+    They are transparent in sub_tags validation and NOT materialized in built.
+
+    The handler body receives the raw arguments and returns a tuple:
+        (path, attrs_dict) where path is the data path (None for controllers)
+        and attrs_dict is a dict of attributes.
+
+    Args:
+        tags: Tag names this method handles. If None, uses method name.
+    """
+    def decorator(func: Callable) -> Callable:
+        if _is_empty_body(func):
+            raise ValueError(
+                f"@data_element '{func.__name__}' must have a body"
+            )
+        func._decorator = {  # type: ignore[attr-defined]
+            "data_element": True,
+            "tags": tags,
+        }
+        return func
+
+    return decorator
+
+
 # =============================================================================
 # Validator classes (Annotated metadata)
 # =============================================================================
@@ -499,6 +528,7 @@ class BagBuilderBase(ABC):
                 setattr(cls, method_name, obj)
 
             is_component = decorator_info.get("component", False)
+            is_data_element = decorator_info.get("data_element", False)
             # For components: distinguish between sub_tags="" (closed) and absent (open)
             # Use sentinel to detect if sub_tags was explicitly set
             sub_tags = decorator_info.get("sub_tags") if is_component else decorator_info.get("sub_tags", "")
@@ -512,7 +542,15 @@ class BagBuilderBase(ABC):
             call_args_validations = _extract_validators_from_signature(obj)
 
             for tag in tag_list:
-                if is_component:
+                if is_data_element:
+                    cls._class_schema.set_item(
+                        tag,
+                        None,
+                        handler_name=method_name,
+                        is_data_element=True,
+                        documentation=documentation,
+                    )
+                elif is_component:
                     cls._class_schema.set_item(
                         tag,
                         None,
@@ -622,6 +660,25 @@ class BagBuilderBase(ABC):
                 self._compiler_instance = None
 
     # -------------------------------------------------------------------------
+    # Built-in data elements
+    # -------------------------------------------------------------------------
+
+    @data_element()
+    def data_setter(self, path, value=None, **kwargs):
+        """Static data: write value at path in data Bag."""
+        return path, dict(value=value, **kwargs)
+
+    @data_element()
+    def data_formula(self, path, func=None, **kwargs):
+        """Computed data: call func with resolved kwargs, write result at path."""
+        return path, dict(func=func, **kwargs)
+
+    @data_element()
+    def data_controller(self, func=None, **kwargs):
+        """Controller: call func with resolved kwargs."""
+        return None, dict(func=func, **kwargs)
+
+    # -------------------------------------------------------------------------
     # Pipeline properties
     # -------------------------------------------------------------------------
 
@@ -688,14 +745,10 @@ class BagBuilderBase(ABC):
         binding: Any,
         prefix: str = "",
     ) -> None:
-        """Recursive walk: expand components, resolve pointers, register bindings.
+        """Recursive walk: two-pass processing.
 
-        For each source node:
-        1. Clean subscription map for the subtree
-        2. Expand component if resolver present
-        3. Create node in target
-        4. Resolve ^pointers against data and register in binding map
-        5. Recurse into children
+        Pass 1: Process data_element nodes (side effects on data Bag).
+        Pass 2: Materialize normal elements and components in built.
 
         Args:
             source: The source Bag to compile from.
@@ -704,7 +757,16 @@ class BagBuilderBase(ABC):
             binding: BindingManager for subscription registration.
             prefix: Path prefix for subscription map keys.
         """
+        # Pass 1: process data_element nodes
         for node in source:
+            if node.attr.get("_is_data_element"):
+                self._process_infra_node(node, data)
+
+        # Pass 2: materialize normal nodes
+        for node in source:
+            if node.attr.get("_is_data_element"):
+                continue
+
             built_path = f"{prefix}.{node.label}" if prefix else node.label
 
             binding.unbind_path(built_path)
@@ -722,6 +784,56 @@ class BagBuilderBase(ABC):
 
             if isinstance(value, Bag):
                 self._build_walk(value, new_node.value, data, binding, prefix=built_path)
+
+    def _process_infra_node(self, node: BagNode, data: Bag) -> None:
+        """Process a data_element node during build walk.
+
+        Resolves ^pointers in attributes, then executes the appropriate
+        action: data_setter writes value, data_formula computes, data_controller executes.
+        """
+        attrs = dict(node.attr)
+        path = attrs.pop("_data_path", None)
+        attrs.pop("_is_data_element", None)
+
+        # Resolve relative path
+        if path is not None and path.startswith(".") and hasattr(node, "abs_datapath"):
+            path = node.abs_datapath(path)
+
+        resolved = self._resolve_infra_kwargs(attrs, node, data)
+
+        tag = node.node_tag
+        if tag == "data_setter":
+            value = resolved.get("value")
+            if path is not None:
+                data.set_item(path, value)
+        elif tag == "data_formula":
+            func = resolved.pop("func", None)
+            if func is not None and path is not None:
+                result = func(**resolved)
+                data.set_item(path, result)
+        elif tag == "data_controller":
+            func = resolved.pop("func", None)
+            if func is not None:
+                func(**resolved)
+
+        # Collect _onBuilt hooks
+        on_built = attrs.get("_onBuilt")
+        if callable(on_built):
+            self._infra_on_built_hooks.append(on_built)
+
+    def _resolve_infra_kwargs(
+        self, attrs: dict[str, Any], node: BagNode, data: Bag,
+    ) -> dict[str, Any]:
+        """Resolve ^pointer values in data element attributes."""
+        resolved: dict[str, Any] = {}
+        for k, v in attrs.items():
+            if k.startswith("_"):
+                continue
+            if is_pointer(v):
+                resolved[k] = self._resolve_pointer_from_data(v, node, data)
+            else:
+                resolved[k] = v
+        return resolved
 
     def _register_bindings(
         self, node: BagNode, built_path: str, data: Bag, binding: Any,
@@ -814,14 +926,20 @@ class BagBuilderBase(ABC):
     def build(self) -> None:
         """Materialize source → built.
 
-        Expands components, registers binding entries.
+        Two-pass walk: data_elements first, then normal elements.
+        After walk, calls _onBuilt hooks from data_controllers.
         Does NOT activate reactivity — call ``subscribe()`` separately.
         """
         self._clear_built()
+        self._infra_on_built_hooks: list[Any] = []
 
         self._build_walk(
             self.source, self.built, self.data, self._binding,
         )
+
+        for hook in self._infra_on_built_hooks:
+            hook(self)
+        self._infra_on_built_hooks = []
 
     def subscribe(self) -> None:
         """Activate reactive bindings on the built Bag.
@@ -981,6 +1099,9 @@ class BagBuilderBase(ABC):
         """Called when a node is deleted from the source."""
         if not self._auto_compile or node is None:
             return
+        # Data elements were never materialized in built
+        if node.attr.get("_is_data_element"):
+            return
         parts = [str(p) for p in pathlist] if pathlist else []
         parts.append(node.label)
         path = ".".join(parts)
@@ -998,6 +1119,12 @@ class BagBuilderBase(ABC):
     ) -> None:
         """Called when a node is inserted into the source."""
         if not self._auto_compile or node is None:
+            return
+
+        # Data element: process as infra and re-render
+        if node.attr.get("_is_data_element"):
+            self._process_infra_node(node, self.data)
+            self._rerender()
             return
 
         parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
@@ -1045,6 +1172,12 @@ class BagBuilderBase(ABC):
         if not self._auto_compile or pathlist is None:
             return
 
+        # Data element: re-process and re-render
+        if node is not None and node.attr.get("_is_data_element"):
+            self._process_infra_node(node, self.data)
+            self._rerender()
+            return
+
         path = ".".join(str(p) for p in pathlist)
         built_node = self.built.get_node(path)
         if built_node is None:
@@ -1088,6 +1221,16 @@ class BagBuilderBase(ABC):
 
         Precondition: name is in self._schema.
         """
+        info = self._get_schema_info(name)
+        if info.get("is_data_element"):
+            handler = getattr(self, info["handler_name"])
+
+            def data_element_call(*args: Any, **kwargs: Any) -> None:
+                path, attrs_dict = handler(*args, **kwargs)
+                return self._add_data_element(bag, name, path, attrs_dict)
+
+            return data_element_call
+
         handler = self.__getattr__(name)
         return lambda node_value=None, node_label=None, node_position=None, **attr: handler(
             bag,
@@ -1112,6 +1255,12 @@ class BagBuilderBase(ABC):
                 info = self._get_schema_info(node_tag)
             except KeyError as err:
                 raise AttributeError(f"'{type(self).__name__}' has no element '{node_tag}'") from err
+
+            # Data element: multi-positional args, bypass validation
+            if info.get("is_data_element"):
+                handler = getattr(self, info["handler_name"])
+                path, attrs_dict = handler(*args, **kwargs)
+                return self._add_data_element(destination_bag, node_tag, path, attrs_dict)
 
             # Validazione sui kwargs originali, PRIMA del method
             node_value = args[0] if args else kwargs.get("node_value")
@@ -1213,6 +1362,26 @@ class BagBuilderBase(ABC):
             **attr: Node attributes.
         """
         return self._child(build_where, node_tag, node_value, node_label=node_label, **attr)
+
+    def _add_data_element(
+        self, build_where: Bag, node_tag: str,
+        path: str | None, attrs_dict: dict[str, Any],
+    ) -> None:
+        """Add a data element node to the source bag.
+
+        Not materialized in built. Processed as side effect during build walk.
+        Bypasses _child() validation — data elements are transparent.
+        """
+        label = self._auto_label(build_where, node_tag)
+        build_where.set_item(
+            label, None,
+            _attributes={
+                **attrs_dict,
+                "_is_data_element": True,
+                "_data_path": path,
+            },
+            node_tag=node_tag,
+        )
 
     def _child(
         self,
@@ -1374,7 +1543,10 @@ class BagBuilderBase(ABC):
             node._invalid_reasons = []
             return
 
-        children_tags = [n.node_tag for n in node.value.nodes] if isinstance(node.value, Bag) else []
+        children_tags = [
+            n.node_tag for n in node.value.nodes
+            if not n.attr.get("_is_data_element")
+        ] if isinstance(node.value, Bag) else []
 
         node._invalid_reasons = self._validate_children_tags(
             node_tag, sub_tags_compiled, children_tags
@@ -1400,9 +1572,11 @@ class BagBuilderBase(ABC):
         if sub_tags_compiled == "*":
             return
 
-        # Build children_tags = current + new
+        # Build children_tags = current + new (excluding data elements)
         children_tags = (
-            [n.node_tag for n in target_node.value.nodes] if isinstance(target_node.value, Bag) else []
+            [n.node_tag for n in target_node.value.nodes
+             if not n.attr.get("_is_data_element")]
+            if isinstance(target_node.value, Bag) else []
         )
 
         # Insert new tag at correct position
@@ -1461,6 +1635,12 @@ class BagBuilderBase(ABC):
             node.value.builder = self
 
         if child_tag in self._schema:
+            info = self._get_schema_info(child_tag)
+            if info.get("is_data_element"):
+                handler = getattr(self, info["handler_name"])
+                args = (node_value,) if node_value is not None else ()
+                path, attrs_dict = handler(*args, **attrs)
+                return self._add_data_element(node.value, child_tag, path, attrs_dict)
             callable_handler = self._bag_call(node.value, child_tag)
             return callable_handler(
                 node_value=node_value,
@@ -2065,6 +2245,16 @@ def _decorated_method_info(
     decorator_info = obj._decorator
     if decorator_info.get("abstract"):
         return [f"@{name}"], None, obj, decorator_info
+    elif decorator_info.get("data_element"):
+        tag_list: list[str] = [] if name.startswith("_") else [name]
+        tags_raw = decorator_info.get("tags")
+        if tags_raw:
+            if isinstance(tags_raw, str):
+                tag_list.extend(t.strip() for t in tags_raw.split(",") if t.strip())
+            else:
+                tag_list.extend(tags_raw)
+        handler_name = f"_dtel_{tag_list[0]}"
+        return tag_list, handler_name, obj, decorator_info
     elif decorator_info.get("component"):
         tag_list: list[str] = [] if name.startswith("_") else [name]
         tags_raw = decorator_info.get("tags")
@@ -2105,7 +2295,16 @@ def _pop_decorated_methods(cls: type):
             yield _decorated_method_info(name, obj)
 
     for base in cls.__mro__:
-        if base is cls or base is BagBuilderBase or base is object:
+        if base is cls or base is object:
+            continue
+        if base is BagBuilderBase:
+            # Collect @data_element methods from BagBuilderBase
+            for name, obj in list(base.__dict__.items()):
+                if name in seen:
+                    continue
+                if hasattr(obj, "_decorator") and obj._decorator.get("data_element"):
+                    seen.add(name)
+                    yield _decorated_method_info(name, obj)
             continue
         if issubclass(base, BagBuilderBase):
             continue

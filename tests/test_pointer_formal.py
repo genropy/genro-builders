@@ -7,8 +7,6 @@ The built Bag is never modified by reactive updates.
 """
 from __future__ import annotations
 
-from genro_bag import Bag
-
 from tests.helpers import TestBuilder
 
 
