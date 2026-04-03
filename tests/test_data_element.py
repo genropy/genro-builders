@@ -186,6 +186,35 @@ class TestDataElementBuild:
         assert builder.data["a"] == 1
         assert builder.data["b"] == 2
 
+    def test_data_setter_dict_to_bag(self):
+        """data_setter with dict value converts it to Bag."""
+        from genro_bag import Bag
+
+        builder = TestBuilder()
+        builder.source.data_setter("shipping", value={"cost": 25, "days": 3})
+        builder.build()
+
+        result = builder.data["shipping"]
+        assert isinstance(result, Bag)
+        assert result["cost"] == 25
+        assert result["days"] == 3
+
+    def test_data_formula_dict_to_bag(self):
+        """data_formula returning dict converts result to Bag."""
+        from genro_bag import Bag
+
+        builder = TestBuilder()
+        builder.source.data_formula(
+            "info",
+            func=lambda: {"name": "Alice", "age": 30},
+        )
+        builder.build()
+
+        result = builder.data["info"]
+        assert isinstance(result, Bag)
+        assert result["name"] == "Alice"
+        assert result["age"] == 30
+
 
 # =============================================================================
 # _onBuilt hook

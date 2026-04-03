@@ -804,12 +804,16 @@ class BagBuilderBase(ABC):
         tag = node.node_tag
         if tag == "data_setter":
             value = resolved.get("value")
+            if isinstance(value, dict):
+                value = Bag(source=value)
             if path is not None:
                 data.set_item(path, value)
         elif tag == "data_formula":
             func = resolved.pop("func", None)
             if func is not None and path is not None:
                 result = func(**resolved)
+                if isinstance(result, dict):
+                    result = Bag(source=result)
                 data.set_item(path, result)
         elif tag == "data_controller":
             func = resolved.pop("func", None)
