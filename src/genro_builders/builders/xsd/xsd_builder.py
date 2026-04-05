@@ -13,7 +13,8 @@ Example:
     >>> bag = BuilderBag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
     >>> doc = bag.Document()
     >>> # ... build document ...
-    >>> xml = bag.builder._compile(full_validate=True)  # validates against XSD
+    >>> bag.builder.build()
+    >>> xml = bag.builder.render()  # validates against XSD
 """
 
 from __future__ import annotations

@@ -92,13 +92,14 @@ def demo():
     print("\n" + "=" * 60)
     print("Generated HTML")
     print("=" * 60)
-    html = bag.builder._compile()
+    bag.builder.build()
+    html = bag.builder.render()
     print(html)
 
     # Save to file
     output_dir = Path(__file__).parent
     output_path = output_dir / "example.html"
-    bag.builder._compile(destination=output_path)
+    output_path.write_text(html)
     print(f"\nHTML saved to: {output_path}")
 
 

@@ -14,5 +14,9 @@ body = page.body()
 body.h1(value="Hello World")
 body.p(value="This is a simple paragraph.")
 
-html = page.builder._compile(destination=Path(__file__).with_suffix(".html"))
+page.builder.build()
+html = page.builder.render()
+
+output_path = Path(__file__).with_suffix(".html")
+output_path.write_text(html)
 print(html)

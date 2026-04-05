@@ -92,9 +92,9 @@ class ChefApp:
         # Process each course category
         self._print_courses(doc, self._menu)
 
-        # Compile and render
-        computed = doc.builder._compile(doc)
-        pdf_bytes = doc.builder.render(computed)
+        # Build and render
+        doc.builder.build()
+        pdf_bytes = doc.builder.render()
 
         if destination:
             Path(destination).write_bytes(pdf_bytes)
