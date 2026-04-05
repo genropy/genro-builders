@@ -28,6 +28,20 @@ distinct area:
 
 All mixins share the same `self` -- attributes are defined in `base.py.__init__`.
 
+## Contributed Builders
+
+Concrete builders live in `genro_builders.contrib/`, separate from the core:
+
+| Builder            | Import                                            | Output   |
+| ------------------ | ------------------------------------------------- | -------- |
+| **HtmlBuilder**    | `from genro_builders.contrib.html import ...`     | HTML5    |
+| **MarkdownBuilder**| `from genro_builders.contrib.markdown import ...` | Markdown |
+| **XsdBuilder**     | `from genro_builders.contrib.xsd import ...`      | XML      |
+
+The core package (`genro_builders.builder`, `genro_builders.builders`) provides
+only the framework: `BagBuilderBase`, decorators, validators, `SchemaBuilder`.
+Contributed builders depend on the core but are not loaded unless imported.
+
 ## Method Call Flow
 
 ```{mermaid}

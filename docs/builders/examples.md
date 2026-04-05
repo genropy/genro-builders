@@ -8,7 +8,7 @@ Practical examples of builder usage patterns.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> page = BuilderBag(builder=HtmlBuilder)
 >>> html = page.html()
@@ -32,7 +32,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> nav = BuilderBag(builder=HtmlBuilder)
 >>> ul = nav.ul(class_='nav-menu')
@@ -52,7 +52,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> data = [
 ...     {'name': 'Alice', 'role': 'Admin'},
@@ -85,7 +85,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("My Project")  # doctest: +ELLIPSIS
@@ -117,7 +117,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("API Reference")  # doctest: +ELLIPSIS
@@ -260,7 +260,7 @@ xml = invoice.to_xml(pretty=True)
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> def create_card(parent, title, content):
 ...     card = parent.div(class_='card')
@@ -317,7 +317,7 @@ The previous example uses a function. With `@component`, you can make it part of
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> def generate_doc(data):
 ...     doc = BuilderBag(builder=MarkdownBuilder)

@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Test per bug: XSD usa 'value' invece di 'node_value' in call_args_validations."""
 
-from genro_builders.builders.xsd import XsdReader
+from genro_builders.contrib.xsd import XsdReader
 
 
 class TestXsdValueKeyBug:

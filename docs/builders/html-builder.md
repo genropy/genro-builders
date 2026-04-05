@@ -6,7 +6,7 @@ The `HtmlBuilder` provides complete HTML5 support with 112 tags loaded from the 
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(id='main', class_='container')
@@ -22,7 +22,7 @@ BagNode : ... at ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> nav = bag.nav(class_='main-nav')
@@ -39,7 +39,7 @@ BagNode : ... at ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> form = bag.form(action='/submit', method='post')
@@ -56,7 +56,7 @@ BagNode : ... at ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> table = bag.table(class_='data-table')
@@ -92,7 +92,7 @@ Use trailing underscore for Python reserved words:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> bag.div(class_='container')  # doctest: +ELLIPSIS
@@ -107,7 +107,7 @@ Use `data_` prefix (converted to `data-` in HTML):
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(data_id='123', data_action='toggle')
@@ -119,7 +119,7 @@ Use `data_` prefix (converted to `data-` in HTML):
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(id='main')

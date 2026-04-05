@@ -7,7 +7,7 @@ generated from W3C Validator RELAX NG schema files.
 Example:
     Creating an HTML document::
 
-        from genro_builders.builders import HtmlBuilder
+        from genro_builders.contrib.html import HtmlBuilder
 
         b = HtmlBuilder()
         body = b.source.body()

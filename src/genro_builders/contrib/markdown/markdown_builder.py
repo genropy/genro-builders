@@ -7,7 +7,7 @@ MarkdownBuilder defines the schema elements, MarkdownRenderer transforms to Mark
 Example:
     Creating a Markdown document::
 
-        from genro_builders.builders.markdown import MarkdownBuilder
+        from genro_builders.contrib.markdown import MarkdownBuilder
 
         builder = MarkdownBuilder()
         builder.source.h1("My Document")

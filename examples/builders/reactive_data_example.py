@@ -12,7 +12,7 @@ Usage:
 
 from __future__ import annotations
 
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 
 def basic_formula():

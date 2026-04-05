@@ -6,7 +6,7 @@ The schema is pre-compiled from W3C Validator RELAX NG files.
 
 Example:
     >>> from genro_builders import BuilderBag
-    >>> from genro_builders.builders import HtmlBuilder
+    >>> from genro_builders.contrib.html import HtmlBuilder
     >>>
     >>> doc = BuilderBag(builder=HtmlBuilder)
     >>> doc.body().div(id='main').p(value='Hello')

@@ -31,7 +31,7 @@ from pathlib import Path
 from genro_bag import Bag
 from genro_bag.resolvers.contrib import EarthquakeResolver, OpenMeteoResolver
 
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 CITIES = [
     ("Rome", "IT"),

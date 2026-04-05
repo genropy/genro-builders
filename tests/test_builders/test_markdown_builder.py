@@ -11,7 +11,7 @@ Tests cover:
 - build() output
 """
 
-from genro_builders.builders import MarkdownBuilder
+from genro_builders.contrib.markdown import MarkdownBuilder
 
 
 def md(setup):

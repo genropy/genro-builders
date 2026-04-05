@@ -1,25 +1,18 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Builders for domain-specific Bag construction.
+"""Core builder decorators, validators, and schema tools.
 
-This module provides builder classes for creating structured Bag hierarchies
-with validation support. Builders enable fluent APIs for specific domains
-like HTML, XML schemas, Markdown, etc.
+This module re-exports the core framework API. For concrete builders
+(HTML, Markdown, XSD), import from ``genro_builders.contrib``:
 
-Builder Types:
+    from genro_builders.contrib.html import HtmlBuilder
+    from genro_builders.contrib.markdown import MarkdownBuilder
+    from genro_builders.contrib.xsd import XsdBuilder
+
+Core exports:
     - **BagBuilderBase**: Abstract base class for custom builders
     - **SchemaBuilder**: Builder for creating schemas programmatically
-    - **HtmlBuilder**: HTML5 document builder with element validation
-    - **MarkdownBuilder**: Markdown document builder
-    - **XsdBuilder**: Dynamic builder from XSD schema
-
-Example:
-    >>> from genro_builders import BuilderBag
-    >>> from genro_builders.builders import HtmlBuilder
-    >>>
-    >>> store = BuilderBag(builder=HtmlBuilder)
-    >>> body = store.body()
-    >>> div = body.div(id='main')
-    >>> div.p(value='Hello, World!')
+    - **element, abstract, component, data_element**: Grammar decorators
+    - **Range, Regex**: Annotated-type validators
 """
 
 from genro_builders.builder import (
@@ -32,9 +25,11 @@ from genro_builders.builder import (
     data_element,
     element,
 )
-from genro_builders.builders.html import HtmlBuilder
-from genro_builders.builders.markdown import MarkdownBuilder
-from genro_builders.builders.xsd import XsdBuilder, XsdReader
+
+# Backward-compatible re-exports from contrib/ (deprecated paths)
+from genro_builders.contrib.html import HtmlBuilder
+from genro_builders.contrib.markdown import MarkdownBuilder
+from genro_builders.contrib.xsd import XsdBuilder, XsdReader
 
 __all__ = [
     "BagBuilderBase",

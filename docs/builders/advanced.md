@@ -254,7 +254,7 @@ for the full guide.
 When formulas depend on each other, they execute in topological order:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 s = builder.source

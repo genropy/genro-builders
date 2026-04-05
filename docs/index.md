@@ -9,7 +9,7 @@ Builder system for [genro-bag](https://github.com/genropy/genro-bag) — grammar
 A builder defines a **domain-specific grammar** for creating structured Bag hierarchies. Instead of manually constructing nodes, you call named methods that enforce structure and validation:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 body = builder.source.body()
@@ -53,7 +53,7 @@ store + main         source → built     activate            output
 4. **render() / compile()** — produce output with just-in-time `^pointer` resolution (pointer formali)
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 builder.data['title'] = 'Hello'

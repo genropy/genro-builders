@@ -8,7 +8,7 @@ document construction.
 
 Example:
     >>> from genro_builders import BuilderBag
-    >>> from genro_builders.builders.xsd import XsdBuilder
+    >>> from genro_builders.contrib.xsd import XsdBuilder
     >>>
     >>> bag = BuilderBag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
     >>> doc = bag.Document()
@@ -24,8 +24,7 @@ from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
 
-from genro_builders.builder import BagBuilderBase
-from genro_builders.builders import SchemaBuilder
+from genro_builders.builder import BagBuilderBase, SchemaBuilder
 
 from .xsd_reader import XsdReader
 

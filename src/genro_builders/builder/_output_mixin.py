@@ -270,7 +270,7 @@ class _OutputMixin:
         Returns:
             Markdown string with schema documentation.
         """
-        from ..builders.markdown import MarkdownBuilder
+        from ..contrib.markdown import MarkdownBuilder
 
         md_builder = MarkdownBuilder()
         doc = md_builder.source

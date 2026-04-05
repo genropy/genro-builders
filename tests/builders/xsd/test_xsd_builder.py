@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders.xsd import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 # =============================================================================
 # Fixtures

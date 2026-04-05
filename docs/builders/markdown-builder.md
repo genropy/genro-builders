@@ -6,7 +6,7 @@ The `MarkdownBuilder` provides elements for building Markdown documents programm
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("My Document")  # doctest: +ELLIPSIS
@@ -26,7 +26,7 @@ This is a paragraph.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("Title")  # doctest: +ELLIPSIS
@@ -47,7 +47,7 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.code("print('hello')", lang="python")  # doctest: +ELLIPSIS
@@ -62,7 +62,7 @@ print('hello')
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> table = doc.table()
@@ -88,7 +88,7 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ul = doc.ul()
@@ -108,7 +108,7 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ol = doc.ol()
@@ -130,7 +130,7 @@ Use the `idx` parameter for custom markers:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ol = doc.ol()
@@ -147,7 +147,7 @@ b) Item B
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.bold("important")  # doctest: +ELLIPSIS
@@ -172,7 +172,7 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.blockquote("This is a quote.")  # doctest: +ELLIPSIS
@@ -185,7 +185,7 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.img(src="image.png", alt="My Image")  # doctest: +ELLIPSIS
@@ -200,7 +200,7 @@ The `_compile()` method can optionally write to a file:
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import MarkdownBuilder
+from genro_builders.contrib.markdown import MarkdownBuilder
 
 doc = BuilderBag(builder=MarkdownBuilder)
 doc.h1("My Document")
@@ -214,7 +214,7 @@ doc.builder._compile(destination="output.md")
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("Project README")  # doctest: +ELLIPSIS

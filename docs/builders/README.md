@@ -13,7 +13,7 @@ Domain-specific fluent APIs: HTML, Markdown, XML Schema, custom DSLs.
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 html = BuilderBag(builder=HtmlBuilder)
 div = html.div(id='main')

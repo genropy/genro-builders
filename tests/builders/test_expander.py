@@ -14,7 +14,7 @@ class TestExpanderBasic:
 
     def test_expand_no_components(self):
         """Bag without components yields same nodes as walk."""
-        from genro_builders.builders.html import HtmlBuilder
+        from genro_builders.contrib.html import HtmlBuilder
 
         bag = Bag(builder=HtmlBuilder)
         bag.div()
@@ -134,7 +134,7 @@ class TestExpanderEdgeCases:
 
     def test_expand_deeply_nested(self):
         """Test with deeply nested structure (non-component)."""
-        from genro_builders.builders.html import HtmlBuilder
+        from genro_builders.contrib.html import HtmlBuilder
 
         bag = Bag(builder=HtmlBuilder)
         div1 = bag.div()
