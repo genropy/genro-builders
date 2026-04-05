@@ -542,3 +542,86 @@ class TestGrammarPriority:
         b = Builder()
         with pytest.raises(AttributeError):
             b.source.render  # noqa: B018
+
+
+# =============================================================================
+# Tests for parent_tags inside component handlers (Issue #18)
+# =============================================================================
+
+
+class TestComponentParentTagsFix:
+    """Component handler bodies skip parent_tags validation (Issue #18)."""
+
+    def test_component_with_parent_tags_elements(self):
+        """Elements with parent_tags can be created inside component handler."""
+        from genro_builders.builders import component
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="paragraph,address_block")
+            def document(self): ...
+
+            @element(parent_tags="document,address_block")
+            def paragraph(self): ...
+
+            @component(sub_tags="", parent_tags="document")
+            def address_block(self, comp, **kwargs):
+                comp.paragraph()
+                comp.paragraph()
+
+        b = Builder()
+        doc = b.source.document()
+        doc.address_block()
+
+        # Build should not raise — paragraph inside component skips parent_tags
+        b.build()
+        assert b.built is not None
+
+    def test_component_parent_tags_validated_on_component_itself(self):
+        """The component itself still validates parent_tags at creation."""
+        from genro_builders.builders import component
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="paragraph,address_block")
+            def document(self): ...
+
+            @element()
+            def paragraph(self): ...
+
+            @component(sub_tags="", parent_tags="document")
+            def address_block(self, comp, **kwargs):
+                comp.paragraph()
+
+        b = Builder()
+        # address_block at root should fail — parent_tags="document"
+        with pytest.raises(ValueError, match="parent_tags requires"):
+            b.source.address_block()
+
+    def test_component_elements_in_built_under_correct_parent(self):
+        """After build, component inner elements are under the correct parent."""
+        from genro_builders.builders import component
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="paragraph,block")
+            def document(self): ...
+
+            @element(parent_tags="document,block")
+            def paragraph(self): ...
+
+            @component(sub_tags="", parent_tags="document")
+            def block(self, comp, **kwargs):
+                comp.paragraph()
+
+        b = Builder()
+        doc = b.source.document()
+        doc.block()
+        b.build()
+
+        # The block node in built is under document_0
+        doc_bag = b.built.get_item("document_0")
+        assert isinstance(doc_bag, Bag)
+        block_node = doc_bag.get_node("block_0")
+        assert block_node is not None
+        assert isinstance(block_node.value, Bag)
+        para = block_node.value.get_node("paragraph_0")
+        assert para is not None
+        assert para.node_tag == "paragraph"

@@ -229,6 +229,7 @@ class BuilderBag(Bag):
     """
 
     node_class: type[BagNode] = BuilderBagNode
+    _skip_parent_validation: bool = False
 
     @extract_kwargs(builder=True)
     def __init__(

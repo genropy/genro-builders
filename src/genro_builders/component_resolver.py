@@ -83,6 +83,7 @@ class ComponentResolver(BagResolver):
             from .builder_bag import BuilderBag
 
             comp_bag = BuilderBag(builder=builder_class)
+            comp_bag._skip_parent_validation = True
 
         # Call the current handler
         result = None
@@ -136,6 +137,7 @@ class ComponentResolver(BagResolver):
             comp_bag = self._resolve_parent(parent_based_on, builder_instance, kwargs)
         else:
             comp_bag = BuilderBag(builder=parent_builder_class)
+            comp_bag._skip_parent_validation = True
 
         if parent_handler:
             parent_handler(comp_bag, **kwargs)

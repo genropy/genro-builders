@@ -213,7 +213,8 @@ class _DispatchMixin:
             self._accept_child(parent_node, parent_info, node_tag, node_position)
 
         child_info = self._get_schema_info(node_tag)
-        self._validate_parent_tags(child_info, parent_node)
+        if not getattr(build_where, '_skip_parent_validation', False):
+            self._validate_parent_tags(child_info, parent_node)
 
         # Extract node_id before passing attrs to set_item
         node_id = attr.pop("node_id", None)
