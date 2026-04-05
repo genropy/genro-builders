@@ -5,6 +5,14 @@ A compiler transforms a built Bag into live objects (Textual widgets,
 openpyxl workbooks, etc.). For serialized output (strings, bytes),
 use BagRendererBase instead.
 
+Pointer formali and just-in-time resolution:
+    Like renderers, compilers work with pointer formali: the built Bag
+    retains ``^pointer`` strings verbatim. During ``_walk_compile()``,
+    each node is resolved just-in-time via ``builder._resolve_node()``
+    which returns resolved ``node_value`` and ``attrs``. Compilers
+    produce live objects from the resolved data without modifying
+    the built Bag.
+
 Decorators:
     @compiler: Mark a method as compile handler for a specific tag.
                If body is empty (...), uses default_compile with kwargs.

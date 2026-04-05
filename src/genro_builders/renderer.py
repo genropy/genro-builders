@@ -4,6 +4,13 @@
 A renderer transforms a built Bag into a serialized output (string, bytes).
 It is a "dead" output: no live objects, no reactivity.
 
+Pointer formali and just-in-time resolution:
+    The built Bag retains ``^pointer`` strings verbatim (pointer formali).
+    During ``_walk_render()``, each node is resolved just-in-time via
+    ``builder._resolve_node(node, data)`` which returns a dict with
+    ``node_value``, ``attrs``, and ``node``. The renderer works with
+    resolved values without modifying the built Bag.
+
 Decorators:
     @renderer: Mark a method as render handler for a specific tag.
                If body is empty (...), uses default_render with kwargs.
@@ -12,10 +19,10 @@ Decorators:
 Example:
     >>> class MarkdownRenderer(BagRendererBase):
     ...     @renderer(template="# {node_value}")
-    ...     def h1(self): ...           # declarative — uses template
+    ...     def h1(self): ...           # declarative -- uses template
     ...
     ...     @renderer()
-    ...     def table(self, node, ctx):  # logic — method is the handler
+    ...     def table(self, node, ctx):  # logic -- method is the handler
     ...         return render_table(node)
     ...
     ...     def render(self, built_bag, output=None):

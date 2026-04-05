@@ -157,6 +157,49 @@ builder.data['title'] = 'Updated'
 print(builder.output)
 ```
 
+## Data infrastructure
+
+Data elements let you define computed and reactive data directly in the source Bag.
+They are processed during `build()` and re-execute automatically after `subscribe()`:
+
+```python
+from genro_builders.builders import HtmlBuilder
+
+builder = HtmlBuilder()
+s = builder.source
+
+# Static data
+s.data_setter('greeting', value='Hello')
+
+# Computed data (re-executes when ^greeting changes)
+s.data_formula('message',
+    func=lambda greeting: f'{greeting}, World!',
+    greeting='^greeting',
+)
+
+# UI bound to computed data
+s.body().h1(value='^message')
+
+builder.build()
+builder.subscribe()
+print(builder.output)
+
+# Change data -> formula re-executes -> automatic re-render
+builder.data['greeting'] = 'Ciao'
+print(builder.output)
+```
+
+Three built-in data elements are available on every builder:
+
+| Element            | Purpose                                      |
+| ------------------ | -------------------------------------------- |
+| `data_setter`      | Write a static value to the data Bag         |
+| `data_formula`     | Compute a value from `^pointer` dependencies |
+| `data_controller`  | Execute a side effect (no output path)       |
+
+For advanced patterns (topological sort, `_delay`, `_interval`, `suspend_output`),
+see [Reactive Data](builders/reactive-data.md).
+
 ## Node identification
 
 Assign a unique `node_id` to any element for direct access:

@@ -23,8 +23,10 @@ print(builder.render())
 
 ## Key Concepts
 
-- **BagBuilderBase** — Base class for defining grammars via `@element`, `@abstract`, and `@component` decorators. A builder is a machine: it materializes a source Bag into a built Bag.
+- **BagBuilderBase** — Base class for defining grammars via `@element`, `@abstract`, `@component`, and `@data_element` decorators. A builder is a machine: it materializes a source Bag into a built Bag.
 - **BuilderBag** — A Bag extended with builder support. Calling methods like `.div()` or `.p()` creates validated nodes.
+- **Data infrastructure** — `data_setter`, `data_formula`, and `data_controller` write, compute, and act on the reactive data store. Formulas re-execute in topological order when dependencies change.
+- **Pointer formali** — The built Bag retains `^pointer` strings. Resolution happens just-in-time during render/compile.
 - **BagRendererBase** — Transforms a built Bag into serialized output (strings, bytes) via `@renderer` handlers.
 - **BagCompilerBase** — Transforms a built Bag into live objects (widgets, workbooks) via `@compiler` handlers.
 - **BuilderManager** — Mixin to coordinate one or more builders with a shared reactive data store. Provides `setup()`, `build()`, and `subscribe()`.
@@ -46,9 +48,9 @@ store + main         source → built     activate            output
 ```
 
 1. **setup()** — on manager: calls `store(data)` then `main(source)` to populate
-2. **build()** — materialize: expand components, resolve `^pointer` bindings
-3. **subscribe()** — optional: activate reactive bindings (data changes trigger re-render)
-4. **render() / compile()** — produce serialized output (`BagRendererBase`) or live objects (`BagCompilerBase`)
+2. **build()** — two-pass materialize: data elements first (setter/formula/controller), then normal elements. Topological sort of formula dependencies.
+3. **subscribe()** — optional: activate reactive bindings. Data changes trigger formula re-execution and automatic re-render. Enables `_delay` (debounce) and `_interval` (periodic).
+4. **render() / compile()** — produce output with just-in-time `^pointer` resolution (pointer formali)
 
 ```python
 from genro_builders.builders import HtmlBuilder
@@ -90,6 +92,7 @@ builders/html-builder
 builders/markdown-builder
 builders/xsd-builder
 builders/custom-builders
+builders/reactive-data
 builders/validation
 builders/advanced
 builders/examples

@@ -1,7 +1,10 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Builder utilities - helper functions for BagBuilderBase.
+"""Builder utilities — helper functions for BagBuilderBase.
 
-Separate module to keep builder.py focused on core functionality.
+Provides ``quick_ref()`` for generating compact text summaries of a
+builder's schema (elements, abstracts, components with parameters
+and documentation). Kept as a separate module to avoid bloating the
+builder package with presentation-only code.
 """
 
 from __future__ import annotations

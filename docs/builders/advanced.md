@@ -242,3 +242,106 @@ BagNode : ... at ...
 >>> config['database_0?port']
 5433
 ```
+
+## Reactive Formulas
+
+Data formulas let you define computed values that re-execute automatically
+when their `^pointer` dependencies change. See [Reactive Data](reactive-data.md)
+for the full guide.
+
+### Formula Dependency Chains
+
+When formulas depend on each other, they execute in topological order:
+
+```python
+from genro_builders.builders import HtmlBuilder
+
+builder = HtmlBuilder()
+s = builder.source
+
+s.data_setter('base_price', value=100)
+s.data_setter('discount', value=0.1)
+s.data_setter('tax_rate', value=0.22)
+
+# Executes first: depends on base_price and discount
+s.data_formula('net_price',
+    func=lambda base_price, discount: base_price * (1 - discount),
+    base_price='^base_price',
+    discount='^discount',
+)
+
+# Executes second: depends on net_price (computed above)
+s.data_formula('total',
+    func=lambda net_price, tax_rate: net_price * (1 + tax_rate),
+    net_price='^net_price',
+    tax_rate='^tax_rate',
+)
+
+s.body().p(value='^total')
+
+builder.build()
+builder.subscribe()
+print(builder.output)
+
+# Change base_price -> net_price recalculates -> total recalculates -> re-render
+builder.data['base_price'] = 200
+print(builder.output)
+```
+
+### Computed Attributes
+
+Callable attributes with `^pointer` defaults are resolved just-in-time:
+
+```python
+s.body().div(
+    style=lambda bg='^theme.bg', fg='^theme.fg': f'background:{bg};color:{fg}',
+)
+```
+
+## Output Suspension
+
+When making multiple data changes, use `suspend_output()` / `resume_output()`
+to avoid redundant re-renders:
+
+```python
+builder.build()
+builder.subscribe()
+
+builder.suspend_output()
+builder.data['a'] = 1
+builder.data['b'] = 2
+builder.data['c'] = 3        # formulas re-execute, but no render
+builder.resume_output()       # single render with all changes applied
+```
+
+This is useful for initialization patterns where many data values are
+set at once, or for batch updates from external sources.
+
+## Debounce and Periodic Execution
+
+### Debounce with `_delay`
+
+Prevent rapid re-execution with a debounce window:
+
+```python
+s.data_formula('search_results',
+    func=lambda query: api_search(query),
+    query='^search.query',
+    _delay=0.5,  # wait 500ms after last change
+)
+```
+
+### Periodic with `_interval`
+
+Re-execute at regular intervals after `subscribe()`:
+
+```python
+import time
+
+s.data_formula('clock',
+    func=lambda: time.strftime('%H:%M:%S'),
+    _interval=1.0,  # every second
+)
+```
+
+Interval timers start on `subscribe()` and stop on rebuild or clear.

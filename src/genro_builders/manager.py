@@ -11,11 +11,21 @@ pointers against it:
     - ``^key`` — absolute, reads from the store root (shared data).
     - ``^.key`` — relative, reads from the builder's private namespace.
 
+Data infrastructure elements (``data_setter``, ``data_formula``,
+``data_controller``) are processed during the build phase. They write
+to the shared reactive store and, when ``subscribe()`` is active,
+re-execute automatically when their ^pointer dependencies change.
+Formula execution follows topological order (dependencies first).
+
 Lifecycle:
     1. ``__init__``: create builders via ``set_builder()``.
     2. ``setup()``: populate data and source (calls ``store()`` then ``main()``).
-    3. ``build()``: materialize all builders (source → built).
-    4. ``subscribe()``: activate reactive bindings (optional).
+    3. ``build()``: materialize all builders (source -> built, two-pass:
+       data elements first, then normal elements).
+    4. ``subscribe()``: activate reactive bindings (optional). Enables
+       formula re-execution on data changes, ``_delay`` debounce,
+       ``_interval`` periodic execution, and ``suspend_output`` /
+       ``resume_output`` for batched rendering.
 
 Example — single builder:
     >>> class HtmlManager(BuilderManager):

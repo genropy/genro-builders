@@ -4,13 +4,16 @@ This guide shows how to create your own domain-specific builders.
 
 ## Overview
 
-Builders use three decorators to define their schema:
+Builders use four decorators to define their schema:
 
-| Decorator | Purpose | Body Required |
-|-----------|---------|---------------|
-| `@element` | Simple elements with optional adapter | Required empty (`...`) |
-| `@abstract` | Define sub_tags for inheritance | No (can use `...`) |
-| `@component` | Composite structures with code logic | **Yes** (must have body) |
+| Decorator        | Purpose                                    | Body Required            |
+| ---------------- | ------------------------------------------ | ------------------------ |
+| `@element`       | Simple elements with optional adapter      | Required empty (`...`)   |
+| `@abstract`      | Define sub_tags for inheritance            | No (can use `...`)       |
+| `@component`     | Composite structures with code logic       | **Yes** (must have body) |
+| `@data_element`  | Data infrastructure (setter/formula/ctrl)  | **Yes** (must have body) |
+
+For `@data_element` details, see [Reactive Data](reactive-data.md).
 
 ## Basic Structure
 

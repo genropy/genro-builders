@@ -1,19 +1,35 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """BindingManager — reactive data binding for ^pointer subscriptions.
 
-Manages the flat subscription map and reactive notifications. The map is
-populated during the build phase; the BindingManager handles data change
-notifications and signals re-render (without modifying the built Bag).
+Manages the flat subscription map and 3-level reactive notifications.
+The map is populated during the build phase by ``_register_bindings``;
+the BindingManager handles data change notifications and signals
+re-render (without modifying the built Bag — pointers stay formal).
+
+3-level propagation:
+    When a data node changes, the BindingManager resolves every affected
+    built entry and fires the ``on_node_updated`` callback with a
+    ``trigger_reason`` that distinguishes between:
+    1. **node** — the exact data node that changed.
+    2. **container** — a parent Bag that contains the changed node.
+    3. **child** — a child path under the changed node.
 
 Subscription map structure (flat, string-only):
-    {data_key → [built_entry, ...]}
+    {data_key -> [built_entry, ...]}
 
 Where:
-    data_key: absolute data path, optionally with ?attr
-              (e.g., 'user.name', 'theme.btn?color')
-    built_entry: absolute built node path, optionally with ?attr
+    data_key: absolute data path, optionally with ``?attr``
+              (e.g., ``'user.name'``, ``'theme.btn?color'``)
+    built_entry: absolute built node path, optionally with ``?attr``
               to indicate where to write the value
-              (e.g., 'heading_0', 'widget_2?bg')
+              (e.g., ``'heading_0'``, ``'widget_2?bg'``)
+
+Pointer formali:
+    The built Bag retains ``^pointer`` strings verbatim. Resolution
+    happens just-in-time during render/compile via
+    ``BagBuilderBase._resolve_node()``. The BindingManager only
+    tracks *which* data paths affect *which* built paths — it never
+    writes resolved values into the built Bag.
 
 Example:
     >>> manager = BindingManager()
