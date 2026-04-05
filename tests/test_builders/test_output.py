@@ -165,6 +165,96 @@ class TestBuilderCheck:
 
 
 # =============================================================================
+# Tests for builder.validate()
+# =============================================================================
+
+
+class TestBuilderValidate:
+    """Tests for builder.validate() public validation method."""
+
+    def test_validate_returns_empty_list_for_valid_bag(self):
+        """validate() on valid bag returns empty list."""
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="inner")
+            def outer(self): ...
+
+            @element(sub_tags="")
+            def inner(self): ...
+
+        bag = Bag(builder=Builder)
+        outer_node = bag.outer()
+        outer_node.inner()
+
+        result = bag.builder.validate()
+        assert result == []
+
+    def test_validate_returns_dict_format_with_path_tag_reasons(self):
+        """validate() returns list of dicts with path, tag, reasons keys."""
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="required[1]")
+            def container(self): ...
+
+            @element(sub_tags="")
+            def required(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.container()  # Missing required child
+
+        result = bag.builder.validate()
+        assert len(result) == 1
+        err = result[0]
+        assert "path" in err
+        assert "tag" in err
+        assert "reasons" in err
+        assert "container_0" in err["path"]
+        assert isinstance(err["reasons"], list)
+
+    def test_validate_walks_nested_bags(self):
+        """validate() recursively walks nested Bag structures."""
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="middle")
+            def wrapper(self): ...
+
+            @element(sub_tags="leaf[1]")
+            def middle(self): ...
+
+            @element(sub_tags="")
+            def leaf(self): ...
+
+        bag = Bag(builder=Builder)
+        wrapper_node = bag.wrapper()
+        wrapper_node.middle()  # Missing required leaf
+
+        result = bag.builder.validate()
+        assert len(result) == 1
+        assert "middle" in result[0]["path"]
+        assert "leaf" in result[0]["reasons"]
+
+    def test_validate_accepts_explicit_bag_argument(self):
+        """validate() can validate an explicit bag parameter."""
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="inner[1]")
+            def outer(self): ...
+
+            @element(sub_tags="")
+            def inner(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.outer()  # Missing required child
+
+        other_bag = Bag(builder=Builder)
+        outer_node = other_bag.outer()
+        outer_node.inner()  # Valid
+
+        assert len(bag.builder.validate(bag)) == 1
+        assert bag.builder.validate(other_bag) == []
+
+
+# =============================================================================
 # Tests for builder._compile()
 # =============================================================================
 

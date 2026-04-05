@@ -75,7 +75,7 @@ BagNode : ... at ...
 
 - `sub_tags='*'` disables child validation entirely
 - Useful for generic container elements
-- `_check()` will not report errors for unknown children
+- `validate()` will not report errors for unknown children
 - Different from `sub_tags=''` which means **no children allowed** (leaf element)
 
 | Syntax | Meaning |
@@ -121,10 +121,10 @@ Specify minimum and maximum occurrences with bracket syntax:
 ...     def footer(self): ...
 ```
 
-### The _check() Method
+### The validate() Method
 
-Use `_check()` to validate structure after building. It walks the bag and returns
-a list of `(path, node, reasons)` tuples for every invalid node:
+Use `validate()` to validate structure after building. It walks the bag and returns
+a list of dicts (with keys ``path``, ``tag``, ``reasons``) for every invalid node:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -141,7 +141,7 @@ a list of `(path, node, reasons)` tuples for every invalid node:
 >>> lst = bag.list()
 
 >>> # Empty list - validation fails
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> len(errors) > 0
 True
 
@@ -150,7 +150,7 @@ True
 BagNode : ... at ...
 >>> lst.item('Second')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> errors
 []
 ```
@@ -178,7 +178,7 @@ BagNode : ... at ...
 >>> cont.forbidden('Oops')  # Structurally added, but invalid
 BagNode : ... at ...
 
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> len(errors) > 0
 True
 ```
@@ -213,14 +213,14 @@ Use `parent_tags` to specify where an element can be placed. This is the inverse
 >>> ul = bag.ul()
 >>> ul.li('Item 1')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> bag.builder._check()
+>>> bag.builder.validate()
 []
 
 >>> # Invalid: li inside div (div allows li via sub_tags, but li rejects div via parent_tags)
 >>> div = bag.div()
 >>> div.li('Invalid item')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> len(errors) > 0
 True
 ```
@@ -229,7 +229,7 @@ True
 
 - `parent_tags` is a comma-separated list of allowed parent tags
 - Element is added but **marked invalid** if parent doesn't match
-- Validation happens at build time, errors collected via `_check()`
+- Validation happens at build time, errors collected via `validate()`
 - Works with both `@element` and `@component`
 
 ### Combining sub_tags and parent_tags
@@ -340,10 +340,10 @@ Always validate complete structures before use:
 bag = BuilderBag(builder=MyBuilder)
 # ... build the structure ...
 
-errors = bag.builder._check()
+errors = bag.builder.validate()
 if errors:
-    for path, node, reasons in errors:
-        print(f"ERROR at {path}: {reasons}")
+    for err in errors:
+        print(f"ERROR at {err['path']}: {err['reasons']}")
     raise ValueError("Invalid structure")
 ```
 

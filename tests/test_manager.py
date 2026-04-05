@@ -157,6 +157,70 @@ class TestManagerBuilderProperties:
         assert len(app.page.source) == 1
 
 
+class TestManagerRun:
+    """Tests for BuilderManager.run() convenience method."""
+
+    def test_run_calls_setup_and_build(self):
+        """run() calls setup() and build() in sequence."""
+
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+                self.run()
+
+            def store(self, data):
+                data["title"] = "Hello"
+
+            def main(self, source):
+                source.heading(value="^title")
+
+        app = App()
+        assert "Hello" in app.page.render()
+
+    def test_run_with_subscribe(self):
+        """run(subscribe=True) also activates reactive bindings."""
+
+        class App(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+                self.run(subscribe=True)
+
+            def store(self, data):
+                data["title"] = "Hello"
+
+            def main(self, source):
+                source.heading(value="^title")
+
+        app = App()
+        # After subscribe, changing data should trigger re-render
+        app.reactive_store["title"] = "Updated"
+        assert "Updated" in app.page.render()
+
+    def test_run_produces_same_result_as_manual_sequence(self):
+        """run() produces identical result to manual setup+build."""
+
+        class ManualApp(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+                self.setup()
+                self.build()
+
+            def main(self, source):
+                source.heading("Test")
+
+        class RunApp(BuilderManager):
+            def __init__(self):
+                self.page = self.set_builder("page", TestBuilder)
+                self.run()
+
+            def main(self, source):
+                source.heading("Test")
+
+        manual = ManualApp()
+        run_app = RunApp()
+        assert manual.page.render() == run_app.page.render()
+
+
 class TestStandaloneBuilder:
     """Tests for builder without manager."""
 

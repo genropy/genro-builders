@@ -298,3 +298,15 @@ class BuilderBag(Bag):
                 if tag in base:
                     base.add(f"bag_{tag}")
         return sorted(base)
+
+
+class Component(BuilderBag):
+    """The internal bag passed to @component handlers.
+
+    Semantically identical to BuilderBag. Exists as a named type
+    so that component handler signatures read naturally::
+
+        @component(sub_tags='')
+        def login_form(self, comp: Component, **kwargs):
+            comp.input(name='username')
+    """

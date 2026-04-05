@@ -175,6 +175,29 @@ class _OutputMixin:
         self._walk_check(bag, "", invalid_nodes)
         return invalid_nodes
 
+    def validate(self, bag: Bag | None = None) -> list[dict[str, Any]]:
+        """Validate the bag structure, returning a list of validation errors.
+
+        Walks the bag tree and checks every node against its schema
+        constraints (sub_tags, cardinality, parent_tags).
+
+        Args:
+            bag: The Bag to validate. Defaults to the builder's source bag.
+
+        Returns:
+            List of error dicts, each with keys:
+                - ``path``: dot-separated path to the invalid node
+                - ``tag``: the node's tag name
+                - ``reasons``: list of human-readable reason strings
+
+            Empty list means the structure is valid.
+        """
+        raw = self._check(bag)
+        return [
+            {"path": path, "tag": node.node_tag or node.label, "reasons": reasons}
+            for path, node, reasons in raw
+        ]
+
     def _walk_check(
         self,
         bag: Bag,

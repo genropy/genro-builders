@@ -36,57 +36,66 @@ class TestExpanderBasic:
         assert paths == ["a", "b"]
 
 
-class TestExpanderMenuBuilder:
-    """Test expander with MenuBuilder's nested components."""
+class TestExpanderNestedComponents:
+    """Test expander with 3-level nested components (inline builder)."""
 
     @pytest.fixture
-    def menu_bag(self):
-        """Create a menu bag with nested components."""
-        from examples.builders.chef_app.menu_builder import MenuBuilder
+    def nested_bag(self):
+        """Create a bag with 3-level nested components: outer -> middle -> inner."""
+        from genro_builders import BagBuilderBase
+        from genro_builders.builders import component, element
 
-        bag = Bag(builder=MenuBuilder)
-        menu = bag.menu(name="Test Menu")
+        class NestedBuilder(BagBuilderBase):
+            @element(sub_tags="item, outer_comp")
+            def container(self): ...
 
-        first_courses = menu.first_courses()
+            @element()
+            def item(self): ...
 
-        # This creates nested components:
-        # lasagne_sauce -> meat_sauce -> soffritto
-        pasta = first_courses.pasta(name="Lasagne")
-        pasta.lasagne_sauce()
+            @component(sub_tags="")
+            def inner_comp(self, comp, **kwargs):
+                comp.item("inner_a")
+                comp.item("inner_b")
+                comp.item("inner_c")
+                comp.item("inner_d")
+                return comp
+
+            @component(sub_tags="")
+            def middle_comp(self, comp, **kwargs):
+                comp.inner_comp()
+                comp.item("middle_a")
+                comp.item("middle_b")
+                comp.item("middle_c")
+                return comp
+
+            @component(sub_tags="item")
+            def outer_comp(self, comp, **kwargs):
+                comp.middle_comp()
+                comp.item("outer_a")
+                comp.item("outer_b")
+                comp.item("outer_c")
+                return comp
+
+        bag = Bag(builder=NestedBuilder)
+        root = bag.container()
+        root.outer_comp(name="test")
 
         return bag
 
-    def test_expand_nested_components(self, menu_bag):
+    def test_expand_nested_components(self, nested_bag):
         """Expander should expand nested components recursively."""
-        # Collect all expanded paths and tags
-        expanded = [(path, node.node_tag) for path, node in expand(menu_bag)]
-
-        # After expansion, we should see ingredients from:
-        # 1. pasta base (fresh pasta, salt)
-        # 2. lasagne_sauce body which contains:
-        #    - meat_sauce body which contains:
-        #      - soffritto body (onion, carrot, celery, olive oil)
-        #      - ground beef, tomato passata, red wine
-        #    - white_sauce body (milk, butter, flour, nutmeg, salt)
-
-        # Extract just the tags
+        expanded = [(path, node.node_tag) for path, node in expand(nested_bag)]
         tags = [tag for _, tag in expanded]
 
-        # We should have many ingredients from the expansion
-        ingredient_count = tags.count("ingredient")
+        # inner_comp: 4 items, middle_comp: 3 items + inner, outer_comp: 3 items + middle
+        # Total items after expansion: 4 + 3 + 3 = 10
+        item_count = tags.count("item")
+        assert item_count >= 10, f"Expected >= 10 items, got {item_count}"
 
-        # Soffritto has 4 ingredients
-        # Meat sauce adds 3 more
-        # White sauce has 5
-        # Pasta base has 2
-        # Total: 14 ingredients (approximately, depends on exact MenuBuilder)
-        assert ingredient_count >= 10, f"Expected many ingredients, got {ingredient_count}"
-
-        # The component tags should NOT appear in expanded output
-        # (they are replaced by their body contents)
-        assert "soffritto" not in tags, "soffritto should be expanded, not yielded as-is"
-        assert "meat_sauce" not in tags, "meat_sauce should be expanded, not yielded as-is"
-        assert "white_sauce" not in tags, "white_sauce should be expanded, not yielded as-is"
+        # Component tags should NOT appear in expanded output
+        assert "inner_comp" not in tags, "inner_comp should be expanded"
+        assert "middle_comp" not in tags, "middle_comp should be expanded"
+        assert "outer_comp" not in tags, "outer_comp should be expanded"
 
     def test_expand_based_on_component(self):
         """based_on component extends the base with additional content."""

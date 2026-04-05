@@ -165,7 +165,7 @@ BagNode : ... at ...
 BagNode : ... at ...
 
 >>> # Check for validation errors
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> len(errors) > 0
 True
 ```
@@ -174,7 +174,7 @@ True
 
 - Comma-separated list of valid parent tags
 - Element is **marked invalid** if placed elsewhere (not rejected)
-- Use `builder._check()` to find validation errors
+- Use `builder.validate()` to find validation errors
 - Works with both `@element` and `@component`
 
 ## The @abstract Decorator
@@ -402,7 +402,7 @@ BagNode : ... at ...
 3
 ```
 
-**Open component** (`sub_tags` defined): Returns the internal bag for adding children.
+**Open component** (`sub_tags` defined): Returns ComponentProxy (delegates to parent bag). Children matching sub_tags can be added via the proxy.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -421,7 +421,7 @@ BagNode : ... at ...
 ...         return component
 
 >>> doc = BuilderBag(builder=Builder)
->>> lst = doc.mylist(title='Shopping')  # Returns internal bag
+>>> lst = doc.mylist(title='Shopping')  # Returns ComponentProxy
 >>> lst.item('Milk')  # doctest: +ELLIPSIS
 BagNode : ... at ...
 >>> lst.item('Bread')  # doctest: +ELLIPSIS

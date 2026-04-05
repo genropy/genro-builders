@@ -227,3 +227,17 @@ class BuilderManager:
         """Activate reactive bindings on all builders."""
         for builder in self._builders.values():
             builder.subscribe()
+
+    def run(self, *, subscribe: bool = False) -> None:
+        """Setup, build, and optionally subscribe — single-call lifecycle.
+
+        Convenience method equivalent to calling ``setup()``, ``build()``,
+        and optionally ``subscribe()`` in sequence.
+
+        Args:
+            subscribe: If True, also activate reactive bindings after build.
+        """
+        self.setup()
+        self.build()
+        if subscribe:
+            self.subscribe()

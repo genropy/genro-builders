@@ -145,11 +145,11 @@ class HtmlTable:
         Returns:
             List of error messages (empty if valid).
         """
-        results = self._store.builder._check(self._table)
+        results = self._store.builder.validate(self._table)
         errors = []
-        for path, _node, reasons in results:
-            for reason in reasons:
-                errors.append(f"{path}: {reason}")
+        for err in results:
+            for reason in err["reasons"]:
+                errors.append(f"{err['path']}: {reason}")
         return errors
 
     def to_html(self, indent: int = 0) -> str:
@@ -217,7 +217,7 @@ def demo():
     tr.td("Direct cell 2")
 
     print("Created table with tbody > tr > td structure")
-    errors = store.builder._check()
+    errors = store.builder.validate()
     if not errors:
         print("Structure is valid!")
 

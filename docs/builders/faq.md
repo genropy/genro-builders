@@ -155,7 +155,7 @@ True
 
 ### How do I check for errors after building?
 
-Use `builder._check()`:
+Use `builder.validate()`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -170,7 +170,7 @@ Use `builder._check()`:
 >>> bag = BuilderBag(builder=MyBuilder)
 >>> p = bag.parent()
 
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> errors
 []
 ```

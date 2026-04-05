@@ -193,7 +193,7 @@ for data in large_dataset:
     parent.item(data)
 
 # Validate once at the end:
-errors = builder._check()
+errors = builder.validate()
 ```
 
 ## Real-World Example: Config Builder
@@ -232,7 +232,7 @@ errors = builder._check()
 BagNode : ... at ...
 
 >>> # Validate structure
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> errors
 []
 
