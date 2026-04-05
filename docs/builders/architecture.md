@@ -36,6 +36,7 @@ Concrete builders live in `genro_builders.contrib/`, separate from the core:
 | ------------------ | ------------------------------------------------- | -------- |
 | **HtmlBuilder**    | `from genro_builders.contrib.html import ...`     | HTML5    |
 | **MarkdownBuilder**| `from genro_builders.contrib.markdown import ...` | Markdown |
+| **SvgBuilder**     | `from genro_builders.contrib.svg import ...`      | SVG      |
 | **XsdBuilder**     | `from genro_builders.contrib.xsd import ...`      | XML      |
 
 The core package (`genro_builders.builder`, `genro_builders.builders`) provides
@@ -107,6 +108,7 @@ flowchart LR
 ```
 
 This means:
+
 - The built Bag is a **stable structural representation**.
 - Multiple renderers can resolve the same built Bag with different data.
 - Data changes don't require re-building -- only re-rendering.

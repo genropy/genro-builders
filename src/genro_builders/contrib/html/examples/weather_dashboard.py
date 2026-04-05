@@ -143,7 +143,7 @@ def demo():
     print()
 
     # Save to file
-    output_path = Path(__file__).parent.parent.parent / "temp" / "weather_dashboard.html"
+    output_path = Path(__file__).parent.parent.parent.parent.parent / "temp" / "weather_dashboard.html"
     output_path.parent.mkdir(exist_ok=True)
     output_path.write_text(dashboard.output)
     print(f"Saved to {output_path}")

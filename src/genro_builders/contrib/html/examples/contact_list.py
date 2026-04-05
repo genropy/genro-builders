@@ -1,9 +1,40 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Contact list HTML page using declarative builder pattern."""
+"""Contact list HTML page using declarative builder pattern.
+
+Usage:
+    python -m genro_builders.contrib.html.examples.contact_list
+
+Example output:
+
+    <body>
+      <h1>Contact List</h1>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>John Smith</td>
+            <td>john@example.com</td>
+            <td>555-1234</td>
+          </tr>
+          <tr>
+            <td>Jane Doe</td>
+            <td>jane@example.com</td>
+            <td>555-5678</td>
+          </tr>
+          ...
+        </tbody>
+      </table>
+    </body>
+"""
 
 from pathlib import Path
 
-from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.contrib.html import HtmlBuilder
 
 
@@ -12,34 +43,24 @@ class ContactListPage:
 
     def __init__(self, contacts):
         self.contacts = contacts
-        self.page = Bag(builder=HtmlBuilder)
-        self.prepare_head(self.page.head())
-        self.build()
+        self.builder = HtmlBuilder()
+        self.populate()
 
-    def prepare_head(self, head):
-        """Build the head section."""
-        head.meta(charset="utf-8")
-        head.title("Contacts")
-        head.style(
-            """
-            body { font-family: sans-serif; margin: 20px; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #ccc; padding: 8px; }
-            th { background: #f5f5f5; }
-        """
-        )
+    def populate(self):
+        """Build the page body with contacts."""
+        body = self.builder.source.body()
+        body.h1("Contact List")
+        self.contacts_table(body, self.contacts)
 
-    def prepare_contacts_table(self, block, contacts):
+    def contacts_table(self, parent, contacts):
         """Build a table from contact data."""
-        table = block.table()
+        table = parent.table()
 
-        # Header
         thead = table.thead()
         tr = thead.tr()
         for header in ["Name", "Email", "Phone"]:
             tr.th(header)
 
-        # Body
         tbody = table.tbody()
         for contact in contacts:
             tr = tbody.tr()
@@ -47,17 +68,10 @@ class ContactListPage:
             tr.td(contact["email"])
             tr.td(contact["phone"])
 
-    def build(self):
-        """Build the page body with contacts."""
-        body = self.page.body()
-        body.h1("Contact List")
-        self.prepare_contacts_table(body, self.contacts)
-        return self
-
     def to_html(self, destination=None):
-        """Render the page to HTML."""
-        self.page.builder.build()
-        html = self.page.builder.render()
+        """Build, render, and optionally save the page."""
+        self.builder.build()
+        html = self.builder.render()
         if destination is not None:
             Path(destination).write_text(html)
         return html

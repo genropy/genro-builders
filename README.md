@@ -67,7 +67,7 @@ print(page.render())
 - **Output suspension** — `suspend_output()` / `resume_output()` to batch data changes and trigger a single render
 - **Pointer formali** — The built Bag retains `^pointer` strings; resolution happens just-in-time during render/compile, not during build
 - **Named slots** — Components can declare insertion points (`slots=['left', 'right']`) for user content injection
-- **Contributed builders** — HTML5, Markdown, XSD in `genro_builders.contrib` (optional, not loaded unless imported)
+- **Contributed builders** — HTML5, Markdown, SVG, XSD in `genro_builders.contrib` (optional, not loaded unless imported)
 - **Multi-builder coordination** — `BuilderManager` coordinates multiple builders with a shared data store
 - **Renderers and compilers** — `@renderer` for serialized output (HTML, Markdown), `@compiler` for live objects (widgets, workbooks)
 - **Node identification** — `node_id` attribute for O(1) lookup via `node_by_id()`
