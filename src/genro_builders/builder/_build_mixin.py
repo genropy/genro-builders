@@ -373,7 +373,7 @@ class _BuildMixin:
         for k, v in node.attr.items():
             if is_pointer(v):
                 resolved_attrs[k] = self._resolve_pointer_from_data(v, node, data)
-            elif callable(v) and not k.startswith("_"):
+            elif callable(v) and not k.startswith("_") and not isinstance(v, Bag):
                 resolved_attrs[k] = self._resolve_computed_attr(v, node, data)
             else:
                 resolved_attrs[k] = v
