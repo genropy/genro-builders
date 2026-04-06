@@ -7,14 +7,31 @@ processes data elements, materializes normal elements into the built Bag,
 registers pointer bindings, and resolves ^pointers just-in-time.
 Source-change handlers (``_on_source_inserted/updated/deleted``) support
 incremental updates after ``subscribe()``.
+
+Async-safe: when called inside an async context (running event loop),
+``build()`` and the incremental handlers return coroutines instead of
+None.  Component resolvers that return coroutines from
+``get_value(static=False)`` are awaited transparently via the
+continuation pattern (same as ``_htraverse`` in genro-bag).
+
+Sync usage (unchanged)::
+
+    builder.build()
+
+Async usage::
+
+    from genro_toolbox import smartawait
+    await smartawait(builder.build())
 """
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
+from genro_toolbox import smartawait, smartcontinuation
 from genro_toolbox.smarttimer import cancel_timer, set_interval
 
 from ..builder_bag import BuilderBag
@@ -28,6 +45,23 @@ class _BuildMixin:
     """Mixin for build walk, pointer resolution, bindings, and source changes."""
 
     # -----------------------------------------------------------------------
+    # Async context detection
+    # -----------------------------------------------------------------------
+
+    @property
+    def in_async_context(self) -> bool:
+        """Whether we are currently running inside an async context."""
+        try:
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
+
+    def _is_coroutine(self, value: Any) -> bool:
+        """Check if value is a coroutine (only possible in async context)."""
+        return self.in_async_context and asyncio.iscoroutine(value)
+
+    # -----------------------------------------------------------------------
     # Build walk (source -> built materialization)
     # -----------------------------------------------------------------------
 
@@ -38,11 +72,14 @@ class _BuildMixin:
         data: Bag,
         binding: Any,
         prefix: str = "",
-    ) -> None:
+    ) -> Any:
         """Recursive walk: two-pass processing.
 
         Pass 1: Process data_element nodes (side effects on data Bag).
         Pass 2: Materialize normal elements and components in built.
+
+        Returns None in sync context, or a coroutine in async context
+        (when a resolver returns a coroutine from get_value).
 
         Args:
             source: The source Bag to compile from.
@@ -57,27 +94,94 @@ class _BuildMixin:
                 self._process_infra_node(node, data)
 
         # Pass 2: materialize normal nodes
-        for node in source:
-            if node.attr.get("_is_data_element"):
-                continue
+        nodes = [n for n in source if not n.attr.get("_is_data_element")]
+        return self._build_walk_nodes(nodes, 0, target, data, binding, prefix)
 
+    def _build_walk_nodes(
+        self,
+        nodes: list,
+        idx: int,
+        target: Bag,
+        data: Bag,
+        binding: Any,
+        prefix: str,
+    ) -> Any:
+        """Process nodes[idx:] into target. Returns None or coroutine."""
+        while idx < len(nodes):
+            node = nodes[idx]
             built_path = f"{prefix}.{node.label}" if prefix else node.label
-
             binding.unbind_path(built_path)
 
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
 
-            new_node = target.set_item(
-                node.label,
-                value if not isinstance(value, Bag) else BuilderBag(builder=type(self)),
-                _attributes=dict(node.attr),
-                node_tag=node.node_tag,
-            )
+            if self._is_coroutine(value):
+                remaining_idx = idx
+                remaining_nodes = nodes
 
-            self._register_bindings(new_node, built_path, data, binding)
+                async def cont(
+                    value=value,
+                    node=node,
+                    built_path=built_path,
+                    remaining_nodes=remaining_nodes,
+                    remaining_idx=remaining_idx,
+                ):
+                    resolved = await value
+                    self._materialize_node(node, resolved, target, data, binding, built_path)
+                    if isinstance(resolved, Bag):
+                        child_result = self._build_walk(
+                            resolved, target.get_node(node.label).value,
+                            data, binding, prefix=built_path,
+                        )
+                        await smartawait(child_result)
+                    # Process remaining nodes
+                    rest = self._build_walk_nodes(
+                        remaining_nodes, remaining_idx + 1, target, data, binding, prefix,
+                    )
+                    await smartawait(rest)
 
+                return cont()
+
+            self._materialize_node(node, value, target, data, binding, built_path)
             if isinstance(value, Bag):
-                self._build_walk(value, new_node.value, data, binding, prefix=built_path)
+                child_result = self._build_walk(value, target.get_node(node.label).value, data, binding, prefix=built_path)
+                if self._is_coroutine(child_result):
+                    remaining_idx = idx + 1
+                    remaining_nodes = nodes
+
+                    async def cont_child(
+                        child_result=child_result,
+                        remaining_nodes=remaining_nodes,
+                        remaining_idx=remaining_idx,
+                    ):
+                        await child_result
+                        rest = self._build_walk_nodes(
+                            remaining_nodes, remaining_idx, target, data, binding, prefix,
+                        )
+                        await smartawait(rest)
+
+                    return cont_child()
+
+            idx += 1
+
+        return None
+
+    def _materialize_node(
+        self,
+        node: BagNode,
+        value: Any,
+        target: Bag,
+        data: Bag,
+        binding: Any,
+        built_path: str,
+    ) -> None:
+        """Materialize a single node into the target bag."""
+        new_node = target.set_item(
+            node.label,
+            value if not isinstance(value, Bag) else BuilderBag(builder=type(self)),
+            _attributes=dict(node.attr),
+            node_tag=node.node_tag,
+        )
+        self._register_bindings(new_node, built_path, data, binding)
 
     def _process_infra_node(self, node: BagNode, data: Bag) -> None:
         """Process a data_element node during build walk.
@@ -304,27 +408,32 @@ class _BuildMixin:
     # Build / subscribe / rebuild
     # -----------------------------------------------------------------------
 
-    def build(self) -> None:
+    def build(self) -> Any:
         """Materialize source -> built.
 
         Two-pass walk: data_elements first, then normal elements.
         After walk, sorts formula by dependency order and calls _onBuilt hooks.
         Does NOT activate reactivity -- call ``subscribe()`` separately.
+
+        Returns None in sync context, or a coroutine in async context.
+        In async context, caller must: ``await smartawait(builder.build())``.
         """
         self._clear_built()
         self._formula_registry = {}
         self._formula_order: list[str] = []
         self._infra_on_built_hooks: list[Any] = []
 
-        self._build_walk(
+        walk_result = self._build_walk(
             self.source, self.built, self.data, self._binding,
         )
 
-        self._formula_order = self._topological_sort_formulas()
+        def finalize(_: Any) -> None:
+            self._formula_order = self._topological_sort_formulas()
+            for hook in self._infra_on_built_hooks:
+                hook(self)
+            self._infra_on_built_hooks = []
 
-        for hook in self._infra_on_built_hooks:
-            hook(self)
-        self._infra_on_built_hooks = []
+        return smartcontinuation(walk_result, finalize)
 
     def subscribe(self) -> None:
         """Activate reactive bindings on the built Bag.
@@ -463,23 +572,23 @@ class _BuildMixin:
         ind: int | None = None,
         evt: str = "",
         **kwargs: Any,
-    ) -> None:
+    ) -> Any:
         """Called when a node is inserted into the source."""
         if not self._auto_compile or node is None:
-            return
+            return None
 
         # Data element: process as infra and re-render
         if node.attr.get("_is_data_element"):
             self._process_infra_node(node, self.data)
             self._rerender()
-            return
+            return None
 
         parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
 
         if parent_path:
             target_bag = self.built.get_item(parent_path)
             if not isinstance(target_bag, Bag):
-                return
+                return None
         else:
             target_bag = self.built
 
@@ -487,6 +596,29 @@ class _BuildMixin:
 
         value = node.get_value(static=False) if node.resolver is not None else node.static_value
 
+        if self._is_coroutine(value):
+            async def cont_inserted(value=value):
+                resolved = await value
+                self._materialize_inserted(
+                    node, resolved, target_bag, node_path, ind,
+                )
+                self._rerender()
+
+            return cont_inserted()
+
+        self._materialize_inserted(node, value, target_bag, node_path, ind)
+        self._rerender()
+        return None
+
+    def _materialize_inserted(
+        self,
+        node: BagNode,
+        value: Any,
+        target_bag: Bag,
+        node_path: str,
+        ind: int | None,
+    ) -> None:
+        """Materialize an inserted source node into the built bag."""
         new_node = target_bag.set_item(
             node.label,
             value if not isinstance(value, Bag) else BuilderBag(builder=type(self)),
@@ -505,7 +637,26 @@ class _BuildMixin:
                 value, new_node.value, self.data, self._binding, prefix=node_path,
             )
 
-        self._rerender()
+    def _materialize_updated(
+        self,
+        built_node: BagNode,
+        value: Any,
+        path: str,
+    ) -> None:
+        """Materialize an updated value into the built node."""
+        if isinstance(value, Bag):
+            built_node.set_value(BuilderBag(builder=type(self)), _reason="source")
+            self._register_bindings(
+                built_node, path, self.data, self._binding,
+            )
+            self._build_walk(
+                value, built_node.value, self.data, self._binding, prefix=path,
+            )
+        else:
+            built_node.set_value(value, _reason="source")
+            self._register_bindings(
+                built_node, path, self.data, self._binding,
+            )
 
     def _on_source_updated(
         self,
@@ -514,40 +665,36 @@ class _BuildMixin:
         oldvalue: Any = None,
         evt: str = "",
         **kwargs: Any,
-    ) -> None:
+    ) -> Any:
         """Called when a node in the source is updated (value or attributes)."""
         if not self._auto_compile or pathlist is None:
-            return
+            return None
 
         # Data element: re-process and re-render
         if node is not None and node.attr.get("_is_data_element"):
             self._process_infra_node(node, self.data)
             self._rerender()
-            return
+            return None
 
         path = ".".join(str(p) for p in pathlist)
         built_node = self.built.get_node(path)
         if built_node is None:
-            return
+            return None
 
         if evt == "upd_value":
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
 
             self._binding.unbind_path(path)
 
-            if isinstance(value, Bag):
-                built_node.set_value(BuilderBag(builder=type(self)), _reason="source")
-                self._register_bindings(
-                    built_node, path, self.data, self._binding,
-                )
-                self._build_walk(
-                    value, built_node.value, self.data, self._binding, prefix=path,
-                )
-            else:
-                built_node.set_value(value, _reason="source")
-                self._register_bindings(
-                    built_node, path, self.data, self._binding,
-                )
+            if self._is_coroutine(value):
+                async def cont_updated(value=value):
+                    resolved = await value
+                    self._materialize_updated(built_node, resolved, path)
+                    self._rerender()
+
+                return cont_updated()
+
+            self._materialize_updated(built_node, value, path)
 
         elif evt == "upd_attrs":
             if node is not None:

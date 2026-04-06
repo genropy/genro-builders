@@ -27,6 +27,21 @@ Lifecycle:
        ``_interval`` periodic execution, and ``suspend_output`` /
        ``resume_output`` for batched rendering.
 
+Async-safe: ``build()`` and ``run()`` return None in sync context, or a
+coroutine in async context.  Use ``smartawait`` for transparent handling::
+
+    from genro_toolbox import smartawait
+
+    # Sync — works as before:
+    manager.run()
+
+    # Async — await the coroutine:
+    await smartawait(manager.run())
+
+    # Or equivalently:
+    await smartawait(manager.build())
+    manager.subscribe()
+
 Example — single builder:
     >>> class HtmlManager(BuilderManager):
     ...     def __init__(self):
@@ -81,9 +96,11 @@ Example — multiple builders with shared and private data:
 """
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from genro_bag import Bag
+from genro_toolbox import smartawait
 
 
 class BuilderManager:
@@ -218,26 +235,47 @@ class BuilderManager:
             elif len(self._builders) == 1:
                 self.main(builder.source)
 
-    def build(self) -> None:
-        """Materialize all builders: source → built."""
-        for builder in self._builders.values():
-            builder.build()
+    def build(self) -> Any:
+        """Materialize all builders: source -> built.
+
+        Returns None in sync context, or a coroutine in async context.
+        """
+        results = [builder.build() for builder in self._builders.values()]
+        awaitables = [r for r in results if inspect.isawaitable(r)]
+        if not awaitables:
+            return None
+
+        async def await_all():
+            for coro in awaitables:
+                await smartawait(coro)
+
+        return await_all()
 
     def subscribe(self) -> None:
         """Activate reactive bindings on all builders."""
         for builder in self._builders.values():
             builder.subscribe()
 
-    def run(self, *, subscribe: bool = False) -> None:
-        """Setup, build, and optionally subscribe — single-call lifecycle.
+    def run(self, *, subscribe: bool = False) -> Any:
+        """Setup, build, and optionally subscribe -- single-call lifecycle.
 
-        Convenience method equivalent to calling ``setup()``, ``build()``,
-        and optionally ``subscribe()`` in sequence.
+        Returns None in sync context, or a coroutine in async context.
+        In async context, caller must: ``await smartawait(manager.run())``.
 
         Args:
             subscribe: If True, also activate reactive bindings after build.
         """
         self.setup()
-        self.build()
+        build_result = self.build()
+
+        if inspect.isawaitable(build_result):
+            async def cont():
+                await smartawait(build_result)
+                if subscribe:
+                    self.subscribe()
+
+            return cont()
+
         if subscribe:
             self.subscribe()
+        return None
