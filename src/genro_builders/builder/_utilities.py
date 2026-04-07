@@ -10,6 +10,7 @@ for backward-compatible test imports.
 from __future__ import annotations
 
 import inspect
+import numbers
 import re
 import sys
 import types
@@ -86,6 +87,8 @@ def _check_type(value: Any, tp: Any) -> bool:
         pass
 
     if origin is None:
+        if tp is float and isinstance(value, numbers.Number):
+            return True
         try:
             return isinstance(value, tp)
         except TypeError:
