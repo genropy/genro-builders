@@ -321,12 +321,7 @@ class _BuildMixin:
         for k, v in attrs.items():
             if k.startswith("_"):
                 continue
-            if hasattr(node, "current_from_datasource"):
-                resolved[k] = node.current_from_datasource(v, data)
-            elif is_pointer(v):
-                resolved[k] = self._resolve_pointer_from_data(v, node, data)
-            else:
-                resolved[k] = v
+            resolved[k] = node.current_from_datasource(v, data)
         return resolved
 
     # -----------------------------------------------------------------------
@@ -358,16 +353,8 @@ class _BuildMixin:
             return
 
         for pointer_info, location in pointers:
-            datapath = ""
-            if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
-                datapath = node._resolve_datapath()
-
-            data_path = pointer_info.path
-            if pointer_info.is_relative:
-                rel = data_path[1:]
-                data_path = f"{datapath}.{rel}" if datapath else rel
-
-            data_key = f"{data_path}?{pointer_info.attr}" if pointer_info.attr else data_path
+            data_path, attr_name = node._resolve_path(pointer_info.raw[1:])
+            data_key = f"{data_path}?{attr_name}" if attr_name else data_path
             built_entry = built_path if location == "value" else f"{built_path}?{location[5:]}"
 
             binding.register(data_key, built_entry)
@@ -380,36 +367,6 @@ class _BuildMixin:
             if param.default is not inspect.Parameter.empty and is_pointer(param.default):
                 result.append(param.default)
         return result
-
-    def _resolve_pointer(
-        self, node: BagNode, pointer_info: Any, data_path: str, data: Bag,
-    ) -> Any:
-        """Resolve a single ^pointer value from the data Bag."""
-        if hasattr(node, "_get_relative_data"):
-            return node._get_relative_data(data, pointer_info.raw[1:])
-
-        if pointer_info.attr:
-            data_node = data.get_node(data_path)
-            return data_node.attr.get(pointer_info.attr) if data_node else None
-        return data.get_item(data_path)
-
-    def _resolve_pointer_from_data(
-        self, raw: str, node: BagNode, data: Bag,
-    ) -> Any:
-        """Resolve a ^pointer string to its current value from data.
-
-        Used by _resolve_node for just-in-time resolution during render/compile.
-        The built node is NOT modified.
-        """
-        pointer_info = parse_pointer(raw)
-
-        data_path = pointer_info.path
-        if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
-            datapath = node._resolve_datapath()
-            rel = data_path[1:]
-            data_path = f"{datapath}.{rel}" if datapath else rel
-
-        return self._resolve_pointer(node, pointer_info, data_path, data)
 
     def _resolve_node(self, node: BagNode, data: Bag) -> dict[str, Any]:
         """Produce a resolved view of a built node.

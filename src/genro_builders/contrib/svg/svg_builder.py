@@ -26,9 +26,10 @@ Example:
 
 from __future__ import annotations
 
+import textwrap
 from typing import Any
 
-from genro_bag import Bag, BagNode
+from genro_bag import BagNode
 
 from ...builder import BagBuilderBase
 from ...renderer import BagRendererBase
@@ -67,6 +68,13 @@ _VOID_TAGS = frozenset({
 })
 
 
+# Context keys injected by _build_context — not real attributes.
+_CTX_KEYS = frozenset({
+    "node_value", "node_label", "children", "node",
+    "iterate", "datapath",
+})
+
+
 def _render_attr(key: str, value: Any) -> str:
     """Render a single attribute, converting underscore to kebab where needed."""
     if key in _KEBAB_ATTRS:
@@ -77,40 +85,36 @@ def _render_attr(key: str, value: Any) -> str:
 
 
 class SvgRenderer(BagRendererBase):
-    """Renderer for SVG documents."""
+    """Renderer for SVG documents.
 
-    def render(self, built_bag: Bag, output: Any = None) -> str:
-        """Render the built Bag to SVG string."""
-        lines = []
-        for node in built_bag:
-            lines.append(self._node_to_svg(node, indent=0))
-        return "\n".join(lines)
+    Uses the base class walk/dispatch/resolve infrastructure.
+    Only render_node is overridden to produce SVG markup.
+    """
 
-    def _node_to_svg(self, node: BagNode, indent: int = 0) -> str:
-        """Recursively convert a node to SVG markup."""
+    def render_node(
+        self, node: BagNode, ctx: dict[str, Any],
+        template: str | None = None, **kwargs: Any,
+    ) -> str | None:
+        """Render a single node as SVG markup."""
         tag = node.node_tag or node.label
         attrs = " ".join(
             _render_attr(k, v)
-            for k, v in node.attr.items()
-            if not k.startswith("_")
+            for k, v in ctx.items()
+            if not k.startswith("_") and k not in _CTX_KEYS
         )
         attrs_str = f" {attrs}" if attrs else ""
-        spaces = "  " * indent
 
-        node_value = node.get_value(static=True)
-        is_leaf = not isinstance(node_value, Bag)
+        node_value = ctx["node_value"]
+        children = ctx["children"]
 
-        if is_leaf:
-            if tag in _VOID_TAGS and (node_value is None or node_value == ""):
-                return f"{spaces}<{tag}{attrs_str} />"
-            content = "" if node_value is None else str(node_value)
-            return f"{spaces}<{tag}{attrs_str}>{content}</{tag}>"
+        if not children:
+            if tag in _VOID_TAGS and not node_value:
+                return f"<{tag}{attrs_str} />"
+            content = node_value or ""
+            return f"<{tag}{attrs_str}>{content}</{tag}>"
 
-        lines = [f"{spaces}<{tag}{attrs_str}>"]
-        for child in node_value:
-            lines.append(self._node_to_svg(child, indent + 1))
-        lines.append(f"{spaces}</{tag}>")
-        return "\n".join(lines)
+        indented = textwrap.indent(children, "  ")
+        return f"<{tag}{attrs_str}>\n{indented}\n</{tag}>"
 
 
 class SvgBuilder(BagBuilderBase, SvgElements):

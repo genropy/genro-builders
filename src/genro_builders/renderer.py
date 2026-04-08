@@ -13,7 +13,7 @@ Pointer formali and just-in-time resolution:
 
 Decorators:
     @renderer: Mark a method as render handler for a specific tag.
-               If body is empty (...), uses default_render with kwargs.
+               If body is empty (...), delegates to render_node with kwargs.
                If body has logic, the method IS the handler.
 
 Example:
@@ -58,7 +58,7 @@ def _is_empty_body(func: Callable) -> bool:
 def renderer(**kwargs: Any) -> Callable:
     """Decorator to mark a method as render handler for a tag.
 
-    If the method body is empty (...), default_render uses the kwargs
+    If the method body is empty (...), render_node uses the kwargs
     (e.g. template) to produce output. If the method has logic,
     it IS the render handler.
 
@@ -99,11 +99,12 @@ class BagRendererBase(ABC):
 
     Provides:
         - @renderer dispatch: tag-based rendering infrastructure
-        - _walk_render(), _build_context(), default_render(): rendering utilities
+        - _walk_render(), _build_context(): rendering infrastructure
+        - render_node(): override this to define how a single node is rendered
         - render(): main entry point (subclass should override or use as-is)
 
     Subclasses define render handlers for specific tags using @renderer.
-    Empty-body handlers use default_render with decorator kwargs.
+    Empty-body handlers use render_node with decorator kwargs.
     Handlers with logic are called directly.
     """
 
@@ -155,17 +156,17 @@ class BagRendererBase(ABC):
     def _walk_render(self, bag: Bag) -> Iterator[str]:
         """Walk bag and render each node via handler dispatch."""
         for node in bag:
-            result = self._render_node(node)
+            result = self._dispatch_render(node)
             if result is not None:
                 yield result
 
-    def _render_node(self, node: BagNode) -> str | None:
+    def _dispatch_render(self, node: BagNode) -> str | None:
         """Render a single node.
 
         Resolution order:
         1. @renderer with logic body → call method
-        2. @renderer with empty body → default_render with kwargs
-        3. No handler → default_render with no kwargs
+        2. @renderer with empty body → render_node with kwargs
+        3. No handler → render_node with no kwargs
         """
         tag = node.node_tag or node.label
         ctx = self._build_context(node)
@@ -174,10 +175,10 @@ class BagRendererBase(ABC):
         if handler:
             if getattr(handler, "_renderer_empty", False):
                 rk = self._render_kwargs.get(tag, {})
-                return self.default_render(node, ctx, **rk)
+                return self.render_node(node, ctx, **rk)
             return handler(self, node, ctx)
 
-        return self.default_render(node, ctx)
+        return self.render_node(node, ctx)
 
     def _build_context(self, node: BagNode) -> dict[str, Any]:
         """Build context dict for render handlers.
@@ -219,7 +220,7 @@ class BagRendererBase(ABC):
     # Default render
     # -------------------------------------------------------------------------
 
-    def default_render(
+    def render_node(
         self, node: BagNode, ctx: dict[str, Any],
         template: str | None = None, **kwargs: Any,
     ) -> str | None:

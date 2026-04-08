@@ -106,7 +106,13 @@ class YamlRendererBase(BagRendererBase):
         """
         result: dict[str, Any] = {}
 
-        for attr_name, attr_value in node.attr.items():
+        if hasattr(node, "evaluate_on_node") and builder is not None:
+            resolved = node.evaluate_on_node(builder.data)
+            attrs = resolved["attrs"]
+        else:
+            attrs = dict(node.attr)
+
+        for attr_name, attr_value in attrs.items():
             if attr_name.startswith("_") or attr_name in ("name", "datapath"):
                 continue
             if attr_value is None:

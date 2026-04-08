@@ -23,45 +23,53 @@ Example:
 
 from __future__ import annotations
 
+import textwrap
 from typing import Any
 
-from genro_bag import Bag, BagNode
+from genro_bag import BagNode
 
 from ...builder import BagBuilderBase
 from ...renderer import BagRendererBase
 from .html5_elements import Html5Elements
 
 
+# Context keys injected by _build_context — not real attributes.
+_CTX_KEYS = frozenset({
+    "node_value", "node_label", "children", "node",
+    "iterate", "datapath",
+})
+
+
 class HtmlRenderer(BagRendererBase):
-    """Renderer for HTML5 documents."""
+    """Renderer for HTML5 documents.
 
-    def render(self, built_bag: Bag, output: Any = None) -> str:
-        """Render the built Bag to HTML string."""
-        lines = []
-        for node in built_bag:
-            lines.append(self._node_to_html(node, indent=0))
-        return "\n".join(lines)
+    Uses the base class walk/dispatch/resolve infrastructure.
+    Only render_node is overridden to produce HTML markup.
+    """
 
-    def _node_to_html(self, node: BagNode, indent: int = 0) -> str:
-        """Recursively convert a node to HTML."""
+    def render_node(
+        self, node: BagNode, ctx: dict[str, Any],
+        template: str | None = None, **kwargs: Any,
+    ) -> str | None:
+        """Render a single node as HTML markup."""
         tag = node.node_tag or node.label
-        attrs = " ".join(f'{k}="{v}"' for k, v in node.attr.items() if not k.startswith("_"))
+        attrs = " ".join(
+            f'{k}="{v}"'
+            for k, v in ctx.items()
+            if not k.startswith("_") and k not in _CTX_KEYS
+        )
         attrs_str = f" {attrs}" if attrs else ""
-        spaces = "  " * indent
 
-        node_value = node.get_value(static=True)
-        is_leaf = not isinstance(node_value, Bag)
+        node_value = ctx["node_value"]
+        children = ctx["children"]
 
-        if is_leaf:
-            if node_value == "" or node_value is None:
-                return f"{spaces}<{tag}{attrs_str}>"
-            return f"{spaces}<{tag}{attrs_str}>{node_value}</{tag}>"
+        if not children:
+            if not node_value:
+                return f"<{tag}{attrs_str}>"
+            return f"<{tag}{attrs_str}>{node_value}</{tag}>"
 
-        lines = [f"{spaces}<{tag}{attrs_str}>"]
-        for child in node_value:
-            lines.append(self._node_to_html(child, indent + 1))
-        lines.append(f"{spaces}</{tag}>")
-        return "\n".join(lines)
+        indented = textwrap.indent(children, "  ")
+        return f"<{tag}{attrs_str}>\n{indented}\n</{tag}>"
 
 
 class HtmlBuilder(BagBuilderBase, Html5Elements):

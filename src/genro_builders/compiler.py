@@ -15,7 +15,7 @@ Pointer formali and just-in-time resolution:
 
 Decorators:
     @compiler: Mark a method as compile handler for a specific tag.
-               If body is empty (...), uses default_compile with kwargs.
+               If body is empty (...), delegates to compile_node with kwargs.
                If body has logic, the method IS the handler.
 
 Example:
@@ -58,7 +58,7 @@ def _is_empty_body(func: Callable) -> bool:
 def compiler(**kwargs: Any) -> Callable:
     """Decorator to mark a method as compile handler for a tag.
 
-    If the method body is empty (...), default_compile uses the kwargs
+    If the method body is empty (...), compile_node uses the kwargs
     (e.g. module, cls) to produce output. If the method has logic,
     it IS the compile handler.
 
@@ -99,11 +99,12 @@ class BagCompilerBase(ABC):
 
     Provides:
         - @compiler dispatch: tag-based compilation infrastructure
-        - _walk_compile(), _build_context(), default_compile(): utilities
+        - _walk_compile(), _build_context(): compilation infrastructure
+        - compile_node(): override this to define how a single node is compiled
         - compile(): main entry point (subclass must override)
 
     Subclasses define compile handlers for specific tags using @compiler.
-    Empty-body handlers use default_compile with decorator kwargs.
+    Empty-body handlers use compile_node with decorator kwargs.
     Handlers with logic are called directly.
     """
 
@@ -155,17 +156,17 @@ class BagCompilerBase(ABC):
     def _walk_compile(self, bag: Bag) -> Iterator[Any]:
         """Walk bag and compile each node via handler dispatch."""
         for node in bag:
-            result = self._compile_node(node)
+            result = self._dispatch_compile(node)
             if result is not None:
                 yield result
 
-    def _compile_node(self, node: BagNode) -> Any | None:
+    def _dispatch_compile(self, node: BagNode) -> Any | None:
         """Compile a single node.
 
         Resolution order:
         1. @compiler with logic body → call method
-        2. @compiler with empty body → default_compile with kwargs
-        3. No handler → default_compile with no kwargs
+        2. @compiler with empty body → compile_node with kwargs
+        3. No handler → compile_node with no kwargs
         """
         tag = node.node_tag or node.label
         ctx = self._build_context(node)
@@ -174,10 +175,10 @@ class BagCompilerBase(ABC):
         if handler:
             if getattr(handler, "_compiler_empty", False):
                 ck = self._compile_kwargs.get(tag, {})
-                return self.default_compile(node, ctx, **ck)
+                return self.compile_node(node, ctx, **ck)
             return handler(self, node, ctx)
 
-        return self.default_compile(node, ctx)
+        return self.compile_node(node, ctx)
 
     def _build_context(self, node: BagNode) -> dict[str, Any]:
         """Build context dict for compile handlers.
@@ -214,7 +215,7 @@ class BagCompilerBase(ABC):
     # Default compile
     # -------------------------------------------------------------------------
 
-    def default_compile(
+    def compile_node(
         self, node: BagNode, ctx: dict[str, Any], **kwargs: Any,
     ) -> Any | None:
         """Default compile with optional kwargs from @compiler decorator.

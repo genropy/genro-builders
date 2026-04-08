@@ -204,13 +204,10 @@ class _ReactivityMixin:
 
     def _resolve_pointer_path(self, raw: str, node: BagNode) -> str:
         """Extract absolute data path from a ^pointer string."""
-        pointer_info = parse_pointer(raw)
-        data_path = pointer_info.path
-        if pointer_info.is_relative and hasattr(node, "_resolve_datapath"):
-            datapath = node._resolve_datapath()
-            rel = data_path[1:]
-            data_path = f"{datapath}.{rel}" if datapath else rel
-        return data_path
+        path = raw[1:]  # strip ^
+        if "?" in path:
+            path = path.split("?", 1)[0]
+        return node.abs_datapath(path)
 
     def _reexecute_formula(self, entry: dict[str, Any]) -> None:
         """Re-execute a single formula/controller with fresh data."""
