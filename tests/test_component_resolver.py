@@ -5,7 +5,7 @@ from __future__ import annotations
 from genro_builders import BagBuilderBase, BagCompilerBase, ComponentResolver
 from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builders import component, element
-from genro_builders.compiler import compile_handler
+from genro_builders.compiler import compiler
 
 
 class SimpleCompiler(BagCompilerBase):

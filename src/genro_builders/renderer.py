@@ -39,6 +39,13 @@ from typing import Any
 
 from genro_bag import Bag, BagNode
 
+# Context keys injected by _build_context — not real node attributes.
+# Renderers should filter these when producing attribute output.
+CTX_KEYS = frozenset({
+    "node_value", "node_label", "children", "node",
+    "iterate", "datapath",
+})
+
 # =============================================================================
 # Decorator
 # =============================================================================

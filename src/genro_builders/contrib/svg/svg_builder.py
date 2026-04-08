@@ -32,7 +32,7 @@ from typing import Any
 from genro_bag import BagNode
 
 from ...builder import BagBuilderBase
-from ...renderer import BagRendererBase
+from ...renderer import CTX_KEYS, BagRendererBase
 from .svg_elements import SvgElements
 
 # Presentation attributes that use kebab-case in SVG.
@@ -68,13 +68,6 @@ _VOID_TAGS = frozenset({
 })
 
 
-# Context keys injected by _build_context — not real attributes.
-_CTX_KEYS = frozenset({
-    "node_value", "node_label", "children", "node",
-    "iterate", "datapath",
-})
-
-
 def _render_attr(key: str, value: Any) -> str:
     """Render a single attribute, converting underscore to kebab where needed."""
     if key in _KEBAB_ATTRS:
@@ -100,7 +93,7 @@ class SvgRenderer(BagRendererBase):
         attrs = " ".join(
             _render_attr(k, v)
             for k, v in ctx.items()
-            if not k.startswith("_") and k not in _CTX_KEYS
+            if not k.startswith("_") and k not in CTX_KEYS
         )
         attrs_str = f" {attrs}" if attrs else ""
 

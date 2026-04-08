@@ -29,15 +29,8 @@ from typing import Any
 from genro_bag import BagNode
 
 from ...builder import BagBuilderBase
-from ...renderer import BagRendererBase
+from ...renderer import CTX_KEYS, BagRendererBase
 from .html5_elements import Html5Elements
-
-
-# Context keys injected by _build_context — not real attributes.
-_CTX_KEYS = frozenset({
-    "node_value", "node_label", "children", "node",
-    "iterate", "datapath",
-})
 
 
 class HtmlRenderer(BagRendererBase):
@@ -56,7 +49,7 @@ class HtmlRenderer(BagRendererBase):
         attrs = " ".join(
             f'{k}="{v}"'
             for k, v in ctx.items()
-            if not k.startswith("_") and k not in _CTX_KEYS
+            if not k.startswith("_") and k not in CTX_KEYS
         )
         attrs_str = f" {attrs}" if attrs else ""
 

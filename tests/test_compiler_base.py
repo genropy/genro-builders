@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BagCompilerBase — rendering via @compile_handler dispatch.
+"""Tests for BagCompilerBase — rendering via @compiler() dispatch.
 
 Build walk is now in BagBuilderBase._build_walk(). These tests verify
 the compiler's rendering infrastructure and the full build+render pipeline.
@@ -8,33 +8,34 @@ from __future__ import annotations
 
 from genro_bag import Bag
 
-from genro_builders import BagBuilderBase, BagCompilerBase, compile_handler
+from genro_builders import BagBuilderBase, BagCompilerBase
+from genro_builders.compiler import compiler
 from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag
 from genro_builders.builders import component, element
 
 # =============================================================================
-# Test compiler with @compile_handler for rendering
+# Test compiler with @compiler() for rendering
 # =============================================================================
 
 
 class TagCompiler(BagCompilerBase):
-    """Compiler with @compile_handler methods for tag-based rendering."""
+    """Compiler with @compiler() methods for tag-based rendering."""
 
-    @compile_handler
+    @compiler()
     def heading(self, node, ctx):
         return f"# {ctx['node_value']}"
 
-    @compile_handler
+    @compiler()
     def text(self, node, ctx):
         return ctx["node_value"]
 
-    @compile_handler
+    @compiler()
     def container(self, node, ctx):
         children = "\n".join(str(c) for c in ctx["children"]) if ctx["children"] else ""
         return f"[{children}]" if children else "[]"
 
-    @compile_handler
+    @compiler()
     def section(self, node, ctx):
         return "\n".join(str(c) for c in ctx["children"]) if ctx["children"] else ""
 
@@ -142,10 +143,10 @@ class TestBuildWalkPopulatesTarget:
 
 
 class TestRendering:
-    """Tests for tag-based rendering via @compile_handler."""
+    """Tests for tag-based rendering via @compiler()."""
 
     def test_render_with_handlers(self):
-        """@compile_handler methods render tags."""
+        """@compiler() methods render tags."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("Hello")
         bag.text("World")
