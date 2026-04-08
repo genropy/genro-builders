@@ -88,14 +88,6 @@ def renderer(**kwargs: Any) -> Callable:
     return decorator
 
 
-def render_handler(func: Callable) -> Callable:
-    """Legacy alias: @render_handler without parentheses."""
-    func._renderer = True  # type: ignore[attr-defined]
-    func._renderer_kwargs = {}  # type: ignore[attr-defined]
-    func._renderer_empty = False  # type: ignore[attr-defined]
-    return func
-
-
 # =============================================================================
 # BagRendererBase
 # =============================================================================

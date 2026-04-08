@@ -3,7 +3,4 @@
 
 from genro_builders.compilers.yaml_compiler import YamlRendererBase
 
-# Legacy alias
-YamlCompilerBase = YamlRendererBase
-
-__all__ = ["YamlCompilerBase", "YamlRendererBase"]
+__all__ = ["YamlRendererBase"]

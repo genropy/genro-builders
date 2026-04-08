@@ -81,14 +81,6 @@ def compiler(**kwargs: Any) -> Callable:
     return decorator
 
 
-def compile_handler(func: Callable) -> Callable:
-    """Legacy alias: @compile_handler without parentheses."""
-    func._compiler = True  # type: ignore[attr-defined]
-    func._compiler_kwargs = {}  # type: ignore[attr-defined]
-    func._compiler_empty = False  # type: ignore[attr-defined]
-    return func
-
-
 # =============================================================================
 # BagCompilerBase
 # =============================================================================
