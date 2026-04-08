@@ -540,6 +540,60 @@ shell.left.item('nav')            # Returns slot Bag (if 'left' declared)
 | Slots | No | Optional (`slots=['name', ...]`) |
 | Use case | Simple elements | Composite structures |
 
+### Iterating Over Data (iterate)
+
+Use `iterate` to replicate a component once per child in a data bag.
+The component is written for **one record** — the builder handles the
+repetition automatically.
+
+```python
+from genro_builders.builder import BagBuilderBase, element, component
+from genro_builders.contrib.svg import SvgBuilder
+from genro_builders.manager import BuilderManager
+from genro_bag import Bag
+
+class BadgeBuilder(SvgBuilder):
+    @component(sub_tags='')
+    def badge(self, comp, **kwargs):
+        """One badge — uses ^.?attr to read from its data node."""
+        comp.rect(x="0", y="0", width="200", height="50",
+                  fill="white", stroke="#ccc")
+        comp.text("^.?name", x="10", y="30", font_size="16")
+
+class App(BuilderManager):
+    def __init__(self):
+        self.page = self.set_builder("page", BadgeBuilder)
+
+    def store(self, data):
+        people = Bag()
+        people.set_item("p0", None, name="Alice")
+        people.set_item("p1", None, name="Marco")
+        people.set_item("p2", None, name="Sara")
+        data["people"] = people
+
+    def main(self, source):
+        svg = source.svg(width="220", height="180")
+        svg.badge(iterate="^people")
+```
+
+How it works:
+
+1. The builder reads `^people` from the data store
+2. For each child (`p0`, `p1`, `p2`), it creates an instance of `badge`
+3. Each instance gets `datapath` set to `people.p0`, `people.p1`, etc.
+4. The `^.?name` pointers resolve against the corresponding data node
+
+The component knows nothing about iteration — it describes one badge.
+The builder handles the replication.
+
+**Pointer syntax in iterated components:**
+
+| Pointer | Resolves to |
+|---------|-------------|
+| `^.?name` | Attribute `name` of the current data node |
+| `^.?color` | Attribute `color` of the current data node |
+| `^title` | Absolute path in data store (shared across instances) |
+
 ## Defining Multiple Elements Simply
 
 For elements without custom logic, use empty method bodies:

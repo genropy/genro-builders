@@ -97,21 +97,31 @@ flowchart TB
 ## Pointer Formali
 
 The built Bag retains `^pointer` strings verbatim. Resolution happens
-just-in-time during render/compile via `_resolve_node()`:
+just-in-time during render/compile via `node.evaluate_on_node(data)`:
 
 ```{mermaid}
 flowchart LR
-    A["built node: value='^title'"] --> B["_resolve_node()"]
-    B --> C["data.get_item('title')"]
-    C --> D["resolved: 'Hello'"]
-    D --> E["renderer uses 'Hello'"]
+    A["built node: value='^title'"] --> B["node.evaluate_on_node(data)"]
+    B --> C["Pass 1: resolve ^pointers"]
+    C --> D["Pass 2: execute callables"]
+    D --> E["renderer uses resolved values"]
 ```
+
+Resolution lives on `BuilderBagNode` (inspired by Genropy's
+`currentFromDatasource` / `evaluateOnNode` pattern):
+
+| Method | Purpose |
+|--------|---------|
+| `evaluate_on_node(data)` | Resolve all attrs + value (2-pass) |
+| `current_from_datasource(value, data)` | Resolve single `^pointer` |
+| `abs_datapath(path)` | Resolve `.relative` or `#symbolic` paths |
 
 This means:
 
 - The built Bag is a **stable structural representation**.
 - Multiple renderers can resolve the same built Bag with different data.
 - Data changes don't require re-building -- only re-rendering.
+- Resolution logic is on the node, not in the renderer or build mixin.
 
 ## Formula Registry and Topological Sort
 

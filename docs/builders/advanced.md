@@ -290,9 +290,19 @@ print(builder.output)
 
 ### Computed Attributes
 
-Callable attributes with `^pointer` defaults are resolved just-in-time:
+Callable attributes are resolved via 2-pass evaluation on the node.
+In pass 1 all `^pointer` attributes are resolved to values. In pass 2,
+callables are called with matching resolved attributes as kwargs:
 
 ```python
+# Callable that uses other resolved attributes
+s.body().div(
+    price="^item.price",
+    qty=3,
+    total=lambda price, qty: price * qty,
+)
+
+# Callable with ^pointer defaults (resolved from data store)
 s.body().div(
     style=lambda bg='^theme.bg', fg='^theme.fg': f'background:{bg};color:{fg}',
 )
