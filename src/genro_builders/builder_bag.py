@@ -13,10 +13,13 @@ Example:
 """
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from genro_bag import Bag, BagNode
 from genro_toolbox.decorators import extract_kwargs
+
+from .pointer import is_pointer
 
 _BUILDERBAG_PROTECTED = frozenset({"builder", "node_class"})
 
@@ -215,6 +218,85 @@ class BuilderBagNode(BagNode):
             else:
                 result = part
         return result
+
+    # -------------------------------------------------------------------------
+    # Value resolution (inspired by Genropy's currentFromDatasource pattern)
+    # -------------------------------------------------------------------------
+
+    def current_from_datasource(self, value: Any, data: Bag) -> Any:
+        """Resolve a single value from this node's perspective.
+
+        If value is a ^pointer string, resolves it against data using
+        this node's datapath chain. Otherwise returns as-is.
+        Callable values are NOT resolved here (see evaluate_on_node).
+
+        Mirrors Genropy's ``currentFromDatasource`` on source nodes.
+        """
+        if is_pointer(value):
+            return self._get_relative_data(data, value[1:])
+        return value
+
+    def get_attribute_from_datasource(self, attr_name: str, data: Bag) -> Any:
+        """Resolve a single attribute value from the data store.
+
+        Mirrors Genropy's ``getAttributeFromDatasource``.
+        """
+        value = self.attr.get(attr_name)
+        if value is None:
+            return None
+        return self.current_from_datasource(value, data)
+
+    def evaluate_on_node(self, data: Bag) -> dict[str, Any]:
+        """Resolve all attributes and value in two passes.
+
+        Pass 1: resolve ^pointer strings to values, skip callables.
+        Pass 2: call each callable passing resolved attrs as kwargs
+                (matched by parameter name).
+
+        Returns dict with node_value, attrs, node.
+
+        Mirrors Genropy's ``evaluateOnNode`` pattern where ``==`` formulas
+        were evaluated with other attributes as locals.
+        """
+        raw_value = self.get_value(static=True)
+        resolved_value = self.current_from_datasource(raw_value, data)
+
+        # Pass 1: resolve non-callable attributes
+        resolved: dict[str, Any] = {}
+        callables: dict[str, Any] = {}
+        for k, v in self.attr.items():
+            if callable(v) and not isinstance(v, Bag):
+                callables[k] = v
+            else:
+                resolved[k] = self.current_from_datasource(v, data)
+
+        # Pass 2: execute callables with resolved attrs as context
+        for k, func in callables.items():
+            sig = inspect.signature(func)
+            has_var_keyword = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD
+                for p in sig.parameters.values()
+            )
+            if has_var_keyword:
+                kwargs = {p: resolved[p] for p in resolved if not p.startswith("_")}
+            else:
+                kwargs: dict[str, Any] = {}
+                for pname, param in sig.parameters.items():
+                    if pname in resolved:
+                        # Parameter matches a resolved attribute
+                        kwargs[pname] = resolved[pname]
+                    elif param.default is not inspect.Parameter.empty:
+                        # Parameter has a default — resolve if pointer
+                        kwargs[pname] = self.current_from_datasource(
+                            param.default, data,
+                        )
+            resolved[k] = func(**kwargs)
+
+        return {
+            "node_value": resolved_value,
+            "attrs": resolved,
+            "node": self,
+        }
 
 
 class BuilderBag(Bag):

@@ -112,6 +112,14 @@ class _BuildMixin:
             built_path = f"{prefix}.{node.label}" if prefix else node.label
             binding.unbind_path(built_path)
 
+            iterate_raw = node.attr.get("iterate")
+            if iterate_raw and is_pointer(iterate_raw) and node.resolver is not None:
+                self._materialize_iterate(
+                    node, iterate_raw, target, data, binding, built_path,
+                )
+                idx += 1
+                continue
+
             value = node.get_value(static=False) if node.resolver is not None else node.static_value
 
             if self._is_coroutine(value):
@@ -182,6 +190,57 @@ class _BuildMixin:
             node_tag=node.node_tag,
         )
         self._register_bindings(new_node, built_path, data, binding)
+
+    def _materialize_iterate(
+        self,
+        node: BagNode,
+        iterate_raw: str,
+        target: Bag,
+        data: Bag,
+        binding: Any,
+        built_path: str,
+    ) -> None:
+        """Materialize a component N times, once per child in the iterated bag.
+
+        Creates a container node in built, then for each child of the data bag
+        pointed to by iterate_raw, expands the component with datapath set to
+        the child's path.
+        """
+        pointer_info = parse_pointer(iterate_raw)
+        data_path = pointer_info.path
+
+        data_bag = data.get_item(data_path)
+
+        # Create container node in built
+        container_bag = BuilderBag(builder=type(self))
+        container_node = target.set_item(
+            node.label,
+            container_bag,
+            _attributes=dict(node.attr),
+            node_tag=node.node_tag,
+        )
+        self._register_bindings(container_node, built_path, data, binding)
+
+        if not isinstance(data_bag, Bag):
+            return
+
+        for child_data_node in data_bag:
+            child_path = f"{data_path}.{child_data_node.label}"
+            # Expand the component for this child
+            value = node.get_value(static=False)
+            if not isinstance(value, Bag):
+                continue
+
+            child_built_path = f"{built_path}.{child_data_node.label}"
+            child_node = container_bag.set_item(
+                child_data_node.label,
+                BuilderBag(builder=type(self)),
+                _attributes={"datapath": child_path},
+            )
+            self._register_bindings(child_node, child_built_path, data, binding)
+            self._build_walk(
+                value, child_node.value, data, binding, prefix=child_built_path,
+            )
 
     def _process_infra_node(self, node: BagNode, data: Bag) -> None:
         """Process a data_element node during build walk.
@@ -262,7 +321,9 @@ class _BuildMixin:
         for k, v in attrs.items():
             if k.startswith("_"):
                 continue
-            if is_pointer(v):
+            if hasattr(node, "current_from_datasource"):
+                resolved[k] = node.current_from_datasource(v, data)
+            elif is_pointer(v):
                 resolved[k] = self._resolve_pointer_from_data(v, node, data)
             else:
                 resolved[k] = v
@@ -353,56 +414,21 @@ class _BuildMixin:
     def _resolve_node(self, node: BagNode, data: Bag) -> dict[str, Any]:
         """Produce a resolved view of a built node.
 
-        Returns a dict with resolved value and attributes. The built node
-        is NOT modified -- ^pointer strings stay in the built Bag.
-
-        Handles three kinds of attribute values:
-        - ^pointer strings: resolved from data
-        - callables: defaults inspected for ^pointer deps, called with resolved args
-        - plain values: passed through
+        Delegates to node.evaluate_on_node(data) which resolves ^pointer
+        strings, callables with ^pointer defaults, and plain values.
+        The built node is NOT modified.
 
         Used by renderer/compiler _build_context for just-in-time resolution.
         """
-        raw_value = node.get_value(static=True)
+        if hasattr(node, "evaluate_on_node"):
+            return node.evaluate_on_node(data)
 
-        resolved_value = raw_value
-        if is_pointer(raw_value):
-            resolved_value = self._resolve_pointer_from_data(raw_value, node, data)
-
-        resolved_attrs: dict[str, Any] = {}
-        for k, v in node.attr.items():
-            if is_pointer(v):
-                resolved_attrs[k] = self._resolve_pointer_from_data(v, node, data)
-            elif callable(v) and not k.startswith("_") and not isinstance(v, Bag):
-                resolved_attrs[k] = self._resolve_computed_attr(v, node, data)
-            else:
-                resolved_attrs[k] = v
-
+        # Fallback for plain BagNode (no builder)
         return {
-            "node_value": resolved_value,
-            "attrs": resolved_attrs,
+            "node_value": node.get_value(static=True),
+            "attrs": dict(node.attr),
             "node": node,
         }
-
-    def _resolve_computed_attr(
-        self, func: Any, node: BagNode, data: Bag,
-    ) -> Any:
-        """Resolve a computed attribute (callable with ^pointer defaults).
-
-        Inspects the callable's parameter defaults for ^pointer strings,
-        resolves them from data, and calls the callable with resolved values.
-        """
-        sig = inspect.signature(func)
-        kwargs: dict[str, Any] = {}
-        for param_name, param in sig.parameters.items():
-            if param.default is inspect.Parameter.empty:
-                continue
-            default = param.default
-            if is_pointer(default):
-                kwargs[param_name] = self._resolve_pointer_from_data(default, node, data)
-            else:
-                kwargs[param_name] = default
-        return func(**kwargs)
 
     # -----------------------------------------------------------------------
     # Build / subscribe / rebuild
