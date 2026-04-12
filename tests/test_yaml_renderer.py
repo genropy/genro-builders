@@ -6,7 +6,7 @@ import yaml
 from genro_builders import BagBuilderBase
 from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builder import element
-from genro_builders.compilers import YamlRendererBase
+from genro_builders.renderers import YamlRendererBase
 
 
 class YamlBuilder(BagBuilderBase):

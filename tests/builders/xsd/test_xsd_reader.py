@@ -304,7 +304,7 @@ class TestXsdReaderSepa:
 
     def test_sepa_document(self, sepa_xsd_path):
         """Test SEPA XSD Document element."""
-        reader = XsdReader.from_file(sepa_xsd_path)
+        reader = XsdReader(sepa_xsd_path)
         elements = {name: (sub_tags, cav) for name, sub_tags, cav in reader.iter_elements()}
 
         assert "Document" in elements
@@ -313,7 +313,7 @@ class TestXsdReaderSepa:
 
     def test_sepa_cstmr_cdt_trf_initn(self, sepa_xsd_path):
         """Test SEPA CstmrCdtTrfInitn has children."""
-        reader = XsdReader.from_file(sepa_xsd_path)
+        reader = XsdReader(sepa_xsd_path)
         elements = {name: (sub_tags, cav) for name, sub_tags, cav in reader.iter_elements()}
 
         assert "CstmrCdtTrfInitn" in elements
@@ -325,7 +325,7 @@ class TestXsdReaderSepa:
 
     def test_sepa_element_count(self, sepa_xsd_path):
         """Test SEPA XSD yields many elements."""
-        reader = XsdReader.from_file(sepa_xsd_path)
+        reader = XsdReader(sepa_xsd_path)
         elements = list(reader.iter_elements())
 
         # SEPA schema should have many elements
@@ -412,7 +412,7 @@ class TestXsdReaderFromUrl:
 
         monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
 
-        reader = XsdReader.from_url("http://example.com/schema.xsd")
+        reader = XsdReader("http://example.com/schema.xsd")
         elements = {name: (sub_tags, cav) for name, sub_tags, cav in reader.iter_elements()}
 
         assert "root" in elements

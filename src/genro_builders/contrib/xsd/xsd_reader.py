@@ -101,17 +101,19 @@ class XsdReader:
     defined within complex types.
 
     Usage:
-        reader = XsdReader.from_file('schema.xsd')
+        reader = XsdReader('schema.xsd')           # file path
+        reader = XsdReader('http://example.com/s.xsd')  # URL
         for name, sub_tags, validations in reader.iter_elements():
             schema.item(name, sub_tags=sub_tags, call_args_validations=validations)
     """
 
-    def __init__(self, xsd_xml: str):
-        """Initialize reader from XSD XML string.
+    def __init__(self, source: str | Path):
+        """Initialize reader from XSD file path, URL, or raw XML string.
 
         Args:
-            xsd_xml: XSD content as string.
+            source: XSD file path, URL (http/https), or raw XML string.
         """
+        xsd_xml = self._load_source(source)
         self.tree = ET.ElementTree(ET.fromstring(xsd_xml))
         self.root = self.tree.getroot()
 
@@ -121,20 +123,22 @@ class XsdReader:
 
         self._index_schema()
 
-    @classmethod
-    def from_file(cls, path: str | Path) -> XsdReader:
-        """Create reader from XSD file path."""
-        return cls(Path(path).read_text())
+    def _load_source(self, source: str | Path) -> str:
+        """Resolve source to XSD XML string."""
+        source_str = str(source)
+        if source_str.startswith(("http://", "https://")):
+            return self._fetch_url(source_str)
+        if source_str.lstrip().startswith("<"):
+            return source_str
+        return Path(source_str).read_text()
 
-    @classmethod
-    def from_url(cls, url: str) -> XsdReader:
-        """Create reader from URL."""
+    def _fetch_url(self, url: str) -> str:
+        """Fetch XSD content from URL."""
         import urllib.request
 
         req = urllib.request.Request(url, headers={"User-Agent": "xsd-reader"})
         with urllib.request.urlopen(req) as response:
-            data = response.read().decode("utf-8")
-        return cls(data)
+            return response.read().decode("utf-8")
 
     # -------------------------------------------------------------------------
     # Helper methods

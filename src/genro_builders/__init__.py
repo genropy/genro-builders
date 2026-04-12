@@ -34,14 +34,16 @@ Core classes:
 from genro_builders.binding import BindingManager
 from genro_builders.builder import BagBuilderBase
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode, Component
+from genro_builders.builder_utils import quick_ref
 from genro_builders.compiler import BagCompilerBase, compiler
-from genro_builders.compilers import YamlRendererBase
 from genro_builders.component_proxy import ComponentProxy
 from genro_builders.component_resolver import ComponentResolver
+from genro_builders.expander import expand
 from genro_builders.manager import BuilderManager
-from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer
+from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer, scan_for_pointers
 from genro_builders.reactive_manager import ReactiveManager
-from genro_builders.renderer import BagRendererBase, renderer
+from genro_builders.renderer import BagRendererBase, RenderNode, renderer
+from genro_builders.renderers import YamlRendererBase
 
 __version__ = "0.16.0"
 
@@ -53,14 +55,18 @@ __all__ = [
     "BuilderBag",
     "BuilderBagNode",
     "BuilderManager",
-    "ReactiveManager",
     "Component",
     "ComponentProxy",
     "ComponentResolver",
     "PointerInfo",
+    "ReactiveManager",
+    "RenderNode",
     "YamlRendererBase",
     "compiler",
+    "expand",
     "is_pointer",
     "parse_pointer",
+    "quick_ref",
     "renderer",
+    "scan_for_pointers",
 ]

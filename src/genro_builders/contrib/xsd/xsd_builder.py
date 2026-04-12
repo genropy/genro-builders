@@ -48,13 +48,7 @@ class XsdBuilder(BagBuilderBase):
             xsd_source: Path to XSD file or URL to fetch XSD from.
         """
         self._xsd_source = xsd_source
-
-        # Create reader based on source type
-        path_str = str(xsd_source)
-        if path_str.startswith(("http://", "https://")):
-            reader = XsdReader.from_url(path_str)
-        else:
-            reader = XsdReader.from_file(xsd_source)
+        reader = XsdReader(xsd_source)
 
         # Generate schema from XSD elements
         from genro_builders.builder_bag import BuilderBag
