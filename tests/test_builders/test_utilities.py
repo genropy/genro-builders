@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal
 import pytest
 
 from genro_builders import BagBuilderBase
-from genro_builders.builders import Range, Regex, element
+from genro_builders.builder import Range, Regex, element
 
 
 # =============================================================================

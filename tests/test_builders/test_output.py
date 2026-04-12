@@ -7,7 +7,7 @@ import pytest
 from genro_builders import BagBuilderBase
 from genro_builders.builder import SchemaBuilder
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders import abstract, element
+from genro_builders.builder import abstract, element
 
 
 # =============================================================================

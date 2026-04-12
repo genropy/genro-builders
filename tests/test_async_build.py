@@ -15,7 +15,7 @@ from genro_bag import Bag
 from genro_toolbox import smartawait
 
 from genro_builders import BagBuilderBase
-from genro_builders.builders import component, data_element, element
+from genro_builders.builder import component, data_element, element
 from genro_builders.manager import BuilderManager
 
 # ---------------------------------------------------------------------------

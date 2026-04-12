@@ -3,7 +3,7 @@
 
 from genro_builders import BagBuilderBase
 from genro_builders.builder_utils import quick_ref
-from genro_builders.builders import abstract, component, element
+from genro_builders.builder import abstract, component, element
 
 
 class SimpleBuilder(BagBuilderBase):

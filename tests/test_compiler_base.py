@@ -12,7 +12,7 @@ from genro_builders import BagBuilderBase, BagCompilerBase
 from genro_builders.compiler import compiler
 from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag
-from genro_builders.builders import component, element
+from genro_builders.builder import component, element
 
 # =============================================================================
 # Test compiler with @compiler() for rendering

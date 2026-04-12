@@ -8,7 +8,7 @@ import pytest
 
 from genro_builders import BagBuilderBase
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders import element
+from genro_builders.builder import element
 
 
 # =============================================================================
@@ -554,7 +554,7 @@ class TestComponentParentTagsFix:
 
     def test_component_with_parent_tags_elements(self):
         """Elements with parent_tags can be created inside component handler."""
-        from genro_builders.builders import component
+        from genro_builders.builder import component
 
         class Builder(BagBuilderBase):
             @element(sub_tags="paragraph,address_block")
@@ -578,7 +578,7 @@ class TestComponentParentTagsFix:
 
     def test_component_parent_tags_validated_on_component_itself(self):
         """The component itself still validates parent_tags at creation."""
-        from genro_builders.builders import component
+        from genro_builders.builder import component
 
         class Builder(BagBuilderBase):
             @element(sub_tags="paragraph,address_block")
@@ -598,7 +598,7 @@ class TestComponentParentTagsFix:
 
     def test_component_elements_in_built_under_correct_parent(self):
         """After build, component inner elements are under the correct parent."""
-        from genro_builders.builders import component
+        from genro_builders.builder import component
 
         class Builder(BagBuilderBase):
             @element(sub_tags="paragraph,block")

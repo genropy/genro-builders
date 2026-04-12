@@ -19,7 +19,7 @@ import pytest
 from genro_builders import BagBuilderBase
 from genro_builders.builder import SchemaBuilder
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders import component, element
+from genro_builders.builder import component, element
 
 
 # =============================================================================
@@ -297,7 +297,7 @@ class TestComponentKwargsValidation:
         """Component validates typed kwargs at call time (before expansion)."""
         from typing import Annotated
 
-        from genro_builders.builders import Range
+        from genro_builders.builder import Range
 
         class Builder(BagBuilderBase):
             @component(sub_tags="")

@@ -20,7 +20,7 @@ from pathlib import Path
 
 from genro_builders import BagBuilderBase
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders import element
+from genro_builders.builder import element
 
 
 class TableBuilder(BagBuilderBase):

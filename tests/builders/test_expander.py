@@ -43,7 +43,7 @@ class TestExpanderNestedComponents:
     def nested_bag(self):
         """Create a bag with 3-level nested components: outer -> middle -> inner."""
         from genro_builders import BagBuilderBase
-        from genro_builders.builders import component, element
+        from genro_builders.builder import component, element
 
         class NestedBuilder(BagBuilderBase):
             @element(sub_tags="item, outer_comp")
@@ -100,7 +100,7 @@ class TestExpanderNestedComponents:
     def test_expand_based_on_component(self):
         """based_on component extends the base with additional content."""
         from genro_builders import BagBuilderBase
-        from genro_builders.builders import component, element
+        from genro_builders.builder import component, element
 
         class Builder(BagBuilderBase):
             @element()

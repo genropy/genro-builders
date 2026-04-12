@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from genro_builders import BagBuilderBase, ComponentResolver
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders import component, element
+from genro_builders.builder import component, element
 
 
 class TestResolverCreation:
