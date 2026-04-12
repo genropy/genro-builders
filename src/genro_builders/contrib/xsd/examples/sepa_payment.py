@@ -12,7 +12,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 
 class SepaBuilder(XsdBuilder):

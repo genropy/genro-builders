@@ -164,7 +164,7 @@ Dynamic builder from XML Schema (XSD) files - automatically generates methods fo
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 # Use with Bag - pass XSD file path via builder_xsd_source
 invoice = BuilderBag(builder=XsdBuilder, builder_xsd_source='invoice.xsd')

@@ -7,7 +7,7 @@ attribute access to the builder.
 
 Example:
     >>> from genro_builders import BuilderBag
-    >>> from genro_builders.builders import HtmlBuilder
+    >>> from genro_builders.contrib.html import HtmlBuilder
     >>> html = BuilderBag(builder=HtmlBuilder)
     >>> html.div(id='main').p(value='Hello')
 """

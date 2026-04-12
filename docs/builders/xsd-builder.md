@@ -15,7 +15,7 @@ Creating builders manually for complex XML formats like invoices, financial repo
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 # Use with Bag - pass XSD file path via builder_xsd_source
 doc = BuilderBag(builder=XsdBuilder, builder_xsd_source='schema.xsd')
@@ -93,7 +93,7 @@ defines the Customer Credit Transfer Initiation message.
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 # Create Credit Transfer document from ISO 20022 pain.001 schema
 doc = BuilderBag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
@@ -200,7 +200,7 @@ The FatturaPA is Italy's mandatory electronic invoice format with a complex XSD 
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 # Create invoice from official FatturaPA schema - all methods generated from XSD
 invoice = BuilderBag(builder=XsdBuilder, builder_xsd_source='Schema_VFPA12.xsd')

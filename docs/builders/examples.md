@@ -225,7 +225,7 @@ BagNode : ...
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 # Create from XSD schema
 invoice = BuilderBag(builder=XsdBuilder, builder_xsd_source='invoice.xsd')
