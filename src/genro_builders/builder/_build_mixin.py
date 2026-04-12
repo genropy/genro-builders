@@ -88,6 +88,10 @@ class _BuildMixin:
             binding: BindingManager for subscription registration.
             prefix: Path prefix for subscription map keys.
         """
+        # Ensure built nodes can find this builder for runtime_attrs
+        if not hasattr(target, "_pipeline_builder") or target._pipeline_builder is None:
+            target._pipeline_builder = self
+
         # Pass 1: process data_element nodes
         for node in source:
             if node.attr.get("_is_data_element"):
@@ -375,7 +379,7 @@ class _BuildMixin:
         strings, callables with ^pointer defaults, and plain values.
         The built node is NOT modified.
 
-        Used by renderer/compiler _resolve_context for just-in-time resolution.
+        Used by node.runtime_attrs/runtime_value for just-in-time resolution.
         """
         if hasattr(node, "evaluate_on_node"):
             return node.evaluate_on_node(data)

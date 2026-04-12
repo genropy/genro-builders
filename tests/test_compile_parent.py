@@ -24,22 +24,23 @@ class ParentTracker(BagCompilerBase):
     """Compiler that tracks parent chain via the parent parameter."""
 
     @compiler()
-    def document(self, node, ctx, parent):
+    def document(self, node, parent):
         """Document: create root dict, return as parent for children."""
         return {"type": "document", "children": []}
 
     @compiler()
-    def section(self, node, ctx, parent):
+    def section(self, node, parent):
         """Section: attach to parent's children, return as parent."""
-        section = {"type": "section", "title": ctx.get("title", ""), "children": []}
+        title = node.runtime_attrs.get("title", "")
+        section = {"type": "section", "title": title, "children": []}
         if parent is not None:
             parent["children"].append(section)
         return section
 
     @compiler()
-    def paragraph(self, node, ctx, parent):
+    def paragraph(self, node, parent):
         """Paragraph: attach to parent's children."""
-        para = {"type": "paragraph", "text": ctx["node_value"]}
+        para = {"type": "paragraph", "text": str(node.runtime_value or "")}
         if parent is not None:
             parent["children"].append(para)
         return para
@@ -107,7 +108,7 @@ class TestCompileParent:
         """Default compile_node receives parent parameter."""
 
         class SimpleCompiler(BagCompilerBase):
-            def compile_node(self, node, ctx, parent=None, **kwargs):
+            def compile_node(self, node, parent=None, **kwargs):
                 return {"tag": node.node_tag, "parent_type": type(parent).__name__}
 
         builder = DocBuilder()

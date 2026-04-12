@@ -20,23 +20,18 @@ from genro_builders.builders import component, element
 
 
 class TagCompiler(BagCompilerBase):
-    """Compiler with @compiler() methods for tag-based rendering.
-
-    Uses the top-down pattern: each handler receives (self, node, ctx, parent).
-    Handlers that need children call _walk_compile explicitly.
-    """
+    """Compiler with @compiler() methods — handler(self, node, parent)."""
 
     @compiler()
-    def heading(self, node, ctx, parent):
-        return f"# {ctx['node_value']}"
+    def heading(self, node, parent):
+        return f"# {node.runtime_value or ''}"
 
     @compiler()
-    def text(self, node, ctx, parent):
-        return ctx["node_value"]
+    def text(self, node, parent):
+        return str(node.runtime_value or "")
 
     @compiler()
-    def container(self, node, ctx, parent):
-        # Collect children compiled by the automatic walk
+    def container(self, node, parent):
         node_value = node.get_value(static=True)
         if isinstance(node_value, Bag):
             children = list(self._walk_compile(node_value, parent=parent))
@@ -44,7 +39,7 @@ class TagCompiler(BagCompilerBase):
         return "[]"
 
     @compiler()
-    def section(self, node, ctx, parent):
+    def section(self, node, parent):
         node_value = node.get_value(static=True)
         if isinstance(node_value, Bag):
             children = list(self._walk_compile(node_value, parent=parent))
@@ -233,9 +228,10 @@ class TestDefaultCompile:
         collected = []
 
         class Compiler(BagCompilerBase):
-            def compile_node(self, node, ctx, parent=None, **kwargs):
-                collected.append(ctx["node_value"])
-                return ctx["node_value"] or None
+            def compile_node(self, node, parent=None, **kwargs):
+                value = str(node.runtime_value or "")
+                collected.append(value)
+                return value or None
 
         NestBuilder._compiler_class = Compiler
 

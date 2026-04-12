@@ -43,7 +43,7 @@ from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer
 from genro_builders.reactive_manager import ReactiveManager
 from genro_builders.renderer import BagRendererBase, renderer
 
-__version__ = "0.14.1"
+__version__ = "0.15.0"
 
 __all__ = [
     "BagBuilderBase",

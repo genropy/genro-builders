@@ -20,14 +20,11 @@ You only need to define step 3. Steps 1 and 2 are handled by the base class.
 
 ```
 render(built_bag)
-  └─ _walk_render(bag)              # iterates nodes (base class)
-       └─ _dispatch_render(node)    # for each node:
-            ├─ _resolve_context(node) # resolves ^pointers via evaluate_on_node
-            │    └─ _walk_render(children)  # recurse into children
-            │
-            └─ dispatch to:
-                 ├─ @renderer handler (if defined for this tag)
-                 └─ render_node(node, ctx)  (otherwise)
+  └─ _walk_render(bag, parent)         # iterates nodes (base class)
+       └─ _dispatch_render(node, parent)  # for each node:
+            ├─ _resolve_context(node)  # resolves ^pointers
+            ├─ handler(self, node, ctx, parent)  # top-down
+            └─ if RenderNode: recurse children, finalize
 ```
 
 The `ctx` dict passed to your code contains:
@@ -36,12 +33,19 @@ The `ctx` dict passed to your code contains:
 |-----|------|-------------|
 | `node_value` | `str` | Resolved node value (empty string if None) |
 | `node_label` | `str` | Node's label in the bag |
-| `children` | `str` | Already-rendered children (joined string) |
 | `_node` | `BagNode` | The original node (for tag, structural info) |
 | *all attributes* | `Any` | Each resolved attribute as a key-value pair |
 
 Attributes starting with `_` are internal and should be filtered in output.
 Infrastructure attributes like `iterate` and `datapath` should also be filtered.
+
+### Handler Return Types
+
+| Return | Meaning | Walk behavior |
+|--------|---------|---------------|
+| `RenderNode` | Container — children fill it | Recurse → finalize → append to parent |
+| `str` | Leaf or fully handled | Append to parent, no recursion |
+| `None` | Transparent | Children go into current parent |
 
 ## Creating a Renderer
 
@@ -50,18 +54,18 @@ Infrastructure attributes like `iterate` and `datapath` should also be filtered.
 The simplest renderer overrides only `render_node`:
 
 ```python
-from genro_builders.renderer import BagRendererBase
+from genro_builders.renderer import BagRendererBase, RenderNode
+from genro_bag import Bag
 
 class PlainTextRenderer(BagRendererBase):
-    """Render each node as 'tag: value'."""
+    """Render each node as 'tag: value' or 'tag:\\n  children'."""
 
-    def render_node(self, node, ctx, template=None, **kwargs):
+    def render_node(self, node, ctx, parent=None, **kwargs):
         tag = node.node_tag or node.label
         value = ctx["node_value"]
-        children = ctx["children"]
 
-        if children:
-            return f"{tag}:\n{children}"
+        if isinstance(node.get_value(static=True), Bag):
+            return RenderNode(before=f"{tag}:", indent="  ")
         if value:
             return f"{tag}: {value}"
         return tag
@@ -78,38 +82,34 @@ That's it. The base class handles:
 For markup output, `render_node` produces XML tags:
 
 ```python
-import textwrap
-from genro_builders.renderer import BagRendererBase
-
-# Attributes that are context keys, not real attributes
-_CTX_KEYS = frozenset({
-    "node_value", "node_label", "children", "node",
-    "iterate", "datapath",
-})
+from genro_bag import Bag
+from genro_builders.renderer import BagRendererBase, RenderNode, CTX_KEYS
 
 class XmlRenderer(BagRendererBase):
 
-    def render_node(self, node, ctx, template=None, **kwargs):
+    def render_node(self, node, ctx, parent=None, **kwargs):
         tag = node.node_tag or node.label
 
         # Build attribute string from resolved ctx (skip internal keys)
         attrs = " ".join(
             f'{k}="{v}"'
             for k, v in ctx.items()
-            if not k.startswith("_") and k not in _CTX_KEYS
+            if not k.startswith("_") and k not in CTX_KEYS
         )
         attrs_str = f" {attrs}" if attrs else ""
-
         value = ctx["node_value"]
-        children = ctx["children"]
 
-        if not children:
-            if not value:
-                return f"<{tag}{attrs_str} />"
-            return f"<{tag}{attrs_str}>{value}</{tag}>"
+        if isinstance(node.get_value(static=True), Bag):
+            return RenderNode(
+                before=f"<{tag}{attrs_str}>",
+                after=f"</{tag}>",
+                value=value,
+                indent="  ",
+            )
 
-        indented = textwrap.indent(children, "  ")
-        return f"<{tag}{attrs_str}>\n{indented}\n</{tag}>"
+        if not value:
+            return f"<{tag}{attrs_str} />"
+        return f"<{tag}{attrs_str}>{value}</{tag}>"
 ```
 
 ### Using @renderer Handlers

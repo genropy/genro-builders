@@ -134,14 +134,17 @@ the renderer formats each node.
 **Use when**: the output is text (HTML, Markdown, XML, SVG, YAML).
 
 ```python
-from genro_builders import BagRendererBase, renderer
+from genro_builders import BagRendererBase
+from genro_builders.renderer import RenderNode
 
 class RecipeRenderer(BagRendererBase):
-    def render_node(self, node, ctx, template=None, **kwargs):
+    def render_node(self, node, ctx, parent=None, **kwargs):
         tag = node.node_tag or node.label
         value = ctx["node_value"]
-        children = ctx["children"]
-        # ... format as recipe card text
+        if isinstance(node.get_value(static=True), Bag):
+            return RenderNode(before=f"<{tag}>", after=f"</{tag}>",
+                              value=value, indent="  ")
+        return f"<{tag}>{value}</{tag}>" if value else f"<{tag}>"
 ```
 
 ### compile() — Live Objects
@@ -166,44 +169,29 @@ class RecipeCompiler(BagCompilerBase):
 The compiler is always **top-down**: the handler runs first and returns an
 object, then children are compiled with that object as their parent.
 
-### Why the Walk Differs
+### The Walk — Same Pattern for Both
 
-Renderer and compiler walk the built Bag differently because their
-outputs have different structural requirements:
-
-**Renderer — bottom-up, no parent**
-
-The renderer produces **flat text**. Each node is independent: it
-renders itself as a string, incorporating its already-rendered children
-via `ctx["children"]`. No node needs to know who its parent is — the
-output is just concatenated strings.
+Renderer and compiler use the **same top-down walk**:
 
 ```
-walk: for each node
-  1. _resolve_context(node)     → attrs resolved
-  2. recurse into children      → ctx["children"] = joined string
-  3. handler(self, node, ctx)   → returns string
+for each node:
+  1. _resolve_context(node)        → attrs resolved
+  2. handler(self, node, ctx, parent)  → returns result
+  3. recurse into children with result as parent
 ```
 
-Children are always rendered **before** the parent (bottom-up), because
-the parent needs the children's output to produce its own.
+The handler runs first, returns a result, then children are processed
+with that result as their parent. The difference is only what
+"parent" means:
 
-**Compiler — dual mode, parent available**
+- **Compiler**: parent is a **live object** (widget, workbook, dict).
+  Children attach to it via side effects.
+- **Renderer**: parent is a **list of strings** (or a ``RenderNode``).
+  Children append their rendered text to it.
 
-The compiler produces **object trees**. A Textual widget must be mounted
-into its parent widget. An Excel cell must be created inside its row.
-The child needs a reference to the parent object to attach itself.
-
-Always top-down:
-
-```
-  1. _resolve_context(node)     → attrs resolved
-  2. handler(self, node, ctx, parent) → returns new object
-  3. recurse into children with new object as parent
-```
-
-If a handler needs the compiled children (e.g. to join them as text),
-it calls ``_walk_compile(node.value, parent=result)`` explicitly.
+For renderers, a ``RenderNode`` wraps collected child strings with
+opening/closing markup (e.g. ``<div>...</div>``). Leaf handlers
+return a plain ``str`` which is appended to parent directly.
 
 ### Decision Table
 
@@ -264,10 +252,9 @@ class MyFormatBuilder(BagBuilderBase):
     def paragraph(self): ...
 
     @renderer()
-    def render_section(self, node, ctx):
+    def render_section(self, node, ctx, parent):
         title = ctx.get("title", "")
-        children = ctx["children"] or ""
-        return f"== {title} ==\n{children}\n"
+        return RenderNode(before=f"== {title} ==", after="", indent="")
 ```
 
 ### The Manager Module

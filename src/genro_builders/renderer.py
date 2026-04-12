@@ -4,12 +4,21 @@
 A renderer transforms a built Bag into a serialized output (string, bytes).
 It is a "dead" output: no live objects, no reactivity.
 
+Top-down walk with parent (same pattern as the compiler):
+    1. handler(self, node, parent) — produce a result
+    2. If result is a ``RenderNode``, recurse children into it, then finalize
+    3. If result is a ``str``, append to parent (leaf or handler-managed)
+    4. If result is ``None``, recurse children into current parent
+
+Handlers read resolved attributes directly from the node:
+    ``node.runtime_value`` — resolved value
+    ``node.runtime_attrs``  — resolved attributes dict
+
 Pointer formali and just-in-time resolution:
     The built Bag retains ``^pointer`` strings verbatim (pointer formali).
-    During ``_walk_render()``, each node is resolved just-in-time via
-    ``builder._resolve_node(node, data)`` which returns a dict with
-    ``node_value``, ``attrs``, and ``node``. The renderer works with
-    resolved values without modifying the built Bag.
+    ``runtime_attrs`` / ``runtime_value`` resolve them just-in-time via
+    ``evaluate_on_node(builder.data)``. The renderer works with resolved
+    values without modifying the built Bag.
 
 Decorators:
     @renderer: Mark a method as render handler for a specific tag.
@@ -22,29 +31,79 @@ Example:
     ...     def h1(self): ...           # declarative -- uses template
     ...
     ...     @renderer()
-    ...     def table(self, node, ctx):  # logic -- method is the handler
-    ...         return render_table(node)
-    ...
-    ...     def render(self, built_bag, output=None):
-    ...         parts = list(self._walk_render(built_bag))
-    ...         return '\\n\\n'.join(p for p in parts if p)
+    ...     def table(self, node, parent):
+    ...         return render_table(node)  # returns str, walk appends to parent
 """
 from __future__ import annotations
 
 import inspect
+import textwrap
 from abc import ABC
 from collections import defaultdict
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from typing import Any
 
 from genro_bag import Bag, BagNode
 
-# Context keys added by _resolve_context and _dispatch_render (children).
-# Not real node attributes — filter when producing attribute output.
+# Context keys that are not real node attributes.
+# Used by renderers to filter when producing attribute output.
 CTX_KEYS = frozenset({
-    "node_value", "node_label", "children", "node",
+    "node_value", "node_label", "node",
     "iterate", "datapath",
 })
+
+# =============================================================================
+# RenderNode
+# =============================================================================
+
+
+class RenderNode(list):
+    """Mutable container that collects rendered children and finalizes to string.
+
+    The handler creates a RenderNode with opening/closing markup.
+    The walk fills it with child strings. After all children are
+    collected, ``finalize()`` produces the wrapped output.
+
+    This is the renderer equivalent of a "live object" in the compiler:
+    children append to it, and it knows how to produce the final string.
+
+    Example:
+        >>> rn = RenderNode(before="<div>", after="</div>", indent="  ")
+        >>> rn.append("<p>Hello</p>")
+        >>> rn.append("<p>World</p>")
+        >>> print(rn.finalize())
+        <div>
+          <p>Hello</p>
+          <p>World</p>
+        </div>
+    """
+
+    def __init__(
+        self, before: str = "", after: str = "", value: str = "",
+        separator: str = "\n", indent: str = "",
+    ) -> None:
+        super().__init__()
+        self.before = before
+        self.after = after
+        self.value = value
+        self.separator = separator
+        self.indent = indent
+
+    def finalize(self) -> str:
+        """Produce final string from collected children."""
+        parts: list[str] = []
+        if self.value:
+            parts.append(self.value)
+        parts.extend(self)
+        inner = self.separator.join(p for p in parts if p)
+        if self.indent and inner:
+            inner = textwrap.indent(inner, self.indent)
+        if self.after:
+            if inner:
+                return f"{self.before}\n{inner}\n{self.after}"
+            return self.before.rstrip()
+        return f"{self.before}{inner}" if inner else ""
+
 
 # =============================================================================
 # Decorator
@@ -67,7 +126,7 @@ def renderer(**kwargs: Any) -> Callable:
 
     If the method body is empty (...), render_node uses the kwargs
     (e.g. template) to produce output. If the method has logic,
-    it IS the render handler.
+    it IS the render handler: ``handler(self, node, parent)``.
 
     Args:
         **kwargs: Render parameters (e.g. template, callback).
@@ -77,7 +136,7 @@ def renderer(**kwargs: Any) -> Callable:
         def h1(self): ...
 
         @renderer()
-        def table(self, node, ctx):
+        def table(self, node, parent):
             return render_table(node)
     """
     def decorator(func: Callable) -> Callable:
@@ -96,15 +155,17 @@ def renderer(**kwargs: Any) -> Callable:
 class BagRendererBase(ABC):
     """Abstract base class for Bag renderers (dead output).
 
-    Provides:
-        - @renderer dispatch: tag-based rendering infrastructure
-        - _walk_render(), _resolve_context(): rendering infrastructure
-        - render_node(): override this to define how a single node is rendered
-        - render(): main entry point (subclass should override or use as-is)
+    Top-down walk with parent parameter — same pattern as the compiler.
+    Handlers receive ``(self, node, parent)`` and return either:
 
-    Subclasses define render handlers for specific tags using @renderer.
-    Empty-body handlers use render_node with decorator kwargs.
-    Handlers with logic are called directly.
+    - ``RenderNode``: container — walk fills it with children, then finalizes
+    - ``str``: leaf or fully handled — appended to parent as-is
+    - ``None``: transparent — children go directly into current parent
+
+    Handlers read resolved data directly from the node:
+
+    - ``node.runtime_value`` — resolved node value
+    - ``node.runtime_attrs`` — resolved attributes dict
     """
 
     _class_render_handlers: dict[str, Callable]
@@ -141,109 +202,90 @@ class BagRendererBase(ABC):
     def render(self, built_bag: Bag, output: Any = None) -> str:
         """Render the built Bag to output string.
 
-        Default implementation walks the bag and joins parts with newlines.
+        Default implementation walks the bag and joins root-level parts.
         Override for custom assembly logic.
+        """
+        root = self._walk_render(built_bag)
+        return "\n".join(p for p in root if p)
+
+    def _walk_render(self, bag: Bag, parent: list | None = None) -> list[str]:
+        """Walk bag and render each node via top-down handler dispatch.
 
         Args:
-            built_bag: The built Bag to render.
-            output: Optional destination (file path, stream, etc.).
-                Interpretation depends on the subclass.
+            bag: The Bag to iterate.
+            parent: List collecting rendered strings. Created if None.
         """
-        parts = list(self._walk_render(built_bag))
-        return "\n".join(p for p in parts if p)
-
-    def _walk_render(self, bag: Bag) -> Iterator[str]:
-        """Walk bag and render each node via handler dispatch."""
+        if parent is None:
+            parent = []
         for node in bag:
-            result = self._dispatch_render(node)
-            if result is not None:
-                yield result
+            self._dispatch_render(node, parent)
+        return parent
 
-    def _dispatch_render(self, node: BagNode) -> str | None:
-        """Render a single node.
+    def _dispatch_render(self, node: BagNode, parent: list) -> None:
+        """Render a single node top-down, then recurse into children.
 
-        Resolution order:
-        1. @renderer with logic body → call method
-        2. @renderer with empty body → render_node with kwargs
-        3. No handler → render_node with no kwargs
+        The handler runs first and returns:
+        - RenderNode: container — children fill it, then finalize to string
+        - str: leaf — appended to parent, no child recursion
+        - None: transparent — children recurse into current parent
         """
         tag = node.node_tag or node.label
-        ctx = self._resolve_context(node)
-
-        # Render children and add to context
-        node_value = node.get_value(static=True)
-        if isinstance(node_value, Bag):
-            children_parts = list(self._walk_render(node_value))
-            ctx["children"] = self.join_children(children_parts)
-        else:
-            ctx["children"] = ""
 
         handler = self._render_handlers.get(tag)
         if handler:
             if getattr(handler, "_renderer_empty", False):
                 rk = self._render_kwargs.get(tag, {})
-                return self.render_node(node, ctx, **rk)
-            return handler(self, node, ctx)
+                result = self.render_node(node, parent=parent, **rk)
+            else:
+                result = handler(self, node, parent)
+        else:
+            result = self.render_node(node, parent=parent)
 
-        return self.render_node(node, ctx)
+        # Post-handler: recurse children and finalize
+        node_value = node.get_value(static=True)
+        has_children = isinstance(node_value, Bag)
 
-    def _resolve_context(self, node: BagNode) -> dict[str, Any]:
-        """Resolve node attributes into a context dict.
-
-        Resolves ^pointer values just-in-time from builder.data.
-        The built node is NOT modified — ^pointer strings stay.
-        Does NOT process children — that is the caller's responsibility.
-
-        Context contains:
-            - node_value: The resolved node value (string)
-            - node_label: The node's label
-            - _node: The full BagNode (for advanced access)
-            - All resolved node attributes
-        """
-        resolved = self.builder._resolve_node(node, self.builder.data)
-        node_value = resolved["node_value"]
-
-        ctx: dict[str, Any] = {
-            "node_value": "" if node_value is None or isinstance(node_value, Bag) else str(node_value),
-            "node_label": node.label,
-            "_node": node,
-        }
-
-        ctx.update(resolved["attrs"])
-        return ctx
-
-    def join_children(self, parts: list[str]) -> str:
-        """Join rendered children. Override for different joining logic."""
-        return "\n".join(p for p in parts if p)
+        if isinstance(result, RenderNode):
+            if has_children:
+                self._walk_render(node_value, parent=result)
+            parent.append(result.finalize())
+        elif isinstance(result, str):
+            parent.append(result)
+        elif result is None and has_children:
+            self._walk_render(node_value, parent=parent)
 
     # -------------------------------------------------------------------------
     # Default render
     # -------------------------------------------------------------------------
 
     def render_node(
-        self, node: BagNode, ctx: dict[str, Any],
+        self, node: BagNode,
+        parent: list | None = None,
         template: str | None = None, **kwargs: Any,
-    ) -> str | None:
+    ) -> str | RenderNode | None:
         """Default render — fallback for tags without a @renderer handler.
 
-        If template is given, renders via format_map (missing keys
-        default to empty string). Otherwise returns node_value if
-        truthy, else children if truthy, else None.
+        If template is given, builds a dict from runtime_attrs + runtime_value
+        and renders the template via format_map. Otherwise returns runtime_value
+        if truthy, else None.
 
         Args:
             node: The BagNode being rendered.
-            ctx: Context dict with node_value, node_label, children, attrs.
-            template: Format string with ctx placeholders.
+            parent: The parent list collecting rendered strings.
+            template: Format string with placeholders.
             **kwargs: Extra parameters from @renderer decorator.
         """
         if template:
+            ctx = dict(node.runtime_attrs)
+            value = node.runtime_value
+            ctx["node_value"] = "" if value is None or isinstance(value, Bag) else str(value)
+            ctx["node_label"] = node.label
             try:
                 return template.format_map(defaultdict(str, ctx))
             except (KeyError, ValueError):
                 return template
 
-        if ctx["node_value"]:
-            return ctx["node_value"]
-        if ctx["children"]:
-            return ctx["children"]
+        value = node.runtime_value
+        if value and not isinstance(value, Bag):
+            return str(value)
         return None

@@ -1,42 +1,17 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""SvgBuilder and SvgRenderer — SVG document builder and renderer.
-
-Provides a domain-specific grammar for building SVG documents with
-validation. The schema covers structural, shape, text, gradient,
-filter, animation, and descriptive elements from the W3C SVG spec.
-
-Attribute naming: SVG uses kebab-case (``stroke-width``) but Python
-requires identifiers, so pass ``stroke_width`` — the renderer converts
-underscores to hyphens for known presentation attributes.
-
-Example:
-    Creating an SVG document::
-
-        from genro_builders.contrib.svg import SvgBuilder
-
-        builder = SvgBuilder()
-        svg = builder.source.svg(width="200", height="200", viewBox="0 0 200 200")
-        svg.rect(x="10", y="10", width="80", height="80", fill="steelblue")
-        svg.circle(cx="150", cy="50", r="40", fill="coral")
-        svg.text("Hello SVG", x="100", y="150", text_anchor="middle")
-
-        builder.build()
-        print(builder.render())
-"""
+"""SvgBuilder and SvgRenderer — SVG document builder and renderer."""
 
 from __future__ import annotations
 
-import textwrap
 from typing import Any
 
-from genro_bag import BagNode
+from genro_bag import Bag, BagNode
 
 from ...builder import BagBuilderBase
-from ...renderer import CTX_KEYS, BagRendererBase
+from ...renderer import CTX_KEYS, BagRendererBase, RenderNode
 from .svg_elements import SvgElements
 
 # Presentation attributes that use kebab-case in SVG.
-# Underscores in these attribute names are converted to hyphens.
 _KEBAB_ATTRS = frozenset({
     "alignment_baseline", "baseline_shift", "clip_path", "clip_rule",
     "color_interpolation", "color_interpolation_filters", "dominant_baseline",
@@ -55,7 +30,6 @@ _KEBAB_ATTRS = frozenset({
     "word_spacing", "writing_mode",
 })
 
-# Void elements (self-closing in SVG)
 _VOID_TAGS = frozenset({
     "animate", "animateMotion", "animateTransform", "circle",
     "ellipse", "feBlend", "feColorMatrix", "feComposite",
@@ -80,50 +54,43 @@ def _render_attr(key: str, value: Any) -> str:
 class SvgRenderer(BagRendererBase):
     """Renderer for SVG documents.
 
-    Uses the base class walk/dispatch/resolve infrastructure.
-    Only render_node is overridden to produce SVG markup.
+    Top-down: render_node returns a RenderNode for containers
+    or a plain string for leaves. Reads from node.runtime_attrs.
     """
 
     def render_node(
-        self, node: BagNode, ctx: dict[str, Any],
-        template: str | None = None, **kwargs: Any,
-    ) -> str | None:
+        self, node: BagNode,
+        parent: list | None = None, **kwargs: Any,
+    ) -> str | RenderNode | None:
         """Render a single node as SVG markup."""
         tag = node.node_tag or node.label
-        attrs = " ".join(
+        attrs = node.runtime_attrs
+        attrs_str_parts = [
             _render_attr(k, v)
-            for k, v in ctx.items()
+            for k, v in attrs.items()
             if not k.startswith("_") and k not in CTX_KEYS
-        )
-        attrs_str = f" {attrs}" if attrs else ""
+        ]
+        attrs_str = f" {' '.join(attrs_str_parts)}" if attrs_str_parts else ""
 
-        node_value = ctx["node_value"]
-        children = ctx["children"]
+        value = node.runtime_value
+        node_value = "" if value is None or isinstance(value, Bag) else str(value)
+        has_children = isinstance(node.get_value(static=True), Bag)
 
-        if not children:
-            if tag in _VOID_TAGS and not node_value:
-                return f"<{tag}{attrs_str} />"
-            content = node_value or ""
-            return f"<{tag}{attrs_str}>{content}</{tag}>"
+        if has_children:
+            return RenderNode(
+                before=f"<{tag}{attrs_str}>",
+                after=f"</{tag}>",
+                value=node_value,
+                indent="  ",
+            )
 
-        indented = textwrap.indent(children, "  ")
-        return f"<{tag}{attrs_str}>\n{indented}\n</{tag}>"
+        if tag in _VOID_TAGS and not node_value:
+            return f"<{tag}{attrs_str} />"
+        content = node_value or ""
+        return f"<{tag}{attrs_str}>{content}</{tag}>"
 
 
 class SvgBuilder(BagBuilderBase, SvgElements):
-    """Builder for SVG documents.
-
-    All SVG elements are defined as @element methods in SvgElements mixin.
-    Attribute underscores are converted to hyphens for SVG presentation
-    attributes (e.g., ``stroke_width`` becomes ``stroke-width``).
-
-    Example:
-        >>> from genro_builders.contrib.svg import SvgBuilder
-        >>> builder = SvgBuilder()
-        >>> svg = builder.source.svg(width="100", height="100")
-        >>> svg.circle(cx="50", cy="50", r="40", fill="red")
-        >>> builder.build()
-        >>> print(builder.render())
-    """
+    """Builder for SVG documents."""
 
     _renderers = {"svg": SvgRenderer}

@@ -185,8 +185,8 @@ class MarkdownRenderer(BagRendererBase):
 
     def render(self, built_bag: Bag, output: Any = None) -> str:
         """Render built bag to Markdown string."""
-        parts = list(self._walk_render(built_bag))
-        return "\n\n".join(p for p in parts if p)
+        root = self._walk_render(built_bag)
+        return "\n\n".join(p for p in root if p)
 
     # -------------------------------------------------------------------------
     # Headings — declarative via template
@@ -218,8 +218,8 @@ class MarkdownRenderer(BagRendererBase):
     def code(self): ...
 
     @renderer()
-    def blockquote(self, node: BagNode, ctx: dict[str, Any]) -> str:
-        value = ctx["node_value"]
+    def blockquote(self, node: BagNode, parent: list) -> str:
+        value = str(node.runtime_value or "")
         return "\n".join(f"> {line}" for line in value.split("\n"))
 
     @renderer(template="---")
@@ -230,7 +230,7 @@ class MarkdownRenderer(BagRendererBase):
     # -------------------------------------------------------------------------
 
     @renderer()
-    def table(self, node: BagNode, ctx: dict[str, Any]) -> str:
+    def table(self, node: BagNode, parent: list) -> str:
         lines: list[str] = []
         rows = node.value if isinstance(node.value, Bag) else []
         is_first = True
@@ -257,11 +257,11 @@ class MarkdownRenderer(BagRendererBase):
     # -------------------------------------------------------------------------
 
     @renderer()
-    def ul(self, node: BagNode, ctx: dict[str, Any]) -> str:
+    def ul(self, node: BagNode, parent: list) -> str:
         return self._render_list(node, "-")
 
     @renderer()
-    def ol(self, node: BagNode, ctx: dict[str, Any]) -> str:
+    def ol(self, node: BagNode, parent: list) -> str:
         return self._render_list(node, "ol")
 
     def _render_list(self, node: BagNode, prefix: str) -> str:

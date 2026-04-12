@@ -253,8 +253,9 @@ render(built_bag)
             ├─ _resolve_context(node) # calls evaluate_on_node → ctx
             ├─ _walk_render(children)   # recurse into children
             └─ dispatch:
-                 ├─ @renderer handler → handler(self, node, ctx)
-                 └─ render_node(node, ctx)
+                 ├─ @renderer handler → handler(self, node, ctx, parent)
+                 └─ render_node(node, ctx, parent)
+            └─ if RenderNode: recurse children, finalize, append to parent
 ```
 
 The `ctx` dict contains:
@@ -263,7 +264,6 @@ The `ctx` dict contains:
 |-----|-------------|
 | `node_value` | Resolved value (string, empty if None) |
 | `node_label` | Node's label |
-| `children` | Rendered children (string for renderer, list for compiler) |
 | `_node` | The BagNode (for structural info) |
 | *(all attrs)* | Each resolved attribute as key-value |
 
@@ -273,21 +273,26 @@ Override **only** `render_node`. Do **not** override `render()` with
 your own walk.
 
 ```python
+from genro_builders.renderer import BagRendererBase, RenderNode, CTX_KEYS
+from genro_bag import Bag
+
 class MyRenderer(BagRendererBase):
 
-    def render_node(self, node, ctx, template=None, **kwargs):
+    def render_node(self, node, ctx, parent=None, **kwargs):
         tag = node.node_tag or node.label
         value = ctx["node_value"]
-        children = ctx["children"]
         attrs = {k: v for k, v in ctx.items()
                  if not k.startswith("_")
                  and k not in CTX_KEYS}
-        # produce output from tag, value, attrs, children
-        ...
+
+        if isinstance(node.get_value(static=True), Bag):
+            return RenderNode(before=f"<{tag}>", after=f"</{tag}>",
+                              value=value, indent="  ")
+        return f"<{tag}>{value}</{tag}>" if value else f"<{tag}>"
 ```
 
 `CTX_KEYS` are the keys injected by the framework that are not real
-attributes: `node_value`, `node_label`, `children`, `node`, `iterate`,
+attributes: `node_value`, `node_label`, `node`, `iterate`,
 `datapath`.
 
 If you need a different join strategy, override `render()` but
