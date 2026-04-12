@@ -1,19 +1,12 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Simple HTML page example.
+"""Simple HTML page — minimal standalone builder example.
 
-Demonstrates standalone builder usage for quick prototyping.
+Demonstrates the basic HtmlBuilder grammar: elements, nesting, values.
 For production use, wrap builders in a BuilderManager — see
-contact_list.py for an example.
+contact_list for an example.
 
 Usage:
-    python -m genro_builders.contrib.html.examples.simple_page
-
-Example output:
-
-    <body>
-      <h1>Hello World</h1>
-      <p>This is a simple paragraph.</p>
-    </body>
+    python simple_page.py
 """
 
 from pathlib import Path
@@ -31,3 +24,4 @@ html = builder.render()
 output_path = Path(__file__).with_suffix(".html")
 output_path.write_text(html)
 print(html)
+print(f"\nSaved to {output_path}")

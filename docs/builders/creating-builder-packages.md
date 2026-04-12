@@ -156,12 +156,54 @@ Textual, etc.).
 from genro_builders import BagCompilerBase, compiler
 
 class RecipeCompiler(BagCompilerBase):
-    def compile_node(self, node, ctx, **kwargs):
+    def compile_node(self, node, ctx, parent=None, **kwargs):
         tag = node.node_tag or node.label
         value = ctx["node_value"]
-        children = ctx["children"]
+        children = ctx.get("children", [])
         # ... create live widget or object
 ```
+
+The compiler is always **top-down**: the handler runs first and returns an
+object, then children are compiled with that object as their parent.
+
+### Why the Walk Differs
+
+Renderer and compiler walk the built Bag differently because their
+outputs have different structural requirements:
+
+**Renderer — bottom-up, no parent**
+
+The renderer produces **flat text**. Each node is independent: it
+renders itself as a string, incorporating its already-rendered children
+via `ctx["children"]`. No node needs to know who its parent is — the
+output is just concatenated strings.
+
+```
+walk: for each node
+  1. _resolve_context(node)     → attrs resolved
+  2. recurse into children      → ctx["children"] = joined string
+  3. handler(self, node, ctx)   → returns string
+```
+
+Children are always rendered **before** the parent (bottom-up), because
+the parent needs the children's output to produce its own.
+
+**Compiler — dual mode, parent available**
+
+The compiler produces **object trees**. A Textual widget must be mounted
+into its parent widget. An Excel cell must be created inside its row.
+The child needs a reference to the parent object to attach itself.
+
+Always top-down:
+
+```
+  1. _resolve_context(node)     → attrs resolved
+  2. handler(self, node, ctx, parent) → returns new object
+  3. recurse into children with new object as parent
+```
+
+If a handler needs the compiled children (e.g. to join them as text),
+it calls ``_walk_compile(node.value, parent=result)`` explicitly.
 
 ### Decision Table
 

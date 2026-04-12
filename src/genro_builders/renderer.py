@@ -39,8 +39,8 @@ from typing import Any
 
 from genro_bag import Bag, BagNode
 
-# Context keys injected by _build_context — not real node attributes.
-# Renderers should filter these when producing attribute output.
+# Context keys added by _resolve_context and _dispatch_render (children).
+# Not real node attributes — filter when producing attribute output.
 CTX_KEYS = frozenset({
     "node_value", "node_label", "children", "node",
     "iterate", "datapath",
@@ -98,7 +98,7 @@ class BagRendererBase(ABC):
 
     Provides:
         - @renderer dispatch: tag-based rendering infrastructure
-        - _walk_render(), _build_context(): rendering infrastructure
+        - _walk_render(), _resolve_context(): rendering infrastructure
         - render_node(): override this to define how a single node is rendered
         - render(): main entry point (subclass should override or use as-is)
 
@@ -168,7 +168,15 @@ class BagRendererBase(ABC):
         3. No handler → render_node with no kwargs
         """
         tag = node.node_tag or node.label
-        ctx = self._build_context(node)
+        ctx = self._resolve_context(node)
+
+        # Render children and add to context
+        node_value = node.get_value(static=True)
+        if isinstance(node_value, Bag):
+            children_parts = list(self._walk_render(node_value))
+            ctx["children"] = self.join_children(children_parts)
+        else:
+            ctx["children"] = ""
 
         handler = self._render_handlers.get(tag)
         if handler:
@@ -179,17 +187,17 @@ class BagRendererBase(ABC):
 
         return self.render_node(node, ctx)
 
-    def _build_context(self, node: BagNode) -> dict[str, Any]:
-        """Build context dict for render handlers.
+    def _resolve_context(self, node: BagNode) -> dict[str, Any]:
+        """Resolve node attributes into a context dict.
 
         Resolves ^pointer values just-in-time from builder.data.
         The built node is NOT modified — ^pointer strings stay.
+        Does NOT process children — that is the caller's responsibility.
 
         Context contains:
             - node_value: The resolved node value (string)
             - node_label: The node's label
             - _node: The full BagNode (for advanced access)
-            - children: Rendered children (if node has Bag value)
             - All resolved node attributes
         """
         resolved = self.builder._resolve_node(node, self.builder.data)
@@ -202,13 +210,6 @@ class BagRendererBase(ABC):
         }
 
         ctx.update(resolved["attrs"])
-
-        if isinstance(node_value, Bag):
-            children_parts = list(self._walk_render(node_value))
-            ctx["children"] = self.join_children(children_parts)
-        else:
-            ctx["children"] = ""
-
         return ctx
 
     def join_children(self, parts: list[str]) -> str:

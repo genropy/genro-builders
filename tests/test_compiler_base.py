@@ -20,24 +20,36 @@ from genro_builders.builders import component, element
 
 
 class TagCompiler(BagCompilerBase):
-    """Compiler with @compiler() methods for tag-based rendering."""
+    """Compiler with @compiler() methods for tag-based rendering.
+
+    Uses the top-down pattern: each handler receives (self, node, ctx, parent).
+    Handlers that need children call _walk_compile explicitly.
+    """
 
     @compiler()
-    def heading(self, node, ctx):
+    def heading(self, node, ctx, parent):
         return f"# {ctx['node_value']}"
 
     @compiler()
-    def text(self, node, ctx):
+    def text(self, node, ctx, parent):
         return ctx["node_value"]
 
     @compiler()
-    def container(self, node, ctx):
-        children = "\n".join(str(c) for c in ctx["children"]) if ctx["children"] else ""
-        return f"[{children}]" if children else "[]"
+    def container(self, node, ctx, parent):
+        # Collect children compiled by the automatic walk
+        node_value = node.get_value(static=True)
+        if isinstance(node_value, Bag):
+            children = list(self._walk_compile(node_value, parent=parent))
+            return f"[{chr(10).join(str(c) for c in children)}]"
+        return "[]"
 
     @compiler()
-    def section(self, node, ctx):
-        return "\n".join(str(c) for c in ctx["children"]) if ctx["children"] else ""
+    def section(self, node, ctx, parent):
+        node_value = node.get_value(static=True)
+        if isinstance(node_value, Bag):
+            children = list(self._walk_compile(node_value, parent=parent))
+            return "\n".join(str(c) for c in children)
+        return ""
 
     def render(self, compiled_bag):
         """Render using _walk_compile dispatch."""
@@ -208,8 +220,8 @@ class TestDefaultCompile:
 
         assert "raw text" in result
 
-    def test_default_compile_returns_children(self):
-        """default_compile returns children list if value is empty."""
+    def test_default_compile_recurses_children(self):
+        """Default compile_node recurses — children get compiled too."""
 
         class NestBuilder(BagBuilderBase):
             @element(sub_tags="inner")
@@ -218,8 +230,12 @@ class TestDefaultCompile:
             @element()
             def inner(self): ...
 
+        collected = []
+
         class Compiler(BagCompilerBase):
-            pass
+            def compile_node(self, node, ctx, parent=None, **kwargs):
+                collected.append(ctx["node_value"])
+                return ctx["node_value"] or None
 
         NestBuilder._compiler_class = Compiler
 
@@ -229,24 +245,21 @@ class TestDefaultCompile:
 
         target = BuilderBag(builder=NestBuilder)
         bag.builder._build_walk(bag, target, Bag(), BindingManager())
-        compiler = Compiler(bag.builder)
+        comp = Compiler(bag.builder)
 
-        # default_compile returns children list for parent nodes
-        results = list(compiler._walk_compile(target))
-        # outer's default_compile returns ["child content"] (list of children)
-        assert any("child content" in str(r) for r in results)
+        list(comp._walk_compile(target))
+        # Both outer (empty value) and inner ("child content") get visited
+        assert "child content" in collected
 
     def test_default_compile_empty_node(self):
-        """Empty node (no value, no children) produces nothing."""
+        """Empty node (no value, no children) returns None."""
 
         class EmptyBuilder(BagBuilderBase):
             @element()
             def empty(self): ...
 
         class Compiler(BagCompilerBase):
-            def render(self, compiled_bag):
-                parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(str(p) for p in parts if p)
+            pass
 
         EmptyBuilder._compiler_class = Compiler
 
@@ -255,10 +268,10 @@ class TestDefaultCompile:
 
         target = BuilderBag(builder=EmptyBuilder)
         bag.builder._build_walk(bag, target, Bag(), BindingManager())
-        compiler = Compiler(bag.builder)
-        result = compiler.render(target)
+        comp = Compiler(bag.builder)
+        results = list(comp._walk_compile(target))
 
-        assert result == ""
+        assert results == []  # compile_node returns None for empty node
 
 
 # =============================================================================

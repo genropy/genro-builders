@@ -236,7 +236,7 @@ Both transform the built Bag into output. The difference:
 |---|---------|----------|
 | Output | Serialized (string, bytes) | Live objects (widgets, workbooks) |
 | Base class | `BagRendererBase` | `BagCompilerBase` |
-| Method | `render_node(node, ctx)` | `compile_node(node, ctx)` |
+| Method | `render_node(node, ctx)` | `compile_node(node, ctx, parent)` |
 | Children in ctx | `str` (joined) | `list` (of objects) |
 | Use case | HTML, SVG, Markdown, JSON | Textual TUI, openpyxl, DOM |
 
@@ -250,8 +250,8 @@ Both transform the built Bag into output. The difference:
 render(built_bag)
   └─ _walk_render(bag)              # iterates nodes
        └─ _dispatch_render(node)    # for each node:
-            ├─ _build_context(node) # calls evaluate_on_node → ctx
-            │    └─ _walk_render(children)  # recurse
+            ├─ _resolve_context(node) # calls evaluate_on_node → ctx
+            ├─ _walk_render(children)   # recurse into children
             └─ dispatch:
                  ├─ @renderer handler → handler(self, node, ctx)
                  └─ render_node(node, ctx)
@@ -263,7 +263,7 @@ The `ctx` dict contains:
 |-----|-------------|
 | `node_value` | Resolved value (string, empty if None) |
 | `node_label` | Node's label |
-| `children` | Already-rendered children (joined string) |
+| `children` | Rendered children (string for renderer, list for compiler) |
 | `_node` | The BagNode (for structural info) |
 | *(all attrs)* | Each resolved attribute as key-value |
 
@@ -333,21 +333,26 @@ Same architecture, different output type:
 class MyCompiler(BagCompilerBase):
 
     def compile(self, built_bag, target=None):
-        return list(self._walk_compile(built_bag))
+        return list(self._walk_compile(built_bag, parent=target))
 
-    def compile_node(self, node, ctx, **kwargs):
+    def compile_node(self, node, ctx, parent=None, **kwargs):
         tag = node.node_tag or node.label
         value = ctx["node_value"]
-        children = ctx["children"]  # list of objects
+        children = ctx.get("children", [])  # list of objects
         # produce live object
         ...
 ```
+
+The compiler is always **top-down**: the handler runs first and returns an
+object. If the node has children, they are compiled with the handler's result
+as their parent. Handlers that need the compiled children can call
+``_walk_compile(node.value, parent=result)`` explicitly.
 
 Tag-specific handlers use `@compiler`:
 
 ```python
 @compiler()
-def button(self, node, ctx):
+def button(self, node, ctx, parent):
     return Button(label=ctx["node_value"])
 ```
 

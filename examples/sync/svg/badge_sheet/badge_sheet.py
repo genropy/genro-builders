@@ -1,14 +1,13 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
+"""Data-driven SVG badges using BuilderManager + @component + iterate.
 
-"""Iterate example — data-driven SVG badges from a Bag of people.
-
-Demonstrates the ``iterate`` feature: a single @component describes
-one badge, and ``iterate='^people'`` replicates it for every child
-in the data bag.  Each instance resolves ``^.?name``, ``^.?role``,
-``^.?color`` against the attributes of its own data node.
+Demonstrates: a single @component describes one badge, and
+``iterate='^people'`` replicates it for every child in the data bag.
+Each instance resolves ``^.?name``, ``^.?role``, ``^.?color`` against
+the attributes of its own data node.
 
 Usage:
-    python -m genro_builders.contrib.svg.examples.iterate_example
+    python badge_sheet.py
 """
 
 from __future__ import annotations
@@ -79,24 +78,16 @@ class BadgeSheet(BuilderManager):
             xmlns="http://www.w3.org/2000/svg",
         )
 
-        # iterate replicates badge() for each child of ^people
         svg.badge(iterate="^people")
 
 
-def demo():
-    """Build and save the badge sheet."""
+if __name__ == "__main__":
     app = BadgeSheet()
-    app.run(subscribe=False)
+    app.run()
 
     output = app.page.render()
+
+    output_path = Path(__file__).with_suffix(".svg")
+    output_path.write_text(output)
     print(output)
-
-    output_dir = Path(__file__).parent.parent.parent.parent.parent / "temp"
-    output_dir.mkdir(exist_ok=True)
-    path = output_dir / "badge_sheet.svg"
-    path.write_text(output)
-    print(f"\nSaved to {path}")
-
-
-if __name__ == "__main__":
-    demo()
+    print(f"\nSaved to {output_path}")

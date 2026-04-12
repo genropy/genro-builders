@@ -1,26 +1,15 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-
-"""WeatherDashboard - BuilderManager with resolver-backed data.
+"""Weather dashboard — BuilderManager with resolver-backed data.
 
 Demonstrates how the data store can contain BagResolver nodes.
 When build() resolves ^pointers, the resolvers fire automatically
 and fetch fresh data from external APIs.
 
-Each build() produces an HTML page with live weather data for
-multiple cities and recent earthquake activity. Data is always
-current — resolvers re-fetch on every build (respecting cache_time).
-
 Requires:
     pip install genro-builders genro-bag httpx
 
 Usage:
-    python -m genro_builders.contrib.html.examples.weather_dashboard
-
-    # Or from Python:
-    from genro_builders.contrib.html.examples.weather_dashboard import WeatherDashboard
-
-    dashboard = WeatherDashboard()
-    print(dashboard.page.render())
+    python weather_dashboard.py
 """
 
 from __future__ import annotations
@@ -43,19 +32,7 @@ CITIES = [
 
 
 class WeatherDashboard(BuilderManager):
-    """HTML dashboard showing live weather and earthquake data.
-
-    The data store contains:
-    - One OpenMeteoResolver per city (weather data)
-    - One EarthquakeResolver (USGS recent earthquakes feed)
-
-    When build() resolves ^pointers, each resolver fetches
-    fresh data from the respective API.
-
-    Example:
-        dashboard = WeatherDashboard()
-        print(dashboard.page.render())
-    """
+    """HTML dashboard showing live weather and earthquake data."""
 
     def __init__(self):
         self.page = self.set_builder("page", HtmlBuilder)
@@ -76,11 +53,9 @@ class WeatherDashboard(BuilderManager):
         body = source.body()
         body.h1("Live Dashboard")
 
-        # Weather section
         body.h2("Weather")
         self._weather_table(body)
 
-        # Earthquake section
         body.h2("Recent Earthquakes (last hour)")
         body.p("^quakes.title")
         self._earthquake_table(body)
@@ -127,19 +102,12 @@ class WeatherDashboard(BuilderManager):
             tr.td(str(node.attr.get("mag", "?")))
 
 
-def demo():
-    """Run the dashboard and print HTML output."""
+if __name__ == "__main__":
     print("Fetching weather and earthquake data...")
     dashboard = WeatherDashboard()
     html = dashboard.page.render()
-    print(html)
-    print()
 
-    output_path = Path(__file__).parent.parent.parent.parent.parent / "temp" / "weather_dashboard.html"
-    output_path.parent.mkdir(exist_ok=True)
+    output_path = Path(__file__).with_suffix(".html")
     output_path.write_text(html)
-    print(f"Saved to {output_path}")
-
-
-if __name__ == "__main__":
-    demo()
+    print(html)
+    print(f"\nSaved to {output_path}")

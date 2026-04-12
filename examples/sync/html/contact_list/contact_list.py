@@ -1,31 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Contact list HTML page using BuilderManager pattern.
 
+Demonstrates the production lifecycle: store() populates data,
+main() builds the source, run() orchestrates everything.
+
 Usage:
-    python -m genro_builders.contrib.html.examples.contact_list
-
-Example output:
-
-    <body>
-      <h1>Contact List</h1>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>John Smith</td>
-            <td>john@example.com</td>
-            <td>555-1234</td>
-          </tr>
-          ...
-        </tbody>
-      </table>
-    </body>
+    python contact_list.py
 """
 
 from __future__ import annotations
@@ -72,12 +52,9 @@ class ContactListPage(BuilderManager):
             tr.td(contact["email"])
             tr.td(contact["phone"])
 
-    def to_html(self, destination=None):
-        """Render and optionally save the page."""
-        html = self.page.render()
-        if destination is not None:
-            Path(destination).write_text(html)
-        return html
+    def to_html(self):
+        """Render the page to HTML string."""
+        return self.page.render()
 
 
 if __name__ == "__main__":
@@ -88,7 +65,9 @@ if __name__ == "__main__":
     ]
 
     page = ContactListPage(contacts)
+    html = page.to_html()
 
-    destination = Path(__file__).with_suffix(".html")
-    html = page.to_html(destination=destination)
+    output_path = Path(__file__).with_suffix(".html")
+    output_path.write_text(html)
     print(html)
+    print(f"\nSaved to {output_path}")

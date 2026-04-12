@@ -211,6 +211,11 @@ class BagBuilderBase(
 
             self._bag = self._source_shell.get_item("root")
 
+            # Let built nodes find this builder via _find_pipeline_builder()
+            # for runtime_attrs/runtime_value resolution.
+            self._source_shell._pipeline_builder = self
+            self._built_shell._pipeline_builder = self
+
             self._data = data if data is not None else Bag()
             if not self._data.backref:
                 self._data.set_backref()

@@ -375,7 +375,7 @@ class _BuildMixin:
         strings, callables with ^pointer defaults, and plain values.
         The built node is NOT modified.
 
-        Used by renderer/compiler _build_context for just-in-time resolution.
+        Used by renderer/compiler _resolve_context for just-in-time resolution.
         """
         if hasattr(node, "evaluate_on_node"):
             return node.evaluate_on_node(data)

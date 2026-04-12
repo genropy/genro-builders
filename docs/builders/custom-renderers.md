@@ -22,7 +22,7 @@ You only need to define step 3. Steps 1 and 2 are handled by the base class.
 render(built_bag)
   └─ _walk_render(bag)              # iterates nodes (base class)
        └─ _dispatch_render(node)    # for each node:
-            ├─ _build_context(node) # resolves ^pointers via evaluate_on_node
+            ├─ _resolve_context(node) # resolves ^pointers via evaluate_on_node
             │    └─ _walk_render(children)  # recurse into children
             │
             └─ dispatch to:
@@ -165,19 +165,19 @@ from genro_builders.compiler import BagCompilerBase, compiler
 class WidgetCompiler(BagCompilerBase):
 
     def compile(self, built_bag, target=None):
-        return list(self._walk_compile(built_bag))
+        return list(self._walk_compile(built_bag, parent=target))
 
-    def compile_node(self, node, ctx, **kwargs):
+    def compile_node(self, node, ctx, parent=None, **kwargs):
         tag = node.node_tag or node.label
         value = ctx["node_value"]
-        children = ctx["children"]
+        children = ctx.get("children", [])
         # Create and return a widget object
         return create_widget(tag, value, children)
 
     # Or use @compiler for specific tags
     @compiler()
-    def button(self, node, ctx):
-        return Button(label=ctx["node_value"], **ctx)
+    def button(self, node, ctx, parent):
+        return Button(label=ctx["node_value"])
 ```
 
 ## Registering with a Builder

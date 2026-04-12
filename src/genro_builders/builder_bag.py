@@ -39,6 +39,12 @@ class BuilderBagNode(BagNode):
         node._get_relative_data(data, '.name')   # relative to this node's datapath
         node._get_relative_data(data, 'user.name')  # absolute
         node._set_relative_data(data, '.name', 'value')
+
+    Properties for resolved access (read-only, always fresh):
+
+        node.runtime_value  — node value with ^pointers resolved
+        node.runtime_attrs  — attributes dict with ^pointers resolved
+                              and callable attributes executed
     """
 
     def __getattr__(self, name: str) -> Any:
@@ -297,6 +303,33 @@ class BuilderBagNode(BagNode):
             "attrs": resolved,
             "node": self,
         }
+
+    def _find_pipeline_builder(self) -> Any:
+        """Walk parent chain to find the pipeline builder that owns data."""
+        bag = self._parent_bag
+        while bag is not None:
+            pb = getattr(bag, "_pipeline_builder", None)
+            if pb is not None:
+                return pb
+            parent_node = getattr(bag, "_parent_node", None)
+            bag = getattr(parent_node, "_parent_bag", None) if parent_node else None
+        return None
+
+    @property
+    def runtime_value(self) -> Any:
+        """Node value with ^pointers resolved and callables executed."""
+        builder = self._find_pipeline_builder()
+        if builder is None:
+            return self.get_value(static=True)
+        return self.evaluate_on_node(builder.data)["node_value"]
+
+    @property
+    def runtime_attrs(self) -> dict[str, Any]:
+        """Attributes with ^pointers resolved and callables executed."""
+        builder = self._find_pipeline_builder()
+        if builder is None:
+            return dict(self.attr)
+        return self.evaluate_on_node(builder.data)["attrs"]
 
 
 class BuilderBag(Bag):
