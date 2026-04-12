@@ -236,8 +236,10 @@ Both transform the built Bag into output. The difference:
 |---|---------|----------|
 | Output | Serialized (string, bytes) | Live objects (widgets, workbooks) |
 | Base class | `BagRendererBase` | `BagCompilerBase` |
-| Method | `render_node(node, ctx)` | `compile_node(node, ctx, parent)` |
-| Children in ctx | `str` (joined) | `list` (of objects) |
+| Default method | `render_node(node, parent, **kw)` | `compile_node(node, parent, **kw)` |
+| Handler signature | `handler(self, node, parent)` | `handler(self, node, parent)` |
+| Children handling | `RenderNode` collects, then `finalize()` | Walk passes handler result as `parent` |
+| Data access | `node.runtime_value`, `node.runtime_attrs` | `node.runtime_value`, `node.runtime_attrs` |
 | Use case | HTML, SVG, Markdown, JSON | Textual TUI, openpyxl, DOM |
 
 ## Writing a Renderer
@@ -248,24 +250,21 @@ Both transform the built Bag into output. The difference:
 
 ```
 render(built_bag)
-  └─ _walk_render(bag)              # iterates nodes
-       └─ _dispatch_render(node)    # for each node:
-            ├─ _resolve_context(node) # calls evaluate_on_node → ctx
-            ├─ _walk_render(children)   # recurse into children
-            └─ dispatch:
-                 ├─ @renderer handler → handler(self, node, ctx, parent)
-                 └─ render_node(node, ctx, parent)
-            └─ if RenderNode: recurse children, finalize, append to parent
+  └─ _walk_render(bag, parent)          # iterates nodes
+       └─ _dispatch_render(node, parent)  # for each node:
+            ├─ handler(self, node, parent)     # @renderer or render_node
+            └─ post-handler:
+                 ├─ RenderNode → recurse children into it, finalize, append to parent
+                 ├─ str → append to parent (leaf)
+                 └─ None → recurse children into current parent (transparent)
 ```
 
-The `ctx` dict contains:
+Handlers access resolved data directly from the node:
 
-| Key | Description |
-|-----|-------------|
-| `node_value` | Resolved value (string, empty if None) |
-| `node_label` | Node's label |
-| `_node` | The BagNode (for structural info) |
-| *(all attrs)* | Each resolved attribute as key-value |
+| Property | Description |
+|----------|-------------|
+| `node.runtime_value` | Resolved value (pointers and callables evaluated) |
+| `node.runtime_attrs` | Dict of all resolved attributes |
 
 ### What you define
 
@@ -273,17 +272,16 @@ Override **only** `render_node`. Do **not** override `render()` with
 your own walk.
 
 ```python
-from genro_builders.renderer import BagRendererBase, RenderNode, CTX_KEYS
+from genro_builders.renderer import BagRendererBase, RenderNode
 from genro_bag import Bag
 
 class MyRenderer(BagRendererBase):
 
-    def render_node(self, node, ctx, parent=None, **kwargs):
+    def render_node(self, node, parent=None, **kwargs):
         tag = node.node_tag or node.label
-        value = ctx["node_value"]
-        attrs = {k: v for k, v in ctx.items()
-                 if not k.startswith("_")
-                 and k not in CTX_KEYS}
+        value = node.runtime_value
+        attrs = {k: v for k, v in node.runtime_attrs.items()
+                 if not k.startswith("_")}
 
         if isinstance(node.get_value(static=True), Bag):
             return RenderNode(before=f"<{tag}>", after=f"</{tag}>",
@@ -291,9 +289,9 @@ class MyRenderer(BagRendererBase):
         return f"<{tag}>{value}</{tag}>" if value else f"<{tag}>"
 ```
 
-`CTX_KEYS` are the keys injected by the framework that are not real
-attributes: `node_value`, `node_label`, `node`, `iterate`,
-`datapath`.
+`runtime_attrs` returns only element attributes — build-infrastructure
+attributes like `datapath` are already excluded. Filter `_`-prefixed
+keys (internal) when producing output.
 
 If you need a different join strategy, override `render()` but
 **keep using `_walk_render()`**:
@@ -309,14 +307,14 @@ def render(self, built_bag, output=None):
 For renderers where different tags need different formatting:
 
 ```python
-# Declarative — template filled from ctx
+# Declarative — template filled from runtime_attrs + runtime_value
 @renderer(template="# {node_value}")
 def h1(self): ...
 
 # Imperative — full control
 @renderer()
-def table(self, node, ctx):
-    return format_table(ctx)
+def table(self, node, parent):
+    return format_table(node.runtime_attrs)
 ```
 
 When a `@renderer` handler exists for a tag, it takes priority over
@@ -326,9 +324,9 @@ with the template as kwarg.
 ### What is forbidden
 
 - Overriding `render()` with a custom recursive walk
-- Reading `node.attr` or `node.get_value(static=True)` for output
-- Calling `_resolve_pointer_from_data` or any build mixin method
-- Duplicating resolution logic that `evaluate_on_node` already does
+- Reading `node.attr` or `node.get_value(static=True)` for output values
+- Calling `evaluate_on_node` directly — use `node.runtime_value` / `node.runtime_attrs`
+- Duplicating resolution logic that the node properties already handle
 
 ## Writing a Compiler
 
@@ -340,25 +338,23 @@ class MyCompiler(BagCompilerBase):
     def compile(self, built_bag, target=None):
         return list(self._walk_compile(built_bag, parent=target))
 
-    def compile_node(self, node, ctx, parent=None, **kwargs):
+    def compile_node(self, node, parent=None, **kwargs):
         tag = node.node_tag or node.label
-        value = ctx["node_value"]
-        children = ctx.get("children", [])  # list of objects
-        # produce live object
+        value = node.runtime_value
+        # produce live object, return it — children will receive it as parent
         ...
 ```
 
 The compiler is always **top-down**: the handler runs first and returns an
 object. If the node has children, they are compiled with the handler's result
-as their parent. Handlers that need the compiled children can call
-``_walk_compile(node.value, parent=result)`` explicitly.
+as their parent.
 
 Tag-specific handlers use `@compiler`:
 
 ```python
 @compiler()
-def button(self, node, ctx, parent):
-    return Button(label=ctx["node_value"])
+def button(self, node, parent):
+    return Button(label=node.runtime_value)
 ```
 
 ## Provided Base Renderers/Compilers
@@ -408,55 +404,67 @@ The `compile_TAG` dispatch on the builder is deprecated.
 | `@renderer` | `genro_builders.renderer` | Tag-specific render handler |
 | `@compiler` | `genro_builders.compiler` | Tag-specific compile handler |
 
-## Public API (what `__init__` must export)
+## Public API (what `__init__` exports)
 
-### Classes
+### Classes (top-level `genro_builders`)
 
 - `BagBuilderBase` — builder base class
 - `BagRendererBase` — renderer base class
 - `BagCompilerBase` — compiler base class
-- `BuilderManager` — multi-builder coordinator
-- `BuilderBag` — Bag with builder support
-- `BuilderBagNode` — node with resolution methods
-- `Component` — typed bag for component handlers
-- `BindingManager` — reactive subscription map
+- `BuilderManager` — multi-builder coordinator (sync)
+- `ReactiveManager` — extends BuilderManager with `subscribe()` (reactive)
+- `BuilderBag` — Bag with grammar-first attribute resolution
+- `BuilderBagNode` — node with `runtime_value`, `runtime_attrs`, resolution methods
+- `Component` — typed bag for `@component` handlers
+- `ComponentProxy` — transparent proxy for component calls with slots
+- `ComponentResolver` — lazy component expansion (BagResolver subclass)
+- `BindingManager` — reactive `^pointer` subscription map
 
-### Decorators
+### Decorators (top-level `genro_builders`)
 
-- `element`, `abstract`, `component`, `data_element` — grammar
-- `renderer` — render handler
-- `compiler` — compile handler
+- `renderer` — tag-specific render handler
+- `compiler` — tag-specific compile handler
 
-### Utilities
+### Decorators (from `genro_builders.builder` or `genro_builders.builders`)
+
+- `element`, `abstract`, `component`, `data_element` — grammar decorators
+
+### Utilities (top-level `genro_builders`)
 
 - `is_pointer(value)` — check if string is a `^pointer`
 - `parse_pointer(raw)` — decompose pointer string
 - `PointerInfo` — parsed pointer dataclass
 
-### Contributed
+### Contributed (top-level `genro_builders`)
 
 - `YamlRendererBase` — YAML dict renderer
 
-### Deprecated (to be removed)
+### Not exported (available from submodules)
 
-- `render_handler` — use `renderer` instead
-- `compile_handler` — use `compiler` instead
-- `YamlCompilerBase` — alias of `YamlRendererBase`, use the renderer name
-- `compile_TAG` dispatch on builder — use `@renderer` handlers
-
-### Not exported (internal)
-
-- `ComponentResolver`, `ComponentProxy` — internal machinery
-- `SchemaBuilder` — available from `genro_builders.builder`
+- `SchemaBuilder` — from `genro_builders.builder`
+- `RenderNode` — from `genro_builders.renderer`
 - `_dispatch_render`, `_dispatch_compile` — internal dispatch
 
 ## Lifecycle Summary
 
 ```
-BuilderManager:
+BuilderManager / ReactiveManager:
   __init__  →  set_builder("name", BuilderClass)
   setup()   →  store(data)  →  main(source)
   build()   →  pass 1: data elements  →  pass 2: materialize + expand
-  subscribe()  →  activate reactivity (optional)
-  render()  →  evaluate_on_node  →  render_node  →  output
+  subscribe()  →  activate reactivity (ReactiveManager only, optional)
+
+Render pipeline:
+  render(built_bag)
+    └─ _walk_render(bag, parent)
+         └─ _dispatch_render(node, parent)
+              ├─ handler(self, node, parent)  →  RenderNode / str / None
+              └─ if RenderNode: recurse children, finalize, append
+
+Compile pipeline:
+  compile(built_bag, target)
+    └─ _walk_compile(bag, parent)
+         └─ _dispatch_compile(node, parent)
+              ├─ handler(self, node, parent)  →  compiled object
+              └─ recurse children with result as parent
 ```

@@ -8,7 +8,7 @@ from typing import Any
 from genro_bag import Bag, BagNode
 
 from ...builder import BagBuilderBase
-from ...renderer import CTX_KEYS, BagRendererBase, RenderNode
+from ...renderer import BagRendererBase, RenderNode
 from .html5_elements import Html5Elements
 
 
@@ -30,7 +30,7 @@ class HtmlRenderer(BagRendererBase):
         attrs_str_parts = [
             f'{k}="{v}"'
             for k, v in attrs.items()
-            if not k.startswith("_") and k not in CTX_KEYS
+            if not k.startswith("_")
         ]
         attrs_str = f" {' '.join(attrs_str_parts)}" if attrs_str_parts else ""
 

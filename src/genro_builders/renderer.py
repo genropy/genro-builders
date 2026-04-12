@@ -45,12 +45,6 @@ from typing import Any
 
 from genro_bag import Bag, BagNode
 
-# Context keys that are not real node attributes.
-# Used by renderers to filter when producing attribute output.
-CTX_KEYS = frozenset({
-    "node_value", "node_label", "node",
-    "iterate", "datapath",
-})
 
 # =============================================================================
 # RenderNode

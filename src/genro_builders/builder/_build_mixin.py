@@ -215,12 +215,13 @@ class _BuildMixin:
 
         data_bag = data.get_item(data_path)
 
-        # Create container node in built
+        # Create container node in built (strip iterate — consumed here)
         container_bag = BuilderBag(builder=type(self))
+        container_attrs = {k: v for k, v in node.attr.items() if k != "iterate"}
         container_node = target.set_item(
             node.label,
             container_bag,
-            _attributes=dict(node.attr),
+            _attributes=container_attrs,
             node_tag=node.node_tag,
         )
         self._register_bindings(container_node, built_path, data, binding)

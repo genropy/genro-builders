@@ -202,7 +202,7 @@ BagNode : ...
 
 ### How do I generate Markdown?
 
-Use `builder._compile()`:
+Use `build()` + `render()`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -214,7 +214,8 @@ BagNode : ...
 >>> doc.p("Content")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> print(md)
 # Title
 <BLANKLINE>

@@ -106,7 +106,8 @@ BagNode : ...
 >>> ul.li("Easy to use")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "# My Project" in md
 True
 >>> "pip install" in md
@@ -146,7 +147,8 @@ BagNode : ...
 >>> row.td("The user identifier")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "| Name | Type |" in md
 True
 ```
@@ -341,7 +343,8 @@ The previous example uses a function. With `@component`, you can make it part of
 ... }
 
 >>> doc = generate_doc(content)
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "# User Guide" in md
 True
 >>> "## Getting Started" in md

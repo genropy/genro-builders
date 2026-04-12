@@ -253,15 +253,15 @@ classDiagram
     class BagRendererBase {
         <<abstract>>
         +render(built_bag) str
-        +_walk_render(bag)
-        +default_render(node, ctx)
+        +_walk_render(bag, parent)
+        +render_node(node, parent, **kw)
     }
 
     class BagCompilerBase {
         <<abstract>>
-        +compile(built_bag) Any
-        +_walk_compile(bag)
-        +default_compile(node, ctx)
+        +compile(built_bag, target) Any
+        +_walk_compile(bag, parent)
+        +compile_node(node, parent, **kw)
     }
 
     class HtmlBuilder {

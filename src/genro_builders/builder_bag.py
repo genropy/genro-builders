@@ -325,11 +325,18 @@ class BuilderBagNode(BagNode):
 
     @property
     def runtime_attrs(self) -> dict[str, Any]:
-        """Attributes with ^pointers resolved and callables executed."""
+        """Attributes with ^pointers resolved and callables executed.
+
+        Excludes ``datapath`` which is a build-infrastructure attribute
+        used for pointer resolution but not part of the element output.
+        """
         builder = self._find_pipeline_builder()
         if builder is None:
-            return dict(self.attr)
-        return self.evaluate_on_node(builder.data)["attrs"]
+            attrs = dict(self.attr)
+        else:
+            attrs = self.evaluate_on_node(builder.data)["attrs"]
+        attrs.pop("datapath", None)
+        return attrs
 
 
 class BuilderBag(Bag):

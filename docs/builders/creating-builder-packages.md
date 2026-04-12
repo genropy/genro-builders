@@ -138,9 +138,9 @@ from genro_builders import BagRendererBase
 from genro_builders.renderer import RenderNode
 
 class RecipeRenderer(BagRendererBase):
-    def render_node(self, node, ctx, parent=None, **kwargs):
+    def render_node(self, node, parent=None, **kwargs):
         tag = node.node_tag or node.label
-        value = ctx["node_value"]
+        value = node.runtime_value
         if isinstance(node.get_value(static=True), Bag):
             return RenderNode(before=f"<{tag}>", after=f"</{tag}>",
                               value=value, indent="  ")
@@ -159,11 +159,11 @@ Textual, etc.).
 from genro_builders import BagCompilerBase, compiler
 
 class RecipeCompiler(BagCompilerBase):
-    def compile_node(self, node, ctx, parent=None, **kwargs):
+    def compile_node(self, node, parent=None, **kwargs):
         tag = node.node_tag or node.label
-        value = ctx["node_value"]
-        children = ctx.get("children", [])
-        # ... create live widget or object
+        value = node.runtime_value
+        # create live widget or object — children will receive it as parent
+        ...
 ```
 
 The compiler is always **top-down**: the handler runs first and returns an
@@ -175,8 +175,8 @@ Renderer and compiler use the **same top-down walk**:
 
 ```
 for each node:
-  1. _resolve_context(node)        → attrs resolved
-  2. handler(self, node, ctx, parent)  → returns result
+  1. handler(self, node, parent)  → returns result
+  2. handler reads node.runtime_value / node.runtime_attrs (resolved just-in-time)
   3. recurse into children with result as parent
 ```
 
@@ -252,8 +252,8 @@ class MyFormatBuilder(BagBuilderBase):
     def paragraph(self): ...
 
     @renderer()
-    def render_section(self, node, ctx, parent):
-        title = ctx.get("title", "")
+    def render_section(self, node, parent):
+        title = node.runtime_attrs.get("title", "")
         return RenderNode(before=f"== {title} ==", after="", indent="")
 ```
 

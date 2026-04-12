@@ -147,7 +147,8 @@ html.to_xml(pretty=True)
 doc = BuilderBag(builder=MarkdownBuilder)
 doc.h1("Title")
 doc.p("Content")
-doc.builder._compile()  # Returns markdown string
+doc.builder.build()
+doc.builder.render()  # Returns markdown string
 ```
 
 ## Documentation

@@ -151,7 +151,8 @@ Build Markdown documents programmatically with `compile()` to generate the final
 BagNode : ...
 >>> doc.p("Introduction paragraph.")  # doctest: +ELLIPSIS
 BagNode : ...
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "# My Document" in md
 True
 ```

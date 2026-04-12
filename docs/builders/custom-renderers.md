@@ -20,24 +20,25 @@ You only need to define step 3. Steps 1 and 2 are handled by the base class.
 
 ```
 render(built_bag)
-  └─ _walk_render(bag, parent)         # iterates nodes (base class)
+  └─ _walk_render(bag, parent)            # iterates nodes (base class)
        └─ _dispatch_render(node, parent)  # for each node:
-            ├─ _resolve_context(node)  # resolves ^pointers
-            ├─ handler(self, node, ctx, parent)  # top-down
-            └─ if RenderNode: recurse children, finalize
+            ├─ handler(self, node, parent)      # @renderer or render_node
+            └─ post-handler:
+                 ├─ RenderNode → recurse children, finalize, append to parent
+                 ├─ str → append to parent (leaf)
+                 └─ None → recurse children into current parent
 ```
 
-The `ctx` dict passed to your code contains:
+Handlers access resolved data directly from the node:
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `node_value` | `str` | Resolved node value (empty string if None) |
-| `node_label` | `str` | Node's label in the bag |
-| `_node` | `BagNode` | The original node (for tag, structural info) |
-| *all attributes* | `Any` | Each resolved attribute as a key-value pair |
+| Property | Type | Description |
+|----------|------|-------------|
+| `node.runtime_value` | `Any` | Resolved node value (pointers and callables evaluated) |
+| `node.runtime_attrs` | `dict` | All resolved attributes as a dict |
 
-Attributes starting with `_` are internal and should be filtered in output.
-Infrastructure attributes like `iterate` and `datapath` should also be filtered.
+When producing attribute output, filter `_`-prefixed keys (internal).
+`runtime_attrs` already excludes build-infrastructure attributes like
+`datapath`.
 
 ### Handler Return Types
 
@@ -60,9 +61,9 @@ from genro_bag import Bag
 class PlainTextRenderer(BagRendererBase):
     """Render each node as 'tag: value' or 'tag:\\n  children'."""
 
-    def render_node(self, node, ctx, parent=None, **kwargs):
+    def render_node(self, node, parent=None, **kwargs):
         tag = node.node_tag or node.label
-        value = ctx["node_value"]
+        value = node.runtime_value
 
         if isinstance(node.get_value(static=True), Bag):
             return RenderNode(before=f"{tag}:", indent="  ")
@@ -83,33 +84,34 @@ For markup output, `render_node` produces XML tags:
 
 ```python
 from genro_bag import Bag
-from genro_builders.renderer import BagRendererBase, RenderNode, CTX_KEYS
+from genro_builders.renderer import BagRendererBase, RenderNode
 
 class XmlRenderer(BagRendererBase):
 
-    def render_node(self, node, ctx, parent=None, **kwargs):
+    def render_node(self, node, parent=None, **kwargs):
         tag = node.node_tag or node.label
+        value = node.runtime_value
 
-        # Build attribute string from resolved ctx (skip internal keys)
+        # Build attribute string from resolved attrs (skip internal keys)
         attrs = " ".join(
             f'{k}="{v}"'
-            for k, v in ctx.items()
-            if not k.startswith("_") and k not in CTX_KEYS
+            for k, v in node.runtime_attrs.items()
+            if not k.startswith("_")
         )
         attrs_str = f" {attrs}" if attrs else ""
-        value = ctx["node_value"]
+        value_str = "" if value is None or isinstance(value, Bag) else str(value)
 
         if isinstance(node.get_value(static=True), Bag):
             return RenderNode(
                 before=f"<{tag}{attrs_str}>",
                 after=f"</{tag}>",
-                value=value,
+                value=value_str,
                 indent="  ",
             )
 
-        if not value:
+        if not value_str:
             return f"<{tag}{attrs_str} />"
-        return f"<{tag}{attrs_str}>{value}</{tag}>"
+        return f"<{tag}{attrs_str}>{value_str}</{tag}>"
 ```
 
 ### Using @renderer Handlers
@@ -139,13 +141,14 @@ class MarkdownRenderer(BagRendererBase):
 
     # Imperative: custom logic
     @renderer()
-    def blockquote(self, node, ctx):
-        value = ctx["node_value"]
+    def blockquote(self, node, parent):
+        value = node.runtime_value or ""
         return "\n".join(f"> {line}" for line in value.split("\n"))
 ```
 
-Template-based handlers use `{key}` placeholders filled from `ctx`.
-All attribute values are available as keys (already resolved).
+Template-based handlers use `{key}` placeholders filled from
+`runtime_attrs` + `runtime_value`. All attribute values are available
+as keys (already resolved).
 
 ### Dispatch Priority
 
@@ -167,17 +170,16 @@ class WidgetCompiler(BagCompilerBase):
     def compile(self, built_bag, target=None):
         return list(self._walk_compile(built_bag, parent=target))
 
-    def compile_node(self, node, ctx, parent=None, **kwargs):
+    def compile_node(self, node, parent=None, **kwargs):
         tag = node.node_tag or node.label
-        value = ctx["node_value"]
-        children = ctx.get("children", [])
-        # Create and return a widget object
-        return create_widget(tag, value, children)
+        value = node.runtime_value
+        # Create and return a widget object — children will receive it as parent
+        return create_widget(tag, value, parent)
 
     # Or use @compiler for specific tags
     @compiler()
-    def button(self, node, ctx, parent):
-        return Button(label=ctx["node_value"])
+    def button(self, node, parent):
+        return Button(label=node.runtime_value)
 ```
 
 ## Registering with a Builder
@@ -265,12 +267,12 @@ class BadRenderer(BagRendererBase):
 Instead, override `render_node` and let the base class handle the walk:
 
 ```python
-# CORRECT — resolution handled by base class
+# CORRECT — resolution handled by base class via node properties
 class GoodRenderer(BagRendererBase):
-    def render_node(self, node, ctx, template=None, **kwargs):
-        # ctx has all values already resolved
+    def render_node(self, node, parent=None, **kwargs):
         tag = node.node_tag or node.label
-        value = ctx["node_value"]  # resolved
+        value = node.runtime_value  # resolved
+        attrs = node.runtime_attrs  # resolved
         ...
 ```
 

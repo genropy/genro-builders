@@ -189,7 +189,8 @@ on the next render.
 ## Pointer formali
 
 The built Bag retains `^pointer` strings verbatim. Resolution happens
-just-in-time during render/compile via `builder._resolve_node()`. This
+just-in-time during render/compile via `node.runtime_value` and
+`node.runtime_attrs` (which call `evaluate_on_node(data)` internally). This
 design means:
 
 - The built Bag is a stable structural representation.

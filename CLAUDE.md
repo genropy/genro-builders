@@ -9,11 +9,12 @@
 - Has Implementation: Yes
 
 ### Project Description
-Builder system for genro-bag — grammar, validation, compilation.
+Builder system for genro-bag — grammar, validation, rendering, compilation, reactivity.
 
-Provides `BuilderBag`, `BagBuilderBase`, `BagCompilerBase` and concrete
-builders (HTML, Markdown, XSD) for creating structured Bag hierarchies
-with domain-specific validation.
+Provides `BagBuilderBase` (grammar machine), `BagRendererBase` (serialized output),
+`BagCompilerBase` (live objects), `BuilderManager` / `ReactiveManager` (orchestration),
+and concrete builders (HTML, Markdown, SVG, XSD) for creating structured Bag hierarchies
+with domain-specific validation and reactive data binding.
 
 ---
 

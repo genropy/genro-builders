@@ -2,8 +2,9 @@
 """YamlRendererBase — render a built Bag into a YAML string.
 
 Uses the standard top-down walk with a dict as parent. Each handler
-receives the parent dict and adds its contribution. Children recurse
-into the same or a nested dict.
+receives ``(self, node, parent)`` — same signature as all other renderers.
+Handlers read resolved data from ``node.runtime_value`` and
+``node.runtime_attrs``. Children recurse into the same or a nested dict.
 
 Tag-specific handlers use @renderer, same as other renderers.
 Subclasses override _render_attr_entry() for tool-specific attribute
@@ -13,7 +14,6 @@ Example:
     >>> class TraefikRenderer(YamlRendererBase):
     ...     @renderer()
     ...     def router(self, node, parent):
-    ...         # custom key nesting
     ...         parent["http.routers"] = node.runtime_value
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ from typing import Any
 import yaml
 from genro_bag import Bag
 
-from genro_builders.renderer import CTX_KEYS, BagRendererBase
+from genro_builders.renderer import BagRendererBase
 
 
 class YamlRendererBase(BagRendererBase):
@@ -60,7 +60,7 @@ class YamlRendererBase(BagRendererBase):
 
         handler = self._render_handlers.get(tag)
         if handler:
-            handler(self, node, self._resolve_ctx(node), parent)
+            handler(self, node, parent)
         else:
             self._render_default(node, tag, parent)
 
@@ -88,31 +88,29 @@ class YamlRendererBase(BagRendererBase):
             self._dispatch_render(node, parent)
         return parent
 
-    def _resolve_ctx(self, node: Any) -> dict[str, Any]:
-        """Resolve node attributes into a flat dict via _render_attr_entry."""
-        result: dict[str, Any] = {}
+    def _render_default(self, node: Any, tag: str,
+                        parent: dict[str, Any]) -> None:
+        """Default: tag as YAML key, resolved attrs as value.
 
-        if hasattr(node, "evaluate_on_node") and self.builder is not None:
-            resolved = node.evaluate_on_node(self.builder.data)
-            attrs = resolved["attrs"]
+        Reads ``node.runtime_attrs`` (same as all other renderers),
+        filters infrastructure keys, and passes each attribute through
+        ``_render_attr_entry`` for subclass-specific transformations.
+        """
+        if hasattr(node, "runtime_attrs") and self.builder is not None:
+            attrs = node.runtime_attrs
         else:
             attrs = dict(node.attr)
 
+        content: dict[str, Any] = {}
         for attr_name, attr_value in attrs.items():
-            if attr_name.startswith("_") or attr_name in CTX_KEYS:
+            if attr_name.startswith("_"):
                 continue
             if attr_value is None:
                 continue
             if isinstance(attr_value, (dict, list)):
                 attr_value = copy.deepcopy(attr_value)
-            self._render_attr_entry(attr_name, attr_value, result)
+            self._render_attr_entry(attr_name, attr_value, content)
 
-        return result
-
-    def _render_default(self, node: Any, tag: str,
-                        parent: dict[str, Any]) -> None:
-        """Default: tag as YAML key, resolved attrs as value."""
-        content = self._resolve_ctx(node)
         if tag in parent and isinstance(parent[tag], dict) and isinstance(content, dict):
             parent[tag].update(content)
         else:
