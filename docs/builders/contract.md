@@ -365,7 +365,7 @@ def button(self, node, parent):
 |-------|--------|--------|
 | `BagRendererBase` | `genro_builders.renderer` | Abstract — subclass for string output |
 | `BagCompilerBase` | `genro_builders.compiler` | Abstract — subclass for live objects |
-| `YamlRendererBase` | `genro_builders.renderers` | YAML string (base for YAML-based configs) |
+| `YamlRendererBase` | `genro_builders.contrib.yaml` | YAML string (base for YAML-based configs) |
 
 ### Concrete renderers (in contrib/)
 
