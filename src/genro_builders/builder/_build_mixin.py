@@ -34,8 +34,8 @@ from genro_bag import Bag
 from genro_toolbox import smartawait, smartcontinuation
 from genro_toolbox.smarttimer import cancel_timer, set_interval
 
+from ..binding import is_pointer, parse_pointer, scan_for_pointers
 from ..builder_bag import BuilderBag
-from ..pointer import is_pointer, parse_pointer, scan_for_pointers
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
