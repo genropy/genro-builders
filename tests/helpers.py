@@ -36,7 +36,7 @@ class TestCompiler(BagCompilerBase):
         parts = []
         for node in bag:
             tag = node.node_tag or node.label
-            resolved = self.builder._resolve_node(node, self.builder.data)
+            resolved = node.evaluate_on_node(self.builder.data)
             value = resolved["node_value"]
             attrs = resolved["attrs"]
             if isinstance(value, Bag):

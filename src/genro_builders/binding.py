@@ -29,8 +29,8 @@ Where:
 Formal pointers:
     The built Bag retains ``^pointer`` strings verbatim. Resolution
     happens just-in-time during render/compile via
-    ``BagBuilderBase._resolve_node()``. The BindingManager only
-    tracks *which* data paths affect *which* built paths — it never
+    ``node.runtime_attrs`` / ``node.runtime_value``. The BindingManager
+    only tracks *which* data paths affect *which* built paths — it never
     writes resolved values into the built Bag.
 
 Example:

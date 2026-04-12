@@ -339,7 +339,7 @@ class _BuildMixin:
         """Register ^pointer subscriptions without resolving values.
 
         The built node keeps the ^pointer string intact. Resolution happens
-        just-in-time during render/compile via _resolve_node.
+        just-in-time during render/compile via node.runtime_attrs/runtime_value.
 
         Also registers dependencies from computed attributes (callables
         with ^pointer defaults in their parameters).
@@ -372,25 +372,6 @@ class _BuildMixin:
             if param.default is not inspect.Parameter.empty and is_pointer(param.default):
                 result.append(param.default)
         return result
-
-    def _resolve_node(self, node: BagNode, data: Bag) -> dict[str, Any]:
-        """Produce a resolved view of a built node.
-
-        Delegates to node.evaluate_on_node(data) which resolves ^pointer
-        strings, callables with ^pointer defaults, and plain values.
-        The built node is NOT modified.
-
-        Used by node.runtime_attrs/runtime_value for just-in-time resolution.
-        """
-        if hasattr(node, "evaluate_on_node"):
-            return node.evaluate_on_node(data)
-
-        # Fallback for plain BagNode (no builder)
-        return {
-            "node_value": node.get_value(static=True),
-            "attrs": dict(node.attr),
-            "node": node,
-        }
 
     # -----------------------------------------------------------------------
     # Build / subscribe / rebuild

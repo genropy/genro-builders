@@ -1,12 +1,12 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Output mixin: render, compile, schema access, documentation, value rendering.
+"""Output mixin: render, compile, schema access, documentation.
 
 Handles all output-producing methods: ``render()`` / ``compile()`` dispatch
 to named renderer/compiler instances, ``_compile()`` legacy fallback,
-``_schema_to_md()`` documentation generation, ``_render_value()`` template
-transformations, ``_check()`` / ``_walk_check()`` validation report, and
-schema introspection (``__contains__``, ``_get_schema_info``, ``__iter__``,
-``__repr__``, ``__str__``).
+``_schema_to_md()`` documentation generation, ``_check()`` /
+``_walk_check()`` validation report, and schema introspection
+(``__contains__``, ``_get_schema_info``, ``__iter__``, ``__repr__``,
+``__str__``).
 """
 
 from __future__ import annotations
@@ -281,10 +281,6 @@ class _OutputMixin:
         else:
             raise ValueError(f"Unknown format: {format_}")
 
-    # -----------------------------------------------------------------------
-    # Schema documentation
-    # -----------------------------------------------------------------------
-
     def _schema_to_md(self, title: str | None = None) -> str:
         """Generate Markdown documentation for the builder schema.
 
@@ -381,98 +377,3 @@ class _OutputMixin:
 
         md_builder.build()
         return md_builder.render()
-
-    # -----------------------------------------------------------------------
-    # Value rendering (for compile)
-    # -----------------------------------------------------------------------
-
-    def _render_value(self, node: BagNode) -> str:
-        """Render node value applying format and template transformations.
-
-        Applies transformations in order:
-        1. value_format (node attr) - format the raw value
-        2. value_template (node attr) - apply runtime template
-        3. _meta callback - call method to modify context in place
-        4. _meta format - format from decorator
-        5. _meta template - structural template from decorator
-
-        Template placeholders available:
-        - {node_value}: the node value
-        - {node_label}: the node label
-        - {attr_name}: any node attribute (e.g., {lang}, {href})
-
-        Args:
-            node: The BagNode to render.
-
-        Returns:
-            Rendered string value.
-        """
-        node_value = node.get_value(static=True)
-        node_value = "" if node_value is None else str(node_value)
-
-        # Build template context: node_value, node_label, and all attributes
-        # Start with default values from schema for optional parameters
-        tag = node.node_tag or node.label
-        info = self._get_schema_info(tag)
-        call_args = info.get("call_args_validations") or {}
-        template_ctx: dict[str, Any] = {}
-        for param_name, (_base_type, _validators, default) in call_args.items():
-            if default is not None:
-                template_ctx[param_name] = default
-        # Override with actual node attributes
-        template_ctx.update(node.attr)
-        template_ctx["node_value"] = node_value
-        template_ctx["node_label"] = node.label
-        template_ctx["_node"] = node  # For callbacks needing full node access
-
-        # 1. value_format from node attr (runtime)
-        value_format = node.attr.get("value_format")
-        if value_format:
-            try:
-                node_value = value_format.format(node_value)
-                template_ctx["node_value"] = node_value
-            except (ValueError, KeyError):
-                pass
-
-        # 2. value_template from node attr (runtime)
-        value_template = node.attr.get("value_template")
-        if value_template:
-            node_value = value_template.format(**template_ctx)
-            template_ctx["node_value"] = node_value
-
-        # 3-5. _meta callback, format, template from schema
-        meta = info.get("_meta") or {}
-
-        # 3. callback - call method to modify context in place
-        callback = meta.get("callback")
-        if callback:
-            method = getattr(self, callback)
-            method(template_ctx)
-            node_value = template_ctx["node_value"]
-
-        # 4. format from _meta
-        fmt = meta.get("format")
-        if fmt:
-            try:
-                node_value = fmt.format(node_value)
-                template_ctx["node_value"] = node_value
-            except (ValueError, KeyError):
-                pass
-
-        # 5. template from _meta
-        template = meta.get("template")
-        if template:
-            node_value = template.format(**template_ctx)
-
-        return node_value
-
-    # -----------------------------------------------------------------------
-    # Call args validation (internal)
-    # -----------------------------------------------------------------------
-
-    def _get_call_args_validations(self, tag: str) -> dict[str, tuple[Any, list, Any]] | None:
-        """Return attribute spec for a tag from schema."""
-        schema_node = self._schema.node(tag)
-        if schema_node is None:
-            return None
-        return schema_node.attr.get("call_args_validations")

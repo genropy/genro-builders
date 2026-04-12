@@ -34,28 +34,13 @@ Example:
 """
 from __future__ import annotations
 
-import inspect
 from abc import ABC
 from collections.abc import Callable, Iterator
 from typing import Any
 
 from genro_bag import Bag, BagNode
 
-
-# =============================================================================
-# Decorator
-# =============================================================================
-
-
-def _is_empty_body(func: Callable) -> bool:
-    """Check if a function has an empty body (only ..., pass, or docstring)."""
-    try:
-        source = inspect.getsource(func)
-    except (OSError, TypeError):
-        return False
-    lines = [line.strip() for line in source.splitlines()
-             if line.strip() and not line.strip().startswith(('#', '@', 'def ', '"""', "'''"))]
-    return all(line in ('...', 'pass', '') for line in lines)
+from genro_builders.builder._decorators import _is_empty_body
 
 
 def compiler(**kwargs: Any) -> Callable:

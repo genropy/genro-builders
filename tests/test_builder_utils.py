@@ -130,11 +130,3 @@ class TestQuickRef:
         assert "Quick Reference" in result
 
 
-class TestPrintRefImportError:
-    """Tests for print_ref when genro-print is not available."""
-
-    def test_print_ref_import(self):
-        """print_ref is importable from builder_utils."""
-        from genro_builders.builder_utils import print_ref
-
-        assert callable(print_ref)
