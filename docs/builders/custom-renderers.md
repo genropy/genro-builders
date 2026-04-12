@@ -282,3 +282,8 @@ def render(self, built_bag, output=None):
     parts = list(self._walk_render(built_bag))
     return "\n\n".join(p for p in parts if p)  # custom join
 ```
+
+## What's Next?
+
+See [Creating Builder Packages](creating-builder-packages.md) for how to
+structure a complete builder package with manager, examples, and tests.

@@ -6,6 +6,10 @@ Demonstrates data_setter, data_formula, data_controller, computed
 attributes, formula dependency chains with topological sort,
 and output suspension for batched updates.
 
+The first examples use standalone builders (builder.subscribe()) to
+show the low-level data infrastructure API. The final example shows
+the same pattern via ReactiveManager for production use.
+
 Usage:
     python -m examples.builders.reactive_data_example
 """
@@ -13,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 from genro_builders.contrib.html import HtmlBuilder
+from genro_builders.reactive_manager import ReactiveManager
 
 
 def basic_formula():
@@ -191,9 +196,56 @@ def computed_attribute():
     print()
 
 
+def manager_example():
+    """Same reactive pattern via ReactiveManager (production pattern).
+
+    For production use, wrap builders in a ReactiveManager instead of
+    calling builder.subscribe() directly. The manager coordinates
+    setup, build, and subscribe in a single lifecycle.
+    """
+    print("=== ReactiveManager Pattern ===")
+
+    class PriceCalculator(ReactiveManager):
+        def __init__(self):
+            self.page = self.set_builder("page", HtmlBuilder)
+            self.run(subscribe=True)
+
+        def store(self, data):
+            data["base_price"] = 100
+            data["discount"] = 0.1
+            data["tax_rate"] = 0.22
+
+        def main(self, source):
+            source.data_formula(
+                "net_price",
+                func=lambda base_price, discount: base_price * (1 - discount),
+                base_price="^base_price",
+                discount="^discount",
+            )
+            source.data_formula(
+                "total",
+                func=lambda net_price, tax_rate: round(net_price * (1 + tax_rate), 2),
+                net_price="^net_price",
+                tax_rate="^tax_rate",
+            )
+
+            body = source.body()
+            body.p(value="^net_price")
+            body.p(value="^total")
+
+    calc = PriceCalculator()
+    store = calc.reactive_store
+    print(f"Net: {store['net_price']}, Total: {store['total']}")
+
+    store["base_price"] = 200
+    print(f"Net: {store['net_price']}, Total: {store['total']}")
+    print()
+
+
 if __name__ == "__main__":
     basic_formula()
     dependency_chain()
     controller_example()
     suspend_resume()
     computed_attribute()
+    manager_example()

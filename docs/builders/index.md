@@ -180,6 +180,8 @@ See [XSD Builder](xsd-builder.md) for complete documentation.
 
 quickstart
 custom-builders
+custom-renderers
+creating-builder-packages
 html-builder
 markdown-builder
 xsd-builder

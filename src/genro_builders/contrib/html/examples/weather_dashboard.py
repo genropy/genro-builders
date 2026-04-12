@@ -1,6 +1,6 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 
-"""WeatherDashboard - Builder with resolver-backed data.
+"""WeatherDashboard - BuilderManager with resolver-backed data.
 
 Demonstrates how the data store can contain BagResolver nodes.
 When build() resolves ^pointers, the resolvers fire automatically
@@ -14,14 +14,13 @@ Requires:
     pip install genro-builders genro-bag httpx
 
 Usage:
-    python -m examples.builders.weather_dashboard
+    python -m genro_builders.contrib.html.examples.weather_dashboard
 
     # Or from Python:
-    from examples.builders.weather_dashboard import WeatherDashboard
+    from genro_builders.contrib.html.examples.weather_dashboard import WeatherDashboard
 
     dashboard = WeatherDashboard()
-    dashboard.build()
-    print(dashboard.output)
+    print(dashboard.page.render())
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ from genro_bag import Bag
 from genro_bag.resolvers.contrib import EarthquakeResolver, OpenMeteoResolver
 
 from genro_builders.contrib.html import HtmlBuilder
+from genro_builders.manager import BuilderManager
 
 CITIES = [
     ("Rome", "IT"),
@@ -42,7 +42,7 @@ CITIES = [
 ]
 
 
-class WeatherDashboard(HtmlBuilder):
+class WeatherDashboard(BuilderManager):
     """HTML dashboard showing live weather and earthquake data.
 
     The data store contains:
@@ -54,25 +54,21 @@ class WeatherDashboard(HtmlBuilder):
 
     Example:
         dashboard = WeatherDashboard()
-        dashboard.build()
-        print(dashboard.output)
-
-        # Rebuild to get updated data:
-        dashboard.rebuild()
-        print(dashboard.output)
+        print(dashboard.page.render())
     """
+
+    def __init__(self):
+        self.page = self.set_builder("page", HtmlBuilder)
+        self.run()
 
     def store(self, data):
         """Set up resolvers in the data store."""
-        # One weather resolver per city
         for city, country in CITIES:
             key = city.lower()
             data.set_item(
                 key, None,
                 resolver=OpenMeteoResolver(city=city, country_code=country),
             )
-
-        # Earthquake feed from USGS
         data.set_item("quakes", None, resolver=EarthquakeResolver())
 
     def main(self, source):
@@ -82,14 +78,14 @@ class WeatherDashboard(HtmlBuilder):
 
         # Weather section
         body.h2("Weather")
-        self.weather_table(body)
+        self._weather_table(body)
 
         # Earthquake section
         body.h2("Recent Earthquakes (last hour)")
         body.p("^quakes.title")
-        self.earthquake_table(body)
+        self._earthquake_table(body)
 
-    def weather_table(self, parent):
+    def _weather_table(self, parent):
         """Build the weather table from ^pointer data."""
         table = parent.table()
         header = table.tr()
@@ -108,12 +104,9 @@ class WeatherDashboard(HtmlBuilder):
             tr.td(f"^{key}.wind_speed_10m")
             tr.td(f"^{key}.relative_humidity_2m")
 
-    def earthquake_table(self, parent):
+    def _earthquake_table(self, parent):
         """Build the earthquake table from resolved feed data."""
-        # The earthquake data is a Bag of features with attrs.
-        # Since features are dynamic, we resolve the feed first
-        # and iterate over the actual data.
-        feed = self.data.get_item("quakes")
+        feed = self.reactive_store.get_item("quakes")
         if not feed or not isinstance(feed, Bag):
             parent.p("No earthquake data available")
             return
@@ -138,14 +131,13 @@ def demo():
     """Run the dashboard and print HTML output."""
     print("Fetching weather and earthquake data...")
     dashboard = WeatherDashboard()
-    dashboard.build()
-    print(dashboard.output)
+    html = dashboard.page.render()
+    print(html)
     print()
 
-    # Save to file
     output_path = Path(__file__).parent.parent.parent.parent.parent / "temp" / "weather_dashboard.html"
     output_path.parent.mkdir(exist_ok=True)
-    output_path.write_text(dashboard.output)
+    output_path.write_text(html)
     print(f"Saved to {output_path}")
 
 

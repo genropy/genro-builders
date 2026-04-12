@@ -2,6 +2,10 @@
 
 """Example: Shopping list and contacts table using HtmlBuilder.
 
+Demonstrates standalone builder usage for quick prototyping.
+For production use, wrap builders in a BuilderManager — see
+contact_list.py for an example.
+
 Usage:
     python -m genro_builders.contrib.html.examples.html_page_example
 

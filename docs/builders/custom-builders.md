@@ -785,3 +785,8 @@ def li(self): ...
 ```
 
 See [Validation](validation.md) for more details.
+
+## What's Next?
+
+Once you have a builder, add a renderer or compiler and wrap it in a manager.
+See [Creating Builder Packages](creating-builder-packages.md) for the full picture.

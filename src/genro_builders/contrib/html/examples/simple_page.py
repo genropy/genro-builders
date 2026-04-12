@@ -1,6 +1,10 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Simple HTML page example.
 
+Demonstrates standalone builder usage for quick prototyping.
+For production use, wrap builders in a BuilderManager — see
+contact_list.py for an example.
+
 Usage:
     python -m genro_builders.contrib.html.examples.simple_page
 

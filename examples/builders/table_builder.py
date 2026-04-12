@@ -2,6 +2,10 @@
 
 """TableBuilder - Example builder for HTML tables.
 
+Demonstrates standalone builder usage for grammar definition.
+For production use, wrap builders in a BuilderManager — see
+iterate_example.py (SVG) or contact_list.py (HTML) for examples.
+
 Demonstrates:
 - Using @element decorator with sub_tags for structure validation
 - Building HTML tables with thead, tbody, tr, th, td

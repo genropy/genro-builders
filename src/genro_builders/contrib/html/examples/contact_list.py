@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Contact list HTML page using declarative builder pattern.
+"""Contact list HTML page using BuilderManager pattern.
 
 Usage:
     python -m genro_builders.contrib.html.examples.contact_list
@@ -22,37 +22,41 @@ Example output:
             <td>john@example.com</td>
             <td>555-1234</td>
           </tr>
-          <tr>
-            <td>Jane Doe</td>
-            <td>jane@example.com</td>
-            <td>555-5678</td>
-          </tr>
           ...
         </tbody>
       </table>
     </body>
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 
 from genro_builders.contrib.html import HtmlBuilder
+from genro_builders.manager import BuilderManager
 
 
-class ContactListPage:
-    """A contact list page built with HtmlBuilder."""
+class ContactListPage(BuilderManager):
+    """A contact list page coordinated by BuilderManager."""
 
     def __init__(self, contacts):
         self.contacts = contacts
-        self.builder = HtmlBuilder()
-        self.populate()
+        self.page = self.set_builder("page", HtmlBuilder)
+        self.run()
 
-    def populate(self):
-        """Build the page body with contacts."""
-        body = self.builder.source.body()
+    def store(self, data):
+        """Populate shared data with contact records."""
+        for i, contact in enumerate(self.contacts):
+            for key, value in contact.items():
+                data[f"contacts.{i}.{key}"] = value
+
+    def main(self, source):
+        """Build the page body with contacts table."""
+        body = source.body()
         body.h1("Contact List")
-        self.contacts_table(body, self.contacts)
+        self._contacts_table(body)
 
-    def contacts_table(self, parent, contacts):
+    def _contacts_table(self, parent):
         """Build a table from contact data."""
         table = parent.table()
 
@@ -62,16 +66,15 @@ class ContactListPage:
             tr.th(header)
 
         tbody = table.tbody()
-        for contact in contacts:
+        for contact in self.contacts:
             tr = tbody.tr()
             tr.td(contact["name"])
             tr.td(contact["email"])
             tr.td(contact["phone"])
 
     def to_html(self, destination=None):
-        """Build, render, and optionally save the page."""
-        self.builder.build()
-        html = self.builder.render()
+        """Render and optionally save the page."""
+        html = self.page.render()
         if destination is not None:
             Path(destination).write_text(html)
         return html

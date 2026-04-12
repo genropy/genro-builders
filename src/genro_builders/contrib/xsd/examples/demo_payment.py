@@ -11,7 +11,11 @@ import csv
 import io
 from datetime import date
 
-from sepa_payment import BankAccount, SepaPayment, Transfer
+from genro_builders.contrib.xsd.examples.sepa_payment import (
+    BankAccount,
+    SepaPayment,
+    Transfer,
+)
 
 CSV_DATA = """\
 amount,currency,name,iban,bic,country,address,reference,instruction_id,end_to_end_id
