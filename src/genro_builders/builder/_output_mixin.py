@@ -3,9 +3,8 @@
 
 Handles output methods: ``render()`` / ``compile()`` dispatch to named
 renderer/compiler instances, ``_check()`` / ``_walk_check()`` validation
-report, ``_schema_to_md()`` documentation generation, and schema
-introspection (``__contains__``, ``_get_schema_info``, ``__iter__``,
-``__repr__``, ``__str__``).
+report, and schema introspection (``__contains__``, ``_get_schema_info``,
+``__iter__``, ``__repr__``, ``__str__``).
 """
 
 from __future__ import annotations
@@ -212,99 +211,3 @@ class _OutputMixin:
             if isinstance(node_value, Bag):
                 self._walk_check(node_value, node_path, invalid_nodes)
 
-    def _schema_to_md(self, title: str | None = None) -> str:
-        """Generate Markdown documentation for the builder schema.
-
-        Creates a formatted Markdown document with tables for abstract
-        and concrete elements, including all schema information.
-
-        Args:
-            title: Optional title for the document. Defaults to class name.
-
-        Returns:
-            Markdown string with schema documentation.
-        """
-        from ..contrib.markdown import MarkdownBuilder
-
-        md_builder = MarkdownBuilder()
-        doc = md_builder.source
-        builder_name = title or type(self).__name__
-
-        doc.h1(f"Schema: {builder_name}")
-
-        # Collect abstracts and elements
-        abstracts: list[tuple[str, dict]] = []
-        elements: list[tuple[str, dict]] = []
-
-        for node in self._schema:
-            name = node.label
-            info = self._get_schema_info(name)
-            if name.startswith("@"):
-                abstracts.append((name[1:], info))
-            else:
-                elements.append((name, info))
-
-        # Abstract elements section
-        if abstracts:
-            doc.h2("Abstract Elements")
-            table = doc.table()
-            header = table.tr()
-            header.th("Name")
-            header.th("Sub Tags")
-            header.th("Documentation")
-
-            for name, info in sorted(abstracts):
-                row = table.tr()
-                row.td(f"`@{name}`")
-                row.td(f"`{info.get('sub_tags') or '-'}`")
-                row.td(info.get("documentation") or "-")
-
-        # Concrete elements section
-        if elements:
-            doc.h2("Elements")
-            table = doc.table()
-            header = table.tr()
-            header.th("Name")
-            header.th("Inherits")
-            header.th("Sub Tags")
-            header.th("Call Args")
-            header.th("Compile")
-            header.th("Documentation")
-
-            for name, info in sorted(elements):
-                row = table.tr()
-                row.td(f"`{name}`")
-
-                inherits = info.get("inherits_from")
-                row.td(f"`{inherits}`" if inherits else "-")
-
-                sub_tags = info.get("sub_tags")
-                row.td(f"`{sub_tags}`" if sub_tags else "-")
-
-                call_args = info.get("call_args_validations")
-                if call_args:
-                    args_str = ", ".join(call_args.keys())
-                    row.td(f"`{args_str}`")
-                else:
-                    row.td("-")
-
-                meta = info.get("_meta") or {}
-                meta_parts = []
-                if "template" in meta:
-                    tmpl = meta["template"].replace("`", "\\`")
-                    tmpl = tmpl.replace("\n", "\\n")
-                    meta_parts.append(f"template: {tmpl}")
-                if "callback" in meta:
-                    meta_parts.append(f"callback: {meta['callback']}")
-                for k, v in meta.items():
-                    if k not in ("template", "callback"):
-                        meta_parts.append(f"{k}: {v}")
-                if meta_parts:
-                    row.td("`" + ", ".join(meta_parts) + "`")
-                else:
-                    row.td("-")
-
-                row.td(info.get("documentation") or "-")
-
-        md_builder.build()
-        return md_builder.render()
