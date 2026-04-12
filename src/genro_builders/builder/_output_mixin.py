@@ -99,13 +99,17 @@ class _OutputMixin:
         return self._schema.get_node(name) is not None
 
     def _get_schema_info(self, name: str) -> dict:
-        """Return info dict for an element.
+        """Return info dict for a schema element.
 
-        Returns dict with keys:
-            - adapter_name: str | None
-            - sub_tags: str | None
-            - sub_tags_compiled: dict[str, tuple[int, int]] | None
-            - call_args_validations: dict | None
+        The result is a dict of all schema-node attributes, extended with
+        computed keys. Common keys (presence depends on element type):
+
+            sub_tags, sub_tags_compiled, parent_tags, parent_tags_compiled,
+            call_args_validations, _meta, documentation,
+            handler_name, is_component, is_data_element,
+            component_builder, based_on, slots.
+
+        Results are cached on the schema node after first access.
 
         Raises KeyError if element not in schema.
         """
@@ -412,7 +416,7 @@ class _OutputMixin:
         info = self._get_schema_info(tag)
         call_args = info.get("call_args_validations") or {}
         template_ctx: dict[str, Any] = {}
-        for param_name, (default, _validators, _type) in call_args.items():
+        for param_name, (_base_type, _validators, default) in call_args.items():
             if default is not None:
                 template_ctx[param_name] = default
         # Override with actual node attributes

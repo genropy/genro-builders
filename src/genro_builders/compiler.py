@@ -210,7 +210,10 @@ class BagCompilerBase(ABC):
     def compile_node(
         self, node: BagNode, ctx: dict[str, Any], **kwargs: Any,
     ) -> Any | None:
-        """Default compile with optional kwargs from @compiler decorator.
+        """Default compile — fallback for tags without a @compiler handler.
+
+        Returns node_value if truthy, else children list if non-empty,
+        else None.
 
         Override in subclass for custom default behavior (e.g. widget
         instantiation from module/cls kwargs).

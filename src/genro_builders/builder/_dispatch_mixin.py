@@ -73,7 +73,7 @@ class _DispatchMixin:
                 path, attrs_dict = handler(*args, **kwargs)
                 return self._add_data_element(destination_bag, node_tag, path, attrs_dict)
 
-            # Validazione sui kwargs originali, PRIMA del method
+            # Validate original kwargs BEFORE the method call
             node_value = args[0] if args else kwargs.get("node_value")
             self._validate_call_args(info, node_value, kwargs)
 
@@ -81,7 +81,7 @@ class _DispatchMixin:
             if info.get("is_component"):
                 return self._handle_component(destination_bag, info, node_tag, kwargs)
 
-            # Element: no adapter, registra direttamente con kwargs originali
+            # Element: no adapter, register directly with original kwargs
             kwargs.pop("node_value", None)
             return self._add_element(destination_bag, node_value, node_tag=node_tag, **kwargs)
 
@@ -354,7 +354,8 @@ class _DispatchMixin:
             children_tags: List of child tags to validate
 
         Returns:
-            List of invalid_reasons (missing required tags)
+            List of tag names whose minimum cardinality was not met
+            (required children still missing).
 
         Raises:
             ValueError: if tag not allowed or max exceeded

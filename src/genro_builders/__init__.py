@@ -23,8 +23,10 @@ Core classes:
     BuilderBag: Bag subclass with grammar-first attribute resolution.
     BagRendererBase: Transform built Bag into serialized output (text, bytes).
     BagCompilerBase: Transform built Bag into live objects (widgets, etc.).
-    BuilderManager: Mixin to coordinate builders with shared data.
-        Provides setup (store -> main), build, and subscribe.
+    BuilderManager: Sync coordinator for builders with shared data.
+        Provides setup (store -> main), build, and run.
+    ReactiveManager: Extends BuilderManager with subscribe() for
+        reactive bindings (formula re-execution, _delay, _interval).
     BindingManager: Reactive ^pointer subscription map with 3-level
         propagation (node / container / child).
 """
@@ -38,6 +40,7 @@ from genro_builders.component_proxy import ComponentProxy
 from genro_builders.component_resolver import ComponentResolver
 from genro_builders.manager import BuilderManager
 from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer
+from genro_builders.reactive_manager import ReactiveManager
 from genro_builders.renderer import BagRendererBase, renderer
 
 __version__ = "0.14.1"
@@ -50,6 +53,7 @@ __all__ = [
     "BuilderBag",
     "BuilderBagNode",
     "BuilderManager",
+    "ReactiveManager",
     "Component",
     "ComponentProxy",
     "ComponentResolver",

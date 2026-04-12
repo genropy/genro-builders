@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BuilderManager hooks: store, main, setup, build, subscribe."""
+"""Tests for BuilderManager hooks: store, main, setup, build."""
 from __future__ import annotations
 
 from genro_bag import Bag

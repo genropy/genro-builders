@@ -177,25 +177,6 @@ class TestManagerRun:
         app = App()
         assert "Hello" in app.page.render()
 
-    def test_run_with_subscribe(self):
-        """run(subscribe=True) also activates reactive bindings."""
-
-        class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
-                self.run(subscribe=True)
-
-            def store(self, data):
-                data["title"] = "Hello"
-
-            def main(self, source):
-                source.heading(value="^title")
-
-        app = App()
-        # After subscribe, changing data should trigger re-render
-        app.reactive_store["title"] = "Updated"
-        assert "Updated" in app.page.render()
-
     def test_run_produces_same_result_as_manual_sequence(self):
         """run() produces identical result to manual setup+build."""
 
@@ -219,6 +200,17 @@ class TestManagerRun:
         manual = ManualApp()
         run_app = RunApp()
         assert manual.page.render() == run_app.page.render()
+
+    def test_no_subscribe_method(self):
+        """BuilderManager does not have subscribe() — use ReactiveManager."""
+        assert "subscribe" not in BuilderManager.__dict__
+
+    def test_run_has_no_subscribe_param(self):
+        """BuilderManager.run() does not accept a subscribe parameter."""
+        import inspect as _inspect
+
+        sig = _inspect.signature(BuilderManager.run)
+        assert "subscribe" not in sig.parameters
 
 
 class TestStandaloneBuilder:

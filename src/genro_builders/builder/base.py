@@ -199,6 +199,8 @@ class BagBuilderBase(
             # Standard instantiation: builder owns the full pipeline
             self._manager = manager
 
+            # Shells wrap the root Bags so that set_backref() gives root
+            # nodes a parent reference, needed for fullpath resolution.
             self._source_shell = BuilderBag(builder=type(self))
             self._source_shell.set_backref()
             self._source_shell.set_item("root", BuilderBag(builder=type(self)))

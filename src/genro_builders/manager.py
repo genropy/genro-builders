@@ -22,10 +22,10 @@ Lifecycle:
     2. ``setup()``: populate data and source (calls ``store()`` then ``main()``).
     3. ``build()``: materialize all builders (source -> built, two-pass:
        data elements first, then normal elements).
-    4. ``subscribe()``: activate reactive bindings (optional). Enables
-       formula re-execution on data changes, ``_delay`` debounce,
-       ``_interval`` periodic execution, and ``suspend_output`` /
-       ``resume_output`` for batched rendering.
+    4. render/compile: produce output.
+
+For reactive bindings (formula re-execution, _delay, _interval), use
+``ReactiveManager`` which adds ``subscribe()``.
 
 Async-safe: ``build()`` and ``run()`` return None in sync context, or a
 coroutine in async context.  Use ``smartawait`` for transparent handling::
@@ -38,11 +38,7 @@ coroutine in async context.  Use ``smartawait`` for transparent handling::
     # Async — await the coroutine:
     await smartawait(manager.run())
 
-    # Or equivalently:
-    await smartawait(manager.build())
-    manager.subscribe()
-
-Example — single builder:
+Example — single builder (HtmlBuilder provides renderers):
     >>> class HtmlManager(BuilderManager):
     ...     def __init__(self):
     ...         self.page = self.set_builder('page', HtmlBuilder)
@@ -88,11 +84,8 @@ Example — multiple builders with shared and private data:
     ...         )
     ...
     >>> stack = InfraStack()
-    >>> stack.setup()
-    >>> stack.build()
-    >>> stack.subscribe()
-    >>> # Change shared data — propagates to all builders
-    >>> stack.reactive_store['domain'] = 'newapp.example.com'
+    >>> stack.run()
+    >>> print(stack.compose.render())
 """
 from __future__ import annotations
 
@@ -104,7 +97,7 @@ from genro_toolbox import smartawait
 
 
 class BuilderManager:
-    """Mixin to coordinate one or more builders with a shared reactive store.
+    """Sync coordinator for one or more builders with a shared data store.
 
     The reactive store is a Bag that holds both shared data (at root level)
     and per-builder private data (under ``builders.<name>``).
@@ -121,10 +114,11 @@ class BuilderManager:
 
         ``build()``: Materializes all builders (source → built).
 
-        ``subscribe()``: Activates reactive bindings (optional).
+    For reactive bindings, use ``ReactiveManager`` instead.
 
-    Subclasses get ``_data`` and ``_builders`` initialized automatically
-    via ``__init_subclass__`` — no ``super().__init__()`` needed.
+    Subclasses get ``_data`` and ``_builders`` initialized automatically:
+    ``__init_subclass__`` wraps ``__init__`` so these are set before the
+    original body runs — no ``super().__init__()`` needed.
     """
 
     __slots__ = ("_data", "_builders")
@@ -238,7 +232,8 @@ class BuilderManager:
     def build(self) -> Any:
         """Materialize all builders: source -> built.
 
-        Returns None in sync context, or a coroutine in async context.
+        Returns None when all builders are synchronous, or a coroutine
+        when any builder's build() returns an awaitable.
         """
         results = [builder.build() for builder in self._builders.values()]
         awaitables = [r for r in results if inspect.isawaitable(r)]
@@ -251,31 +246,12 @@ class BuilderManager:
 
         return await_all()
 
-    def subscribe(self) -> None:
-        """Activate reactive bindings on all builders."""
-        for builder in self._builders.values():
-            builder.subscribe()
+    def run(self) -> Any:
+        """Setup and build -- single-call lifecycle.
 
-    def run(self, *, subscribe: bool = False) -> Any:
-        """Setup, build, and optionally subscribe -- single-call lifecycle.
-
-        Returns None in sync context, or a coroutine in async context.
-        In async context, caller must: ``await smartawait(manager.run())``.
-
-        Args:
-            subscribe: If True, also activate reactive bindings after build.
+        Returns None when all builders are synchronous, or a coroutine
+        when any builder's build() returns an awaitable.
+        In async case, caller must: ``await smartawait(manager.run())``.
         """
         self.setup()
-        build_result = self.build()
-
-        if inspect.isawaitable(build_result):
-            async def cont():
-                await smartawait(build_result)
-                if subscribe:
-                    self.subscribe()
-
-            return cont()
-
-        if subscribe:
-            self.subscribe()
-        return None
+        return self.build()

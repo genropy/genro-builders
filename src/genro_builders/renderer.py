@@ -223,13 +223,17 @@ class BagRendererBase(ABC):
         self, node: BagNode, ctx: dict[str, Any],
         template: str | None = None, **kwargs: Any,
     ) -> str | None:
-        """Default render with optional template.
+        """Default render — fallback for tags without a @renderer handler.
+
+        If template is given, renders via format_map (missing keys
+        default to empty string). Otherwise returns node_value if
+        truthy, else children if truthy, else None.
 
         Args:
             node: The BagNode being rendered.
-            ctx: Context dict with node_value, children, attributes.
+            ctx: Context dict with node_value, node_label, children, attrs.
             template: Format string with ctx placeholders.
-            **kwargs: Additional render parameters from @renderer decorator.
+            **kwargs: Extra parameters from @renderer decorator.
         """
         if template:
             try:
