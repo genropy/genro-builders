@@ -89,7 +89,7 @@ Three decorators for defining schema:
 ### @element Example
 
 ```python
-from genro_builders.builders import BagBuilderBase, element
+from genro_builders.builder import BagBuilderBase, element
 
 class MenuBuilder(BagBuilderBase):
     @element(sub_tags='item,separator')
@@ -113,7 +113,7 @@ m.item(label='Exit', action='quit')
 Use `@component` for reusable composite structures:
 
 ```python
-from genro_builders.builders import BagBuilderBase, element, component
+from genro_builders.builder import BagBuilderBase, element, component
 
 class PageBuilder(BagBuilderBase):
     @element()

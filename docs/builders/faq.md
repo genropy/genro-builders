@@ -130,7 +130,7 @@ At build time - invalid children are rejected immediately:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class StrictBuilder(BagBuilderBase):
 ...     @element(sub_tags='item')
@@ -159,7 +159,7 @@ Use `builder.validate()`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class MyBuilder(BagBuilderBase):
 ...     @element(sub_tags='child')
@@ -228,7 +228,7 @@ Content
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class SimpleBuilder(BagBuilderBase):
 ...     @element(sub_tags='item')
@@ -269,7 +269,7 @@ Add parameters to the method signature:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class MyBuilder(BagBuilderBase):
 ...     @element()

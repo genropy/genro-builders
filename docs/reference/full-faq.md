@@ -312,7 +312,7 @@ menu.div('Error')    # Raises BuilderChildError
 Yes, extend `BagBuilderBase`:
 
 ```python
-from genro_builders.builders import BagBuilderBase, element
+from genro_builders.builder import BagBuilderBase, element
 
 class MyBuilder(BagBuilderBase):
     @element(sub_tags='child')

@@ -14,7 +14,7 @@ Let's create a simple menu structure:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class MenuBuilder(BagBuilderBase):
 ...     """Builder for navigation menus."""

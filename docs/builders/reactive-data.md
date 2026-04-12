@@ -221,7 +221,7 @@ via `^pointer` bindings.
 You can define your own data elements with `@data_element`:
 
 ```python
-from genro_builders.builders import BagBuilderBase, data_element, element
+from genro_builders.builder import BagBuilderBase, data_element, element
 
 class MyBuilder(BagBuilderBase):
     @element()

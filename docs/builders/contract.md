@@ -365,7 +365,7 @@ def button(self, node, parent):
 |-------|--------|--------|
 | `BagRendererBase` | `genro_builders.renderer` | Abstract — subclass for string output |
 | `BagCompilerBase` | `genro_builders.compiler` | Abstract — subclass for live objects |
-| `YamlRendererBase` | `genro_builders.compilers` | YAML string (base for YAML-based configs) |
+| `YamlRendererBase` | `genro_builders.renderers` | YAML string (base for YAML-based configs) |
 
 ### Concrete renderers (in contrib/)
 
@@ -425,7 +425,7 @@ The `compile_TAG` dispatch on the builder is deprecated.
 - `renderer` — tag-specific render handler
 - `compiler` — tag-specific compile handler
 
-### Decorators (from `genro_builders.builder` or `genro_builders.builders`)
+### Decorators (from `genro_builders.builder` or `genro_builders.builder`)
 
 - `element`, `abstract`, `component`, `data_element` — grammar decorators
 

@@ -8,7 +8,7 @@ This guide covers advanced builder patterns for complex use cases.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class BaseUIBuilder(BagBuilderBase):
 ...     """Base builder with common UI elements."""
@@ -54,7 +54,7 @@ BagNode : ... at ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import SchemaBuilder
+>>> from genro_builders.builder import SchemaBuilder
 
 >>> schema = BuilderBag(builder=SchemaBuilder)
 
@@ -85,7 +85,7 @@ Use `@` prefix for abstract elements:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import SchemaBuilder
+>>> from genro_builders.builder import SchemaBuilder
 
 >>> schema = BuilderBag(builder=SchemaBuilder)
 
@@ -111,7 +111,7 @@ Save the schema for reuse:
 
 ```python
 # Save to MessagePack (binary, compact)
-schema.builder._compile('my_schema.msgpack')
+schema.builder.save_schema('my_schema.msgpack')
 ```
 
 ### Using Compiled Schema
@@ -120,7 +120,7 @@ Load the schema in a custom builder:
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import BagBuilderBase
+from genro_builders.builder import BagBuilderBase
 
 # Method 1: Class attribute
 class MyBuilder(BagBuilderBase):
@@ -134,7 +134,7 @@ bag = BuilderBag(builder=BagBuilderBase, builder_schema_path='my_schema.msgpack'
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import SchemaBuilder, BagBuilderBase
+>>> from genro_builders.builder import SchemaBuilder, BagBuilderBase
 
 >>> # Create schema programmatically
 >>> schema = BuilderBag(builder=SchemaBuilder)
@@ -170,7 +170,7 @@ Builders can load schema from a pre-compiled MessagePack file using `_schema_pat
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import BagBuilderBase
+from genro_builders.builder import BagBuilderBase
 
 class MyBuilder(BagBuilderBase):
     _schema_path = 'path/to/schema.msgpack'  # Load at class definition
@@ -200,7 +200,7 @@ errors = builder.validate()
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class ConfigBuilder(BagBuilderBase):
 ...     """Builder for application configuration."""

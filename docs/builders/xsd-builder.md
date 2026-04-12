@@ -60,8 +60,8 @@ class XsdBuilder(BagBuilderBase):
             xsd_source: Path to XSD file or URL to fetch XSD from.
         """
 
-    def _compile(self, full_validate: bool = False) -> str:
-        """Compile the bag to XML string.
+    def to_xml(self, full_validate: bool = False) -> str:
+        """Serialize the bag to XML string.
 
         Args:
             full_validate: If True, validate against the original XSD

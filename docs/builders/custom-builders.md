@@ -27,7 +27,7 @@ Do not create JSON or dictionary schemas by hand.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class RecipeBuilder(BagBuilderBase):
 ...     """Builder for cooking recipes."""
@@ -62,7 +62,7 @@ The simplest form just marks a method as an element handler:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class SimpleBuilder(BagBuilderBase):
 ...     @element()
@@ -79,7 +79,7 @@ Use `tags` to handle multiple tag names with one method:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class KitchenBuilder(BagBuilderBase):
 ...     @element(tags='fridge, oven, dishwasher, microwave')
@@ -104,7 +104,7 @@ Use `sub_tags` to define what child elements are allowed:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class DocumentBuilder(BagBuilderBase):
 ...     @element(sub_tags='section,paragraph')
@@ -140,7 +140,7 @@ Use `parent_tags` to specify where an element can be placed:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class ListBuilder(BagBuilderBase):
 ...     @element(sub_tags='li')
@@ -187,7 +187,7 @@ Abstract elements are useful for defining content categories (like HTML5 content
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, abstract
+>>> from genro_builders.builder import BagBuilderBase, element, abstract
 
 >>> class HtmlLikeBuilder(BagBuilderBase):
 ...     """Builder with HTML-like content categories."""
@@ -252,7 +252,7 @@ BagNode : ... at ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, abstract
+>>> from genro_builders.builder import BagBuilderBase, element, abstract
 
 >>> class ContentBuilder(BagBuilderBase):
 ...     @abstract(sub_tags='text,code')
@@ -294,7 +294,7 @@ The **first parent wins** when there are conflicting attributes (closest to the 
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, abstract
+>>> from genro_builders.builder import BagBuilderBase, element, abstract
 
 >>> class UIBuilder(BagBuilderBase):
 ...     @abstract(sub_tags='span,em', parent_tags='body')
@@ -341,7 +341,7 @@ Unlike `@element`, components **must have a method body** - ellipsis (`...`) is 
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, component
+>>> from genro_builders.builder import BagBuilderBase, element, component
 
 >>> class PageBuilder(BagBuilderBase):
 ...     @element()
@@ -380,7 +380,7 @@ All component calls return a `ComponentProxy` that delegates to the parent bag:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, component
+>>> from genro_builders.builder import BagBuilderBase, element, component
 
 >>> class Builder(BagBuilderBase):
 ...     @element()
@@ -406,7 +406,7 @@ BagNode : ... at ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, component
+>>> from genro_builders.builder import BagBuilderBase, element, component
 
 >>> class Builder(BagBuilderBase):
 ...     @element()
@@ -436,7 +436,7 @@ Use `builder` parameter to use a different builder inside the component:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, component
+>>> from genro_builders.builder import BagBuilderBase, element, component
 
 >>> class InnerBuilder(BagBuilderBase):
 ...     @element()
@@ -468,7 +468,7 @@ while the component body controls the overall layout.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, component
+>>> from genro_builders.builder import BagBuilderBase, element, component
 
 >>> class LayoutBuilder(BagBuilderBase):
 ...     @element()
@@ -600,7 +600,7 @@ For elements without custom logic, use empty method bodies:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class TableBuilder(BagBuilderBase):
 ...     @element(sub_tags='thead[:1],tbody,tfoot[:1],tr')
@@ -647,7 +647,7 @@ Use `sub_tags=''` to define void elements that cannot have children:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class FormBuilder(BagBuilderBase):
 ...     @element(sub_tags='input,button,label')
@@ -676,7 +676,7 @@ Mix simple elements (empty body) with custom logic elements:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class HybridBuilder(BagBuilderBase):
 ...     # Simple elements with empty body (uses default handler)
@@ -716,7 +716,7 @@ BagNode : ... at ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class TestBuilder(BagBuilderBase):
 ...     @element()

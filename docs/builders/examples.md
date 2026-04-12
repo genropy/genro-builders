@@ -159,7 +159,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class ConfigBuilder(BagBuilderBase):
 ...     @element(sub_tags='database,cache,logging')
@@ -193,7 +193,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class FormBuilder(BagBuilderBase):
 ...     @element(sub_tags='text,email,password,submit')
@@ -288,7 +288,7 @@ The previous example uses a function. With `@component`, you can make it part of
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element, component
+>>> from genro_builders.builder import BagBuilderBase, element, component
 
 >>> class CardBuilder(BagBuilderBase):
 ...     @element(sub_tags='header,body')

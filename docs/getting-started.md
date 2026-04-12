@@ -78,7 +78,7 @@ Define your own grammar with `@element`:
 
 ```python
 from genro_builders import BagBuilderBase
-from genro_builders.builders import element
+from genro_builders.builder import element
 
 class ConfigBuilder(BagBuilderBase):
     @element(sub_tags='setting')

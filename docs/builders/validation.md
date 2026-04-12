@@ -13,7 +13,7 @@ Use the `sub_tags` parameter in `@element` to specify allowed child tags:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class DocumentBuilder(BagBuilderBase):
 ...     @element(sub_tags='chapter')
@@ -44,7 +44,7 @@ Use `sub_tags='*'` to create container elements that accept any child without va
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class FlexibleBuilder(BagBuilderBase):
 ...     @element(sub_tags='*')  # Accepts ANY children
@@ -103,7 +103,7 @@ Specify minimum and maximum occurrences with bracket syntax:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class PageBuilder(BagBuilderBase):
 ...     @element(sub_tags='header,content,footer[:1]')
@@ -128,7 +128,7 @@ a list of dicts (with keys ``path``, ``tag``, ``reasons``) for every invalid nod
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class ListBuilder(BagBuilderBase):
 ...     @element(sub_tags='item[1:]')  # At least 1 item required
@@ -159,7 +159,7 @@ BagNode : ... at ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class StrictBuilder(BagBuilderBase):
 ...     @element(sub_tags='allowed')
@@ -192,7 +192,7 @@ Use `parent_tags` to specify where an element can be placed. This is the inverse
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class HtmlBuilder(BagBuilderBase):
 ...     @element(sub_tags='li')
@@ -259,7 +259,7 @@ Attribute validation is handled automatically by the builder. Pass attributes as
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class ButtonBuilder(BagBuilderBase):
 ...     @element()
@@ -278,7 +278,7 @@ A complete example with structure constraints:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import BagBuilderBase, element
+>>> from genro_builders.builder import BagBuilderBase, element
 
 >>> class TableBuilder(BagBuilderBase):
 ...     @element(sub_tags='thead[:1],tbody,tfoot[:1]')

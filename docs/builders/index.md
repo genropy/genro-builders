@@ -102,7 +102,7 @@ BagNode : ... at ...
 Define elements using `@element` decorator with empty method bodies:
 
 ```python
-from genro_builders.builders import BagBuilderBase, element
+from genro_builders.builder import BagBuilderBase, element
 
 class MenuBuilder(BagBuilderBase):
     @element(sub_tags='item,separator')

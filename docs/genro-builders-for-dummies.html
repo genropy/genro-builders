@@ -324,7 +324,7 @@
 
 <p>A contact list page &mdash; with a loop, because that's where builders shine over templates:</p>
 
-<pre><code><span class="kw">from</span> genro_builders.builders <span class="kw">import</span> <span class="cls">HtmlBuilder</span>
+<pre><code><span class="kw">from</span> genro_builders.contrib.html <span class="kw">import</span> <span class="cls">HtmlBuilder</span>
 
 contacts = [
     (<span class="str">"Giovanni"</span>, <span class="str">"giovanni@example.com"</span>),
@@ -487,7 +487,7 @@ div.<span class="fn">p</span>(<span class="str">"Inside the div"</span>)</code><
 
 <p>A builder is a machine &mdash; it knows <em>how</em> to build, not <em>what</em>. To define the content declaratively, use a <code class="il">BuilderManager</code>. The three-level hierarchy: manager mixin &rarr; specialized manager &rarr; your app.</p>
 
-<pre><code><span class="kw">from</span> genro_builders.builders <span class="kw">import</span> <span class="cls">MarkdownBuilder</span>
+<pre><code><span class="kw">from</span> genro_builders.contrib.markdown <span class="kw">import</span> <span class="cls">MarkdownBuilder</span>
 <span class="kw">from</span> genro_builders <span class="kw">import</span> <span class="cls">BuilderManager</span>
 
 <span class="kw">class</span> <span class="cls">MdManager</span>(<span class="cls">BuilderManager</span>):
@@ -743,7 +743,7 @@ report = <span class="cls">MyReport</span>()</code></pre>
 <p>A complete custom builder: grammar + renderer + subclass usage.</p>
 
 <pre><code><span class="kw">from</span> genro_builders <span class="kw">import</span> <span class="cls">BagBuilderBase</span>
-<span class="kw">from</span> genro_builders.builders <span class="kw">import</span> <span class="fn">element</span>, <span class="fn">component</span>
+<span class="kw">from</span> genro_builders.builder <span class="kw">import</span> <span class="fn">element</span>, <span class="fn">component</span>
 <span class="kw">from</span> genro_builders.renderer <span class="kw">import</span> <span class="cls">BagRendererBase</span>, <span class="fn">renderer</span>
 
 

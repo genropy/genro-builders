@@ -39,7 +39,7 @@ Concrete builders live in `genro_builders.contrib/`, separate from the core:
 | **SvgBuilder**     | `from genro_builders.contrib.svg import ...`      | SVG      |
 | **XsdBuilder**     | `from genro_builders.contrib.xsd import ...`      | XML      |
 
-The core package (`genro_builders.builder`, `genro_builders.builders`) provides
+The core package (`genro_builders.builder`, `genro_builders.builder`) provides
 only the framework: `BagBuilderBase`, decorators, validators, `SchemaBuilder`.
 Contributed builders depend on the core but are not loaded unless imported.
 

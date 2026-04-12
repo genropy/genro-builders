@@ -274,7 +274,7 @@ classDiagram
 
     class XsdBuilder {
         +_xsd_source: str
-        +_compile(full_validate) str
+        +to_xml(full_validate) str
     }
 
     BagBuilderBase <|-- HtmlBuilder

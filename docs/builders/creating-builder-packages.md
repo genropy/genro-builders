@@ -33,7 +33,7 @@ A builder does **not** know:
 
 ```python
 from genro_builders import BagBuilderBase
-from genro_builders.builders import element, abstract, component
+from genro_builders.builder import element, abstract, component
 
 class RecipeBuilder(BagBuilderBase):
     @abstract(sub_tags="ingredient,step")
@@ -238,7 +238,7 @@ compiler so it activates automatically:
 ```python
 # builder.py
 from genro_builders import BagBuilderBase
-from genro_builders.builders import element, abstract
+from genro_builders.builder import element, abstract
 from genro_builders.renderer import renderer  # or compiler
 
 class MyFormatBuilder(BagBuilderBase):
