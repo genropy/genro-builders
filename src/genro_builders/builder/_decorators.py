@@ -170,55 +170,66 @@ def component(
 ) -> Callable:
     """Decorator to mark a method as component handler.
 
-    Components are composite structures that receive a new Bag, populate it,
-    and return it. The populated bag becomes the node's value.
+    Components are composite structures whose handler receives a fresh
+    Component bag, populates it, and (optionally) returns it.
+    The populated bag becomes the node's value.
 
     Unlike @element, @component REQUIRES a method body (ellipsis not allowed).
-    The handler receives a fresh Bag as first parameter (after self) and
-    should populate it with child elements.
+    All component calls return a ``ComponentProxy`` that delegates to the
+    parent bag for chaining. If ``slots`` are defined, the proxy also
+    exposes slot Bags as attributes.
 
     Args:
         tags: Tag names this component handles. If None, uses method name.
-        sub_tags: Valid child tags AFTER the component is created. Controls
-            return behavior of the component call:
-            - '' (empty string): Closed/leaf component, returns parent bag
-              (for chaining at same level)
-            - defined or None: Open container, returns internal bag
-              (for adding children to the component)
+        sub_tags: Valid child tags AFTER the component is created.
+            Controls **validation** of children added after creation:
+            - ``''`` (empty string): Closed/leaf component — no children
+              can be added after creation.
+            - defined or ``None``: Open container — children matching
+              sub_tags can be added via the returned proxy.
+            All cases return ``ComponentProxy`` wrapping the parent bag.
         parent_tags: Valid parent tags (comma-separated). If specified,
             component can only be placed inside one of these parents.
         builder: Optional builder class for the component's internal bag.
             If not specified, uses the same builder class as parent.
         _meta: Dict of metadata for renderers/compilers.
-        slots: List of named slot names. When present, the component call
-            returns a ComponentProxy with slot Bags accessible as attributes.
+        slots: List of named slot names. When present, the proxy also
+            provides access to slot Bags via attribute access.
             The handler body should return a dict mapping slot names to
             destination Bags where slot content will be mounted.
 
-    Handler signature (without slots):
-        def handler(self, component: Bag, **kwargs) -> None:
-            # 'component' is the component's internal Bag to populate
-            # Body is called ONLY at compile time (lazy expansion)
+    Handler signature (without slots)::
 
-    Handler signature (with slots):
-        def handler(self, component: Bag, **kwargs) -> dict[str, Bag]:
-            # Return dict mapping slot name -> destination Bag
-            # Slot content is mounted into destination Bags at compile time
+        def handler(self, comp: Component, **kwargs) -> Component:
+            # 'comp' is the component's internal bag to populate.
+            # Returning comp is conventional but not required
+            # (the resolver ignores the return value).
+            # Body is called ONLY at compile time (lazy expansion).
 
-    Example - Closed component (sub_tags=''):
+    Handler signature (with slots)::
+
+        def handler(self, comp: Component, **kwargs) -> dict[str, Bag]:
+            # Return dict mapping slot name -> destination Bag.
+            # Slot content is mounted into destination Bags at compile time.
+
+    Example - Closed component (sub_tags='')::
+
         @component(sub_tags='')
-        def login_form(self, component: Bag, **kwargs):
-            component.input(name='username')
-            component.input(name='password')
-            component.button('Login')
+        def login_form(self, comp: Component, **kwargs):
+            comp.input(name='username')
+            comp.input(name='password')
+            comp.button('Login')
+            return comp
 
         page.login_form()
         page.other_element()  # continues at same level
 
-    Example - Open component (sub_tags defined):
+    Example - Open component (sub_tags defined)::
+
         @component(sub_tags='item')
-        def mylist(self, component: Bag, title='', **kwargs):
-            component.header(title=title)
+        def mylist(self, comp: Component, title='', **kwargs):
+            comp.header(title=title)
+            return comp
 
         lst = page.mylist(title='My List')
         lst.item('First')

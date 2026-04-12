@@ -2,6 +2,8 @@
 """Tests for @data_element decorator and data_setter/data_formula/data_controller."""
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from genro_builders.builder import BagBuilderBase, data_element, element
@@ -656,10 +658,9 @@ class TestSuspendResumeOutput:
 class TestDelayAndInterval:
     """Tests for _delay (debounce) and _interval (periodic) parameters."""
 
-    def test_delay_debounces_formula(self):
+    @pytest.mark.asyncio
+    async def test_delay_debounces_formula(self):
         """Formula with _delay does not execute immediately on data change."""
-        import time
-
         builder = TestBuilder()
         builder.data["input"] = 10
         builder.source.data_formula(
@@ -674,13 +675,12 @@ class TestDelayAndInterval:
         # Not yet — delay pending
         assert builder.data["result"] == 20
 
-        time.sleep(0.3)
+        await asyncio.sleep(0.3)
         assert builder.data["result"] == 10
 
-    def test_delay_resets_on_new_change(self):
+    @pytest.mark.asyncio
+    async def test_delay_resets_on_new_change(self):
         """Rapid changes reset the delay — only last value executes."""
-        import time
-
         builder = TestBuilder()
         builder.data["input"] = 1
         builder.source.data_formula(
@@ -693,13 +693,12 @@ class TestDelayAndInterval:
         builder.data["input"] = 3
         builder.data["input"] = 4
         # All within delay window — only last should execute
-        time.sleep(0.3)
+        await asyncio.sleep(0.3)
         assert builder.data["result"] == 40
 
-    def test_interval_periodic_execution(self):
+    @pytest.mark.asyncio
+    async def test_interval_periodic_execution(self):
         """Formula with _interval re-executes periodically."""
-        import time
-
         counter = {"n": 0}
 
         def increment():
@@ -712,13 +711,12 @@ class TestDelayAndInterval:
 
         assert counter["n"] == 1  # Initial execution during build
 
-        time.sleep(0.35)
+        await asyncio.sleep(0.35)
         assert counter["n"] >= 3  # At least 3 interval ticks
 
-    def test_interval_cancelled_on_clear(self):
+    @pytest.mark.asyncio
+    async def test_interval_cancelled_on_clear(self):
         """Interval timer is cancelled when builder is cleared/rebuilt."""
-        import time
-
         counter = {"n": 0}
 
         def increment():
@@ -729,10 +727,10 @@ class TestDelayAndInterval:
         builder.build()
         builder.subscribe()
 
-        time.sleep(0.15)
+        await asyncio.sleep(0.15)
         count_before = counter["n"]
         builder.build()  # Clears timers
-        time.sleep(0.25)
+        await asyncio.sleep(0.25)
         # No more ticks after clear
         assert counter["n"] == count_before + 1  # +1 from rebuild execution
 

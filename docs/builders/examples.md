@@ -8,7 +8,7 @@ Practical examples of builder usage patterns.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> page = BuilderBag(builder=HtmlBuilder)
 >>> html = page.html()
@@ -32,7 +32,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> nav = BuilderBag(builder=HtmlBuilder)
 >>> ul = nav.ul(class_='nav-menu')
@@ -52,7 +52,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> data = [
 ...     {'name': 'Alice', 'role': 'Admin'},
@@ -85,7 +85,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("My Project")  # doctest: +ELLIPSIS
@@ -106,7 +106,8 @@ BagNode : ...
 >>> ul.li("Easy to use")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "# My Project" in md
 True
 >>> "pip install" in md
@@ -117,7 +118,7 @@ True
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("API Reference")  # doctest: +ELLIPSIS
@@ -146,7 +147,8 @@ BagNode : ...
 >>> row.td("The user identifier")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "| Name | Type |" in md
 True
 ```
@@ -225,7 +227,7 @@ BagNode : ...
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 # Create from XSD schema
 invoice = BuilderBag(builder=XsdBuilder, builder_xsd_source='invoice.xsd')
@@ -260,7 +262,7 @@ xml = invoice.to_xml(pretty=True)
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> def create_card(parent, title, content):
 ...     card = parent.div(class_='card')
@@ -317,7 +319,7 @@ The previous example uses a function. With `@component`, you can make it part of
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> def generate_doc(data):
 ...     doc = BuilderBag(builder=MarkdownBuilder)
@@ -341,7 +343,8 @@ The previous example uses a function. With `@component`, you can make it part of
 ... }
 
 >>> doc = generate_doc(content)
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "# User Guide" in md
 True
 >>> "## Getting Started" in md

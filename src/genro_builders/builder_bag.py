@@ -7,16 +7,19 @@ attribute access to the builder.
 
 Example:
     >>> from genro_builders import BuilderBag
-    >>> from genro_builders.builders import HtmlBuilder
+    >>> from genro_builders.contrib.html import HtmlBuilder
     >>> html = BuilderBag(builder=HtmlBuilder)
     >>> html.div(id='main').p(value='Hello')
 """
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from genro_bag import Bag, BagNode
 from genro_toolbox.decorators import extract_kwargs
+
+from .pointer import is_pointer
 
 _BUILDERBAG_PROTECTED = frozenset({"builder", "node_class"})
 
@@ -36,6 +39,12 @@ class BuilderBagNode(BagNode):
         node._get_relative_data(data, '.name')   # relative to this node's datapath
         node._get_relative_data(data, 'user.name')  # absolute
         node._set_relative_data(data, '.name', 'value')
+
+    Properties for resolved access (read-only, always fresh):
+
+        node.runtime_value  — node value with ^pointers resolved
+        node.runtime_attrs  — attributes dict with ^pointers resolved
+                              and callable attributes executed
     """
 
     def __getattr__(self, name: str) -> Any:
@@ -216,6 +225,117 @@ class BuilderBagNode(BagNode):
                 result = part
         return result
 
+    # -------------------------------------------------------------------------
+    # Value resolution (inspired by Genropy's currentFromDatasource pattern)
+    # -------------------------------------------------------------------------
+
+    def current_from_datasource(self, value: Any, data: Bag) -> Any:
+        """Resolve a single value from this node's perspective.
+
+        If value is a ^pointer string, resolves it against data using
+        this node's datapath chain. Otherwise returns as-is.
+        Callable values are NOT resolved here (see evaluate_on_node).
+
+        Mirrors Genropy's ``currentFromDatasource`` on source nodes.
+        """
+        if is_pointer(value):
+            return self._get_relative_data(data, value[1:])
+        return value
+
+    def get_attribute_from_datasource(self, attr_name: str, data: Bag) -> Any:
+        """Resolve a single attribute value from the data store.
+
+        Mirrors Genropy's ``getAttributeFromDatasource``.
+        """
+        value = self.attr.get(attr_name)
+        if value is None:
+            return None
+        return self.current_from_datasource(value, data)
+
+    def evaluate_on_node(self, data: Bag) -> dict[str, Any]:
+        """Resolve all attributes and value in two passes.
+
+        Pass 1: resolve ^pointer strings to values, skip callables.
+        Pass 2: call each callable passing resolved attrs as kwargs
+                (matched by parameter name).
+
+        Returns dict with node_value, attrs, node.
+
+        Mirrors Genropy's ``evaluateOnNode`` pattern where ``==`` formulas
+        were evaluated with other attributes as locals.
+        """
+        raw_value = self.get_value(static=True)
+        resolved_value = self.current_from_datasource(raw_value, data)
+
+        # Pass 1: resolve non-callable attributes
+        resolved: dict[str, Any] = {}
+        callables: dict[str, Any] = {}
+        for k, v in self.attr.items():
+            if callable(v) and not isinstance(v, Bag):
+                callables[k] = v
+            else:
+                resolved[k] = self.current_from_datasource(v, data)
+
+        # Pass 2: execute callables with resolved attrs as context
+        for k, func in callables.items():
+            sig = inspect.signature(func)
+            has_var_keyword = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD
+                for p in sig.parameters.values()
+            )
+            if has_var_keyword:
+                kwargs = {p: resolved[p] for p in resolved if not p.startswith("_")}
+            else:
+                kwargs: dict[str, Any] = {}
+                for pname, param in sig.parameters.items():
+                    if pname in resolved:
+                        # Parameter matches a resolved attribute
+                        kwargs[pname] = resolved[pname]
+                    elif param.default is not inspect.Parameter.empty:
+                        # Parameter has a default — resolve if pointer
+                        kwargs[pname] = self.current_from_datasource(
+                            param.default, data,
+                        )
+            resolved[k] = func(**kwargs)
+
+        return {
+            "node_value": resolved_value,
+            "attrs": resolved,
+            "node": self,
+        }
+
+    def _find_pipeline_builder(self) -> Any:
+        """Walk parent chain to find the pipeline builder that owns data."""
+        bag = self._parent_bag
+        while bag is not None:
+            pb = getattr(bag, "_pipeline_builder", None)
+            if pb is not None:
+                return pb
+            parent_node = getattr(bag, "_parent_node", None)
+            bag = getattr(parent_node, "_parent_bag", None) if parent_node else None
+        return None
+
+    @property
+    def runtime_value(self) -> Any:
+        """Node value with ^pointers resolved and callables executed."""
+        builder = self._find_pipeline_builder()
+        if builder is None:
+            return self.get_value(static=True)
+        return self.evaluate_on_node(builder.data)["node_value"]
+
+    @property
+    def runtime_attrs(self) -> dict[str, Any]:
+        """Attributes with ^pointers resolved and callables executed.
+
+        Excludes ``datapath`` which is a build-infrastructure attribute
+        used for pointer resolution but not part of the element output.
+        """
+        builder = self._find_pipeline_builder()
+        attrs = (dict(self.attr) if builder is None
+                 else self.evaluate_on_node(builder.data)["attrs"])
+        attrs.pop("datapath", None)
+        return attrs
+
 
 class BuilderBag(Bag):
     """Bag with builder support.
@@ -298,3 +418,15 @@ class BuilderBag(Bag):
                 if tag in base:
                     base.add(f"bag_{tag}")
         return sorted(base)
+
+
+class Component(BuilderBag):
+    """The internal bag passed to @component handlers.
+
+    Semantically identical to BuilderBag. Exists as a named type
+    so that component handler signatures read naturally::
+
+        @component(sub_tags='')
+        def login_form(self, comp: Component, **kwargs):
+            comp.input(name='username')
+    """

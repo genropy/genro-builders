@@ -1,34 +1,36 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BagCompilerBase — abstract base class for Bag compilers (live output).
+"""BagCompilerBase — abstract base class for Bag compilers.
 
-A compiler transforms a built Bag into live objects (Textual widgets,
-openpyxl workbooks, etc.). For serialized output (strings, bytes),
-use BagRendererBase instead.
+A compiler transforms a built Bag into live objects (widgets, workbooks,
+PDF elements, etc.). It is a "live" output that depends on a runtime.
+
+Top-down walk with parent:
+    1. handler(self, node, parent) — produce a compiled object
+    2. Recurse children with the handler's result as their parent
+    3. The "two roots" walk in parallel: built Bag + compiled object tree
+
+Handlers read resolved attributes directly from the node:
+    ``node.runtime_value`` — resolved value
+    ``node.runtime_attrs``  — resolved attributes dict
 
 Pointer formali and just-in-time resolution:
-    Like renderers, compilers work with pointer formali: the built Bag
-    retains ``^pointer`` strings verbatim. During ``_walk_compile()``,
-    each node is resolved just-in-time via ``builder._resolve_node()``
-    which returns resolved ``node_value`` and ``attrs``. Compilers
-    produce live objects from the resolved data without modifying
-    the built Bag.
+    The built Bag retains ``^pointer`` strings verbatim (pointer formali).
+    ``runtime_attrs`` / ``runtime_value`` resolve them just-in-time via
+    ``evaluate_on_node(builder.data)``. The compiler works with resolved
+    values without modifying the built Bag.
 
 Decorators:
     @compiler: Mark a method as compile handler for a specific tag.
-               If body is empty (...), uses default_compile with kwargs.
+               If body is empty (...), delegates to compile_node with kwargs.
                If body has logic, the method IS the handler.
 
 Example:
-    >>> class TextualCompiler(BagCompilerBase):
-    ...     @compiler(module="textual.widgets", cls="Button")
-    ...     def button(self): ...           # declarative
-    ...
+    >>> class WidgetCompiler(BagCompilerBase):
     ...     @compiler()
-    ...     def datatable(self, node, ctx):  # logic
-    ...         return build_datatable(node)
-    ...
-    ...     def compile(self, built_bag, target=None):
-    ...         return list(self._walk_compile(built_bag))
+    ...     def button(self, node, parent):
+    ...         btn = Button(label=node.runtime_value)
+    ...         parent.mount(btn)
+    ...         return btn  # becomes parent for children
 """
 from __future__ import annotations
 
@@ -38,6 +40,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 from genro_bag import Bag, BagNode
+
 
 # =============================================================================
 # Decorator
@@ -58,20 +61,17 @@ def _is_empty_body(func: Callable) -> bool:
 def compiler(**kwargs: Any) -> Callable:
     """Decorator to mark a method as compile handler for a tag.
 
-    If the method body is empty (...), default_compile uses the kwargs
-    (e.g. module, cls) to produce output. If the method has logic,
-    it IS the compile handler.
+    If the method body is empty (...), compile_node uses the kwargs
+    to produce output. If the method has logic, it IS the handler:
+    ``handler(self, node, parent)``.
 
     Args:
-        **kwargs: Compile parameters (e.g. module, cls).
+        **kwargs: Compile parameters passed to compile_node.
 
     Example:
-        @compiler(module="textual.widgets", cls="Button")
-        def button(self): ...
-
         @compiler()
-        def datatable(self, node, ctx):
-            return build_datatable(node)
+        def button(self, node, parent):
+            return Button(label=node.runtime_value)
     """
     def decorator(func: Callable) -> Callable:
         func._compiler = True  # type: ignore[attr-defined]
@@ -79,14 +79,6 @@ def compiler(**kwargs: Any) -> Callable:
         func._compiler_empty = _is_empty_body(func)  # type: ignore[attr-defined]
         return func
     return decorator
-
-
-def compile_handler(func: Callable) -> Callable:
-    """Legacy alias: @compile_handler without parentheses."""
-    func._compiler = True  # type: ignore[attr-defined]
-    func._compiler_kwargs = {}  # type: ignore[attr-defined]
-    func._compiler_empty = False  # type: ignore[attr-defined]
-    return func
 
 
 # =============================================================================
@@ -97,14 +89,20 @@ def compile_handler(func: Callable) -> Callable:
 class BagCompilerBase(ABC):
     """Abstract base class for Bag compilers (live output).
 
+    Top-down walk with parent parameter — same pattern as the renderer.
+    Handlers receive ``(self, node, parent)`` and return a compiled object.
+    Children are then compiled with that object as their parent.
+
+    Handlers read resolved data directly from the node:
+
+    - ``node.runtime_value`` — resolved node value
+    - ``node.runtime_attrs`` — resolved attributes dict
+
     Provides:
         - @compiler dispatch: tag-based compilation infrastructure
-        - _walk_compile(), _build_context(), default_compile(): utilities
+        - _walk_compile(), _dispatch_compile(): compilation walk
+        - compile_node(): default fallback
         - compile(): main entry point (subclass must override)
-
-    Subclasses define compile handlers for specific tags using @compiler.
-    Empty-body handlers use default_compile with decorator kwargs.
-    Handlers with logic are called directly.
     """
 
     _class_compile_handlers: dict[str, Callable]
@@ -135,95 +133,77 @@ class BagCompilerBase(ABC):
         self._compile_kwargs = dict(type(self)._class_compile_kwargs)
 
     # -------------------------------------------------------------------------
-    # Compilation (subclass must override)
+    # Compilation
     # -------------------------------------------------------------------------
 
     def compile(self, built_bag: Bag, target: Any = None) -> Any:
-        """Transform built Bag into live objects. Subclass must override.
+        """Compile the built Bag into live objects.
 
-        Args:
-            built_bag: The built Bag to compile.
-            target: Optional target (parent widget, container, etc.).
-                Interpretation depends on the subclass.
+        Subclass must override. Typically calls _walk_compile().
         """
         raise NotImplementedError
 
-    # -------------------------------------------------------------------------
-    # Compilation utilities (for subclass use)
-    # -------------------------------------------------------------------------
+    def _walk_compile(self, bag: Bag, parent: Any = None) -> Iterator[Any]:
+        """Walk bag and compile each node via top-down handler dispatch.
 
-    def _walk_compile(self, bag: Bag) -> Iterator[Any]:
-        """Walk bag and compile each node via handler dispatch."""
+        Args:
+            bag: The Bag to iterate.
+            parent: The parent compiled object, passed to each handler.
+        """
         for node in bag:
-            result = self._compile_node(node)
+            result = self._dispatch_compile(node, parent=parent)
             if result is not None:
                 yield result
 
-    def _compile_node(self, node: BagNode) -> Any | None:
-        """Compile a single node.
+    def _dispatch_compile(self, node: BagNode, parent: Any = None) -> Any | None:
+        """Compile a single node, then recurse into children.
 
-        Resolution order:
-        1. @compiler with logic body → call method
-        2. @compiler with empty body → default_compile with kwargs
-        3. No handler → default_compile with no kwargs
+        Top-down: the handler runs first and returns a compiled object.
+        If the node has children, they are compiled with the handler's
+        result as their parent (two roots walking in parallel).
+
+        Args:
+            node: The built BagNode to compile.
+            parent: The parent compiled object (e.g. Workbook, Widget).
         """
         tag = node.node_tag or node.label
-        ctx = self._build_context(node)
 
         handler = self._compile_handlers.get(tag)
         if handler:
             if getattr(handler, "_compiler_empty", False):
                 ck = self._compile_kwargs.get(tag, {})
-                return self.default_compile(node, ctx, **ck)
-            return handler(self, node, ctx)
-
-        return self.default_compile(node, ctx)
-
-    def _build_context(self, node: BagNode) -> dict[str, Any]:
-        """Build context dict for compile handlers.
-
-        Resolves ^pointer values just-in-time from builder.data.
-        The built node is NOT modified — ^pointer strings stay.
-
-        Context contains:
-            - node_value: The resolved node value (string)
-            - node_label: The node's label
-            - _node: The full BagNode (for advanced access)
-            - children: Compiled children (if node has Bag value)
-            - All resolved node attributes
-        """
-        resolved = self.builder._resolve_node(node, self.builder.data)
-        node_value = resolved["node_value"]
-
-        ctx: dict[str, Any] = {
-            "node_value": "" if node_value is None or isinstance(node_value, Bag) else str(node_value),
-            "node_label": node.label,
-            "_node": node,
-        }
-
-        ctx.update(resolved["attrs"])
-
-        if isinstance(node_value, Bag):
-            ctx["children"] = list(self._walk_compile(node_value))
+                result = self.compile_node(node, parent=parent, **ck)
+            else:
+                result = handler(self, node, parent)
         else:
-            ctx["children"] = []
+            result = self.compile_node(node, parent=parent)
 
-        return ctx
+        # Recurse into children with handler's result as parent
+        node_value = node.get_value(static=True)
+        if isinstance(node_value, Bag):
+            child_parent = result if result is not None else parent
+            list(self._walk_compile(node_value, parent=child_parent))
+
+        return result
 
     # -------------------------------------------------------------------------
     # Default compile
     # -------------------------------------------------------------------------
 
-    def default_compile(
-        self, node: BagNode, ctx: dict[str, Any], **kwargs: Any,
+    def compile_node(
+        self, node: BagNode,
+        parent: Any = None, **kwargs: Any,
     ) -> Any | None:
-        """Default compile with optional kwargs from @compiler decorator.
+        """Default compile — fallback for tags without a @compiler handler.
 
-        Override in subclass for custom default behavior (e.g. widget
-        instantiation from module/cls kwargs).
+        Returns runtime_value if truthy, else None.
+
+        Args:
+            node: The BagNode being compiled.
+            parent: The parent compiled object.
+            **kwargs: Extra parameters from @compiler decorator.
         """
-        if ctx["node_value"]:
-            return ctx["node_value"]
-        if ctx["children"]:
-            return ctx["children"]
+        value = node.runtime_value
+        if value and not isinstance(value, Bag):
+            return value
         return None

@@ -6,14 +6,15 @@ The `MarkdownBuilder` provides elements for building Markdown documents programm
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("My Document")  # doctest: +ELLIPSIS
 BagNode : ... at ...
 >>> doc.p("This is a paragraph.")  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> print(md)
 # My Document
 <BLANKLINE>
@@ -26,7 +27,7 @@ This is a paragraph.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("Title")  # doctest: +ELLIPSIS
@@ -35,7 +36,8 @@ BagNode : ...
 BagNode : ...
 >>> doc.h3("Section")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 # Title
 <BLANKLINE>
 ## Subtitle
@@ -47,12 +49,13 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.code("print('hello')", lang="python")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 ```python
 print('hello')
 ```
@@ -62,7 +65,7 @@ print('hello')
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> table = doc.table()
@@ -76,7 +79,8 @@ BagNode : ...
 BagNode : ...
 >>> row.td("bar")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 | Name | Value |
 | --- | --- |
 | foo | bar |
@@ -88,7 +92,7 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ul = doc.ul()
@@ -98,7 +102,8 @@ BagNode : ...
 BagNode : ...
 >>> ul.li("Third item")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 - First item
 - Second item
 - Third item
@@ -108,7 +113,7 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ol = doc.ol()
@@ -118,7 +123,8 @@ BagNode : ...
 BagNode : ...
 >>> ol.li("Third step")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 1. First step
 2. Second step
 3. Third step
@@ -130,7 +136,7 @@ Use the `idx` parameter for custom markers:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> ol = doc.ol()
@@ -138,7 +144,8 @@ Use the `idx` parameter for custom markers:
 BagNode : ...
 >>> ol.li("Item B", idx="b)")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 a) Item A
 b) Item B
 ```
@@ -147,7 +154,7 @@ b) Item B
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.bold("important")  # doctest: +ELLIPSIS
@@ -158,7 +165,8 @@ BagNode : ...
 BagNode : ...
 >>> doc.inlinecode("code")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 **important**
 <BLANKLINE>
 *emphasis*
@@ -172,12 +180,13 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.blockquote("This is a quote.")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 > This is a quote.
 ```
 
@@ -185,36 +194,37 @@ BagNode : ...
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.img(src="image.png", alt="My Image")  # doctest: +ELLIPSIS
 BagNode : ...
->>> print(doc.builder._compile())
+>>> doc.builder.build()
+>>> print(doc.builder.render())
 ![My Image](image.png)
 ```
 
-## Compile to File
-
-The `_compile()` method can optionally write to a file:
+## Write to File
 
 ```python
+from pathlib import Path
 from genro_builders import BuilderBag
-from genro_builders.builders import MarkdownBuilder
+from genro_builders.contrib.markdown import MarkdownBuilder
 
 doc = BuilderBag(builder=MarkdownBuilder)
 doc.h1("My Document")
 doc.p("Content here.")
 
-# Write to file
-doc.builder._compile(destination="output.md")
+doc.builder.build()
+md = doc.builder.render()
+Path("output.md").write_text(md)
 ```
 
 ## Complete Example
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("Project README")  # doctest: +ELLIPSIS
@@ -235,7 +245,8 @@ BagNode : ...
 >>> ul.li("Feature 2")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "# Project README" in md
 True
 >>> "pip install my-project" in md

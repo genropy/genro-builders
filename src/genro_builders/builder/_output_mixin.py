@@ -99,13 +99,17 @@ class _OutputMixin:
         return self._schema.get_node(name) is not None
 
     def _get_schema_info(self, name: str) -> dict:
-        """Return info dict for an element.
+        """Return info dict for a schema element.
 
-        Returns dict with keys:
-            - adapter_name: str | None
-            - sub_tags: str | None
-            - sub_tags_compiled: dict[str, tuple[int, int]] | None
-            - call_args_validations: dict | None
+        The result is a dict of all schema-node attributes, extended with
+        computed keys. Common keys (presence depends on element type):
+
+            sub_tags, sub_tags_compiled, parent_tags, parent_tags_compiled,
+            call_args_validations, _meta, documentation,
+            handler_name, is_component, is_data_element,
+            component_builder, based_on, slots.
+
+        Results are cached on the schema node after first access.
 
         Raises KeyError if element not in schema.
         """
@@ -174,6 +178,29 @@ class _OutputMixin:
         invalid_nodes: list[tuple[str, BagNode, list[str]]] = []
         self._walk_check(bag, "", invalid_nodes)
         return invalid_nodes
+
+    def validate(self, bag: Bag | None = None) -> list[dict[str, Any]]:
+        """Validate the bag structure, returning a list of validation errors.
+
+        Walks the bag tree and checks every node against its schema
+        constraints (sub_tags, cardinality, parent_tags).
+
+        Args:
+            bag: The Bag to validate. Defaults to the builder's source bag.
+
+        Returns:
+            List of error dicts, each with keys:
+                - ``path``: dot-separated path to the invalid node
+                - ``tag``: the node's tag name
+                - ``reasons``: list of human-readable reason strings
+
+            Empty list means the structure is valid.
+        """
+        raw = self._check(bag)
+        return [
+            {"path": path, "tag": node.node_tag or node.label, "reasons": reasons}
+            for path, node, reasons in raw
+        ]
 
     def _walk_check(
         self,
@@ -270,7 +297,7 @@ class _OutputMixin:
         Returns:
             Markdown string with schema documentation.
         """
-        from ..builders.markdown import MarkdownBuilder
+        from ..contrib.markdown import MarkdownBuilder
 
         md_builder = MarkdownBuilder()
         doc = md_builder.source
@@ -389,7 +416,7 @@ class _OutputMixin:
         info = self._get_schema_info(tag)
         call_args = info.get("call_args_validations") or {}
         template_ctx: dict[str, Any] = {}
-        for param_name, (default, _validators, _type) in call_args.items():
+        for param_name, (_base_type, _validators, default) in call_args.items():
             if default is not None:
                 template_ctx[param_name] = default
         # Override with actual node attributes

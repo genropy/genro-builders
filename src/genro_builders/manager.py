@@ -22,12 +22,23 @@ Lifecycle:
     2. ``setup()``: populate data and source (calls ``store()`` then ``main()``).
     3. ``build()``: materialize all builders (source -> built, two-pass:
        data elements first, then normal elements).
-    4. ``subscribe()``: activate reactive bindings (optional). Enables
-       formula re-execution on data changes, ``_delay`` debounce,
-       ``_interval`` periodic execution, and ``suspend_output`` /
-       ``resume_output`` for batched rendering.
+    4. render/compile: produce output.
 
-Example — single builder:
+For reactive bindings (formula re-execution, _delay, _interval), use
+``ReactiveManager`` which adds ``subscribe()``.
+
+Async-safe: ``build()`` and ``run()`` return None in sync context, or a
+coroutine in async context.  Use ``smartawait`` for transparent handling::
+
+    from genro_toolbox import smartawait
+
+    # Sync — works as before:
+    manager.run()
+
+    # Async — await the coroutine:
+    await smartawait(manager.run())
+
+Example — single builder (HtmlBuilder provides renderers):
     >>> class HtmlManager(BuilderManager):
     ...     def __init__(self):
     ...         self.page = self.set_builder('page', HtmlBuilder)
@@ -73,21 +84,20 @@ Example — multiple builders with shared and private data:
     ...         )
     ...
     >>> stack = InfraStack()
-    >>> stack.setup()
-    >>> stack.build()
-    >>> stack.subscribe()
-    >>> # Change shared data — propagates to all builders
-    >>> stack.reactive_store['domain'] = 'newapp.example.com'
+    >>> stack.run()
+    >>> print(stack.compose.render())
 """
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 from genro_bag import Bag
+from genro_toolbox import smartawait
 
 
 class BuilderManager:
-    """Mixin to coordinate one or more builders with a shared reactive store.
+    """Sync coordinator for one or more builders with a shared data store.
 
     The reactive store is a Bag that holds both shared data (at root level)
     and per-builder private data (under ``builders.<name>``).
@@ -104,10 +114,11 @@ class BuilderManager:
 
         ``build()``: Materializes all builders (source → built).
 
-        ``subscribe()``: Activates reactive bindings (optional).
+    For reactive bindings, use ``ReactiveManager`` instead.
 
-    Subclasses get ``_data`` and ``_builders`` initialized automatically
-    via ``__init_subclass__`` — no ``super().__init__()`` needed.
+    Subclasses get ``_data`` and ``_builders`` initialized automatically:
+    ``__init_subclass__`` wraps ``__init__`` so these are set before the
+    original body runs — no ``super().__init__()`` needed.
     """
 
     __slots__ = ("_data", "_builders")
@@ -218,12 +229,29 @@ class BuilderManager:
             elif len(self._builders) == 1:
                 self.main(builder.source)
 
-    def build(self) -> None:
-        """Materialize all builders: source → built."""
-        for builder in self._builders.values():
-            builder.build()
+    def build(self) -> Any:
+        """Materialize all builders: source -> built.
 
-    def subscribe(self) -> None:
-        """Activate reactive bindings on all builders."""
-        for builder in self._builders.values():
-            builder.subscribe()
+        Returns None when all builders are synchronous, or a coroutine
+        when any builder's build() returns an awaitable.
+        """
+        results = [builder.build() for builder in self._builders.values()]
+        awaitables = [r for r in results if inspect.isawaitable(r)]
+        if not awaitables:
+            return None
+
+        async def await_all():
+            for coro in awaitables:
+                await smartawait(coro)
+
+        return await_all()
+
+    def run(self) -> Any:
+        """Setup and build -- single-call lifecycle.
+
+        Returns None when all builders are synchronous, or a coroutine
+        when any builder's build() returns an awaitable.
+        In async case, caller must: ``await smartawait(manager.run())``.
+        """
+        self.setup()
+        return self.build()

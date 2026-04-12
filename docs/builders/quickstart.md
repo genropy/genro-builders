@@ -55,7 +55,7 @@ For HTML, use the built-in `HtmlBuilder`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(id='content', class_='container')
@@ -86,7 +86,7 @@ Pass attributes as keyword arguments. Use `class_` for the `class` attribute (si
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> a = bag.a(value='Click here', href='https://example.com', target='_blank')
@@ -110,7 +110,7 @@ Understanding when you get a `Bag` vs a `BagNode` is key:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> bag = BuilderBag(builder=HtmlBuilder)
 

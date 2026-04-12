@@ -16,7 +16,7 @@ Expansion happens only during compile() via preprocess().
 import pytest
 
 from genro_bag import Bag as DataBag
-from genro_builders import BagBuilderBase, BagCompilerBase, compile_handler
+from genro_builders import BagBuilderBase, BagCompilerBase
 from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builders import component, element

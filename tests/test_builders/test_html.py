@@ -4,7 +4,7 @@
 import pytest
 
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 
 class TestHtmlBuilder:

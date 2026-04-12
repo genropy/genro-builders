@@ -28,7 +28,7 @@ With a builder, the same structure becomes natural and readable:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(id='main')
 >>> p = div.p(value='Hello World')
@@ -47,7 +47,7 @@ Builders use the **fluent API pattern**: each method returns something you can c
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> # div() returns a Bag (branch) - you can add children
 >>> container = bag.div()
@@ -68,7 +68,7 @@ Every node has both a **label** (unique identifier) and a **tag** (semantic type
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div1 = bag.div()
 >>> div2 = bag.div()
@@ -132,7 +132,7 @@ Complete HTML5 support with 112 tags loaded from W3C schema:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 >>> bag = BuilderBag(builder=HtmlBuilder)
 >>> div = bag.div(id='main')
 >>> div.p(value='Hello World')  # doctest: +ELLIPSIS
@@ -145,13 +145,14 @@ Build Markdown documents programmatically with `compile()` to generate the final
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("My Document")  # doctest: +ELLIPSIS
 BagNode : ...
 >>> doc.p("Introduction paragraph.")  # doctest: +ELLIPSIS
 BagNode : ...
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> "# My Document" in md
 True
 ```
@@ -164,7 +165,7 @@ Dynamic builder from XML Schema (XSD) files - automatically generates methods fo
 
 ```python
 from genro_builders import BuilderBag
-from genro_builders.builders import XsdBuilder
+from genro_builders.contrib.xsd import XsdBuilder
 
 # Use with Bag - pass XSD file path via builder_xsd_source
 invoice = BuilderBag(builder=XsdBuilder, builder_xsd_source='invoice.xsd')
@@ -180,6 +181,8 @@ See [XSD Builder](xsd-builder.md) for complete documentation.
 
 quickstart
 custom-builders
+custom-renderers
+creating-builder-packages
 html-builder
 markdown-builder
 xsd-builder

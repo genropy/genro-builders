@@ -1,0 +1,9 @@
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <title>House Icon</title>
+  <polygon points="60,10 10,60 110,60" fill="#e67e22" />
+  <rect x="25" y="60" width="70" height="50" fill="#f39c12" />
+  <rect x="48" y="75" width="24" height="35" fill="#8e44ad" rx="3" />
+  <rect x="32" y="72" width="14" height="14" fill="#3498db" stroke="#2c3e50" stroke-width="1" />
+  <rect x="74" y="72" width="14" height="14" fill="#3498db" stroke="#2c3e50" stroke-width="1" />
+  <rect x="80" y="25" width="12" height="30" fill="#95a5a6" />
+</svg>

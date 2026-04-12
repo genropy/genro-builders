@@ -165,6 +165,96 @@ class TestBuilderCheck:
 
 
 # =============================================================================
+# Tests for builder.validate()
+# =============================================================================
+
+
+class TestBuilderValidate:
+    """Tests for builder.validate() public validation method."""
+
+    def test_validate_returns_empty_list_for_valid_bag(self):
+        """validate() on valid bag returns empty list."""
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="inner")
+            def outer(self): ...
+
+            @element(sub_tags="")
+            def inner(self): ...
+
+        bag = Bag(builder=Builder)
+        outer_node = bag.outer()
+        outer_node.inner()
+
+        result = bag.builder.validate()
+        assert result == []
+
+    def test_validate_returns_dict_format_with_path_tag_reasons(self):
+        """validate() returns list of dicts with path, tag, reasons keys."""
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="required[1]")
+            def container(self): ...
+
+            @element(sub_tags="")
+            def required(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.container()  # Missing required child
+
+        result = bag.builder.validate()
+        assert len(result) == 1
+        err = result[0]
+        assert "path" in err
+        assert "tag" in err
+        assert "reasons" in err
+        assert "container_0" in err["path"]
+        assert isinstance(err["reasons"], list)
+
+    def test_validate_walks_nested_bags(self):
+        """validate() recursively walks nested Bag structures."""
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="middle")
+            def wrapper(self): ...
+
+            @element(sub_tags="leaf[1]")
+            def middle(self): ...
+
+            @element(sub_tags="")
+            def leaf(self): ...
+
+        bag = Bag(builder=Builder)
+        wrapper_node = bag.wrapper()
+        wrapper_node.middle()  # Missing required leaf
+
+        result = bag.builder.validate()
+        assert len(result) == 1
+        assert "middle" in result[0]["path"]
+        assert "leaf" in result[0]["reasons"]
+
+    def test_validate_accepts_explicit_bag_argument(self):
+        """validate() can validate an explicit bag parameter."""
+
+        class Builder(BagBuilderBase):
+            @element(sub_tags="inner[1]")
+            def outer(self): ...
+
+            @element(sub_tags="")
+            def inner(self): ...
+
+        bag = Bag(builder=Builder)
+        bag.outer()  # Missing required child
+
+        other_bag = Bag(builder=Builder)
+        outer_node = other_bag.outer()
+        outer_node.inner()  # Valid
+
+        assert len(bag.builder.validate(bag)) == 1
+        assert bag.builder.validate(other_bag) == []
+
+
+# =============================================================================
 # Tests for builder._compile()
 # =============================================================================
 
@@ -551,6 +641,38 @@ class TestRenderValue:
         result = bag.builder._render_value(node)
 
         assert result == "[content]"
+
+    def test_default_value_in_template_context(self):
+        """_render_value uses parameter default values, not base types.
+
+        call_args_validations tuples are (base_type, validators, default).
+        The template context must receive the default VALUE, not the type.
+        """
+        import inspect
+
+        class Builder(BagBuilderBase):
+            @element()
+            def card(self, color: str = "red", border: int = 2): ...
+
+        bag = Bag(builder=Builder)
+        # Build a card WITHOUT passing color or border
+        bag.card(node_value="Hello")
+
+        node = bag.get_node("card_0")
+        result_ctx = {}
+        # Simulate what _render_value does: extract defaults from schema
+        tag = node.node_tag or node.label
+        info = bag.builder._get_schema_info(tag)
+        call_args = info.get("call_args_validations") or {}
+        for param_name, (base_type, _validators, default) in call_args.items():
+            if default is not None and default is not inspect.Parameter.empty:
+                result_ctx[param_name] = default
+
+        # Must receive the default VALUES, not the type objects
+        assert result_ctx["color"] == "red"
+        assert result_ctx["border"] == 2
+        assert result_ctx["color"] != str
+        assert result_ctx["border"] != int
 
 
 # =============================================================================

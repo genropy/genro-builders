@@ -13,7 +13,7 @@ This also installs [genro-bag](https://github.com/genropy/genro-bag) as a depend
 ## Create an HTML page
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 body = builder.source.body()
@@ -35,7 +35,7 @@ Output:
 Methods return the created node, so you can nest by chaining or by assigning:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 body = builder.source.body()
@@ -49,7 +49,7 @@ div.p('Another paragraph')
 Pass keyword arguments to set HTML attributes:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 body = builder.source.body()
@@ -60,7 +60,7 @@ body.img(src='logo.png', alt='Logo')
 ## Markdown output
 
 ```python
-from genro_builders.builders import MarkdownBuilder
+from genro_builders.contrib.markdown import MarkdownBuilder
 
 builder = MarkdownBuilder()
 builder.source.h1('My Document')
@@ -99,7 +99,7 @@ A builder is a machine — it knows *how* to build, not *what*. To define
 the content declaratively, use a `BuilderManager`:
 
 ```python
-from genro_builders.builders import MarkdownBuilder
+from genro_builders.contrib.markdown import MarkdownBuilder
 from genro_builders.manager import BuilderManager
 
 class MarkdownManager(BuilderManager):
@@ -141,7 +141,7 @@ Builders support `^pointer` syntax for reactive data binding. After
 calling `subscribe()`, data changes trigger automatic re-render:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 builder.data['title'] = 'Hello'
@@ -163,7 +163,7 @@ Data elements let you define computed and reactive data directly in the source B
 They are processed during `build()` and re-execute automatically after `subscribe()`:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 s = builder.source
@@ -205,7 +205,7 @@ see [Reactive Data](builders/reactive-data.md).
 Assign a unique `node_id` to any element for direct access:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 builder.source.div(node_id='header').h1('Title')

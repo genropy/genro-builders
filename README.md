@@ -11,7 +11,7 @@ pip install genro-builders
 ## Quick start
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 body = builder.source.body()
@@ -26,7 +26,7 @@ print(builder.render())
 A builder is a machine. To define *what* to build, use a `BuilderManager`:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.manager import BuilderManager
 
 class HtmlManager(BuilderManager):
@@ -67,7 +67,7 @@ print(page.render())
 - **Output suspension** — `suspend_output()` / `resume_output()` to batch data changes and trigger a single render
 - **Pointer formali** — The built Bag retains `^pointer` strings; resolution happens just-in-time during render/compile, not during build
 - **Named slots** — Components can declare insertion points (`slots=['left', 'right']`) for user content injection
-- **Built-in builders** — HTML5, Markdown, XSD (schema-driven XML)
+- **Contributed builders** — HTML5, Markdown, SVG, XSD in `genro_builders.contrib` (optional, not loaded unless imported)
 - **Multi-builder coordination** — `BuilderManager` coordinates multiple builders with a shared data store
 - **Renderers and compilers** — `@renderer` for serialized output (HTML, Markdown), `@compiler` for live objects (widgets, workbooks)
 - **Node identification** — `node_id` attribute for O(1) lookup via `node_by_id()`
@@ -99,7 +99,7 @@ store + main          two-pass walk:           activate            output
 Data elements let you define computed and reactive data directly in the source Bag:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 s = builder.source

@@ -9,7 +9,7 @@ Builder system for [genro-bag](https://github.com/genropy/genro-bag) — grammar
 A builder defines a **domain-specific grammar** for creating structured Bag hierarchies. Instead of manually constructing nodes, you call named methods that enforce structure and validation:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 body = builder.source.body()
@@ -31,13 +31,16 @@ print(builder.render())
 - **BagCompilerBase** — Transforms a built Bag into live objects (widgets, workbooks) via `@compiler` handlers.
 - **BuilderManager** — Mixin to coordinate one or more builders with a shared reactive data store. Provides `setup()`, `build()`, and `subscribe()`.
 
-## Built-in Builders
+## Contributed Builders
 
-| Builder | Output | Description |
-|---------|--------|-------------|
-| **HtmlBuilder** | HTML5 | Full W3C HTML5 schema with validation |
-| **MarkdownBuilder** | Markdown | Headings, paragraphs, lists, tables, code blocks |
-| **XsdBuilder** | XML | Schema-driven XML from XSD files |
+Available in `genro_builders.contrib`:
+
+| Builder              | Import                                                        | Output   |
+| -------------------- | ------------------------------------------------------------- | -------- |
+| **HtmlBuilder**      | `from genro_builders.contrib.html import HtmlBuilder`         | HTML5    |
+| **MarkdownBuilder**  | `from genro_builders.contrib.markdown import MarkdownBuilder` | Markdown |
+| **SvgBuilder**       | `from genro_builders.contrib.svg import SvgBuilder`           | SVG      |
+| **XsdBuilder**       | `from genro_builders.contrib.xsd import XsdBuilder`           | XML      |
 
 ## Lifecycle
 
@@ -53,7 +56,7 @@ store + main         source → built     activate            output
 4. **render() / compile()** — produce output with just-in-time `^pointer` resolution (pointer formali)
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 builder.data['title'] = 'Hello'
@@ -88,10 +91,11 @@ getting-started
 
 builders/README
 builders/quickstart
+builders/custom-builders
 builders/html-builder
 builders/markdown-builder
+builders/svg-builder
 builders/xsd-builder
-builders/custom-builders
 builders/reactive-data
 builders/validation
 builders/advanced

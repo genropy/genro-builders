@@ -1,0 +1,15 @@
+<svg width="200" height="160" viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feOffset dx="4" dy="4" result="offsetBlur" />
+      <feMerge>
+        <feMergeNode in_="offsetBlur" />
+        <feMergeNode in_="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <rect x="30" y="20" width="140" height="100" rx="8" fill="white" stroke="#ddd" stroke-width="1" filter="url(#shadow)" />
+  <text x="100" y="60" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">Card Title</text>
+  <text x="100" y="85" text-anchor="middle" font-size="12" fill="#999">With drop shadow</text>
+</svg>

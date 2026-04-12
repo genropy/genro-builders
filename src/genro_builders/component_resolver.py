@@ -80,9 +80,9 @@ class ComponentResolver(BagResolver):
             # Resolve parent component first
             comp_bag = self._resolve_parent(based_on, builder_instance, kwargs)
         else:
-            from .builder_bag import BuilderBag
+            from .builder_bag import Component
 
-            comp_bag = BuilderBag(builder=builder_class)
+            comp_bag = Component(builder=builder_class)
             comp_bag._skip_parent_validation = True
 
         # Call the current handler
@@ -124,7 +124,7 @@ class ComponentResolver(BagResolver):
         self, based_on: str, builder_instance: Any, kwargs: dict[str, Any],
     ) -> Bag:
         """Resolve the parent component, handling recursive based_on chains."""
-        from .builder_bag import BuilderBag
+        from .builder_bag import Component
 
         parent_info = builder_instance._get_schema_info(based_on)
         parent_handler_name = parent_info.get("handler_name")
@@ -136,7 +136,7 @@ class ComponentResolver(BagResolver):
             # Recursive: parent is also based on another component
             comp_bag = self._resolve_parent(parent_based_on, builder_instance, kwargs)
         else:
-            comp_bag = BuilderBag(builder=parent_builder_class)
+            comp_bag = Component(builder=parent_builder_class)
             comp_bag._skip_parent_validation = True
 
         if parent_handler:

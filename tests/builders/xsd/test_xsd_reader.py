@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders.builders.xsd.xsd_reader import XsdReader
+from genro_builders.contrib.xsd.xsd_reader import XsdReader
 
 # =============================================================================
 # Fixtures

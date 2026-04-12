@@ -7,12 +7,14 @@ the BindingManager handles data change notifications and signals
 re-render (without modifying the built Bag — pointers stay formal).
 
 3-level propagation:
-    When a data node changes, the BindingManager resolves every affected
-    built entry and fires the ``on_node_updated`` callback with a
-    ``trigger_reason`` that distinguishes between:
-    1. **node** — the exact data node that changed.
-    2. **container** — a parent Bag that contains the changed node.
-    3. **child** — a child path under the changed node.
+    When a data node changes, the BindingManager determines which
+    subscribed entries are affected using an internal classification:
+    1. **node** — the exact data path that changed.
+    2. **container** — the changed path is an ancestor of the watched path.
+    3. **child** — the changed path is a descendant of the watched path.
+
+    All three levels trigger notification. The ``on_node_updated``
+    callback receives only the affected BagNode, not the reason.
 
 Subscription map structure (flat, string-only):
     {data_key -> [built_entry, ...]}
@@ -24,7 +26,7 @@ Where:
               to indicate where to write the value
               (e.g., ``'heading_0'``, ``'widget_2?bg'``)
 
-Pointer formali:
+Formal pointers:
     The built Bag retains ``^pointer`` strings verbatim. Resolution
     happens just-in-time during render/compile via
     ``BagBuilderBase._resolve_node()``. The BindingManager only

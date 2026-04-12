@@ -9,7 +9,7 @@
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> # Plain Bag - no structure rules
 >>> plain = Bag()
@@ -28,7 +28,7 @@ Elements without children (leaves) return the BagNode itself.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> html = BuilderBag(builder=HtmlBuilder)
 >>> div = html.div()  # Container - returns Bag
@@ -44,7 +44,7 @@ Elements without children (leaves) return the BagNode itself.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> html = BuilderBag(builder=HtmlBuilder)
 >>> p = html.p(value='Hello')
@@ -56,7 +56,7 @@ Elements without children (leaves) return the BagNode itself.
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> html = BuilderBag(builder=HtmlBuilder)
 >>> div = html.div(id='main', class_='container')
@@ -73,7 +73,7 @@ Auto-generated labels use `tag_index` format for uniqueness:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div()  # doctest: +ELLIPSIS
@@ -90,7 +90,7 @@ Use `node_label`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div(node_label='header')  # doctest: +ELLIPSIS
@@ -107,7 +107,7 @@ Use `node_label`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div()  # doctest: +ELLIPSIS
@@ -155,7 +155,7 @@ True
 
 ### How do I check for errors after building?
 
-Use `builder._check()`:
+Use `builder.validate()`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
@@ -170,7 +170,7 @@ Use `builder._check()`:
 >>> bag = BuilderBag(builder=MyBuilder)
 >>> p = bag.parent()
 
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> errors
 []
 ```
@@ -187,7 +187,7 @@ Use `bag.to_xml()`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import HtmlBuilder
+>>> from genro_builders.contrib.html import HtmlBuilder
 
 >>> html = BuilderBag(builder=HtmlBuilder)
 >>> html.div().p(value='Hello')  # doctest: +ELLIPSIS
@@ -202,11 +202,11 @@ BagNode : ...
 
 ### How do I generate Markdown?
 
-Use `builder._compile()`:
+Use `build()` + `render()`:
 
 ```{doctest}
 >>> from genro_builders import BuilderBag
->>> from genro_builders.builders import MarkdownBuilder
+>>> from genro_builders.contrib.markdown import MarkdownBuilder
 
 >>> doc = BuilderBag(builder=MarkdownBuilder)
 >>> doc.h1("Title")  # doctest: +ELLIPSIS
@@ -214,7 +214,8 @@ BagNode : ...
 >>> doc.p("Content")  # doctest: +ELLIPSIS
 BagNode : ...
 
->>> md = doc.builder._compile()
+>>> doc.builder.build()
+>>> md = doc.builder.render()
 >>> print(md)
 # Title
 <BLANKLINE>

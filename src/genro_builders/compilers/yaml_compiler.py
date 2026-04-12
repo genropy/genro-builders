@@ -1,39 +1,37 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""YamlRendererBase — render a built Bag into a YAML-compatible dict.
+"""YamlRendererBase — render a built Bag into a YAML string.
 
-Extends BagRendererBase with YAML-specific rendering: walk a built Bag
-tree and produce a dict suitable for ``yaml.dump()``.
+Uses the standard top-down walk with a dict as parent. Each handler
+receives ``(self, node, parent)`` — same signature as all other renderers.
+Handlers read resolved data from ``node.runtime_value`` and
+``node.runtime_attrs``. Children recurse into the same or a nested dict.
 
-For each node with tag T, calls ``builder.compile_T(node, result)``.
-If no compile method exists, falls back to ``compile_default()``
-(tag as key, attrs + children as value).
-
-Subclasses override ``_render_attr_entry()`` for tool-specific attribute
+Tag-specific handlers use @renderer, same as other renderers.
+Subclasses override _render_attr_entry() for tool-specific attribute
 rendering (e.g. nested attrs for Traefik, flat for Compose).
 
 Example:
-    >>> class MyYamlRenderer(YamlRendererBase):
-    ...     def render(self, built_bag):
-    ...         import yaml
-    ...         root = next(iter(built_bag))
-    ...         data = self.compile_to_dict(root, self.builder)
-    ...         return yaml.dump(data, default_flow_style=False)
+    >>> class TraefikRenderer(YamlRendererBase):
+    ...     @renderer()
+    ...     def router(self, node, parent):
+    ...         parent["http.routers"] = node.runtime_value
 """
 from __future__ import annotations
 
 import copy
 from typing import Any
 
+import yaml
 from genro_bag import Bag
 
 from genro_builders.renderer import BagRendererBase
 
 
 class YamlRendererBase(BagRendererBase):
-    """YAML renderer — walk a built Bag and produce a dict.
+    """YAML renderer — top-down walk with dict as parent.
 
-    BagBuilderBase handles: component expansion, ^pointer resolution.
-    This class handles: walk-to-dict, compile_TAG dispatch, attr rendering.
+    The parent is a dict. Each node adds its tag as key with resolved
+    attributes and children as value. Duplicate keys are merged.
     """
 
     def __init__(self, builder: Any = None) -> None:
@@ -42,85 +40,81 @@ class YamlRendererBase(BagRendererBase):
         else:
             self.builder = None
             self._render_handlers = dict(type(self)._class_render_handlers)
+            self._render_kwargs = dict(type(self)._class_render_kwargs)
 
-    def compile_to_dict(self, root_node: Any, builder: Any) -> dict[str, Any]:
-        """Compile a BagNode root to a YAML-compatible dict.
-
-        Args:
-            root_node: The root BagNode (or Bag) to compile.
-            builder: The builder instance for compile_TAG dispatch.
-
-        Returns:
-            Dict ready for yaml.dump().
-        """
-        root_value = root_node.value if hasattr(root_node, "value") else root_node
+    def render(self, built_bag: Bag, output: Any = None) -> str:
+        """Render built Bag to YAML string."""
+        root = next(iter(built_bag), None)
+        if root is None:
+            return ""
+        root_value = root.value if hasattr(root, "value") else root
         if not isinstance(root_value, Bag):
-            return {}
-        return self.walk(root_value, builder)
-
-    def walk(self, bag: Bag, builder: Any) -> dict[str, Any]:
-        """Walk a Bag and compile each child node.
-
-        Args:
-            bag: The Bag to walk.
-            builder: The builder instance for compile_TAG dispatch.
-
-        Returns:
-            Dict with compiled entries.
-        """
+            return ""
         result: dict[str, Any] = {}
-        for node in bag:
-            tag = node.node_tag or node.label
-            method = self._get_compile_method(builder, tag)
-            if method:
-                method(node, result)
-            else:
-                self.compile_default(node, result, builder)
-        return result
+        self._walk_render(root_value, parent=result)
+        return yaml.dump(result, default_flow_style=False, allow_unicode=True)
 
-    def compile_default(self, node: Any, result: dict[str, Any],
-                        builder: Any) -> None:
-        """Default: use tag as YAML key, dump attrs + children.
-
-        Args:
-            node: The BagNode to compile.
-            result: Dict to populate.
-            builder: The builder instance.
-        """
+    def _dispatch_render(self, node: Any, parent: Any) -> None:
+        """Render a single node into the parent dict."""
         tag = node.node_tag or node.label
-        content = self.render_attrs(node, builder)
-        result[tag] = content
 
-    def render_attrs(self, node: Any, builder: Any) -> dict[str, Any]:
-        """Render node attributes and children into a dict.
+        handler = self._render_handlers.get(tag)
+        if handler:
+            handler(self, node, parent)
+        else:
+            self._render_default(node, tag, parent)
 
-        Skips private attrs (``_`` prefix), ``name``, ``datapath``,
-        and None values.
+        # Children: recurse into a nested dict that becomes the value
+        node_value = node.get_value(static=True)
+        if isinstance(node_value, Bag):
+            # Get or create the dict for this tag's content
+            content = parent.get(tag)
+            if isinstance(content, dict):
+                self._walk_render(node_value, parent=content)
+            else:
+                child_dict: dict[str, Any] = {}
+                self._walk_render(node_value, parent=child_dict)
+                if child_dict:
+                    if isinstance(content, dict):
+                        content.update(child_dict)
+                    else:
+                        parent[tag] = child_dict
 
-        Args:
-            node: The BagNode to render.
-            builder: The builder instance for recursive walk.
+    def _walk_render(self, bag: Any, parent: Any = None) -> Any:
+        """Walk bag nodes into the parent dict."""
+        if parent is None:
+            parent = {}
+        for node in bag:
+            self._dispatch_render(node, parent)
+        return parent
 
-        Returns:
-            Dict of rendered attributes and children.
+    def _render_default(self, node: Any, tag: str,
+                        parent: dict[str, Any]) -> None:
+        """Default: tag as YAML key, resolved attrs as value.
+
+        Reads ``node.runtime_attrs`` (same as all other renderers),
+        filters infrastructure keys, and passes each attribute through
+        ``_render_attr_entry`` for subclass-specific transformations.
         """
-        result: dict[str, Any] = {}
+        if hasattr(node, "runtime_attrs") and self.builder is not None:
+            attrs = node.runtime_attrs
+        else:
+            attrs = dict(node.attr)
 
-        for attr_name, attr_value in node.attr.items():
-            if attr_name.startswith("_") or attr_name in ("name", "datapath"):
+        content: dict[str, Any] = {}
+        for attr_name, attr_value in attrs.items():
+            if attr_name.startswith("_"):
                 continue
             if attr_value is None:
                 continue
             if isinstance(attr_value, (dict, list)):
                 attr_value = copy.deepcopy(attr_value)
-            self._render_attr_entry(attr_name, attr_value, result)
+            self._render_attr_entry(attr_name, attr_value, content)
 
-        node_value = node.get_value(static=True)
-        if isinstance(node_value, Bag):
-            children = self.walk(node_value, builder)
-            result.update(children)
-
-        return result
+        if tag in parent and isinstance(parent[tag], dict) and isinstance(content, dict):
+            parent[tag].update(content)
+        else:
+            parent[tag] = content if content else None
 
     def _render_attr_entry(self, attr_name: str, value: Any,
                            result: dict[str, Any]) -> None:
@@ -128,21 +122,8 @@ class YamlRendererBase(BagRendererBase):
 
         Override in subclasses for tool-specific rendering
         (e.g. nested keys for Traefik, flat for Compose).
-
-        Args:
-            attr_name: The attribute name.
-            value: The attribute value.
-            result: Dict to add the entry to.
         """
         result[attr_name] = self._to_yaml_value(value)
-
-    def _get_compile_method(self, builder: Any, tag: str) -> Any:
-        """Find compile_TAG on the builder, bypassing __getattr__."""
-        for cls in type(builder).__mro__:
-            method = cls.__dict__.get(f"compile_{tag}")
-            if method is not None:
-                return method.__get__(builder)
-        return None
 
     def _to_yaml_value(self, value: Any) -> Any:
         """Convert Python value to YAML-friendly value.

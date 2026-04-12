@@ -193,7 +193,7 @@ for data in large_dataset:
     parent.item(data)
 
 # Validate once at the end:
-errors = builder._check()
+errors = builder.validate()
 ```
 
 ## Real-World Example: Config Builder
@@ -232,7 +232,7 @@ errors = builder._check()
 BagNode : ... at ...
 
 >>> # Validate structure
->>> errors = bag.builder._check()
+>>> errors = bag.builder.validate()
 >>> errors
 []
 
@@ -254,7 +254,7 @@ for the full guide.
 When formulas depend on each other, they execute in topological order:
 
 ```python
-from genro_builders.builders import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilder
 
 builder = HtmlBuilder()
 s = builder.source
@@ -290,9 +290,19 @@ print(builder.output)
 
 ### Computed Attributes
 
-Callable attributes with `^pointer` defaults are resolved just-in-time:
+Callable attributes are resolved via 2-pass evaluation on the node.
+In pass 1 all `^pointer` attributes are resolved to values. In pass 2,
+callables are called with matching resolved attributes as kwargs:
 
 ```python
+# Callable that uses other resolved attributes
+s.body().div(
+    price="^item.price",
+    qty=3,
+    total=lambda price, qty: price * qty,
+)
+
+# Callable with ^pointer defaults (resolved from data store)
 s.body().div(
     style=lambda bg='^theme.bg', fg='^theme.fg': f'background:{bg};color:{fg}',
 )

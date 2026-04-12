@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BagCompilerBase — rendering via @compile_handler dispatch.
+"""Tests for BagCompilerBase — rendering via @compiler() dispatch.
 
 Build walk is now in BagBuilderBase._build_walk(). These tests verify
 the compiler's rendering infrastructure and the full build+render pipeline.
@@ -8,35 +8,43 @@ from __future__ import annotations
 
 from genro_bag import Bag
 
-from genro_builders import BagBuilderBase, BagCompilerBase, compile_handler
+from genro_builders import BagBuilderBase, BagCompilerBase
+from genro_builders.compiler import compiler
 from genro_builders.binding import BindingManager
 from genro_builders.builder_bag import BuilderBag
 from genro_builders.builders import component, element
 
 # =============================================================================
-# Test compiler with @compile_handler for rendering
+# Test compiler with @compiler() for rendering
 # =============================================================================
 
 
 class TagCompiler(BagCompilerBase):
-    """Compiler with @compile_handler methods for tag-based rendering."""
+    """Compiler with @compiler() methods — handler(self, node, parent)."""
 
-    @compile_handler
-    def heading(self, node, ctx):
-        return f"# {ctx['node_value']}"
+    @compiler()
+    def heading(self, node, parent):
+        return f"# {node.runtime_value or ''}"
 
-    @compile_handler
-    def text(self, node, ctx):
-        return ctx["node_value"]
+    @compiler()
+    def text(self, node, parent):
+        return str(node.runtime_value or "")
 
-    @compile_handler
-    def container(self, node, ctx):
-        children = "\n".join(str(c) for c in ctx["children"]) if ctx["children"] else ""
-        return f"[{children}]" if children else "[]"
+    @compiler()
+    def container(self, node, parent):
+        node_value = node.get_value(static=True)
+        if isinstance(node_value, Bag):
+            children = list(self._walk_compile(node_value, parent=parent))
+            return f"[{chr(10).join(str(c) for c in children)}]"
+        return "[]"
 
-    @compile_handler
-    def section(self, node, ctx):
-        return "\n".join(str(c) for c in ctx["children"]) if ctx["children"] else ""
+    @compiler()
+    def section(self, node, parent):
+        node_value = node.get_value(static=True)
+        if isinstance(node_value, Bag):
+            children = list(self._walk_compile(node_value, parent=parent))
+            return "\n".join(str(c) for c in children)
+        return ""
 
     def render(self, compiled_bag):
         """Render using _walk_compile dispatch."""
@@ -142,10 +150,10 @@ class TestBuildWalkPopulatesTarget:
 
 
 class TestRendering:
-    """Tests for tag-based rendering via @compile_handler."""
+    """Tests for tag-based rendering via @compiler()."""
 
     def test_render_with_handlers(self):
-        """@compile_handler methods render tags."""
+        """@compiler() methods render tags."""
         bag = BuilderBag(builder=TagBuilder)
         bag.heading("Hello")
         bag.text("World")
@@ -207,8 +215,8 @@ class TestDefaultCompile:
 
         assert "raw text" in result
 
-    def test_default_compile_returns_children(self):
-        """default_compile returns children list if value is empty."""
+    def test_default_compile_recurses_children(self):
+        """Default compile_node recurses — children get compiled too."""
 
         class NestBuilder(BagBuilderBase):
             @element(sub_tags="inner")
@@ -217,8 +225,13 @@ class TestDefaultCompile:
             @element()
             def inner(self): ...
 
+        collected = []
+
         class Compiler(BagCompilerBase):
-            pass
+            def compile_node(self, node, parent=None, **kwargs):
+                value = str(node.runtime_value or "")
+                collected.append(value)
+                return value or None
 
         NestBuilder._compiler_class = Compiler
 
@@ -228,24 +241,21 @@ class TestDefaultCompile:
 
         target = BuilderBag(builder=NestBuilder)
         bag.builder._build_walk(bag, target, Bag(), BindingManager())
-        compiler = Compiler(bag.builder)
+        comp = Compiler(bag.builder)
 
-        # default_compile returns children list for parent nodes
-        results = list(compiler._walk_compile(target))
-        # outer's default_compile returns ["child content"] (list of children)
-        assert any("child content" in str(r) for r in results)
+        list(comp._walk_compile(target))
+        # Both outer (empty value) and inner ("child content") get visited
+        assert "child content" in collected
 
     def test_default_compile_empty_node(self):
-        """Empty node (no value, no children) produces nothing."""
+        """Empty node (no value, no children) returns None."""
 
         class EmptyBuilder(BagBuilderBase):
             @element()
             def empty(self): ...
 
         class Compiler(BagCompilerBase):
-            def render(self, compiled_bag):
-                parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(str(p) for p in parts if p)
+            pass
 
         EmptyBuilder._compiler_class = Compiler
 
@@ -254,10 +264,10 @@ class TestDefaultCompile:
 
         target = BuilderBag(builder=EmptyBuilder)
         bag.builder._build_walk(bag, target, Bag(), BindingManager())
-        compiler = Compiler(bag.builder)
-        result = compiler.render(target)
+        comp = Compiler(bag.builder)
+        results = list(comp._walk_compile(target))
 
-        assert result == ""
+        assert results == []  # compile_node returns None for empty node
 
 
 # =============================================================================

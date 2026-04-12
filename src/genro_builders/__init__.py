@@ -23,24 +23,27 @@ Core classes:
     BuilderBag: Bag subclass with grammar-first attribute resolution.
     BagRendererBase: Transform built Bag into serialized output (text, bytes).
     BagCompilerBase: Transform built Bag into live objects (widgets, etc.).
-    BuilderManager: Mixin to coordinate builders with shared data.
-        Provides setup (store -> main), build, and subscribe.
+    BuilderManager: Sync coordinator for builders with shared data.
+        Provides setup (store -> main), build, and run.
+    ReactiveManager: Extends BuilderManager with subscribe() for
+        reactive bindings (formula re-execution, _delay, _interval).
     BindingManager: Reactive ^pointer subscription map with 3-level
         propagation (node / container / child).
 """
 
 from genro_builders.binding import BindingManager
 from genro_builders.builder import BagBuilderBase
-from genro_builders.builder_bag import BuilderBag, BuilderBagNode
-from genro_builders.compiler import BagCompilerBase, compile_handler
-from genro_builders.compilers import YamlCompilerBase, YamlRendererBase
+from genro_builders.builder_bag import BuilderBag, BuilderBagNode, Component
+from genro_builders.compiler import BagCompilerBase, compiler
+from genro_builders.compilers import YamlRendererBase
 from genro_builders.component_proxy import ComponentProxy
 from genro_builders.component_resolver import ComponentResolver
 from genro_builders.manager import BuilderManager
 from genro_builders.pointer import PointerInfo, is_pointer, parse_pointer
-from genro_builders.renderer import BagRendererBase, render_handler
+from genro_builders.reactive_manager import ReactiveManager
+from genro_builders.renderer import BagRendererBase, renderer
 
-__version__ = "0.10.2"
+__version__ = "0.15.0"
 
 __all__ = [
     "BagBuilderBase",
@@ -50,13 +53,14 @@ __all__ = [
     "BuilderBag",
     "BuilderBagNode",
     "BuilderManager",
+    "ReactiveManager",
+    "Component",
     "ComponentProxy",
     "ComponentResolver",
     "PointerInfo",
-    "YamlCompilerBase",
     "YamlRendererBase",
-    "compile_handler",
+    "compiler",
     "is_pointer",
-    "render_handler",
     "parse_pointer",
+    "renderer",
 ]
