@@ -112,29 +112,29 @@ class TestSchemaBuilderItem:
         assert schema.get_node("unknown") is None
 
 
-class TestSchemaBuilderCompile:
-    """Tests for SchemaBuilder._compile() round-trip."""
+class TestSchemaBuilderSaveSchema:
+    """Tests for SchemaBuilder.save_schema() round-trip."""
 
-    def test_compile_creates_file(self, tmp_path):
-        """_compile() creates a .bag.mp file."""
+    def test_save_schema_creates_file(self, tmp_path):
+        """save_schema() creates a .bag.mp file."""
         schema = Bag(builder=SchemaBuilder)
         schema.builder.item("doc", sub_tags="section,paragraph")
         schema.builder.item("section", sub_tags="paragraph")
         schema.builder.item("paragraph")
 
         dest = tmp_path / "schema.bag.mp"
-        schema.builder._compile(dest)
+        schema.builder.save_schema(dest)
         assert dest.exists()
         assert dest.stat().st_size > 0
 
-    def test_compile_preserves_attributes(self, tmp_path):
-        """Compiled schema preserves element attributes."""
+    def test_save_schema_preserves_attributes(self, tmp_path):
+        """Saved schema preserves element attributes."""
         schema = Bag(builder=SchemaBuilder)
         schema.builder.item("doc", sub_tags="section", documentation="The root.")
         schema.builder.item("section", parent_tags="doc")
 
         dest = tmp_path / "schema.bag.mp"
-        schema.builder._compile(dest)
+        schema.builder.save_schema(dest)
 
         # Reload and verify attributes survived
         from genro_bag import Bag as RawBag

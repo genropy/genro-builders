@@ -19,6 +19,7 @@ from typing import (
     Annotated,
     Any,
     Literal,
+    Union,
     get_args,
     get_origin,
     get_type_hints,
@@ -39,8 +40,6 @@ def _split_annotated(tp: Any) -> tuple[Any, list]:
         return base, validators
 
     # Handle Optional[Annotated[...]] -> Union[Annotated[...], None]
-    from typing import Union
-
     if get_origin(tp) is Union:
         args = get_args(tp)
         # Check if it's Optional (Union with NoneType)
@@ -78,13 +77,8 @@ def _check_type(value: Any, tp: Any) -> bool:
     if origin is types.UnionType:
         return any(_check_type(value, t) for t in args)
 
-    try:
-        from typing import Union
-
-        if origin is Union:
-            return any(_check_type(value, t) for t in args)
-    except ImportError:
-        pass
+    if origin is Union:
+        return any(_check_type(value, t) for t in args)
 
     if origin is None:
         if tp is float and isinstance(value, numbers.Number):

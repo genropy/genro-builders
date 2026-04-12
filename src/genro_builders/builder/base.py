@@ -72,7 +72,6 @@ class BagBuilderBase(
 
     _class_schema: Bag  # Schema built from decorators at class definition
     _schema_path: str | Path | None = None  # Default schema path (class attribute)
-    _compiler_class: type | None = None  # Legacy: default compiler class
     _renderers: ClassVar[dict[str, type]] = {}  # Named renderer classes
     _compilers: ClassVar[dict[str, type]] = {}  # Named compiler classes
 
@@ -236,12 +235,6 @@ class BagBuilderBase(
                 name: cls(self) for name, cls in type(self)._compilers.items()
             }
 
-            # Legacy: _compiler_class -> single compiler instance
-            compiler_cls = getattr(type(self), "_compiler_class", None)
-            if compiler_cls:
-                self._compiler_instance = compiler_cls(self)
-            else:
-                self._compiler_instance = None
 
     # -----------------------------------------------------------------------
     # Built-in data elements

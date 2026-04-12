@@ -1,12 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Output mixin: render, compile, schema access, documentation.
+"""Output mixin: render, compile, schema access, validation.
 
-Handles all output-producing methods: ``render()`` / ``compile()`` dispatch
-to named renderer/compiler instances, ``_compile()`` legacy fallback,
-``_schema_to_md()`` documentation generation, ``_check()`` /
-``_walk_check()`` validation report, and schema introspection
-(``__contains__``, ``_get_schema_info``, ``__iter__``, ``__repr__``,
-``__str__``).
+Handles output methods: ``render()`` / ``compile()`` dispatch to named
+renderer/compiler instances, ``_check()`` / ``_walk_check()`` validation
+report, ``_schema_to_md()`` documentation generation, and schema
+introspection (``__contains__``, ``_get_schema_info``, ``__iter__``,
+``__repr__``, ``__str__``).
 """
 
 from __future__ import annotations
@@ -48,14 +47,8 @@ class _OutputMixin:
         instance = self._get_output("renderer", self._renderer_instances, name)
         if instance is not None:
             return instance.render(built_bag, output=output)
-        # Legacy fallback: _compiler_instance
-        if self._compiler_instance is not None:
-            if hasattr(self._compiler_instance, "render"):
-                return self._compiler_instance.render(built_bag)
-            parts = list(self._compiler_instance._walk_compile(built_bag))
-            return "\n\n".join(p for p in parts if p)
         raise RuntimeError(
-            f"{type(self).__name__} has no renderer or compiler for rendering."
+            f"{type(self).__name__} has no renderer registered."
         )
 
     def compile(
@@ -218,68 +211,6 @@ class _OutputMixin:
             node_value = node.get_value(static=True)
             if isinstance(node_value, Bag):
                 self._walk_check(node_value, node_path, invalid_nodes)
-
-    # -----------------------------------------------------------------------
-    # Compiler access (legacy)
-    # -----------------------------------------------------------------------
-
-    @property
-    def _compiler(self) -> Any:
-        """Return compiler instance for this builder.
-
-        Requires _compiler_class to be defined on the builder subclass.
-
-        Raises:
-            ValueError: If _compiler_class is not defined.
-        """
-        if self._compiler_class is None:
-            raise ValueError(f"{type(self).__name__} has no _compiler_class defined")
-        return self._compiler_class(self)
-
-    def _compile(self, **kwargs: Any) -> Any:
-        """Compile the bag via the compiler, then render to output string.
-
-        If _compiler_class is defined, compiles source into a target bag
-        and then renders it using the compiler's render method.
-
-        Without _compiler_class, falls back to XML/JSON serialization (string).
-
-        Args:
-            **kwargs: Extra parameters. 'destination' writes output to file.
-                'format' selects legacy format ('xml' or 'json').
-
-        Returns:
-            Rendered output string.
-        """
-        if self._compiler_class is not None:
-            from ..binding import BindingManager
-            from ..builder_bag import BuilderBag
-
-            compiler = self._compiler
-            target = BuilderBag(builder=type(self))
-            data = kwargs.pop("data", None) or Bag()
-            binding = kwargs.pop("binding", None) or BindingManager()
-            self._build_walk(self._bag, target, data, binding)
-
-            destination = kwargs.get("destination")
-            if hasattr(compiler, "render"):
-                result = compiler.render(target)
-            else:
-                parts = list(compiler._walk_compile(target))
-                result = "\n".join(p for p in parts if p)
-
-            if destination is not None:
-                from pathlib import Path
-                Path(destination).write_text(result)
-
-            return result
-        format_ = kwargs.get("format", "xml")
-        if format_ == "xml":
-            return self._bag.to_xml()
-        elif format_ == "json":
-            return self._bag.to_tytx(transport="json")  # type: ignore[return-value]
-        else:
-            raise ValueError(f"Unknown format: {format_}")
 
     def _schema_to_md(self, title: str | None = None) -> str:
         """Generate Markdown documentation for the builder schema.

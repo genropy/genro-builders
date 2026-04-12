@@ -2,30 +2,9 @@
 """Tests for ComponentResolver — lazy expansion via BagResolver."""
 from __future__ import annotations
 
-from genro_builders import BagBuilderBase, BagCompilerBase, ComponentResolver
+from genro_builders import BagBuilderBase, ComponentResolver
 from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builders import component, element
-from genro_builders.compiler import compiler
-
-
-class SimpleCompiler(BagCompilerBase):
-    """Compiler for testing — renders tags as <tag>children</tag>."""
-
-    def render(self, compiled_bag):
-        return self._render_bag(compiled_bag)
-
-    def _render_bag(self, bag):
-        parts = []
-        for node in bag:
-            tag = node.node_tag or node.label
-            if isinstance(node.value, Bag):
-                children = self._render_bag(node.value)
-                parts.append(f"<{tag}>{children}</{tag}>")
-            elif node.value:
-                parts.append(f"<{tag}>{node.value}</{tag}>")
-            else:
-                parts.append(f"<{tag}/>")
-        return "".join(parts)
 
 
 class TestResolverCreation:
@@ -249,12 +228,11 @@ class TestBasedOn:
         assert "from_level2" in values
         assert "from_level3" in values
 
-    def test_based_on_with_compile(self):
-        """based_on works through the full compile pipeline."""
+    def test_based_on_with_build(self):
+        """based_on works through the full build pipeline."""
+        from genro_builders.expander import expand
 
         class B(BagBuilderBase):
-            _compiler_class = SimpleCompiler
-
             @element()
             def field(self): ...
 
@@ -269,8 +247,11 @@ class TestBasedOn:
         bag = Bag(builder=B)
         bag.extended_form()
 
-        result = bag.builder._compile()
-        assert "<field" in result  # Should have fields from both base and extended
+        expanded = list(expand(bag))
+        tags = [node.node_tag for _, node in expanded]
+        assert "field" in tags
+        # Both base and extended fields should be present
+        assert len([t for t in tags if t == "field"]) == 2
 
     def test_based_on_with_expand(self):
         """based_on works with the expander."""
@@ -302,14 +283,13 @@ class TestBuilderOverride:
 
     def test_component_uses_different_builder(self):
         """Component with builder= uses that builder for internal bag."""
+        from genro_builders.expander import expand
 
         class InnerBuilder(BagBuilderBase):
             @element()
             def special(self): ...
 
         class OuterBuilder(BagBuilderBase):
-            _compiler_class = SimpleCompiler
-
             @component(builder=InnerBuilder)
             def with_inner(self, comp, **kwargs):
                 comp.special()
@@ -320,5 +300,6 @@ class TestBuilderOverride:
         bag = Bag(builder=OuterBuilder)
         bag.with_inner()
 
-        result = bag.builder._compile()
-        assert "<special" in result
+        expanded = list(expand(bag))
+        tags = [node.node_tag for _, node in expanded]
+        assert "special" in tags

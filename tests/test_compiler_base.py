@@ -53,7 +53,7 @@ class TagCompiler(BagCompilerBase):
 
 
 class TagBuilder(BagBuilderBase):
-    _compiler_class = TagCompiler
+
 
     @element()
     def heading(self): ...
@@ -203,8 +203,6 @@ class TestDefaultCompile:
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(str(p) for p in parts if p)
 
-        MinimalBuilder._compiler_class = ConcreteCompiler
-
         bag = BuilderBag(builder=MinimalBuilder)
         bag.plain("raw text")
 
@@ -233,8 +231,6 @@ class TestDefaultCompile:
                 collected.append(value)
                 return value or None
 
-        NestBuilder._compiler_class = Compiler
-
         bag = BuilderBag(builder=NestBuilder)
         outer = bag.outer()
         outer.inner("child content")
@@ -257,7 +253,6 @@ class TestDefaultCompile:
         class Compiler(BagCompilerBase):
             pass
 
-        EmptyBuilder._compiler_class = Compiler
 
         bag = BuilderBag(builder=EmptyBuilder)
         bag.empty()
@@ -322,8 +317,6 @@ class TestBuildWalkPointerResolution:
             def render(self, compiled_bag):
                 parts = list(self._walk_compile(compiled_bag))
                 return "\n\n".join(str(p) for p in parts if p)
-
-        AttrBuilder._compiler_class = Compiler
 
         bag = BuilderBag(builder=AttrBuilder)
         bag.widget(color="^theme.color")

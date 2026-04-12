@@ -36,7 +36,7 @@ class SchemaBuilder(BagBuilderBase):
         schema.builder.item('div', inherits_from='@flow')
         schema.builder.item('li', parent_tags='ul,ol')  # li only inside ul or ol
         schema.builder.item('br', sub_tags='')  # void element
-        schema.builder._compile('schema.msgpack')
+        schema.builder.save_schema('schema.msgpack')
     """
 
     def item(
@@ -79,7 +79,7 @@ class SchemaBuilder(BagBuilderBase):
 
         return self._bag.set_item(name, None, **attrs)
 
-    def _compile(self, destination: str | Path) -> None:  # type: ignore[override]
+    def save_schema(self, destination: str | Path) -> None:
         """Save schema to MessagePack file for later loading by builders.
 
         Args:

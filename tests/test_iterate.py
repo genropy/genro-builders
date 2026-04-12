@@ -7,11 +7,13 @@ from genro_bag import Bag
 from genro_builders.builder import BagBuilderBase, component, element
 from genro_builders.manager import BuilderManager
 
-from .helpers import TestCompiler
+from .helpers import TestRenderer
 
 
 class IterableBuilder(BagBuilderBase):
     """Builder with a component that uses iterate."""
+
+    _renderers = {"test": TestRenderer}
 
     @element()
     def heading(self): ...
@@ -23,9 +25,6 @@ class IterableBuilder(BagBuilderBase):
     def person_card(self, comp, **kwargs):
         comp.span(value='^.?nome')
         comp.span(value='^.?cognome')
-
-
-IterableBuilder._compiler_class = TestCompiler
 
 
 class TestIterateBasic:

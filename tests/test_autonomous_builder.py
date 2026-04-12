@@ -7,7 +7,7 @@ from genro_bag import Bag
 
 from genro_builders.builder import BagBuilderBase, element
 
-from .helpers import TestBuilder, TestCompiler
+from .helpers import TestBuilder, TestRenderer
 
 # =============================================================================
 # Subtree builder (for subtree-specific tests)
@@ -17,14 +17,13 @@ from .helpers import TestBuilder, TestCompiler
 class SubtreeBuilder(BagBuilderBase):
     """Builder with wildcard container for subtree tests."""
 
+    _renderers = {"test": TestRenderer}
+
     @element(sub_tags="*")
     def group(self): ...
 
     @element()
     def leaf(self): ...
-
-
-SubtreeBuilder._compiler_class = TestCompiler
 
 
 # =============================================================================
@@ -64,7 +63,7 @@ class TestAutonomousLifecycle:
         builder.source.div()
         builder.build()
 
-        with pytest.raises(RuntimeError, match="no renderer or compiler"):
+        with pytest.raises(RuntimeError, match="no renderer registered"):
             builder.render()
 
 

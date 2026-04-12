@@ -50,8 +50,8 @@ class TestCompiler(BagCompilerBase):
 
 
 def compile_and_render(builder) -> str:
-    """Helper: build walk into target, then render to string via compiler."""
-    compiler = builder._compiler
+    """Helper: build walk into target, then render to string via TestCompiler."""
+    compiler = TestCompiler(builder)
     target = Bag(builder=type(builder))
     builder._build_walk(builder._bag, target, DataBag(), BindingManager())
     return compiler.render(target)
@@ -70,7 +70,6 @@ class TestComponentExpansion:
         body_called = False
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component()
             def myform(self, comp: Bag, **kwargs):
@@ -97,7 +96,6 @@ class TestComponentExpansion:
         received_bag = None
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component()
             def myform(self, comp: Bag, **kwargs):
@@ -121,7 +119,6 @@ class TestComponentExpansion:
         """Component populates the internal bag during expansion."""
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component()
             def myform(self, comp: Bag, **kwargs):
@@ -150,7 +147,6 @@ class TestComponentExpansion:
         """Component can use builder elements inside during expansion."""
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component()
             def myform(self, comp: Bag, **kwargs):
@@ -182,7 +178,6 @@ class TestComponentSubTagsAfterExpansion:
         from genro_builders.component_proxy import ComponentProxy
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def closed_form(self, comp: Bag, **kwargs):
@@ -209,7 +204,6 @@ class TestComponentSubTagsAfterExpansion:
         from genro_builders.component_proxy import ComponentProxy
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component(sub_tags="item")
             def mylist(self, comp: Bag, **kwargs):
@@ -245,7 +239,6 @@ class TestNestedComponentExpansion:
         """Component can use another component internally."""
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def inner(self, comp: Bag, **kwargs):
@@ -273,7 +266,6 @@ class TestNestedComponentExpansion:
         """Multiple levels of component nesting."""
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def level3(self, comp: Bag, **kwargs):
@@ -316,7 +308,6 @@ class TestComponentBuilderOverrideExpansion:
             def special(self): ...
 
         class OuterBuilder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component(builder=InnerBuilder)
             def with_inner(self, comp: Bag, **kwargs):
@@ -348,7 +339,6 @@ class TestComponentAttributesExpansion:
         received_kwargs = {}
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def myform(self, comp: Bag, title=None, **kwargs):
@@ -369,7 +359,6 @@ class TestComponentAttributesExpansion:
         """Component attributes are stored on the node."""
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def myform(self, comp: Bag, title=None, **kwargs):
@@ -396,7 +385,6 @@ class TestComponentWithElementsExpansion:
         """Builder can have both components and elements."""
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @component(sub_tags="")
             def form(self, comp: Bag, **kwargs):
@@ -424,7 +412,6 @@ class TestComponentWithElementsExpansion:
         """Component can be placed inside an element."""
 
         class Builder(BagBuilderBase):
-            _compiler_class = TestCompiler
 
             @element(sub_tags="form")
             def div(self): ...

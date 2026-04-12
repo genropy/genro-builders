@@ -255,93 +255,6 @@ class TestBuilderValidate:
 
 
 # =============================================================================
-# Tests for builder._compile()
-# =============================================================================
-
-
-class TestBuilderCompile:
-    """Tests for builder._compile() output method.
-
-    NOTE: Output format tests are suspended pending full compile workflow definition.
-    Only testing that compile() is callable and raises for unknown format.
-    """
-
-    @pytest.mark.skip(reason="Compile output format TBD - workflow da definire")
-    def test_compile_defaults_to_xml(self):
-        """compile() defaults to XML format."""
-
-        class Builder(BagBuilderBase):
-            @element()
-            def item(self): ...
-
-        bag = Bag(builder=Builder)
-        bag.item("content")
-
-        result = bag.builder._compile()
-        # XML uses tag name, not label
-        assert "<item" in result
-        assert "content" in result
-
-    @pytest.mark.skip(reason="Compile output format TBD - workflow da definire")
-    def test_compile_xml_format(self):
-        """compile(format='xml') produces valid XML."""
-
-        class Builder(BagBuilderBase):
-            @element()
-            def div(self): ...
-
-        bag = Bag(builder=Builder)
-        bag.div("hello")
-
-        result = bag.builder._compile(format="xml")
-        assert result.startswith("<")
-        # XML uses tag name
-        assert "<div" in result
-
-    @pytest.mark.skip(reason="Compile output format TBD - workflow da definire")
-    def test_compile_json_format(self):
-        """compile(format='json') produces JSON."""
-
-        class Builder(BagBuilderBase):
-            @element()
-            def item(self): ...
-
-        bag = Bag(builder=Builder)
-        bag.item("value")
-
-        result = bag.builder._compile(format="json")
-        assert "item_0" in result
-        assert "value" in result
-
-    def test_compile_unknown_format_raises(self):
-        """compile() raises ValueError for unknown format."""
-
-        class Builder(BagBuilderBase):
-            @element()
-            def item(self): ...
-
-        bag = Bag(builder=Builder)
-        bag.item()
-
-        with pytest.raises(ValueError, match="Unknown format"):
-            bag.builder._compile(format="yaml")
-
-    def test_compile_is_callable(self):
-        """compile() is callable on builder."""
-
-        class Builder(BagBuilderBase):
-            @element()
-            def item(self): ...
-
-        bag = Bag(builder=Builder)
-        bag.item("content")
-
-        # Just verify it's callable and returns something
-        result = bag.builder._compile()
-        assert result is not None
-
-
-# =============================================================================
 # Tests for SchemaBuilder _meta
 # =============================================================================
 
@@ -543,18 +456,18 @@ class TestSchemaToMd:
 # =============================================================================
 
 
-class TestSchemaBuilderCompile:
-    """Tests for SchemaBuilder.compile method."""
+class TestSchemaBuilderSaveSchema:
+    """Tests for SchemaBuilder.save_schema method."""
 
-    def test_compile_saves_msgpack(self, tmp_path):
-        """SchemaBuilder.compile saves schema to msgpack file."""
+    def test_save_schema_writes_msgpack(self, tmp_path):
+        """SchemaBuilder.save_schema saves schema to msgpack file."""
         schema = Bag(builder=SchemaBuilder)
         schema.builder.item("div", sub_tags="span")
         schema.builder.item("span")
 
         # Use correct extension for msgpack files
         output_file = tmp_path / "test_schema.bag.mp"
-        schema.builder._compile(output_file)
+        schema.builder.save_schema(output_file)
 
         # File should exist and contain msgpack data
         assert output_file.exists()

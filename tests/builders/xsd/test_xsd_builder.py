@@ -72,50 +72,45 @@ class TestXsdBuilderInit:
 # =============================================================================
 
 
-class TestXsdBuilderCompile:
-    """Tests for XsdBuilder compile method."""
+class TestXsdBuilderToXml:
+    """Tests for XsdBuilder.to_xml() method."""
 
-    def test_compile_returns_xml(self, simple_xsd_file):
-        """XsdBuilder.compile returns XML string."""
+    def test_to_xml_returns_xml(self, simple_xsd_file):
+        """XsdBuilder.to_xml() returns XML string."""
         bag = Bag(builder=XsdBuilder, builder_xsd_source=simple_xsd_file)
         doc = bag.Document()
         doc.Title("Test Document")
 
-        result = bag.builder._compile()
+        result = bag.builder.to_xml()
 
         assert isinstance(result, str)
         assert "Document" in result or "Title" in result
 
-    def test_compile_with_nested_elements(self, simple_xsd_file):
-        """XsdBuilder.compile includes nested elements."""
+    def test_to_xml_with_nested_elements(self, simple_xsd_file):
+        """XsdBuilder.to_xml() includes nested elements."""
         bag = Bag(builder=XsdBuilder, builder_xsd_source=simple_xsd_file)
         doc = bag.Document()
         doc.Title("Test Title")
         doc.Count(42)
 
-        result = bag.builder._compile()
+        result = bag.builder.to_xml()
 
         assert isinstance(result, str)
         assert "Title" in result or "Test Title" in result
 
-    def test_compile_full_validate_without_xmlschema(self, simple_xsd_file):
-        """XsdBuilder.compile with full_validate raises if xmlschema not installed."""
+    def test_to_xml_full_validate_without_xmlschema(self, simple_xsd_file):
+        """XsdBuilder.to_xml() with full_validate raises if xmlschema not installed."""
         bag = Bag(builder=XsdBuilder, builder_xsd_source=simple_xsd_file)
         bag.Document()
 
-        # This test may pass or fail depending on whether xmlschema is installed
-        # If xmlschema is not installed, it should raise ImportError
-        # If installed, it should validate successfully or raise validation error
         try:
             import xmlschema  # noqa: F401
 
-            # xmlschema is installed, test validation
-            result = bag.builder._compile(full_validate=True)
+            result = bag.builder.to_xml(full_validate=True)
             assert isinstance(result, str)
         except ImportError:
-            # xmlschema not installed, should raise ImportError with our message
             with pytest.raises(ImportError, match="xmlschema is required"):
-                bag.builder._compile(full_validate=True)
+                bag.builder.to_xml(full_validate=True)
 
 
 # =============================================================================

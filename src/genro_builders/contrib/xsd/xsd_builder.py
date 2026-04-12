@@ -73,8 +73,8 @@ class XsdBuilder(BagBuilderBase):
             if not node.label.startswith("@")
         )
 
-    def _compile(self, full_validate: bool = False) -> str:
-        """Compile the bag to XML.
+    def to_xml(self, full_validate: bool = False) -> str:
+        """Serialize the bag to XML string.
 
         Args:
             full_validate: If True, validate the output against the original
@@ -82,7 +82,7 @@ class XsdBuilder(BagBuilderBase):
                 Requires xmlschema to be installed.
 
         Returns:
-            The compiled XML document as string.
+            The XML document as string.
 
         Raises:
             ImportError: If full_validate=True but xmlschema is not installed.
