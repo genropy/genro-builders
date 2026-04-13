@@ -1,40 +1,31 @@
-# Examples
+# Examples — Core Framework
 
-Each example is a self-contained folder with a `.py` script and its
-generated output file. Run the script to regenerate the output.
+These examples demonstrate core genro-builders features that are not
+specific to any contrib package. Each is a self-contained script.
 
 ## Structure
 
 ```
 examples/
-├── sync/                          # BuilderManager (no event loop)
-│   ├── html/
-│   │   ├── simple_page/           # Standalone builder, minimal
-│   │   ├── contact_list/          # BuilderManager with store/main
-│   │   └── weather_dashboard/     # BuilderManager with API resolvers
-│   ├── svg/
-│   │   ├── bar_chart/             # Standalone, gradient bar chart
-│   │   ├── concentric_circles/    # Standalone, target circles
-│   │   ├── house_icon/            # Standalone, composed shapes
-│   │   ├── card_shadow/           # Standalone, SVG filter
-│   │   └── badge_sheet/           # BuilderManager + @component + iterate
-│   └── custom_builder/
-│       └── table_builder/         # Custom builder from scratch
-└── reactive/                      # ReactiveManager (event loop)
-    └── (coming soon)
+├── reactive_data_example.py   # ReactiveManager, data_formula, subscribe
+└── table_builder/             # Custom builder from scratch with @element
 ```
 
-Additional examples in contrib packages:
+## Contrib-specific examples
 
-- `src/genro_builders/contrib/markdown/examples/sync/report/` — Markdown document
-- `src/genro_builders/contrib/xsd/examples/` — SEPA XML payment (requires XSD file)
+Domain-specific examples live inside their contrib package:
+
+- `src/genro_builders/contrib/html/examples/` — HTML5 pages (standalone, BuilderManager, resolvers)
+- `src/genro_builders/contrib/svg/examples/` — SVG graphics (charts, icons, filters, components)
+- `src/genro_builders/contrib/markdown/examples/` — Markdown documents
+- `src/genro_builders/contrib/xsd/examples/` — SEPA XML payments (XSD validation)
 
 ## Running
 
 ```bash
-cd examples/sync/svg/bar_chart
-python bar_chart.py
-# generates bar_chart.svg in the same directory
+cd examples/table_builder
+python table_builder.py
+# generates table_builder.html
 ```
 
 ## Patterns
