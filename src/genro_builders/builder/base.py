@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from genro_bag import Bag
 
 from ..builder_bag import BuilderBag
-from ._build_mixin import _BuildMixin
+from ._build import _BuildMixin
 from ._decorators import data_element
 from ._grammar import _GrammarMixin
 from ._output import _OutputMixin
