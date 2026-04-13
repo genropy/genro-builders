@@ -44,8 +44,7 @@ from genro_builders.compiler import BagCompilerBase, compiler
 from genro_builders.component_proxy import ComponentProxy
 from genro_builders.component_resolver import ComponentResolver
 from genro_builders.contrib.yaml import YamlRendererBase
-from genro_builders.manager import BuilderManager
-from genro_builders.reactive_manager import ReactiveManager
+from genro_builders.manager import BuilderManager, ReactiveManager
 from genro_builders.renderer import BagRendererBase, RenderNode, renderer
 
 __version__ = "0.16.0"

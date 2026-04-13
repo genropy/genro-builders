@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BuilderManager — mixin to coordinate builders with a shared reactive store.
+"""BuilderManager and ReactiveManager — coordinate builders with shared data.
 
 A BuilderManager coordinates one or more builders that share a common
 reactive data store. Each builder gets a private data namespace under
@@ -255,3 +255,43 @@ class BuilderManager:
         """
         self.setup()
         return self.build()
+
+
+class ReactiveManager(BuilderManager):
+    """BuilderManager with reactive bindings support.
+
+    Adds ``subscribe()`` to activate reactive data binding on all
+    registered builders. Use this when your host environment provides
+    an event loop (Textual, ASGI, Jupyter, asyncio.run).
+
+    For one-shot sync pipelines, use BuilderManager directly.
+    """
+
+    def subscribe(self) -> None:
+        """Activate reactive bindings on all builders."""
+        for builder in self._builders.values():
+            builder.subscribe()
+
+    def run(self, *, subscribe: bool = False) -> Any:
+        """Setup, build, and optionally subscribe -- single-call lifecycle.
+
+        Returns None when all builders are synchronous, or a coroutine
+        when any builder's build() returns an awaitable.
+
+        Args:
+            subscribe: If True, also activate reactive bindings after build.
+        """
+        self.setup()
+        build_result = self.build()
+
+        if inspect.isawaitable(build_result):
+            async def cont():
+                await smartawait(build_result)
+                if subscribe:
+                    self.subscribe()
+
+            return cont()
+
+        if subscribe:
+            self.subscribe()
+        return None

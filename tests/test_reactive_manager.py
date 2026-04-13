@@ -2,8 +2,7 @@
 """Tests for ReactiveManager — BuilderManager with reactive bindings."""
 from __future__ import annotations
 
-from genro_builders.manager import BuilderManager
-from genro_builders.reactive_manager import ReactiveManager
+from genro_builders.manager import BuilderManager, ReactiveManager
 
 from .helpers import TestBuilder
 
