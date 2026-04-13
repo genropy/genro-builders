@@ -25,7 +25,7 @@ from ..builder_bag import BuilderBag
 from ._binding import BindingManager
 from ._build_mixin import _BuildMixin
 from ._decorators import data_element
-from ._dispatch_mixin import _DispatchMixin
+from ._grammar import _GrammarMixin
 from ._output_mixin import _OutputMixin
 from ._reactivity_mixin import _ReactivityMixin
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
@@ -38,7 +38,7 @@ class BagBuilderBase(
     _OutputMixin,
     _ReactivityMixin,
     _BuildMixin,
-    _DispatchMixin,
+    _GrammarMixin,
     ABC,
 ):
     """Abstract base class for Bag builders.

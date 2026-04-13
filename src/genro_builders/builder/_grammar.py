@@ -1,10 +1,10 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Dispatch mixin: element creation, component handling, and validation.
+"""Grammar mixin: element dispatch, component handling, validation, schema access.
 
-Handles ``__getattr__`` lookup in the schema, element/data_element/component
-creation via ``_add_element`` / ``_add_data_element`` / ``_handle_component``,
-child placement with ``_child``, and all validation checks (call_args,
-sub_tags, parent_tags).
+Interprets the schema defined by decorators to create and validate nodes.
+Handles ``__getattr__`` lookup, element/data_element/component creation,
+child placement, all validation checks (call_args, sub_tags, parent_tags),
+and schema introspection (``__contains__``, ``_get_schema_info``, ``__iter__``).
 """
 
 from __future__ import annotations
@@ -14,14 +14,14 @@ from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
 
-from ._utilities import _check_type
+from ._utilities import _check_type, _parse_parent_tags_spec, _parse_sub_tags_spec
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
 
 
-class _DispatchMixin:
-    """Mixin for element dispatch, creation, and validation."""
+class _GrammarMixin:
+    """Mixin for element dispatch, creation, validation, and schema access."""
 
     # -----------------------------------------------------------------------
     # Bag delegation
@@ -472,3 +472,76 @@ class _DispatchMixin:
                 f"Element cannot be placed here: parent_tags requires one of [{valid_parents}], "
                 f"but parent is '{parent_tag or 'root'}'"
             )
+
+    # -----------------------------------------------------------------------
+    # Schema access
+    # -----------------------------------------------------------------------
+
+    def __contains__(self, name: str) -> bool:
+        """Check if element exists in schema."""
+        return self._schema.get_node(name) is not None
+
+    def _get_schema_info(self, name: str) -> dict:
+        """Return info dict for a schema element.
+
+        The result is a dict of all schema-node attributes, extended with
+        computed keys. Common keys (presence depends on element type):
+
+            sub_tags, sub_tags_compiled, parent_tags, parent_tags_compiled,
+            call_args_validations, _meta, documentation,
+            handler_name, is_component, is_data_element,
+            component_builder, based_on, slots.
+
+        Results are cached on the schema node after first access.
+
+        Raises KeyError if element not in schema.
+        """
+        schema_node = self._schema.get_node(name)
+        if schema_node is None:
+            raise KeyError(f"Element '{name}' not found in schema")
+
+        cached = schema_node.attr.get("_cached_info")  # type: ignore[union-attr]
+        if cached is not None:
+            return cached  # type: ignore[no-any-return]
+
+        result = dict(schema_node.attr)  # type: ignore[union-attr]
+        inherits_from = result.pop("inherits_from", None)
+
+        if inherits_from:
+            parents = [p.strip() for p in inherits_from.split(",")]
+            for parent in parents:
+                abstract_attrs = self._schema.get_attr(parent)
+                if abstract_attrs:
+                    for k, v in abstract_attrs.items():
+                        if k == "inherits_from":
+                            continue
+                        if k == "_meta":
+                            inherited = v or {}
+                            current = result.get("_meta") or {}
+                            result["_meta"] = {**inherited, **current}
+                        elif k not in result or not result[k]:
+                            result[k] = v
+
+        sub_tags = result.get("sub_tags")
+        if sub_tags is not None:
+            result["sub_tags_compiled"] = _parse_sub_tags_spec(sub_tags)
+
+        parent_tags = result.get("parent_tags")
+        if parent_tags is not None:
+            result["parent_tags_compiled"] = _parse_parent_tags_spec(parent_tags)
+
+        schema_node.attr["_cached_info"] = result  # type: ignore[union-attr]
+        return result
+
+    def __iter__(self):
+        """Iterate over schema nodes."""
+        return iter(self._schema)
+
+    def __repr__(self) -> str:
+        """Show builder schema summary."""
+        count = sum(1 for _ in self)
+        return f"<{type(self).__name__} ({count} elements)>"
+
+    def __str__(self) -> str:
+        """Show schema structure."""
+        return str(self._schema)
