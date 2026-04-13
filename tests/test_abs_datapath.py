@@ -26,11 +26,12 @@ class TestAbsDatapath:
         node = builder.source.item("hello")
         assert node.abs_datapath("user.name") == "user.name"
 
-    def test_relative_path_from_root(self):
-        """Relative path at root level strips the leading dot."""
+    def test_relative_path_from_root_raises(self):
+        """Relative path at root level raises ValueError (no datapath context)."""
         builder = PathBuilder()
         node = builder.source.item("hello")
-        assert node.abs_datapath(".name") == "name"
+        with pytest.raises(ValueError, match="without a datapath context"):
+            node.abs_datapath(".name")
 
     def test_relative_path_with_datapath(self):
         """Relative path resolves from ancestor's datapath."""

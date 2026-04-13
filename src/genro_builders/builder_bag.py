@@ -148,7 +148,11 @@ class BuilderBagNode(BagNode):
             return self._resolve_symbolic(path)
         if path.startswith("."):
             datapath = self._resolve_datapath()
-            return f"{datapath}.{path[1:]}" if datapath else path[1:]
+            if not datapath:
+                raise ValueError(
+                    f"Relative pointer '^{path}' used without a datapath context"
+                )
+            return f"{datapath}.{path[1:]}" if path[1:] else datapath
         return path
 
     def _resolve_symbolic(self, path: str) -> str:
@@ -190,7 +194,10 @@ class BuilderBagNode(BagNode):
         if "?" in path:
             path, attr_name = path.split("?", 1)
 
-        path = self.abs_datapath(path)
+        if path == "." and attr_name is not None:
+            path = self._resolve_datapath() or ""
+        else:
+            path = self.abs_datapath(path)
 
         return path, attr_name
 

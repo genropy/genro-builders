@@ -43,7 +43,7 @@ class SimpleBuilder(BagBuilderBase):
 class BuilderWithData(BagBuilderBase):
     """Builder with data_element and component using ^pointers."""
 
-    @element()
+    @element(sub_tags="*")
     def div(self, **kwargs):
         ...
 
@@ -55,7 +55,7 @@ class BuilderWithData(BagBuilderBase):
     def data_setter(self, path=None, value=None):
         return path, {"value": value}
 
-    @component()
+    @component(main_tag='div')
     def greeter(self, comp, **kwargs):
         comp.span("^.name")
         return comp
@@ -181,14 +181,13 @@ class TestAsyncBuild:
             assert len(node.value) == 2
 
     @pytest.mark.asyncio
-    async def test_build_returns_coroutine_with_component(self):
-        """build() returns a coroutine in async context when resolvers are present."""
+    async def test_build_sync_with_component(self):
+        """build() completes synchronously even in async context (BagSyncResolver)."""
         builder = SimpleBuilder()
         builder.source.card()
         result = builder.build()
-        assert result is not None
-        assert asyncio.iscoroutine(result) or hasattr(result, "__await__")
         await smartawait(result)
+        assert len(builder.built) == 1
 
     @pytest.mark.asyncio
     async def test_build_returns_none_without_resolver(self):
@@ -247,26 +246,30 @@ class TestAsyncBuildWithData:
     async def test_data_setter_and_component(self):
         """data_setter processed before component expansion."""
         builder = BuilderWithData()
-        builder.source.data_setter(path=".name", value="World")
-        builder.source.greeter()
+        root = builder.source.div(datapath="app")
+        root.data_setter(path=".name", value="World")
+        root.greeter()
         result = builder.build()
         await smartawait(result)
         # data_setter should have written to data
-        assert builder.data[".name"] == "World"
+        assert builder.data["app.name"] == "World"
         # greeter component should be expanded
-        node = builder.built.get_node("greeter_0")
+        built_root = builder.built.get_node("div_0").value
+        node = built_root.get_node("greeter_0")
         assert isinstance(node.value, Bag)
 
     @pytest.mark.asyncio
     async def test_pointer_in_component_resolved_at_render(self):
         """^pointer inside component body is resolved during render."""
         builder = BuilderWithData()
-        builder.source.data_setter(path=".name", value="Alice")
-        builder.source.greeter()
+        root = builder.source.div(datapath="app")
+        root.data_setter(path=".name", value="Alice")
+        root.greeter()
         result = builder.build()
         await smartawait(result)
         # The built component should have the ^pointer as raw value
-        comp_node = builder.built.get_node("greeter_0")
+        built_root = builder.built.get_node("div_0").value
+        comp_node = built_root.get_node("greeter_0")
         span_node = comp_node.value.get_node("span_0")
         assert span_node.value == "^.name"
 
