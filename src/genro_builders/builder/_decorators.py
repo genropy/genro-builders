@@ -161,6 +161,7 @@ def abstract(
 
 def component(
     tags: str | tuple[str, ...] | None = None,
+    main_tag: str | None = None,
     sub_tags: str | tuple[str, ...] | None = None,
     parent_tags: str | None = None,
     builder: type[BagBuilderBase] | None = None,
@@ -181,6 +182,12 @@ def component(
 
     Args:
         tags: Tag names this component handles. If None, uses method name.
+        main_tag: The DOM tag this component represents for validation.
+            When a parent element has strict sub_tags (e.g., HTML5 ``div``
+            only allows flow content), the component is validated as if
+            it were a ``main_tag`` element. For example,
+            ``@component(main_tag='div')`` means this component is treated
+            as a ``div`` when checking parent sub_tags.
         sub_tags: Valid child tags AFTER the component is created.
             Controls **validation** of children added after creation:
             - ``''`` (empty string): Closed/leaf component — no children
@@ -247,6 +254,7 @@ def component(
             for k, v in {
                 "component": True,
                 "tags": tags,
+                "main_tag": main_tag,
                 "sub_tags": sub_tags,
                 "parent_tags": parent_tags,
                 "builder": builder,

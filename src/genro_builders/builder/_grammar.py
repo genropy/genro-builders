@@ -402,7 +402,7 @@ class _GrammarMixin:
             return
 
         children_tags = [
-            n.node_tag for n in node.value.nodes
+            self._validation_tag_for(n) for n in node.value.nodes
             if not n.attr.get("_is_data_element")
         ] if isinstance(node.value, Bag) else []
 
@@ -420,6 +420,7 @@ class _GrammarMixin:
         """Check if target_node can accept child_tag at node_position.
 
         Builds children_tags = current tags + new tag, calls _validate_children_tags.
+        If child is a component with main_tag, validates using main_tag instead.
         Raises ValueError if not valid.
         """
         sub_tags_compiled = info.get("sub_tags_compiled")
@@ -430,9 +431,17 @@ class _GrammarMixin:
         if sub_tags_compiled == "*":
             return
 
+        # If child is a component with main_tag, validate as that tag
+        validation_tag = child_tag
+        child_schema = self._schema.get_node(child_tag)
+        if child_schema is not None:
+            main_tag = child_schema.attr.get("main_tag")
+            if main_tag:
+                validation_tag = main_tag
+
         # Build children_tags = current + new (excluding data elements)
         children_tags = (
-            [n.node_tag for n in target_node.value.nodes
+            [self._validation_tag_for(n) for n in target_node.value.nodes
              if not n.attr.get("_is_data_element")]
             if isinstance(target_node.value, Bag) else []
         )
@@ -443,9 +452,19 @@ class _GrammarMixin:
             if isinstance(target_node.value, Bag)
             else 0
         )
-        children_tags.insert(idx, child_tag)
+        children_tags.insert(idx, validation_tag)
 
         self._validate_children_tags(target_node.node_tag, sub_tags_compiled, children_tags)
+
+    def _validation_tag_for(self, node: BagNode) -> str:
+        """Return the tag to use for validation: main_tag if component, else node_tag."""
+        tag = node.node_tag or node.label
+        schema_node = self._schema.get_node(tag)
+        if schema_node is not None:
+            main_tag = schema_node.attr.get("main_tag")
+            if main_tag:
+                return str(main_tag)
+        return tag
 
     def _validate_parent_tags(
         self,
