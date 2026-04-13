@@ -32,7 +32,6 @@ from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
 from genro_toolbox import smartawait, smartcontinuation
-from genro_toolbox.smarttimer import cancel_timer, set_interval
 
 from ..builder_bag import BuilderBag
 from ._binding import is_pointer, parse_pointer, scan_for_pointers
@@ -42,7 +41,28 @@ if TYPE_CHECKING:
 
 
 class _BuildMixin:
-    """Mixin for build walk, pointer resolution, bindings, and source changes."""
+    """Mixin for build walk, materialization, and pointer registration."""
+
+    class _NoopBinding:
+        """Binding stub used when ReactivityEngine is not active."""
+        def register(self, data_key: str, built_entry: str) -> None:
+            pass
+        def unbind_path(self, path: str) -> None:
+            pass
+
+    _noop_binding = _NoopBinding()
+
+    @property
+    def _formula_registry(self) -> dict:
+        """Formula registry — lives in ReactivityEngine if present."""
+        r = self._reactivity
+        return r._formula_registry if r is not None else {}
+
+    @_formula_registry.setter
+    def _formula_registry(self, value: dict) -> None:
+        r = self._reactivity
+        if r is not None:
+            r._formula_registry = value
 
     # -----------------------------------------------------------------------
     # Async context detection
@@ -374,8 +394,15 @@ class _BuildMixin:
         return result
 
     # -----------------------------------------------------------------------
-    # Build / subscribe / rebuild
+    # Build
     # -----------------------------------------------------------------------
+
+    def _ensure_reactivity(self) -> Any:
+        """Ensure ReactivityEngine exists (created lazily)."""
+        if self._reactivity is None:
+            from ._reactivity import ReactivityEngine
+            self._reactivity = ReactivityEngine(self)
+        return self._reactivity
 
     def build(self) -> Any:
         """Materialize source -> built.
@@ -385,85 +412,32 @@ class _BuildMixin:
         Does NOT activate reactivity -- call ``subscribe()`` separately.
 
         Returns None in sync context, or a coroutine in async context.
-        In async context, caller must: ``await smartawait(builder.build())``.
         """
+        r = self._ensure_reactivity()
         self._clear_built()
-        self._formula_registry = {}
-        self._formula_order: list[str] = []
+        r._formula_registry = {}
+        r._formula_order = []
         self._infra_on_built_hooks: list[Any] = []
 
+        binding = r.binding
         walk_result = self._build_walk(
-            self.source, self.built, self.data, self._binding,
+            self.source, self.built, self.data, binding,
         )
 
         def finalize(_: Any) -> None:
-            self._formula_order = self._topological_sort_formulas()
+            if r is not None:
+                r._formula_order = r._topological_sort_formulas()
             for hook in self._infra_on_built_hooks:
                 hook(self)
             self._infra_on_built_hooks = []
 
         return smartcontinuation(walk_result, finalize)
 
-    def subscribe(self) -> None:
-        """Activate reactive bindings on the built Bag.
-
-        After this call, changes to data are propagated to built nodes
-        and output is re-rendered automatically. Formula/controller with
-        ^pointer dependencies are re-executed when their sources change.
-        Call after ``build()``.
-        """
-        self._binding.subscribe(self.built, self.data)
-
-        self.source.subscribe(
-            "source_watcher",
-            delete=self._on_source_deleted,
-            insert=self._on_source_inserted,
-            update=self._on_source_updated,
-        )
-
-        if self._formula_registry:
-            self.data.subscribe(
-                "formula_watcher",
-                any=self._on_formula_data_changed,
-            )
-
-        # Start interval timers for formula/controller with _interval
-        for entry_id, entry in self._formula_registry.items():
-            interval = entry.get("_interval")
-            if interval is not None:
-                timer_id = set_interval(
-                    interval,
-                    self._on_interval_tick,
-                    entry_id,
-                )
-                self._active_timers[f"interval:{entry_id}"] = timer_id
-
-        self._auto_compile = True
-        self._rerender()
-
-    def rebuild(self, main: Any = None) -> None:
-        """Full rebuild: clear source, optionally re-populate, build.
-
-        Args:
-            main: Optional callable(source) to populate the source bag.
-                If not provided, only clears and rebuilds from current source.
-        """
-        self.source.unsubscribe("source_watcher", any=True)
-        self._auto_compile = False
-        self._clear_source()
-        if main is not None:
-            main(self.source)
-        self.build()
-
     def _clear_built(self) -> None:
         """Clear the built bag without destroying the shell."""
-        self._binding.unbind()
-        if self._data is not None:
-            self._data.unsubscribe("formula_watcher", any=True)
-        for timer_id in self._active_timers.values():
-            cancel_timer(timer_id)
-        self._active_timers = {}
-        self._formula_registry = {}
+        r = self._reactivity
+        if r is not None:
+            r.clear()
         self.built.clear()
 
     def _clear_source(self) -> None:
@@ -474,23 +448,9 @@ class _BuildMixin:
         self._bag = self.source
 
     def node_by_id(self, node_id: str) -> BagNode:
-        """Retrieve a node by its unique node_id.
-
-        Searches this builder's map first, then the source builder's map
-        (in standalone mode, the source Bag has its own builder instance).
-
-        Args:
-            node_id: The unique identifier assigned via node_id= attribute.
-
-        Returns:
-            The BagNode with the given node_id.
-
-        Raises:
-            KeyError: If no node with the given node_id exists.
-        """
+        """Retrieve a node by its unique node_id."""
         if node_id in self._node_id_map:
             return self._node_id_map[node_id]
-        # In standalone mode, source has its own builder with its own map
         if hasattr(self, "_source_shell"):
             source_builder = self.source._builder
             if source_builder is not None and source_builder is not self and node_id in source_builder._node_id_map:  # noqa: SIM102
@@ -510,74 +470,8 @@ class _BuildMixin:
         return registry[name]
 
     # -----------------------------------------------------------------------
-    # Source change handlers (incremental compile)
+    # Materialization helpers (used by ReactivityEngine for incremental)
     # -----------------------------------------------------------------------
-
-    def _on_source_deleted(
-        self,
-        node: BagNode | None = None,
-        pathlist: list | None = None,
-        ind: int | None = None,
-        evt: str = "",
-        **kwargs: Any,
-    ) -> None:
-        """Called when a node is deleted from the source."""
-        if not self._auto_compile or node is None:
-            return
-        # Data elements were never materialized in built
-        if node.attr.get("_is_data_element"):
-            return
-        parts = [str(p) for p in pathlist] if pathlist else []
-        parts.append(node.label)
-        path = ".".join(parts)
-        self._binding.unbind_path(path)
-        self.built.del_item(path, _reason="source")
-        self._rerender()
-
-    def _on_source_inserted(
-        self,
-        node: BagNode | None = None,
-        pathlist: list | None = None,
-        ind: int | None = None,
-        evt: str = "",
-        **kwargs: Any,
-    ) -> Any:
-        """Called when a node is inserted into the source."""
-        if not self._auto_compile or node is None:
-            return None
-
-        # Data element: process as infra and re-render
-        if node.attr.get("_is_data_element"):
-            self._process_infra_node(node, self.data)
-            self._rerender()
-            return None
-
-        parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
-
-        if parent_path:
-            target_bag = self.built.get_item(parent_path)
-            if not isinstance(target_bag, Bag):
-                return None
-        else:
-            target_bag = self.built
-
-        node_path = f"{parent_path}.{node.label}" if parent_path else node.label
-
-        value = node.get_value(static=False) if node.resolver is not None else node.static_value
-
-        if self._is_coroutine(value):
-            async def cont_inserted(value=value):
-                resolved = await value
-                self._materialize_inserted(
-                    node, resolved, target_bag, node_path, ind,
-                )
-                self._rerender()
-
-            return cont_inserted()
-
-        self._materialize_inserted(node, value, target_bag, node_path, ind)
-        self._rerender()
-        return None
 
     def _materialize_inserted(
         self,
@@ -588,6 +482,7 @@ class _BuildMixin:
         ind: int | None,
     ) -> None:
         """Materialize an inserted source node into the built bag."""
+        binding = self._reactivity.binding if self._reactivity is not None else self._noop_binding
         new_node = target_bag.set_item(
             node.label,
             value if not isinstance(value, Bag) else BuilderBag(builder=type(self)),
@@ -597,13 +492,11 @@ class _BuildMixin:
             _reason="source",
         )
 
-        self._register_bindings(
-            new_node, node_path, self.data, self._binding,
-        )
+        self._register_bindings(new_node, node_path, self.data, binding)
 
         if isinstance(value, Bag):
             self._build_walk(
-                value, new_node.value, self.data, self._binding, prefix=node_path,
+                value, new_node.value, self.data, binding, prefix=node_path,
             )
 
     def _materialize_updated(
@@ -613,64 +506,13 @@ class _BuildMixin:
         path: str,
     ) -> None:
         """Materialize an updated value into the built node."""
+        binding = self._reactivity.binding if self._reactivity is not None else self._noop_binding
         if isinstance(value, Bag):
             built_node.set_value(BuilderBag(builder=type(self)), _reason="source")
-            self._register_bindings(
-                built_node, path, self.data, self._binding,
-            )
+            self._register_bindings(built_node, path, self.data, binding)
             self._build_walk(
-                value, built_node.value, self.data, self._binding, prefix=path,
+                value, built_node.value, self.data, binding, prefix=path,
             )
         else:
             built_node.set_value(value, _reason="source")
-            self._register_bindings(
-                built_node, path, self.data, self._binding,
-            )
-
-    def _on_source_updated(
-        self,
-        node: BagNode | None = None,
-        pathlist: list | None = None,
-        oldvalue: Any = None,
-        evt: str = "",
-        **kwargs: Any,
-    ) -> Any:
-        """Called when a node in the source is updated (value or attributes)."""
-        if not self._auto_compile or pathlist is None:
-            return None
-
-        # Data element: re-process and re-render
-        if node is not None and node.attr.get("_is_data_element"):
-            self._process_infra_node(node, self.data)
-            self._rerender()
-            return None
-
-        path = ".".join(str(p) for p in pathlist)
-        built_node = self.built.get_node(path)
-        if built_node is None:
-            return None
-
-        if evt == "upd_value":
-            value = node.get_value(static=False) if node.resolver is not None else node.static_value
-
-            self._binding.unbind_path(path)
-
-            if self._is_coroutine(value):
-                async def cont_updated(value=value):
-                    resolved = await value
-                    self._materialize_updated(built_node, resolved, path)
-                    self._rerender()
-
-                return cont_updated()
-
-            self._materialize_updated(built_node, value, path)
-
-        elif evt == "upd_attrs":
-            if node is not None:
-                built_node.set_attr(dict(node.attr))
-                self._binding.unbind_path(path)
-                self._register_bindings(
-                    built_node, path, self.data, self._binding,
-                )
-
-        self._rerender()
+            self._register_bindings(built_node, path, self.data, binding)

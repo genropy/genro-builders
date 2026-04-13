@@ -5,9 +5,11 @@ A builder is a machine: it defines a domain-specific grammar via decorators
 (@element, @abstract, @component), materializes a source Bag into a built
 Bag (expanding components and resolving ^pointers), and produces output via
 named renderers (BagRendererBase, serialized) or compilers (BagCompilerBase,
-live objects). A ``BuilderManager`` mixin coordinates one or more builders
-with a shared reactive data store, providing the store/main hooks for
-population and the setup/build/subscribe lifecycle.
+live objects).
+
+Reactivity (subscribe, formula re-execution, timers, incremental compile)
+is encapsulated in ``ReactivityEngine``, created lazily on first
+``subscribe()`` call.
 
 Exports:
     BagBuilderBase: Base class for all builders.
@@ -22,21 +24,20 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from genro_bag import Bag
 
 from ..builder_bag import BuilderBag
-from ._binding import BindingManager
 from ._build_mixin import _BuildMixin
 from ._decorators import data_element
 from ._grammar import _GrammarMixin
 from ._output import _OutputMixin
-from ._reactivity_mixin import _ReactivityMixin
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
 
+    from ._reactivity import ReactivityEngine
+
 
 class BagBuilderBase(
     _OutputMixin,
-    _ReactivityMixin,
     _BuildMixin,
     _GrammarMixin,
     ABC,
@@ -49,19 +50,9 @@ class BagBuilderBase(
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
         - @component: Composite structures (body called at compile time only)
 
-    Schema conventions:
-        - Elements: stored directly by name (e.g., 'div', 'span')
-        - Abstracts: prefixed with '@' (e.g., '@flow', '@phrasing')
-        - Components: stored by name, marked with is_component=True
-
-    Validation parameters:
-        - sub_tags: Controls which children are allowed under this element
-        - parent_tags: Controls where this element can be placed
-
-    Schema loading priority:
-        1. schema_path passed to constructor (builder_schema_path='...')
-        2. schema_path class attribute
-        3. @element and @component decorated methods
+    Reactivity is optional: call ``subscribe()`` to activate formula
+    re-execution, timers, incremental compile, and output management.
+    Without subscribe, the builder is a pure grammar + build + render machine.
 
     Usage:
         >>> builder = MyBuilder()
@@ -87,7 +78,6 @@ class BagBuilderBase(
         if schema_path is not None:
             cls._class_schema = Bag().fill_from(schema_path)
         else:
-            # Inherit parent schema via MRO, then extend with own elements
             parent_schema = None
             for base in cls.__mro__[1:]:
                 if hasattr(base, "_class_schema"):
@@ -101,8 +91,6 @@ class BagBuilderBase(
 
             is_component = decorator_info.get("component", False)
             is_data_element = decorator_info.get("data_element", False)
-            # For components: distinguish between sub_tags="" (closed) and absent (open)
-            # Use sentinel to detect if sub_tags was explicitly set
             sub_tags = decorator_info.get("sub_tags") if is_component else decorator_info.get("sub_tags", "")
             parent_tags = decorator_info.get("parent_tags")
             inherits_from = decorator_info.get("inherits_from", "")
@@ -116,16 +104,14 @@ class BagBuilderBase(
             for tag in tag_list:
                 if is_data_element:
                     cls._class_schema.set_item(
-                        tag,
-                        None,
+                        tag, None,
                         handler_name=method_name,
                         is_data_element=True,
                         documentation=documentation,
                     )
                 elif is_component:
                     cls._class_schema.set_item(
-                        tag,
-                        None,
+                        tag, None,
                         handler_name=method_name,
                         is_component=True,
                         component_builder=component_builder,
@@ -138,10 +124,8 @@ class BagBuilderBase(
                         call_args_validations=call_args_validations,
                     )
                 else:
-                    # Element: no adapter_name (body must be empty)
                     cls._class_schema.set_item(
-                        tag,
-                        None,
+                        tag, None,
                         sub_tags=sub_tags,
                         parent_tags=parent_tags,
                         inherits_from=inherits_from,
@@ -150,7 +134,6 @@ class BagBuilderBase(
                         call_args_validations=call_args_validations,
                     )
 
-        # Precompute schema tag names for fast lookup in BuilderBag.__getattribute__
         cls._schema_tag_names = frozenset(
             node.label for node in cls._class_schema.nodes
             if not node.label.startswith("@")
@@ -166,17 +149,13 @@ class BagBuilderBase(
     ) -> None:
         """Initialize the builder.
 
-        Creates source, built, data, binding, and compiler internally.
-        If a ``manager`` is provided, data is shared across all builders
-        registered with that manager.
-
         Args:
-            bag: Reserved for internal use by BuilderBag. Do not pass
-                directly -- instantiate the builder with no arguments.
+            bag: Reserved for internal use by BuilderBag.
             schema_path: Optional path to load a pre-compiled schema from.
             manager: Optional BuilderManager for shared data coordination.
             data: Optional initial data Bag.
         """
+        # Grammar
         if schema_path is not None:
             self._schema = Bag().fill_from(schema_path)
         else:
@@ -185,7 +164,6 @@ class BagBuilderBase(
             node.label for node in self._schema.nodes
             if not node.label.startswith("@")
         )
-
         self._node_id_map: dict[str, BagNode] = {}
 
         if bag is not None:
@@ -194,6 +172,7 @@ class BagBuilderBase(
             self._bag.set_backref()
             self._manager = None
             self._data = data if data is not None else Bag()
+            self._reactivity: ReactivityEngine | None = None
         else:
             # Standard instantiation: builder owns the full pipeline
             self._manager = manager
@@ -210,24 +189,15 @@ class BagBuilderBase(
 
             self._bag = self._source_shell.get_item("root")
 
-            # Let built nodes find this builder via _find_pipeline_builder()
-            # for runtime_attrs/runtime_value resolution.
             self._source_shell._pipeline_builder = self
             self._built_shell._pipeline_builder = self
 
+            # Data
             self._data = data if data is not None else Bag()
             if not self._data.backref:
                 self._data.set_backref()
 
-            self._binding = BindingManager(on_node_updated=self._on_node_updated)
-            self._formula_registry: dict[str, dict[str, Any]] = {}
-            self._active_timers: dict[str, str] = {}  # entry_id -> timer_id
-            self._auto_compile = False
-            self._output_suspended = False
-            self._output_pending = False
-            self._output: str | None = None
-
-            # Instantiate registered renderers and compilers
+            # Output
             self._renderer_instances: dict[str, Any] = {
                 name: cls(self) for name, cls in type(self)._renderers.items()
             }
@@ -235,6 +205,8 @@ class BagBuilderBase(
                 name: cls(self) for name, cls in type(self)._compilers.items()
             }
 
+            # Reactivity: None until subscribe() is called
+            self._reactivity: ReactivityEngine | None = None
 
     # -----------------------------------------------------------------------
     # Built-in data elements
@@ -278,7 +250,7 @@ class BagBuilderBase(
 
     @data.setter
     def data(self, value: Bag | dict[str, Any]) -> None:
-        """Replace the data Bag. Delegates to the manager when present."""
+        """Replace the data Bag. Delegates to manager or reactivity engine."""
         if self._manager is not None:
             self._manager.reactive_store = value
             return
@@ -286,11 +258,72 @@ class BagBuilderBase(
         if not new_data.backref:
             new_data.set_backref()
         self._data = new_data
-        if self._auto_compile:
-            self._binding.rebind(new_data)
-            self._rerender()
+        if self._reactivity is not None:
+            self._reactivity.rebind_data(new_data)
 
     @property
     def output(self) -> str | None:
-        """Last rendered output string, or None before first compile."""
-        return self._output
+        """Last rendered output string, or None before first subscribe."""
+        if self._reactivity is not None:
+            return self._reactivity.output
+        return None
+
+    # -----------------------------------------------------------------------
+    # Reactivity (delegated to ReactivityEngine)
+    # -----------------------------------------------------------------------
+
+    def subscribe(self) -> None:
+        """Activate reactive bindings on the built Bag.
+
+        Enables formula re-execution, timers, incremental compile,
+        and output management. The ReactivityEngine is created
+        lazily by build() if not already present.
+        """
+        self._ensure_reactivity()
+        self._reactivity.subscribe()
+
+    def rebuild(self, main: Any = None) -> None:
+        """Full rebuild: clear source, optionally re-populate, build."""
+        if self._reactivity is not None:
+            self._reactivity.rebuild(main)
+        else:
+            self._clear_source()
+            if main is not None:
+                main(self.source)
+            self.build()
+
+    def suspend_output(self) -> None:
+        """Suspend render/compile output."""
+        if self._reactivity is not None:
+            self._reactivity.suspend_output()
+
+    def resume_output(self) -> None:
+        """Resume render/compile output."""
+        if self._reactivity is not None:
+            self._reactivity.resume_output()
+
+    @property
+    def _binding(self) -> Any:
+        """Access the binding manager (lives in ReactivityEngine)."""
+        if self._reactivity is not None:
+            return self._reactivity.binding
+        return None
+
+    @property
+    def _formula_order(self) -> list[str]:
+        """Formula execution order (lives in ReactivityEngine)."""
+        if self._reactivity is not None:
+            return self._reactivity._formula_order
+        return []
+
+    @property
+    def _auto_compile(self) -> bool:
+        """Whether incremental compile is active (lives in ReactivityEngine)."""
+        if self._reactivity is not None:
+            return self._reactivity._auto_compile
+        return False
+
+    def _rebind_data(self, new_data: Bag) -> None:
+        """Rebind to new data. Called by BuilderManager."""
+        if self._reactivity is not None:
+            self._reactivity.rebind_data(new_data)
