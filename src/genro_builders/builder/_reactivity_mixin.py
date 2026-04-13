@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from genro_bag import Bag
 from genro_toolbox.smarttimer import cancel_timer, set_timeout
 
-from ..binding import is_pointer
+from ._binding import is_pointer
 
 if TYPE_CHECKING:
     from genro_bag import BagNode

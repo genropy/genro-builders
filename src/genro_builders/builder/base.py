@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from genro_bag import Bag
 
-from ..binding import BindingManager
 from ..builder_bag import BuilderBag
+from ._binding import BindingManager
 from ._build_mixin import _BuildMixin
 from ._decorators import data_element
 from ._dispatch_mixin import _DispatchMixin

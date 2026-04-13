@@ -19,7 +19,7 @@ from typing import Any
 from genro_bag import Bag, BagNode
 from genro_toolbox.decorators import extract_kwargs
 
-from .binding import is_pointer
+from .builder._binding import is_pointer
 
 _BUILDERBAG_PROTECTED = frozenset({"builder", "node_class"})
 

@@ -31,14 +31,14 @@ Core classes:
         propagation (node / container / child).
 """
 
-from genro_builders.binding import (
+from genro_builders.builder import BagBuilderBase
+from genro_builders.builder._binding import (
     BindingManager,
     PointerInfo,
     is_pointer,
     parse_pointer,
     scan_for_pointers,
 )
-from genro_builders.builder import BagBuilderBase
 from genro_builders.builder._component import ComponentProxy, ComponentResolver
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode, Component
 from genro_builders.compiler import BagCompilerBase, compiler

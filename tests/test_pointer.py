@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from genro_bag import Bag
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode
-from genro_builders.binding import PointerInfo, is_pointer, parse_pointer, scan_for_pointers
+from genro_builders.builder._binding import PointerInfo, is_pointer, parse_pointer, scan_for_pointers
 
 
 # =============================================================================

@@ -17,7 +17,7 @@ import pytest
 
 from genro_bag import Bag as DataBag
 from genro_builders import BagBuilderBase, BagCompilerBase
-from genro_builders.binding import BindingManager
+from genro_builders.builder._binding import BindingManager
 from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builder import component, element
 
