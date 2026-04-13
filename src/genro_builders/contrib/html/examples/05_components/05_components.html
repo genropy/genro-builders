@@ -1,0 +1,36 @@
+<head>
+  <title>Product Catalog</title>
+  <style>
+              body { font-family: sans-serif; max-width: 700px; margin: 2em auto; }
+              .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1em; }
+              .card { border: 1px solid #ddd; border-radius: 8px; padding: 1em; }
+              .card h3 { margin-top: 0; }
+              .price { color: #16a34a; font-weight: bold; font-size: 1.2em; }
+          </style>
+</head>
+<body>
+  <h1>Product Catalog</h1>
+  <div>
+    <product_card name="Wireless Headphones" price="$79.99" description="Premium sound, 30h battery.">
+      <div>
+        <h3>Wireless Headphones</h3>
+        <p>$79.99</p>
+        <p>Premium sound, 30h battery.</p>
+      </div>
+    </product_card>
+    <product_card name="Mechanical Keyboard" price="$129.99" description="Cherry MX switches, RGB backlight.">
+      <div>
+        <h3>Mechanical Keyboard</h3>
+        <p>$129.99</p>
+        <p>Cherry MX switches, RGB backlight.</p>
+      </div>
+    </product_card>
+    <product_card name="USB-C Hub" price="$49.99" description="7-in-1: HDMI, USB-A, SD, ethernet.">
+      <div>
+        <h3>USB-C Hub</h3>
+        <p>$49.99</p>
+        <p>7-in-1: HDMI, USB-A, SD, ethernet.</p>
+      </div>
+    </product_card>
+  </div>
+</body>
