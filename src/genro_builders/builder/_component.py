@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Any
 
 from genro_bag import Bag
-from genro_bag.resolver import BagResolver
+from genro_bag.resolver import BagSyncResolver
 
 # ---------------------------------------------------------------------------
 # ComponentProxy
@@ -82,7 +82,7 @@ class ComponentProxy:
 # ---------------------------------------------------------------------------
 
 
-class ComponentResolver(BagResolver):
+class ComponentResolver(BagSyncResolver):
     """Resolver for lazy component expansion.
 
     Attached to component nodes by _handle_component(). Executes the
