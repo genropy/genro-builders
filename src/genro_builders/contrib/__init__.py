@@ -6,6 +6,7 @@ They are optional and only loaded when explicitly imported.
 
 Available:
     - ``genro_builders.contrib.html`` — HtmlBuilder, HtmlRenderer (W3C HTML5)
+    - ``genro_builders.contrib.live`` — LiveSession, LiveServer, LiveProxy (remote control)
     - ``genro_builders.contrib.markdown`` — MarkdownBuilder, MarkdownRenderer
     - ``genro_builders.contrib.svg`` — SvgBuilder, SvgRenderer (W3C SVG)
     - ``genro_builders.contrib.xsd`` — XsdBuilder (schema-driven XML from XSD)
