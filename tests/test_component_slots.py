@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from genro_builders.builder import BagBuilderBase, component, element
 from genro_builders.builder_bag import BuilderBag
-from genro_builders.component_proxy import ComponentProxy
+from genro_builders.builder._component import ComponentProxy
 
 
 class TestComponentProxy:

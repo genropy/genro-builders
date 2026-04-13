@@ -114,8 +114,7 @@ class _DispatchMixin:
             ComponentProxy wrapping destination_bag (and optional slot Bags).
         """
         from ..builder_bag import BuilderBag
-        from ..component_proxy import ComponentProxy
-        from ..component_resolver import ComponentResolver
+        from ._component import ComponentProxy, ComponentResolver
 
         # Extract internal kwargs that need special handling
         kwargs.pop("node_value", None)

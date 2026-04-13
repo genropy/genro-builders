@@ -62,7 +62,7 @@ class TestResolverCreation:
 
     def test_component_returns_proxy(self):
         """All components return ComponentProxy wrapping parent bag."""
-        from genro_builders.component_proxy import ComponentProxy
+        from genro_builders.builder._component import ComponentProxy
 
         class B(BagBuilderBase):
             @component()

@@ -95,7 +95,7 @@ class TestComponentSubTagsReturnBehavior:
 
     def test_void_sub_tags_returns_proxy(self):
         """sub_tags='' (void) returns ComponentProxy wrapping parent bag."""
-        from genro_builders.component_proxy import ComponentProxy
+        from genro_builders.builder._component import ComponentProxy
 
         class Builder(BagBuilderBase):
             @component(sub_tags="")
@@ -116,7 +116,7 @@ class TestComponentSubTagsReturnBehavior:
 
     def test_defined_sub_tags_returns_proxy(self):
         """All components return ComponentProxy wrapping parent bag."""
-        from genro_builders.component_proxy import ComponentProxy
+        from genro_builders.builder._component import ComponentProxy
 
         class Builder(BagBuilderBase):
             @component(sub_tags="item")
@@ -134,7 +134,7 @@ class TestComponentSubTagsReturnBehavior:
 
     def test_absent_sub_tags_returns_proxy(self):
         """No sub_tags (absent) returns ComponentProxy wrapping parent bag."""
-        from genro_builders.component_proxy import ComponentProxy
+        from genro_builders.builder._component import ComponentProxy
 
         class Builder(BagBuilderBase):
             @component()
@@ -152,7 +152,7 @@ class TestComponentSubTagsReturnBehavior:
 
     def test_none_sub_tags_returns_proxy(self):
         """sub_tags=None explicitly returns ComponentProxy wrapping parent bag."""
-        from genro_builders.component_proxy import ComponentProxy
+        from genro_builders.builder._component import ComponentProxy
 
         class Builder(BagBuilderBase):
             @component(sub_tags=None)

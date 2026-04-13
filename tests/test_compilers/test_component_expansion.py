@@ -175,7 +175,7 @@ class TestComponentSubTagsAfterExpansion:
 
     def test_void_sub_tags_returns_proxy(self):
         """sub_tags='' (void) returns ComponentProxy wrapping parent bag."""
-        from genro_builders.component_proxy import ComponentProxy
+        from genro_builders.builder._component import ComponentProxy
 
         class Builder(BagBuilderBase):
 
@@ -201,7 +201,7 @@ class TestComponentSubTagsAfterExpansion:
 
     def test_component_returns_proxy_for_chaining(self):
         """All components return ComponentProxy wrapping parent bag."""
-        from genro_builders.component_proxy import ComponentProxy
+        from genro_builders.builder._component import ComponentProxy
 
         class Builder(BagBuilderBase):
 
