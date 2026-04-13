@@ -20,6 +20,8 @@ class HtmlRenderer(BagRendererBase):
     Reads attributes directly from node.runtime_attrs.
     """
 
+    _ATTR_MAP = {"_class": "class", "_style": "style", "_for": "for"}
+
     def render_node(
         self, node: BagNode,
         parent: list | None = None, **kwargs: Any,
@@ -27,11 +29,14 @@ class HtmlRenderer(BagRendererBase):
         """Render a single node as HTML markup."""
         tag = node.node_tag or node.label
         attrs = node.runtime_attrs
-        attrs_str_parts = [
-            f'{k}="{v}"'
-            for k, v in attrs.items()
-            if not k.startswith("_")
-        ]
+        attrs_str_parts = []
+        for k, v in attrs.items():
+            if k.startswith("_"):
+                html_name = self._ATTR_MAP.get(k)
+                if html_name is None:
+                    continue
+                k = html_name
+            attrs_str_parts.append(f'{k}="{v}"')
         attrs_str = f" {' '.join(attrs_str_parts)}" if attrs_str_parts else ""
 
         value = node.runtime_value
