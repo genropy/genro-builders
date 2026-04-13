@@ -26,7 +26,7 @@ from ._binding import BindingManager
 from ._build_mixin import _BuildMixin
 from ._decorators import data_element
 from ._grammar import _GrammarMixin
-from ._output_mixin import _OutputMixin
+from ._output import _OutputMixin
 from ._reactivity_mixin import _ReactivityMixin
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
 
