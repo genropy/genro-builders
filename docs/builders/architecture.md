@@ -15,18 +15,21 @@ flowchart TB
 
 ## Package Structure
 
-`BagBuilderBase` is composed from four mixins, each responsible for a
-distinct area:
+`BagBuilderBase` is composed from three mixins plus an encapsulated
+reactivity engine:
 
-| Module                 | Mixin              | Responsibility                                             |
-| ---------------------- | ------------------ | ---------------------------------------------------------- |
-| `_dispatch_mixin.py`   | `_DispatchMixin`   | `__getattr__`, element/component creation, validation      |
-| `_build_mixin.py`      | `_BuildMixin`      | Build walk, pointer resolution, bindings, source changes   |
-| `_reactivity_mixin.py` | `_ReactivityMixin` | Topological sort, formula re-execution, suspend/resume     |
-| `_output_mixin.py`     | `_OutputMixin`     | render, compile, schema access, documentation              |
-| `base.py`              | (main class)       | `__init__`, `__init_subclass__`, properties, data elements |
+| Module            | Class / Mixin       | Responsibility                                         |
+| ----------------- | ------------------- | ------------------------------------------------------ |
+| `_grammar.py`     | `_GrammarMixin`     | Element dispatch, validation, schema introspection     |
+| `_build.py`       | `_BuildMixin`       | Build walk, materialization, pointer registration      |
+| `_output.py`      | `_OutputMixin`      | render, compile, check/validate                        |
+| `_reactivity.py`  | `ReactivityEngine`  | Subscribe, formulas, timers, incremental compile       |
+| `base.py`         | (main class)        | `__init__`, `__init_subclass__`, properties             |
 
-All mixins share the same `self` -- attributes are defined in `base.py.__init__`.
+The three mixins share `self`. `ReactivityEngine` is a separate object
+(`self._reactivity`), created lazily by `build()` and activated by
+`subscribe()`. Without `subscribe()`, the builder is a pure grammar +
+build + render machine.
 
 ## Contributed Builders
 

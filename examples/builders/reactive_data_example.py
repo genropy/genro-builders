@@ -17,7 +17,7 @@ Usage:
 from __future__ import annotations
 
 from genro_builders.contrib.html import HtmlBuilder
-from genro_builders.reactive_manager import ReactiveManager
+from genro_builders.manager import ReactiveManager
 
 
 def basic_formula():

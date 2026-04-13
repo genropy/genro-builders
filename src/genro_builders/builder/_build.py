@@ -1,12 +1,10 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Build mixin: source-to-built materialization, pointer resolution,
-binding registration, and source-change handlers (incremental compile).
+"""Build mixin: source-to-built materialization and pointer registration.
 
-Handles the complete build pipeline: ``build()`` walks the source Bag,
+Handles the build pipeline: ``build()`` walks the source Bag,
 processes data elements, materializes normal elements into the built Bag,
-registers pointer bindings, and resolves ^pointers just-in-time.
-Source-change handlers (``_on_source_inserted/updated/deleted``) support
-incremental updates after ``subscribe()``.
+and registers pointer bindings. Incremental compile (source-change
+handlers) lives in ``_reactivity.ReactivityEngine``.
 
 Async-safe: when called inside an async context (running event loop),
 ``build()`` and the incremental handlers return coroutines instead of
