@@ -3,7 +3,7 @@
 
 What you learn:
     - Split main() into methods for logical composition
-    - Full HTML structure: head + body
+    - Full HTML document: html > head + body
     - Nesting: div > h2 + ul > li
     - Attributes: _class (maps to class), id, href
     - Python methods = reusable building blocks
@@ -23,16 +23,16 @@ from genro_builders.contrib.html import HtmlManager
 class StaticPage(HtmlManager):
     """A static page composed from logical building blocks."""
 
-    def main(self, source):
-        self.page_head(source)
-        body = source.body()
+    def main(self, html):
+        self.page_head(html)
+        body = html.body()
         self.hero(body)
         self.navigation(body)
         self.features(body)
         body.footer().p("Built with genro-builders.")
 
-    def page_head(self, source):
-        head = source.head()
+    def page_head(self, html):
+        head = html.head()
         head.meta(charset="utf-8")
         head.title("My Static Page")
         head.style("""
