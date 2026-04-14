@@ -6,10 +6,14 @@ Define domain-specific grammars via decorators (@element, @abstract,
 validation, reactive data binding, and computed data infrastructure.
 
 A builder is a machine: it materializes a source Bag into a built Bag
-in a two-pass walk (data elements first, then normal elements),
+in a two-pass walk (data infrastructure first, then normal elements),
 expanding components and keeping ^pointers formal (resolved just-in-time
 during render/compile). A ``BuilderManager`` mixin coordinates one or
 more builders with a shared reactive data store.
+
+Pull-based reactivity: ``data_formula`` installs a ``FormulaResolver``
+on the data store — values are computed on-demand when read.
+Data changes signal dirty; the manager decides when to re-render/compile.
 
 Lifecycle: setup (populate) -> build (materialize) -> subscribe (optional
 reactivity) -> render/compile (output).
@@ -17,18 +21,15 @@ reactivity) -> render/compile (output).
 Core classes:
     BagBuilderBase: Grammar machine -- @element, @abstract, @component,
         @data_element, build, subscribe, render, compile.
-        Data infrastructure: data_setter, data_formula, data_controller.
-        Reactivity: topological sort, _delay (debounce), _interval
-        (periodic), suspend_output / resume_output, computed attributes.
+        Data infrastructure: data_setter (static), data_formula (resolver).
+    FormulaResolver: BagSyncResolver for pull-based computed data values.
     BuilderBag: Bag subclass with grammar-first attribute resolution.
     BagRendererBase: Transform built Bag into serialized output (text, bytes).
     BagCompilerBase: Transform built Bag into live objects (widgets, etc.).
     BuilderManager: Sync coordinator for builders with shared data.
-        Provides setup (store -> main), build, and run.
     ReactiveManager: Extends BuilderManager with subscribe() for
-        reactive bindings (formula re-execution, _delay, _interval).
-    BindingManager: Reactive ^pointer subscription map with 3-level
-        propagation (node / container / child).
+        reactive bindings (data change tracking, incremental compile).
+    BindingManager: Data change subscriber with UI node tracking.
 """
 
 from genro_builders.builder import BagBuilderBase

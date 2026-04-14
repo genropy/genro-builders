@@ -1,21 +1,19 @@
 # Reactive Data Infrastructure
 
-genro-builders provides a complete reactive data infrastructure that lets you
-define computed values, side effects, and reactive bindings directly in the
-source Bag via **data elements**.
+genro-builders provides a pull-based reactive data infrastructure. Computed
+values are `FormulaResolver` instances installed on the data store — they
+compute on-demand when read, with no push cascade.
 
 ## Overview
 
-Data elements are declared with the `@data_element` decorator. Three built-in
-data elements are available on every builder:
+Two built-in data elements are available on every builder:
 
-| Element | Purpose | Has output path? |
-|---------|---------|:----------------:|
-| `data_setter` | Write a static value to the data Bag | Yes |
-| `data_formula` | Compute a value from `^pointer` dependencies | Yes |
-| `data_controller` | Execute a side effect when dependencies change | No |
+| Element | Purpose | Mechanism |
+|---------|---------|-----------|
+| `data_setter` | Write a static value to the data Bag | One-shot at build time |
+| `data_formula` | Install a computed value resolver | FormulaResolver on data node |
 
-Data elements are **transparent**: they do not appear in the built Bag. They are
+Both are **transparent**: they do not appear in the built Bag. They are
 processed during Pass 1 of the build walk, before normal elements are materialized.
 
 ## data_setter
@@ -32,7 +30,7 @@ s.data_setter('user.role', value='admin')
 s.body().p(value='^user.name')
 
 builder.build()
-print(builder.output)
+print(builder.render())
 # <body><p>Giovanni</p></body>
 ```
 
@@ -40,8 +38,8 @@ If the value is a `dict`, it is automatically converted to a `Bag`.
 
 ## data_formula
 
-Computes a value by calling a function with resolved `^pointer` arguments.
-The result is written at the given path in the data Bag:
+Installs a `FormulaResolver` on the data store node. The resolver computes
+the value on-demand by calling `func` with resolved `^pointer` arguments:
 
 ```python
 builder = HtmlBuilder()
@@ -59,116 +57,79 @@ s.data_formula('total',
 s.body().p(value='^total')
 
 builder.build()
-builder.subscribe()
-print(builder.output)
+print(builder.render())
 # <body><p>122.0</p></body>
 
-# Change a dependency -> formula re-executes -> re-render
+# Change a dependency -> re-render shows fresh value (pull)
 builder.data['price'] = 200
-print(builder.output)
+print(builder.render())
 # <body><p>244.0</p></body>
 ```
 
-### Formula dependencies and topological sort
+### Formula cascades (pull model)
 
-When multiple formulas depend on each other, they are automatically sorted
-in topological order before execution. If formula A writes to a path that
-formula B reads via `^pointer`, A always executes before B.
+When formulas depend on each other, the cascade resolves naturally via
+demand-driven reads. Reading `data['quadrupled']` triggers its resolver,
+which reads `data['doubled']`, which triggers its resolver, which reads
+`data['base']`. No topological sort needed.
 
 ```python
 s.data_setter('base', value=10)
 s.data_formula('doubled', func=lambda base: base * 2, base='^base')
 s.data_formula('quadrupled', func=lambda doubled: doubled * 2, doubled='^doubled')
-# Execution order: base -> doubled -> quadrupled
+
+builder.build()
+print(builder.data['quadrupled'])  # 40
 ```
 
-Circular dependencies are detected at build time and raise `ValueError`.
+### Active cache with `_cache_time`
 
-### Debounce with `_delay`
-
-When a formula has `_delay`, it debounces: only the last trigger within the
-delay window actually executes. Useful for search-as-you-type patterns:
-
-```python
-s.data_formula('search_results',
-    func=lambda query: api_search(query),
-    query='^search.query',
-    _delay=0.5,   # seconds
-)
-```
-
-If `^search.query` changes 10 times in 400ms, the formula executes only once
-(500ms after the last change).
-
-### Periodic execution with `_interval`
-
-When a formula has `_interval`, it re-executes periodically after `subscribe()`:
+For periodic background refresh, use `_cache_time=-N` (negative = active cache,
+N seconds between refreshes). Requires an async context:
 
 ```python
 import time
 
 s.data_formula('clock',
     func=lambda: time.strftime('%H:%M:%S'),
-    _interval=1.0,   # every second
+    _cache_time=-1,   # refresh every second
 )
 ```
 
-The interval timer starts when `subscribe()` is called and stops when the
-builder is rebuilt or the built Bag is cleared.
+With active cache:
+- `read_only=False`: result stored in node, triggers data change events
+- Background timer refreshes the value periodically
+- Reading the value returns the cached result (fast)
+- Data subscribers are notified on each refresh
 
-## data_controller
+## Side effects
 
-Executes a function for side effects only. It has no output path — the result
-is discarded. Useful for logging, API calls, or triggering external actions:
-
-```python
-s.data_controller(
-    func=lambda total: print(f'Order total: {total}'),
-    total='^total',
-)
-```
-
-Controllers support `_delay` and `_interval` just like formulas.
-
-## `_node` injection
-
-If a formula or controller function accepts a `_node` parameter (or `**kwargs`),
-the source BagNode is injected automatically. This gives access to the full
-node context:
+Side effects (logging, file writes, API calls) are handled via
+`data.subscribe()` on the data store, not via the builder:
 
 ```python
-def my_formula(price, _node=None):
-    # _node is the source BagNode for this data_formula
-    return price * 1.22
-
-s.data_formula('total', func=my_formula, price='^price')
+class MyApp(ReactiveManager):
+    def __init__(self):
+        self.page = self.set_builder('page', HtmlBuilder)
+        self.run(subscribe=True)
+        # Subscribe for side effects
+        self.reactive_store.subscribe(
+            'logger',
+            any=lambda pathlist=None, **kw: print(f'Changed: {pathlist}'),
+        )
 ```
 
 ## `_onBuilt` hook
 
 Data elements can include an `_onBuilt` callable that fires once after
-the entire build is complete (after topological sort, before `subscribe()`):
+the build is complete:
 
 ```python
-s.data_controller(
-    func=lambda: None,
-    _onBuilt=lambda builder: print(f'Build complete: {len(builder.built)} nodes'),
+s.data_formula('total',
+    func=lambda price: price * 1.22,
+    price='^price',
+    _onBuilt=lambda builder: print(f'Build complete'),
 )
-```
-
-## Output suspension
-
-When making multiple data changes at once, use `suspend_output()` /
-`resume_output()` to avoid redundant re-renders:
-
-```python
-builder.subscribe()
-
-builder.suspend_output()     # pause
-builder.data['a'] = 1
-builder.data['b'] = 2
-builder.data['c'] = 3        # formulas re-execute, but no render
-builder.resume_output()       # single render with all changes applied
 ```
 
 ## Computed attributes
@@ -186,11 +147,29 @@ s.body().div(
 When `^theme.bg` or `^theme.fg` change, the `style` attribute is re-computed
 on the next render.
 
+## Explicit render (no auto-render)
+
+In the pull model, the builder does NOT auto-render on data changes.
+Call `render()` explicitly when you want output. This makes batching natural:
+
+```python
+builder.build()
+builder.subscribe()
+
+# Multiple changes, no render yet
+builder.data['a'] = 1
+builder.data['b'] = 2
+builder.data['c'] = 3
+
+# Single render with all changes applied
+output = builder.render()
+```
+
 ## Pointer formali
 
 The built Bag retains `^pointer` strings verbatim. Resolution happens
 just-in-time during render/compile via `node.runtime_value` and
-`node.runtime_attrs` (which call `evaluate_on_node(data)` internally). This
+`node.runtime_attrs` (which call `evaluate_on_node()` internally). This
 design means:
 
 - The built Bag is a stable structural representation.
@@ -202,38 +181,12 @@ design means:
 
 The `build()` method processes the source Bag in two passes:
 
-1. **Pass 1 — Data elements**: all `data_setter`, `data_formula`, and
-   `data_controller` nodes are processed first. They write to the data Bag,
-   register in the formula registry, and collect `_onBuilt` hooks.
+1. **Pass 1 — Data infrastructure**: `data_setter` writes static values,
+   `data_formula` installs `FormulaResolver` instances on data store nodes.
+   Neither leaves a trace in the built Bag.
 
 2. **Pass 2 — Normal elements**: elements and components are materialized
-   into the built Bag. `^pointer` bindings are registered (but not resolved).
+   into the built Bag. `^pointer` bindings stay formal.
 
-After both passes:
-- Formulas are sorted in topological order.
-- `_onBuilt` hooks are fired.
-
-This guarantees that data is available before normal elements try to read it
-via `^pointer` bindings.
-
-## Custom data elements
-
-You can define your own data elements with `@data_element`:
-
-```python
-from genro_builders.builder import BagBuilderBase, data_element, element
-
-class MyBuilder(BagBuilderBase):
-    @element()
-    def item(self): ...
-
-    @data_element()
-    def data_timer(self, path, func=None, interval=1.0, **kwargs):
-        """Custom data element with default interval."""
-        return path, dict(func=func, _interval=interval, **kwargs)
-```
-
-The handler body receives the raw arguments and must return
-`(path, attrs_dict)`. The `path` is the data path (or `None` for
-controller-like elements), and `attrs_dict` contains the attributes
-to store on the source node.
+After both passes, formula resolvers with `_on_built=True` are warmed up
+(initial read triggers computation), and `_onBuilt` hooks are fired.
