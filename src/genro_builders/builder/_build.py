@@ -296,10 +296,18 @@ class _BuildMixin:
             else:
                 static_kwargs[k] = v
 
-        resolver = FormulaResolver(func=func)
+        cache_time = attrs.get("_cache_time", 0)
+        read_only = cache_time == 0
+
+        resolver = FormulaResolver(func=func, cache_time=cache_time, read_only=read_only)
         resolver._data_bag = data
         resolver._dep_paths = dep_paths
         resolver._static_kwargs = static_kwargs
+
+        # Stop old resolver's timer if replacing
+        old_node = data.get_node(path)
+        if old_node is not None and old_node.resolver is not None:
+            old_node.resolver = None
 
         data.set_resolver(path, resolver)
 

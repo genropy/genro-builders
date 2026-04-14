@@ -2,6 +2,8 @@
 """Tests for @data_element decorator and data_setter/data_formula (pull model)."""
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from genro_builders.builder import BagBuilderBase, data_element, element
@@ -476,3 +478,94 @@ class TestDelayNotApplicable:
 
         builder.data["input"] = 5
         assert builder.data["result"] == 10
+
+
+# =============================================================================
+# Active cache (background refresh)
+# =============================================================================
+
+
+class TestActiveCache:
+    """Tests for data_formula with _cache_time < 0 (active cache)."""
+
+    @pytest.mark.asyncio
+    async def test_active_cache_refreshes_periodically(self):
+        """Formula with _cache_time=-N refreshes in background."""
+        counter = {"n": 0}
+
+        def incrementing():
+            counter["n"] += 1
+            return counter["n"]
+
+        builder = TestBuilder()
+        builder.source.data_formula(
+            "ticker", func=incrementing, _cache_time=-0.1,
+            _on_built=True,
+        )
+        builder.build()
+
+        # Initial value from warm-up
+        initial = builder.data["ticker"]
+        assert initial == 1
+
+        # Wait for initial_delay (1s) + a few ticks (0.1s each)
+        await asyncio.sleep(1.5)
+
+        # Background refresh should have produced new values
+        assert counter["n"] >= 3
+
+    @pytest.mark.asyncio
+    async def test_active_cache_triggers_data_change(self):
+        """Active cache writes to node, triggering data subscribers."""
+        changes: list[str] = []
+        counter = {"n": 0}
+
+        def incrementing():
+            counter["n"] += 1
+            return counter["n"]
+
+        builder = TestBuilder()
+        builder.source.data_formula(
+            "ticker", func=incrementing, _cache_time=-0.1,
+            _on_built=True,
+        )
+        builder.build()
+
+        builder.data.subscribe("test", any=lambda **kw: changes.append("changed"))
+
+        # Wait for initial_delay (1s) + at least one tick
+        await asyncio.sleep(1.3)
+
+        # Each background tick produces a new value (incrementing) → triggers event
+        assert len(changes) >= 1
+
+    @pytest.mark.asyncio
+    async def test_active_cache_resolver_replaced_on_rebuild(self):
+        """Rebuild replaces the old resolver with a new one."""
+        counter_a = {"n": 0}
+        counter_b = {"n": 0}
+
+        builder = TestBuilder()
+        builder.source.data_formula(
+            "ticker", func=lambda: (counter_a.__setitem__("n", counter_a["n"] + 1), counter_a["n"])[1],
+            _cache_time=-0.1,
+            _on_built=True,
+        )
+        builder.build()
+
+        # Warm-up executes the first resolver
+        assert builder.data["ticker"] == 1
+        assert counter_a["n"] == 1
+
+        # Rebuild with a different resolver
+        builder.source.clear()
+        builder.source.data_formula(
+            "ticker", func=lambda: (counter_b.__setitem__("n", counter_b["n"] + 1), counter_b["n"])[1],
+            _cache_time=-0.1,
+            _on_built=True,
+        )
+        builder.build()
+
+        # New resolver is active
+        assert builder.data["ticker"] == 1  # counter_b starts from 1
+        assert counter_b["n"] == 1

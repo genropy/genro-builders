@@ -6,8 +6,13 @@ Computes value on-demand: when ``data['area']`` is read, the resolver
 calls ``func(base=data['base'], altezza=data['altezza'])`` and returns
 the result. No push, no cascade, no built-bag node.
 
-Always ``read_only=True``: the resolver never stores its result in the
-node's ``_value`` — every read triggers a fresh computation.
+Cache modes:
+    cache_time=0 (default): read_only=True, every read recomputes.
+    cache_time=-N: active cache, background refresh every N seconds.
+        read_only=False — result stored in node._value, triggers
+        data change events. Requires async context.
+    cache_time=N (N>0): passive cache, TTL of N seconds.
+        read_only=False — cached, recomputes on expiry.
 """
 
 from __future__ import annotations
@@ -23,6 +28,9 @@ class FormulaResolver(BagSyncResolver):
 
     Installed on data store nodes at build time. Reads dependencies
     from the same data Bag and calls func to produce the value.
+
+    With cache_time=0 (default): pure pull, every read recomputes.
+    With cache_time<0: active cache with periodic background refresh.
     """
 
     class_kwargs: dict[str, Any] = {
@@ -53,3 +61,45 @@ class FormulaResolver(BagSyncResolver):
         if isinstance(result, dict):
             result = Bag(source=result)
         return result
+
+    def _start_active_cache(self) -> None:
+        """Start background refresh, accepting float cache_time.
+
+        Overrides BagResolver._start_active_cache which only accepts int.
+        """
+        from genro_toolbox.smarttimer import set_interval
+
+        cache_time = self.cache_time
+        if cache_time is False or cache_time >= 0:
+            return
+        if self.read_only:
+            return
+        if self._timer_id is not None:
+            return
+        try:
+            import asyncio
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._timer_id = set_interval(abs(cache_time), self._background_load, initial_delay=1)
+
+    def _background_load(self) -> None:
+        """Background refresh: recompute and notify data subscribers.
+
+        Overrides BagResolver._background_load to trigger data change
+        events via node.set_value(). The base implementation writes
+        to cached_value (which maps to node._value) silently.
+        We use set_value() instead to trigger subscriber events.
+        """
+        from datetime import datetime
+
+        result = self.load()
+        if isinstance(result, dict):
+            result = Bag(source=result)
+        self._cache_last_update = datetime.now()
+        node = self._parent_node
+        if node is not None:
+            node.set_value(result)
+            # cached_value reads from node._value (set by set_value above)
+        else:
+            self._cached_value = result
