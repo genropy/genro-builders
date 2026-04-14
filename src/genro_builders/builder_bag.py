@@ -259,16 +259,19 @@ class BuilderBagNode(BagNode):
             return None
         return self.current_from_datasource(value, data)
 
-    def execute_func(self, raw_attrs: dict[str, Any], data: Bag) -> Any:
-        """Resolve attrs and execute the func in this node's context.
+    def execute_func(
+        self, raw_attrs: dict[str, Any], data: Bag, reason: Any = None,
+    ) -> Any:
+        """Execute this node's data provider function.
 
-        Resolves ^pointer values, extracts ``func``, and calls it.
-        The node is the natural scope — mirrors Genropy's
-        ``setDataNodeValueDo`` where ``this`` is the node.
+        Mirrors Genropy's ``setDataNodeValue``: checks anti-loop via
+        reason, resolves ^pointers, executes func, writes result to
+        data path. The node is the natural scope.
 
-        Whether ``_node`` is injected depends on the ``_accepts_node``
-        flag set at registration time by ``_process_infra_node``.
+        Returns None if skipped (reason == self), otherwise the result.
         """
+        if reason is self:
+            return None
         resolved = {
             k: self.current_from_datasource(v, data)
             for k, v in raw_attrs.items()
@@ -278,6 +281,14 @@ class BuilderBagNode(BagNode):
         if self.attr.get("_accepts_node"):
             resolved["_node"] = self
         return func(**resolved)
+
+    def set_data(self, data: Bag, path: str, value: Any) -> None:
+        """Write a value to the data Bag with _reason=self.
+
+        Guarantees anti-loop protection: any reactive dispatch triggered
+        by this write will skip this node as the originator.
+        """
+        data.set_item(path, value, _reason=self)
 
     def evaluate_on_node(self, data: Bag) -> dict[str, Any]:
         """Resolve all attributes and value in two passes.
