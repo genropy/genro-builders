@@ -17,52 +17,55 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.contrib.html import HtmlBuilder
+from genro_builders.contrib.html import HtmlManager
 
-builder = HtmlBuilder()
-s = builder.source
 
-# <head> with meta and title
-head = s.head()
-head.meta(charset="utf-8")
-head.title("My Static Page")
-head.style("""
-    body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
-    .hero { background: #f0f4f8; padding: 1.5em; border-radius: 8px; }
-    .nav { list-style: none; padding: 0; display: flex; gap: 1em; }
-    .nav li a { text-decoration: none; color: #2563eb; }
-    footer { margin-top: 2em; color: #666; font-size: 0.9em; }
-""")
+class StaticPage(HtmlManager):
+    """A static page with full HTML structure."""
 
-# <body> with nested structure
-body = s.body()
+    def main(self, source):
+        # <head> with meta and title
+        head = source.head()
+        head.meta(charset="utf-8")
+        head.title("My Static Page")
+        head.style("""
+            body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
+            .hero { background: #f0f4f8; padding: 1.5em; border-radius: 8px; }
+            .nav { list-style: none; padding: 0; display: flex; gap: 1em; }
+            .nav li a { text-decoration: none; color: #2563eb; }
+            footer { margin-top: 2em; color: #666; font-size: 0.9em; }
+        """)
 
-# Hero section — _class maps to HTML class attribute
-hero = body.div(_class="hero")
-hero.h1("Welcome to GenroBuilders")
-hero.p("A declarative way to build HTML, SVG, Markdown, and more.")
+        # <body> with nested structure
+        body = source.body()
 
-# Navigation — nesting via return values
-nav = body.nav()
-ul = nav.ul(_class="nav")
-ul.li().a("Home", href="#home")
-ul.li().a("Docs", href="#docs")
-ul.li().a("Examples", href="#examples")
+        # Hero section — _class maps to HTML class attribute
+        hero = body.div(_class="hero")
+        hero.h1("Welcome to GenroBuilders")
+        hero.p("A declarative way to build HTML, SVG, Markdown, and more.")
 
-# Content section
-content = body.div(id="content")
-content.h2("Features")
-features = content.ul()
-features.li("112 HTML5 elements with grammar validation")
-features.li("Declarative data binding with ^pointers")
-features.li("Reactive updates via subscribe()")
-features.li("Components for reusable UI patterns")
+        # Navigation — nesting via return values
+        nav = body.nav()
+        ul = nav.ul(_class="nav")
+        ul.li().a("Home", href="#home")
+        ul.li().a("Docs", href="#docs")
+        ul.li().a("Examples", href="#examples")
 
-# Footer
-body.footer().p("Built with genro-builders.")
+        # Content section
+        content = body.div(id="content")
+        content.h2("Features")
+        features = content.ul()
+        features.li("112 HTML5 elements with grammar validation")
+        features.li("Declarative data binding with ^pointers")
+        features.li("Reactive updates via subscribe()")
+        features.li("Components for reusable UI patterns")
 
-builder.build()
-html = builder.render()
+        # Footer
+        body.footer().p("Built with genro-builders.")
+
+
+app = StaticPage()
+html = app.render()
 
 output = Path(__file__).with_suffix(".html")
 output.write_text(html)
