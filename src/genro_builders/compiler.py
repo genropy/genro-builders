@@ -16,7 +16,7 @@ Handlers read resolved attributes directly from the node:
 Pointer formali and just-in-time resolution:
     The built Bag retains ``^pointer`` strings verbatim (pointer formali).
     ``runtime_attrs`` / ``runtime_value`` resolve them just-in-time via
-    ``evaluate_on_node(builder.data)``. The compiler works with resolved
+    the node's direct data reference. The compiler works with resolved
     values without modifying the built Bag.
 
 Decorators:

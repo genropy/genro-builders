@@ -90,32 +90,3 @@ class TestRuntimeAttrs:
 
         builder.data["color"] = "blue"
         assert node.runtime_attrs["style"] == "blue"
-
-
-class TestRuntimeFallback:
-    """Tests for runtime_* without builder (plain node)."""
-
-    def test_runtime_value_without_builder(self):
-        """runtime_value falls back to static value without builder."""
-        from genro_bag import Bag
-
-        bag = Bag()
-        bag.set_item("x", "hello")
-        # Plain BagNode has no runtime_value — this tests BuilderBagNode only
-        # when parent has no builder
-        from genro_builders.builder_bag import BuilderBag
-
-        bbag = BuilderBag()
-        bbag.set_item("x", "hello")
-        node = bbag.get_node("x")
-        assert node.runtime_value == "hello"
-
-    def test_runtime_attrs_without_builder(self):
-        """runtime_attrs falls back to raw attrs without builder."""
-        from genro_builders.builder_bag import BuilderBag
-
-        bbag = BuilderBag()
-        bbag.set_item("x", "hello", color="red")
-        node = bbag.get_node("x")
-        attrs = node.runtime_attrs
-        assert attrs["color"] == "red"

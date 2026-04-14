@@ -240,7 +240,7 @@ class MarkdownRenderer(BagRendererBase):
                 continue
             cells = row_node.value if isinstance(row_node.value, Bag) else []
             cell_texts = [
-                str(cell.evaluate_on_node(self.builder.data)["node_value"] or "")
+                str(cell.runtime_value or "")
                 for cell in cells
             ]
 
@@ -269,9 +269,9 @@ class MarkdownRenderer(BagRendererBase):
         items = node.value if isinstance(node.value, Bag) else []
 
         for i, item_node in enumerate(items, start=1):
-            resolved = item_node.evaluate_on_node(self.builder.data)
-            text = str(resolved["node_value"] or "")
-            node_idx = resolved["attrs"].get("idx")
+            text = str(item_node.runtime_value or "")
+            attrs = item_node.runtime_attrs
+            node_idx = attrs.get("idx")
             if node_idx is not None:
                 item_prefix = str(node_idx)
             else:

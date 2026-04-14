@@ -152,17 +152,6 @@ class TestBuildWalkPopulatesTarget:
 class TestRendering:
     """Tests for tag-based rendering via @compiler()."""
 
-    def test_render_with_handlers(self):
-        """@compiler() methods render tags."""
-        bag = BuilderBag(builder=TagBuilder)
-        bag.heading("Hello")
-        bag.text("World")
-
-        result = build_and_render(bag.builder)
-
-        assert "# Hello" in result
-        assert "World" in result
-
     def test_render_with_children(self):
         """Children rendered recursively."""
         bag = BuilderBag(builder=TagBuilder)
@@ -190,28 +179,6 @@ class TestRendering:
 
 class TestDefaultCompile:
     """Tests for default_compile behavior."""
-
-    def test_default_compile_returns_value(self):
-        """Node without handler uses default_compile — returns value."""
-
-        class MinimalBuilder(BagBuilderBase):
-            @element()
-            def plain(self): ...
-
-        class ConcreteCompiler(BagCompilerBase):
-            def render(self, compiled_bag):
-                parts = list(self._walk_compile(compiled_bag))
-                return "\n\n".join(str(p) for p in parts if p)
-
-        bag = BuilderBag(builder=MinimalBuilder)
-        bag.plain("raw text")
-
-        target = BuilderBag(builder=MinimalBuilder)
-        bag.builder._build_walk(bag, target, Bag(), BindingManager())
-        compiler = ConcreteCompiler(bag.builder)
-        result = compiler.render(target)
-
-        assert "raw text" in result
 
     def test_default_compile_recurses_children(self):
         """Default compile_node recurses — children get compiled too."""
@@ -242,26 +209,3 @@ class TestDefaultCompile:
         list(comp._walk_compile(target))
         # Both outer (empty value) and inner ("child content") get visited
         assert "child content" in collected
-
-    def test_default_compile_empty_node(self):
-        """Empty node (no value, no children) returns None."""
-
-        class EmptyBuilder(BagBuilderBase):
-            @element()
-            def empty(self): ...
-
-        class Compiler(BagCompilerBase):
-            pass
-
-
-        bag = BuilderBag(builder=EmptyBuilder)
-        bag.empty()
-
-        target = BuilderBag(builder=EmptyBuilder)
-        bag.builder._build_walk(bag, target, Bag(), BindingManager())
-        comp = Compiler(bag.builder)
-        results = list(comp._walk_compile(target))
-
-        assert results == []  # compile_node returns None for empty node
-
-

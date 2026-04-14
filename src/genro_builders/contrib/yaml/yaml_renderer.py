@@ -96,10 +96,7 @@ class YamlRendererBase(BagRendererBase):
         filters infrastructure keys, and passes each attribute through
         ``_render_attr_entry`` for subclass-specific transformations.
         """
-        if hasattr(node, "runtime_attrs") and self.builder is not None:
-            attrs = node.runtime_attrs
-        else:
-            attrs = dict(node.attr)
+        attrs = node.runtime_attrs if hasattr(node, "runtime_attrs") else dict(node.attr)
 
         content: dict[str, Any] = {}
         for attr_name, attr_value in attrs.items():
