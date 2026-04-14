@@ -26,21 +26,25 @@ class StaticPage(HtmlManager):
     def main(self, source):
         self.page_head(source)
         body = source.body()
-        self.hero(body)
-        self.navigation(body)
-        self.features(body)
-        body.footer().p("Built with genro-builders.")
+        page = body.div(_class="page")
+        self.hero(page)
+        self.navigation(page)
+        self.features(page)
+        page.footer().p("Built with genro-builders.")
 
     def page_head(self, source):
         head = source.head()
         head.meta(charset="utf-8")
         head.title("My Static Page")
         head.style("""
-            body { font-family: sans-serif; max-width: 600px; margin: 2em auto; color: #333; }
-            .hero { background: #f0f4f8; padding: 1.5em; border-radius: 8px; }
+            .page { font-family: sans-serif; max-width: 600px; margin: 2em auto;
+                    color: #333; background: #fff; padding: 1.5em; border-radius: 8px; }
+            .hero { background: #eef2ff; padding: 1.5em; border-radius: 8px; margin-bottom: 1em; }
+            h1, h2 { color: #1e293b; }
             .nav { list-style: none; padding: 0; display: flex; gap: 1em; }
             .nav li a { text-decoration: none; color: #2563eb; }
-            footer { margin-top: 2em; color: #666; font-size: 0.9em; }
+            ul { color: #475569; }
+            footer { margin-top: 2em; color: #94a3b8; font-size: 0.9em; }
         """)
 
     def hero(self, body):
