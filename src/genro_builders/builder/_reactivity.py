@@ -172,8 +172,13 @@ class ReactivityEngine:
 
         b = self._builder
 
+        if node.node_tag == "data_setter":
+            b._execute_data_setter(node, b.data)
+            self._rerender()
+            return None
+
         if node.attr.get("_is_data_element"):
-            b._process_infra_node(node, b.data)
+            b._prepare_data_element(node)
 
         parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
 
@@ -220,10 +225,13 @@ class ReactivityEngine:
 
         b = self._builder
 
-        if node is not None and node.attr.get("_is_data_element"):
-            b._process_infra_node(node, b.data)
+        if node is not None and node.node_tag == "data_setter":
+            b._execute_data_setter(node, b.data)
             self._rerender()
             return None
+
+        if node is not None and node.attr.get("_is_data_element"):
+            b._prepare_data_element(node)
 
         path = ".".join(str(p) for p in pathlist)
         built_node = b.built.get_node(path)

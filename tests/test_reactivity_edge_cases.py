@@ -6,7 +6,6 @@ import inspect
 import pytest
 
 from genro_builders import BagBuilderBase
-from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builder import element
 from genro_builders.contrib.html import HtmlBuilder
 
@@ -19,10 +18,10 @@ class TestFormulaChain:
         builder = HtmlBuilder()
         s = builder.source
         s.data_setter("input", value=1)
-        s.data_formula("a", func=lambda input: input * 2, input="^input")
-        s.data_formula("b", func=lambda a: a + 1, a="^a")
-        s.data_formula("c", func=lambda b: b * 3, b="^b")
-        s.data_formula("d", func=lambda c: c - 1, c="^c")
+        s.data_formula("a", func=lambda input: input * 2, input="^input", _on_built=True)
+        s.data_formula("b", func=lambda a: a + 1, a="^a", _on_built=True)
+        s.data_formula("c", func=lambda b: b * 3, b="^b", _on_built=True)
+        s.data_formula("d", func=lambda c: c - 1, c="^c", _on_built=True)
         body = s.body()
         body.p(value="^d")
 
@@ -43,6 +42,7 @@ class TestFormulaExceptions:
             "result",
             func=lambda x: 1 / x,  # ZeroDivisionError
             x="^x",
+            _on_built=True,
         )
         s.body()
 
@@ -58,6 +58,7 @@ class TestFormulaExceptions:
             "result",
             func=lambda x: 1 / x,
             x="^x",
+            _on_built=True,
         )
         body = s.body()
         body.p(value="^result")
@@ -78,7 +79,7 @@ class TestFormulaExceptions:
         def bad_controller(x):
             raise ValueError(f"Bad value: {x}")
 
-        s.data_controller(func=bad_controller, x="^x")
+        s.data_controller(func=bad_controller, x="^x", _on_built=True)
         s.body()
 
         with pytest.raises(ValueError, match="Bad value"):

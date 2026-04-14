@@ -84,13 +84,13 @@ class _BuildMixin:
             data: Data Bag for ^pointer resolution.
             prefix: Path prefix for built node paths.
         """
-        # Pass 1: execute data_element nodes (populate data store)
+        # Pass 1: execute data_setter nodes (populate data store, then discard)
         for node in source:
-            if node.attr.get("_is_data_element"):
-                self._process_infra_node(node, data)
+            if node.node_tag == "data_setter":
+                self._execute_data_setter(node, data)
 
-        # Pass 2: materialize ALL nodes into built
-        nodes = list(source)
+        # Pass 2: materialize all nodes except data_setter into built
+        nodes = [n for n in source if n.node_tag != "data_setter"]
         return self._build_walk_nodes(nodes, 0, target, data, prefix)
 
     def _build_walk_nodes(
@@ -115,8 +115,11 @@ class _BuildMixin:
                 continue
 
             if node.attr.get("_is_data_element"):
+                self._prepare_data_element(node)
                 value = node.static_value
+                collect_on_built = node.attr.get("_on_built")
             else:
+                collect_on_built = False
                 value = node.get_value(static=False) if node.resolver is not None else node.static_value
 
             if self._is_coroutine(value):
@@ -147,6 +150,10 @@ class _BuildMixin:
                 return cont()
 
             self._materialize_node(node, value, target, data, built_path)
+            if collect_on_built:
+                built_node = target.get_node(node.label)
+                if built_node is not None:
+                    self._on_built_nodes.append(built_node)
             if isinstance(value, Bag):
                 child_result = self._build_walk(value, target.get_node(node.label).value, data, prefix=built_path)
                 if self._is_coroutine(child_result):
@@ -238,48 +245,49 @@ class _BuildMixin:
                 value, child_node.value, data, prefix=child_built_path,
             )
 
-    def _process_infra_node(self, node: BagNode, data: Bag) -> None:
-        """Execute a data_element node at build time.
+    def _execute_data_setter(self, node: BagNode, data: Bag) -> None:
+        """Execute a data_setter at build time. Write value to data store.
 
-        Resolves ^pointers, executes the appropriate action to populate
-        the data store. The node will then be materialized in the built
-        bag like any other node.
+        data_setter is a one-shot: it populates the data store and is
+        not materialized in the built bag.
         """
         attrs = dict(node.attr)
         path = attrs.get("_data_path")
 
-        # Resolve relative path to absolute
         if path is not None and path.startswith(".") and hasattr(node, "abs_datapath"):
-            abs_path = node.abs_datapath(path)
-            node.attr["_data_path"] = abs_path
-            path = abs_path
+            path = node.abs_datapath(path)
 
-        raw_attrs = {k: v for k, v in attrs.items() if not k.startswith("_")}
+        value = node.current_from_datasource(attrs.get("value"), data)
+        if isinstance(value, dict):
+            value = Bag(source=value)
+        if path is not None:
+            data.set_item(path, value)
 
-        tag = node.node_tag
-        if tag == "data_setter":
-            value = node.current_from_datasource(attrs.get("value"), data)
-            if isinstance(value, dict):
-                value = Bag(source=value)
-            if path is not None:
-                data.set_item(path, value)
-        elif tag in ("data_formula", "data_controller"):
-            func = raw_attrs.get("func")
-            if "_accepts_node" not in node.attr:
-                sig = inspect.signature(func)
-                node.attr["_accepts_node"] = (
-                    "_node" in sig.parameters
-                    or any(p.kind == inspect.Parameter.VAR_KEYWORD
-                           for p in sig.parameters.values())
-                )
-            result = node.execute_func(attrs, data)
-            if tag == "data_formula":
-                if isinstance(result, dict):
-                    result = Bag(source=result)
-                data.set_item(path, result)
-
-        # Collect _onBuilt hooks
         on_built = attrs.get("_onBuilt")
+        if callable(on_built):
+            self._infra_on_built_hooks.append(on_built)
+
+    def _prepare_data_element(self, node: BagNode) -> None:
+        """Prepare a data_formula/data_controller for materialization.
+
+        Resolves relative _data_path to absolute. Pre-computes
+        _accepts_node flag. The node is NOT executed — execution
+        happens at subscribe time via cascade propagation.
+        """
+        path = node.attr.get("_data_path")
+        if path is not None and path.startswith(".") and hasattr(node, "abs_datapath"):
+            node.attr["_data_path"] = node.abs_datapath(path)
+
+        func = node.attr.get("func")
+        if func is not None and "_accepts_node" not in node.attr:
+            sig = inspect.signature(func)
+            node.attr["_accepts_node"] = (
+                "_node" in sig.parameters
+                or any(p.kind == inspect.Parameter.VAR_KEYWORD
+                       for p in sig.parameters.values())
+            )
+
+        on_built = node.attr.get("_onBuilt")
         if callable(on_built):
             self._infra_on_built_hooks.append(on_built)
 
@@ -306,12 +314,17 @@ class _BuildMixin:
         self._ensure_reactivity()
         self._clear_built()
         self._infra_on_built_hooks: list[Any] = []
+        self._on_built_nodes: list[Any] = []
 
         walk_result = self._build_walk(
             self.source, self.built, self.data,
         )
 
         def finalize(_: Any) -> None:
+            # Execute _on_built nodes (data_formula/data_controller with _on_built=True)
+            for built_node in self._on_built_nodes:
+                built_node._execute_now()
+            self._on_built_nodes = []
             for hook in self._infra_on_built_hooks:
                 hook(self)
             self._infra_on_built_hooks = []

@@ -73,7 +73,7 @@ class TestDataElementSource:
     def test_data_formula_creates_source_node(self):
         """data_formula creates a node in source."""
         builder = TestBuilder()
-        builder.source.data_formula("total", func=lambda a, b: a + b)
+        builder.source.data_formula("total", func=lambda a, b: a + b, _on_built=True)
 
         node = builder.source.get_node("data_formula_0")
         assert node is not None
@@ -82,7 +82,7 @@ class TestDataElementSource:
     def test_data_controller_creates_source_node(self):
         """data_controller creates a node with path=None."""
         builder = TestBuilder()
-        builder.source.data_controller(func=lambda: None)
+        builder.source.data_controller(func=lambda: None, _on_built=True)
 
         node = builder.source.get_node("data_controller_0")
         assert node is not None
@@ -129,6 +129,7 @@ class TestDataElementBuild:
         builder = TestBuilder()
         builder.source.data_formula(
             "result", func=lambda a, b: a + b, a=10, b=20,
+            _on_built=True,
         )
         builder.build()
 
@@ -144,6 +145,7 @@ class TestDataElementBuild:
             func=lambda x, m: x * m,
             x="^input",
             m="^multiplier",
+            _on_built=True,
         )
         builder.build()
 
@@ -153,7 +155,7 @@ class TestDataElementBuild:
         """data_controller calls the function during build."""
         called = []
         builder = TestBuilder()
-        builder.source.data_controller(func=lambda: called.append(True))
+        builder.source.data_controller(func=lambda: called.append(True), _on_built=True)
         builder.build()
 
         assert len(called) == 1
@@ -198,6 +200,7 @@ class TestDataElementBuild:
         builder.source.data_formula(
             "info",
             func=lambda: {"name": "Alice", "age": 30},
+            _on_built=True,
         )
         builder.build()
 
@@ -274,6 +277,7 @@ class TestDataElementEdgeCases:
         builder.source.data_controller(
             func=lambda: None,
             _onBuilt=lambda b: called.append("hook"),
+            _on_built=True,
         )
         builder.build()
         assert len(called) == 1
@@ -296,6 +300,7 @@ class TestFormulaReactivity:
         builder.data["input"] = 10
         builder.source.data_formula(
             "result", func=lambda x: x * 2, x="^input",
+            _on_built=True,
         )
         builder.source.heading("^result")
         builder.build()
@@ -315,6 +320,7 @@ class TestFormulaReactivity:
         builder.data["b"] = 4
         builder.source.data_formula(
             "sum", func=lambda a, b: a + b, a="^a", b="^b",
+            _on_built=True,
         )
         builder.build()
         builder.subscribe()
@@ -334,6 +340,7 @@ class TestFormulaReactivity:
         builder.data["trigger"] = "first"
         builder.source.data_controller(
             func=lambda val: log.append(val), val="^trigger",
+            _on_built=True,
         )
         builder.build()
         builder.subscribe()
@@ -363,7 +370,7 @@ class TestNodeInjection:
 
         builder = TestBuilder()
         builder.data["val"] = 5
-        builder.source.data_formula("result", func=my_func, x="^val")
+        builder.source.data_formula("result", func=my_func, x="^val", _on_built=True)
         builder.build()
 
         assert len(received_nodes) == 1
@@ -376,6 +383,7 @@ class TestNodeInjection:
         builder.data["val"] = 5
         builder.source.data_formula(
             "result", func=lambda x: x * 2, x="^val",
+            _on_built=True,
         )
         builder.build()
 
@@ -391,7 +399,7 @@ class TestNodeInjection:
 
         builder = TestBuilder()
         builder.data["val"] = 5
-        builder.source.data_formula("result", func=my_func, x="^val")
+        builder.source.data_formula("result", func=my_func, x="^val", _on_built=True)
         builder.build()
 
         assert "_node" in received
@@ -485,10 +493,12 @@ class TestTopologicalSort:
         # A: result_a = input * 2
         builder.source.data_formula(
             "result_a", func=lambda x: x * 2, x="^input",
+            _on_built=True,
         )
         # B: result_b = result_a + 1 (depends on A's output)
         builder.source.data_formula(
             "result_b", func=lambda x: x + 1, x="^result_a",
+            _on_built=True,
         )
         builder.build()
 
@@ -501,9 +511,11 @@ class TestTopologicalSort:
         builder.data["input"] = 10
         builder.source.data_formula(
             "result_a", func=lambda x: x * 2, x="^input",
+            _on_built=True,
         )
         builder.source.data_formula(
             "result_b", func=lambda x: x + 1, x="^result_a",
+            _on_built=True,
         )
         builder.build()
         builder.subscribe()
@@ -519,9 +531,11 @@ class TestTopologicalSort:
         builder.data["y"] = 2
         builder.source.data_formula(
             "rx", func=lambda x: x * 10, x="^x",
+            _on_built=True,
         )
         builder.source.data_formula(
             "ry", func=lambda y: y * 10, y="^y",
+            _on_built=True,
         )
         builder.build()
 
@@ -615,6 +629,7 @@ class TestDelayAndInterval:
         builder.data["input"] = 10
         builder.source.data_formula(
             "result", func=lambda x: x * 2, x="^input", _delay=0.2,
+            _on_built=True,
         )
         builder.build()
         builder.subscribe()
@@ -635,6 +650,7 @@ class TestDelayAndInterval:
         builder.data["input"] = 1
         builder.source.data_formula(
             "result", func=lambda x: x * 10, x="^input", _delay=0.2,
+            _on_built=True,
         )
         builder.build()
         builder.subscribe()
@@ -655,7 +671,7 @@ class TestDelayAndInterval:
             counter["n"] += 1
 
         builder = TestBuilder()
-        builder.source.data_controller(func=increment, _interval=0.1)
+        builder.source.data_controller(func=increment, _interval=0.1, _on_built=True)
         builder.build()
         builder.subscribe()
 
@@ -673,7 +689,7 @@ class TestDelayAndInterval:
             counter["n"] += 1
 
         builder = TestBuilder()
-        builder.source.data_controller(func=increment, _interval=0.1)
+        builder.source.data_controller(func=increment, _interval=0.1, _on_built=True)
         builder.build()
         builder.subscribe()
 
@@ -690,6 +706,7 @@ class TestDelayAndInterval:
         builder.data["input"] = 10
         builder.source.data_formula(
             "result", func=lambda x: x * 2, x="^input",
+            _on_built=True,
         )
         builder.build()
         builder.subscribe()
