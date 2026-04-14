@@ -62,27 +62,6 @@ class FormulaResolver(BagSyncResolver):
             result = Bag(source=result)
         return result
 
-    def _start_active_cache(self) -> None:
-        """Start background refresh, accepting float cache_time.
-
-        Overrides BagResolver._start_active_cache which only accepts int.
-        """
-        from genro_toolbox.smarttimer import set_interval
-
-        cache_time = self.cache_time
-        if cache_time is False or cache_time >= 0:
-            return
-        if self.read_only:
-            return
-        if self._timer_id is not None:
-            return
-        try:
-            import asyncio
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        self._timer_id = set_interval(abs(cache_time), self._background_load, initial_delay=1)
-
     def _background_load(self) -> None:
         """Background refresh: recompute and notify data subscribers.
 
