@@ -30,8 +30,8 @@ class HtmlManager(ReactiveManager):
     The builder is available as ``self.page``.
     """
 
-    def __init__(self):
-        self.page = self.set_builder("page", HtmlBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", HtmlBuilder)
 
     def render(self, **kwargs: Any) -> str:
         """Render the HTML page. Calls run() automatically if needed."""

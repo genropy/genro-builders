@@ -64,9 +64,9 @@ class ShopBuilder(HtmlBuilder):
 class Shop(ReactiveManager):
     """Mini e-commerce: product catalog + cart with live REPL."""
 
-    def __init__(self):
-        self.page = self.set_builder("page", ShopBuilder)
-        self.sidebar = self.set_builder("sidebar", ShopBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", ShopBuilder)
+        self.sidebar = self.register_builder("sidebar", ShopBuilder)
         self.run(subscribe=True)
         # Write HTML on any data change (side effect via subscribe)
         self.reactive_store.subscribe(

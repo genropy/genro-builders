@@ -15,8 +15,8 @@ class MarkdownManager(ReactiveManager):
     The builder is available as ``self.page``.
     """
 
-    def __init__(self):
-        self.page = self.set_builder("page", MarkdownBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", MarkdownBuilder)
 
     def render(self, **kwargs: Any) -> str:
         """Render the Markdown document. Calls run() automatically if needed."""

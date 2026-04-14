@@ -34,8 +34,8 @@ class TestReactiveManagerRun:
         """run() without subscribe works like BuilderManager.run()."""
 
         class App(ReactiveManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.run()
 
             def store(self, data):
@@ -51,8 +51,8 @@ class TestReactiveManagerRun:
         """run(subscribe=True) activates reactive bindings."""
 
         class App(ReactiveManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.run(subscribe=True)
 
             def store(self, data):
@@ -74,8 +74,8 @@ class TestReactiveManagerSubscribe:
         """subscribe() enables reactive data propagation."""
 
         class App(ReactiveManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.setup()
                 self.build()
                 self.subscribe()
@@ -94,8 +94,8 @@ class TestReactiveManagerSubscribe:
         """Manual setup+build+subscribe matches run(subscribe=True)."""
 
         class ManualApp(ReactiveManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.setup()
                 self.build()
                 self.subscribe()
@@ -104,8 +104,8 @@ class TestReactiveManagerSubscribe:
                 source.heading("Test")
 
         class RunApp(ReactiveManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.run(subscribe=True)
 
             def main(self, source):

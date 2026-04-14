@@ -38,8 +38,8 @@ class CatalogBuilder(HtmlBuilder):
 class ProductCatalog(ReactiveManager):
     """Product catalog using the card component."""
 
-    def __init__(self):
-        self.page = self.set_builder("page", CatalogBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", CatalogBuilder)
 
     def store(self, data):
         data["products"] = [

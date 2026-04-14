@@ -14,8 +14,8 @@ class TestMainStore:
         """Subclass main() is called to populate source."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def main(self, source):
                 source.heading("from main")
@@ -29,8 +29,8 @@ class TestMainStore:
         """Subclass store() populates data before main."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def store(self, data):
                 data["msg"] = "hello"
@@ -48,8 +48,8 @@ class TestMainStore:
         order = []
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def store(self, data):
                 order.append("store")
@@ -67,8 +67,8 @@ class TestMainStore:
         """Manager without main/store works (manual population)."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         app.page.source.heading("manual")
@@ -79,8 +79,8 @@ class TestMainStore:
         """main() can call helper methods on self."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def main(self, source):
                 self.header(source)
@@ -103,8 +103,8 @@ class TestMainStore:
         """Only store() without main() — user populates source manually."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def store(self, data):
                 data["title"] = "Hello"

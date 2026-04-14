@@ -16,8 +16,8 @@ class TestManagerBasics:
         """set_builder creates and returns a builder."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         assert app.page is not None
@@ -27,8 +27,8 @@ class TestManagerBasics:
         """Builder.data returns the manager's shared data."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         assert app.page.data is app.reactive_store
@@ -37,8 +37,8 @@ class TestManagerBasics:
         """Manager's data Bag has backref enabled by __init_subclass__."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         assert app.reactive_store.backref is True
@@ -47,8 +47,8 @@ class TestManagerBasics:
         """Subclass __init__ does not need super().__init__()."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.custom = "value"
 
         app = App()
@@ -64,9 +64,9 @@ class TestManagerMultipleBuilders:
         """Two registered builders share the same data."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.b1 = self.set_builder("page", TestBuilder)
-                self.b2 = self.set_builder("sidebar", TestBuilder)
+            def on_init(self):
+                self.b1 = self.register_builder("page", TestBuilder)
+                self.b2 = self.register_builder("sidebar", TestBuilder)
 
         app = App()
         assert app.b1.data is app.b2.data
@@ -76,9 +76,9 @@ class TestManagerMultipleBuilders:
         """Replacing manager.data updates all builders."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.b1 = self.set_builder("page", TestBuilder)
-                self.b2 = self.set_builder("sidebar", TestBuilder)
+            def on_init(self):
+                self.b1 = self.register_builder("page", TestBuilder)
+                self.b2 = self.register_builder("sidebar", TestBuilder)
 
         app = App()
         new_data = Bag()
@@ -93,7 +93,7 @@ class TestManagerMultipleBuilders:
         """Manager.data setter converts dict to Bag."""
 
         class App(BuilderManager):
-            def __init__(self):
+            def on_init(self):
                 pass
 
         app = App()
@@ -109,9 +109,9 @@ class TestManagerBuild:
         """build() materializes all registered builders."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.b1 = self.set_builder("page", TestBuilder)
-                self.b2 = self.set_builder("sidebar", TestBuilder)
+            def on_init(self):
+                self.b1 = self.register_builder("page", TestBuilder)
+                self.b2 = self.register_builder("sidebar", TestBuilder)
 
         app = App()
         app.b1.source.heading("Page")
@@ -129,8 +129,8 @@ class TestManagerBuilderProperties:
         """Builder created via manager has source property."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         assert app.page.source is not None
@@ -139,8 +139,8 @@ class TestManagerBuilderProperties:
         """Builder created via manager has built property."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         assert app.page.built is not None
@@ -149,8 +149,8 @@ class TestManagerBuilderProperties:
         """Can populate source with builder elements."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         app.page.source.heading("Hello")
@@ -164,8 +164,8 @@ class TestManagerRun:
         """run() calls setup() and build() in sequence."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.run()
 
             def store(self, data):
@@ -181,8 +181,8 @@ class TestManagerRun:
         """run() produces identical result to manual setup+build."""
 
         class ManualApp(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.setup()
                 self.build()
 
@@ -190,8 +190,8 @@ class TestManagerRun:
                 source.heading("Test")
 
         class RunApp(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
                 self.run()
 
             def main(self, source):

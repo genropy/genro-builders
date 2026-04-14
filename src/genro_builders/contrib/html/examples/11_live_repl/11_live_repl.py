@@ -43,8 +43,8 @@ OUTPUT = Path(__file__).with_suffix(".html")
 class LivePage(ReactiveManager):
     """A reactive page that writes HTML on every data change."""
 
-    def __init__(self):
-        self.page = self.set_builder("page", HtmlBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", HtmlBuilder)
         self.run(subscribe=True)
         # Re-write HTML on every data change (side effect via subscribe)
         self.reactive_store.subscribe(

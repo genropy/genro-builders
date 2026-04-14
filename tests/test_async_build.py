@@ -354,8 +354,8 @@ class TestAsyncManager:
         """Manager.build() works in async context."""
 
         class MyManager(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", SimpleBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", SimpleBuilder)
 
             def main(self, source):
                 source.card(title="Managed")
@@ -374,8 +374,8 @@ class TestAsyncManager:
         """Manager.run() works in async context."""
 
         class MyManager(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", SimpleBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", SimpleBuilder)
 
             def main(self, source):
                 source.div(id="root")
@@ -391,8 +391,8 @@ class TestAsyncManager:
         """Manager.build() returns None in sync context."""
 
         class MyManager(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", SimpleBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", SimpleBuilder)
 
             def main(self, source):
                 source.card(title="Hello")
@@ -408,8 +408,8 @@ class TestAsyncManager:
         """Manager.run() returns None in sync context."""
 
         class MyManager(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", SimpleBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", SimpleBuilder)
 
             def main(self, source):
                 source.div()

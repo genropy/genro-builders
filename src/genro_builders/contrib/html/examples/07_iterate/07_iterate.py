@@ -40,8 +40,8 @@ class CatalogBuilder(HtmlBuilder):
 class ProductCatalog(ReactiveManager):
     """Catalog page: iterate generates one card per product."""
 
-    def __init__(self):
-        self.page = self.set_builder("page", CatalogBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", CatalogBuilder)
 
     def store(self, data):
         products = Bag()

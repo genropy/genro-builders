@@ -27,8 +27,8 @@ log: list[str] = []
 class LoggingApp(ReactiveManager):
     """Tracks data changes via data.subscribe (not via the builder)."""
 
-    def __init__(self):
-        self.page = self.set_builder("page", HtmlBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", HtmlBuilder)
         self.run(subscribe=True)
         # Side effects: subscribe directly on the data store
         self.reactive_store.subscribe(
@@ -78,8 +78,8 @@ print("See example 11_live_repl for async usage.\n")
 class PriceApp(ReactiveManager):
     """Formulas compute on demand — no _cache_time needed for sync."""
 
-    def __init__(self):
-        self.page = self.set_builder("page", HtmlBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", HtmlBuilder)
         self.run(subscribe=True)
 
     def store(self, data):

@@ -31,8 +31,8 @@ class SvgManager(ReactiveManager):
     The builder is available as ``self.page``.
     """
 
-    def __init__(self):
-        self.page = self.set_builder("page", SvgBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", SvgBuilder)
 
     def render(self, **kwargs: Any) -> str:
         """Render the SVG document. Calls run() automatically if needed."""

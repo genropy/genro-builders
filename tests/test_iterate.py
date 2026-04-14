@@ -34,8 +34,8 @@ class TestIterateBasic:
         """iterate='^persone' creates one sub-component per data child."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", IterableBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", IterableBuilder)
 
             def store(self, data):
                 persone = Bag()
@@ -62,8 +62,8 @@ class TestIterateBasic:
         """^.?nome resolves to each child's attribute."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", IterableBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", IterableBuilder)
 
             def store(self, data):
                 persone = Bag()
@@ -88,8 +88,8 @@ class TestIterateBasic:
         """iterate on empty bag produces empty container."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", IterableBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", IterableBuilder)
 
             def store(self, data):
                 data["persone"] = Bag()
@@ -110,8 +110,8 @@ class TestIterateBasic:
         """iterate on non-existent data path produces empty container."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", IterableBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", IterableBuilder)
 
             def main(self, source):
                 source.person_card(iterate='^nonexistent')
@@ -129,8 +129,8 @@ class TestIterateBasic:
         """Component without iterate works as before."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", IterableBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", IterableBuilder)
 
             def main(self, source):
                 source.person_card()

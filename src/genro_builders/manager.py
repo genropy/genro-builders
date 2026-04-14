@@ -18,7 +18,7 @@ re-execute automatically when their ^pointer dependencies change.
 Formula execution follows topological order (dependencies first).
 
 Lifecycle:
-    1. ``__init__``: create builders via ``set_builder()``.
+    1. ``__init__``: create builders via ``register_builder()``.
     2. ``setup()``: populate data and source (calls ``store()`` then ``main()``).
     3. ``build()``: materialize all builders (source -> built, two-pass:
        data elements first, then normal elements).
@@ -41,7 +41,7 @@ coroutine in async context.  Use ``smartawait`` for transparent handling::
 Example — single builder (HtmlBuilder provides renderers):
     >>> class HtmlManager(BuilderManager):
     ...     def __init__(self):
-    ...         self.page = self.set_builder('page', HtmlBuilder)
+    ...         self.page = self.register_builder('page', HtmlBuilder)
     ...
     ...     def render(self):
     ...         return self.page.render()
@@ -64,8 +64,8 @@ Example — single builder (HtmlBuilder provides renderers):
 Example — multiple builders with shared and private data:
     >>> class InfraStack(BuilderManager):
     ...     def __init__(self):
-    ...         self.compose = self.set_builder('compose', ComposeBuilder)
-    ...         self.traefik = self.set_builder('traefik', TraefikBuilder)
+    ...         self.compose = self.register_builder('compose', ComposeBuilder)
+    ...         self.traefik = self.register_builder('traefik', TraefikBuilder)
     ...
     ...     def store(self, data):
     ...         data['domain'] = 'example.com'
@@ -103,40 +103,30 @@ class BuilderManager:
     and per-builder private data (under ``builders.<name>``).
 
     Subclass lifecycle:
-        ``__init__``: Create builders via ``set_builder(name, class)``.
+        ``on_init()``: Override to register builders via ``register_builder()``.
 
         ``store(data)``: Override to populate shared data at the store root.
 
         ``main(source)`` or ``main_<name>(source)``: Override to populate
             each builder's source Bag.
 
-        ``setup()``: Orchestrates store → main. Call from ``__init__``.
+        ``setup()``: Orchestrates store → main.
 
         ``build()``: Materializes all builders (source → built).
 
     For reactive bindings, use ``ReactiveManager`` instead.
-
-    Subclasses get ``_data`` and ``_builders`` initialized automatically:
-    ``__init_subclass__`` wraps ``__init__`` so these are set before the
-    original body runs — no ``super().__init__()`` needed.
     """
 
     __slots__ = ("_data", "_builders")
 
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        original_init = cls.__dict__.get("__init__")
-        if original_init is None:
-            return
+    def __init__(self) -> None:
+        self._data = Bag()
+        self._data.set_backref()
+        self._builders: dict[str, Any] = {}
+        self.on_init()
 
-        def _wrapped_init(self: Any, *args: Any, **kw: Any) -> None:
-            if not hasattr(self, "_data"):
-                self._data = Bag()
-                self._data.set_backref()
-                self._builders: dict[str, Any] = {}
-            original_init(self, *args, **kw)
-
-        cls.__init__ = _wrapped_init  # type: ignore[attr-defined]
+    def on_init(self) -> None:
+        """Override to register builders via ``register_builder()``."""
 
     @property
     def reactive_store(self) -> Bag:
@@ -158,7 +148,7 @@ class BuilderManager:
         for builder in self._builders.values():
             builder._rebind_data(new_data)
 
-    def set_builder(self, name: str, builder_class: type, **kwargs: Any) -> Any:
+    def register_builder(self, name: str, builder_class: type, **kwargs: Any) -> Any:
         """Create a builder, register it, and set up its private data namespace.
 
         Creates the builder, registers it in the builder registry, and

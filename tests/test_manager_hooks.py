@@ -16,8 +16,8 @@ class TestStore:
         """store() sets shared values at store root."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def store(self, data):
                 data["title"] = "Hello"
@@ -34,9 +34,9 @@ class TestStore:
         """Shared data is accessible by all builders."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.a = self.set_builder("a", TestBuilder)
-                self.b = self.set_builder("b", TestBuilder)
+            def on_init(self):
+                self.a = self.register_builder("a", TestBuilder)
+                self.b = self.register_builder("b", TestBuilder)
 
             def store(self, data):
                 data["shared"] = "Common Value"
@@ -61,8 +61,8 @@ class TestMainHook:
         """Single builder calls main(source)."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def main(self, source):
                 source.heading("From Main")
@@ -76,9 +76,9 @@ class TestMainHook:
         """Multiple builders call main_<name>(source)."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.content = self.set_builder("content", TestBuilder)
-                self.sidebar = self.set_builder("sidebar", TestBuilder)
+            def on_init(self):
+                self.content = self.register_builder("content", TestBuilder)
+                self.sidebar = self.register_builder("sidebar", TestBuilder)
 
             def main_content(self, source):
                 source.heading("Main Content")
@@ -96,8 +96,8 @@ class TestMainHook:
         """main_<name> takes precedence over main."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def main(self, source):
                 source.heading("Generic")
@@ -118,8 +118,8 @@ class TestPrivateData:
         """set_builder creates builders.<name> in the store."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         builders = app.reactive_store.get_item("builders")
@@ -133,8 +133,8 @@ class TestPrivateData:
         """Private data can be set via store()."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def store(self, data):
                 data["builders.page.color"] = "blue"
@@ -151,8 +151,8 @@ class TestPrivateData:
         """Store argument is the reactive store root."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def store(self, data):
                 data["title"] = "Hello"
@@ -169,9 +169,9 @@ class TestPrivateData:
         """Each builder's private data is isolated."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.a = self.set_builder("a", TestBuilder)
-                self.b = self.set_builder("b", TestBuilder)
+            def on_init(self):
+                self.a = self.register_builder("a", TestBuilder)
+                self.b = self.register_builder("b", TestBuilder)
 
             def store(self, data):
                 data["builders.a.value"] = "A-private"
@@ -198,8 +198,8 @@ class TestBuildPipeline:
         order = []
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
             def store(self, data):
                 order.append("store")
@@ -219,8 +219,8 @@ class TestBuildPipeline:
         """reactive_store property returns the data Bag."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         assert isinstance(app.reactive_store, Bag)
@@ -230,8 +230,8 @@ class TestBuildPipeline:
         """Manager without hooks — user populates source manually."""
 
         class App(BuilderManager):
-            def __init__(self):
-                self.page = self.set_builder("page", TestBuilder)
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
 
         app = App()
         app.page.source.heading("Manual")

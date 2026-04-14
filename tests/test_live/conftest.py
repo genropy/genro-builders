@@ -14,8 +14,8 @@ from ..helpers import TestBuilder
 class SimpleApp(BuilderManager):
     """Single-builder app for testing."""
 
-    def __init__(self) -> None:
-        self.page = self.set_builder("page", TestBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", TestBuilder)
 
     def store(self, data):
         data["title"] = "Hello"
@@ -29,9 +29,9 @@ class SimpleApp(BuilderManager):
 class MultiApp(BuilderManager):
     """Multi-builder app for testing."""
 
-    def __init__(self) -> None:
-        self.page = self.set_builder("page", TestBuilder)
-        self.sidebar = self.set_builder("sidebar", TestBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", TestBuilder)
+        self.sidebar = self.register_builder("sidebar", TestBuilder)
 
     def store(self, data):
         data["title"] = "Multi"

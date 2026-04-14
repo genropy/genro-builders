@@ -32,8 +32,8 @@ class CountingBuilder(HtmlBuilder):
 class Dashboard(ReactiveManager):
     """Dashboard showing explicit render pattern."""
 
-    def __init__(self):
-        self.page = self.set_builder("page", CountingBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", CountingBuilder)
         self.run(subscribe=True)
 
     def store(self, data):
