@@ -18,8 +18,8 @@ Exports:
 from __future__ import annotations
 
 from abc import ABC
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from genro_bag import Bag

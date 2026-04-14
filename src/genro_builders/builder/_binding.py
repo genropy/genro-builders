@@ -34,6 +34,7 @@ BindingManager:
 """
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -198,10 +199,8 @@ class BindingManager:
 
     def unregister_node(self, node: BagNode) -> None:
         """Remove a node from the reactive list."""
-        try:
+        with contextlib.suppress(ValueError):
             self._reactive_nodes.remove(node)
-        except ValueError:
-            pass
 
     def unbind(self) -> None:
         """Remove all subscriptions, stop timers, clear reactive nodes."""
