@@ -212,28 +212,6 @@ class BuilderBagNode(BagNode):
             return data.get_item(resolved_path)
         return value
 
-    def execute_func(
-        self, raw_attrs: dict[str, Any], data: Bag, reason: Any = None,
-    ) -> Any:
-        """Execute this node's data provider function.
-
-        Mirrors Genropy's ``setDataNodeValue``: checks anti-loop via
-        reason, resolves ^pointers, executes func, writes result to
-        data path. The node is the natural scope.
-
-        Returns None if skipped (reason == self), otherwise the result.
-        """
-        if reason is self:
-            return None
-        resolved = {
-            k: self.current_from_datasource(v, data)
-            for k, v in raw_attrs.items()
-            if not k.startswith("_")
-        }
-        func = resolved.pop("func")
-        if self.attr.get("_accepts_node"):
-            resolved["_node"] = self
-        return func(**resolved)
 
 
 
