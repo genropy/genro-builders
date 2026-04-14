@@ -21,9 +21,8 @@ class TestRenderer(BagRendererBase):
         self, node: BagNode, parent: list | None = None, **kwargs: Any,
     ) -> str | None:
         tag = node.node_tag or node.label
-        resolved = node.evaluate_on_node(self.builder.data)
-        value = resolved["node_value"]
-        attrs = resolved["attrs"]
+        value = node.runtime_value
+        attrs = node.runtime_attrs
         has_children = isinstance(node.get_value(static=True), Bag)
 
         if has_children:

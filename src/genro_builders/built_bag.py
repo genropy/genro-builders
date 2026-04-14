@@ -126,21 +126,49 @@ class BuiltBagNode(BagNode):
             return f"{datapath}.{path[1:]}" if path[1:] else datapath
         return path
 
-    def current_from_datasource(self, value: Any, data: Bag) -> Any:
+    def get_relative_data(self, path: str) -> Any:
+        """Read a value from the data Bag, resolving relative paths.
+
+        Args:
+            path: Data path. Syntax:
+                'alfa.beta'       — absolute
+                '.beta'           — relative to this node's datapath
+                'alfa.beta?color' — attribute 'color' of node 'alfa.beta'
+        """
+        attr_name = None
+        if "?" in path:
+            path, attr_name = path.split("?", 1)
+        resolved = self.abs_datapath(path)
+        if attr_name is not None:
+            node = self.data.get_node(resolved)
+            return node.attr.get(attr_name) if node is not None else None
+        return self.data.get_item(resolved)
+
+    def set_relative_data(self, path: str, value: Any) -> None:
+        """Write a value to the data Bag, resolving relative paths.
+
+        Anti-loop: _reason=self is automatic.
+
+        Args:
+            path: Data path (same syntax as get_relative_data).
+            value: The value to set.
+        """
+        attr_name = None
+        if "?" in path:
+            path, attr_name = path.split("?", 1)
+        resolved = self.abs_datapath(path)
+        if attr_name is not None:
+            self.data.set_attr(resolved, **{attr_name: value})
+        else:
+            self.data.set_item(resolved, value, _reason=self)
+
+    def current_from_datasource(self, value: Any) -> Any:
         """Resolve a single value: if ^pointer, read from data; else return as-is."""
         if is_pointer(value):
-            path = value[1:]
-            attr_name = None
-            if "?" in path:
-                path, attr_name = path.split("?", 1)
-            path = self.abs_datapath(path)
-            if attr_name is not None:
-                node = data.get_node(path)
-                return node.attr.get(attr_name) if node is not None else None
-            return data.get_item(path)
+            return self.get_relative_data(value[1:])
         return value
 
-    def evaluate_on_node(self, data: Bag) -> dict[str, Any]:
+    def evaluate_on_node(self) -> dict[str, Any]:
         """Resolve all attributes and value in two passes.
 
         Pass 1: resolve ^pointer strings to values, skip callables.
@@ -149,7 +177,7 @@ class BuiltBagNode(BagNode):
         Returns dict with node_value, attrs, node.
         """
         raw_value = self.get_value(static=True)
-        resolved_value = self.current_from_datasource(raw_value, data)
+        resolved_value = self.current_from_datasource(raw_value)
 
         # Pass 1: resolve non-callable attributes
         resolved: dict[str, Any] = {}
@@ -158,7 +186,7 @@ class BuiltBagNode(BagNode):
             if callable(v) and not isinstance(v, Bag):
                 callables[k] = v
             else:
-                resolved[k] = self.current_from_datasource(v, data)
+                resolved[k] = self.current_from_datasource(v)
 
         # Pass 2: execute callables with resolved attrs as context
         for k, func in callables.items():
@@ -176,7 +204,7 @@ class BuiltBagNode(BagNode):
                         kwargs[pname] = resolved[pname]
                     elif param.default is not inspect.Parameter.empty:
                         kwargs[pname] = self.current_from_datasource(
-                            param.default, data,
+                            param.default,
                         )
             resolved[k] = func(**kwargs)
 
@@ -189,27 +217,22 @@ class BuiltBagNode(BagNode):
     @property
     def runtime_value(self) -> Any:
         """Node value with ^pointers resolved and callables executed."""
-        return self.evaluate_on_node(self.data)["node_value"]
+        return self.evaluate_on_node()["node_value"]
 
     @property
     def runtime_attrs(self) -> dict[str, Any]:
         """Attributes with ^pointers resolved, callables executed, datapath excluded."""
-        attrs = self.evaluate_on_node(self.data)["attrs"]
+        attrs = self.evaluate_on_node()["attrs"]
         attrs.pop("datapath", None)
         return attrs
 
-    def execute_func(
-        self, raw_attrs: dict[str, Any], data: Bag, reason: Any = None,
-    ) -> Any:
+    def execute_func(self, raw_attrs: dict[str, Any]) -> Any:
         """Execute this node's data provider function.
 
-        Checks anti-loop via reason, resolves ^pointers, executes func.
-        Returns None if skipped (reason == self), otherwise the result.
+        Resolves ^pointers via get_relative_data, executes func.
         """
-        if reason is self:
-            return None
         resolved = {
-            k: self.current_from_datasource(v, data)
+            k: self.current_from_datasource(v)
             for k, v in raw_attrs.items()
             if not k.startswith("_")
         }
@@ -217,10 +240,6 @@ class BuiltBagNode(BagNode):
         if self.attr.get("_accepts_node"):
             resolved["_node"] = self
         return func(**resolved)
-
-    def set_data(self, data: Bag, path: str, value: Any) -> None:
-        """Write a value to the data Bag with _reason=self (anti-loop)."""
-        data.set_item(path, value, _reason=self)
 
     def on_data_changed(self, changed_path: str, reason: Any = None) -> None:
         """Called by BindingManager when a dependent data path changes.
@@ -252,14 +271,13 @@ class BuiltBagNode(BagNode):
         """Execute this node's func and write result to data store."""
         self._delay_timer = None
         raw_attrs = {k: v for k, v in self.attr.items() if not k.startswith("_")}
-        data = self.data
-        result = self.execute_func(raw_attrs, data)
+        result = self.execute_func(raw_attrs)
 
         path = self.attr.get("_data_path")
         if path is not None and result is not None:
             if isinstance(result, dict):
                 result = Bag(source=result)
-            self.set_data(data, path, result)
+            self.set_relative_data(path, result)
 
     def start_interval(self) -> None:
         """Start periodic execution if _interval is set."""

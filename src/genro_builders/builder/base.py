@@ -255,16 +255,22 @@ class BagBuilderBase(
 
     @data.setter
     def data(self, value: Bag | dict[str, Any]) -> None:
-        """Replace the data Bag. Delegates to manager or reactivity engine."""
+        """Replace the data content. The data Bag object stays the same.
+
+        Clears the existing data and copies content from the new value.
+        All BuiltBagNode references to _data remain valid.
+        """
         if self._manager is not None:
             self._manager.reactive_store = value
             return
         new_data = Bag(source=value) if isinstance(value, dict) else value
-        if not new_data.backref:
-            new_data.set_backref()
-        self._data = new_data
+        self._data.clear()
+        for node in new_data:
+            self._data.set_item(
+                node.label, node.value, _attributes=dict(node.attr),
+            )
         if self._reactivity is not None:
-            self._reactivity.rebind_data(new_data)
+            self._reactivity._rerender()
 
     @property
     def output(self) -> str | None:
