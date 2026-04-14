@@ -292,17 +292,12 @@ class _BuildMixin:
                 value = Bag(source=value)
             if path is not None:
                 data.set_item(path, value)
-        elif tag == "data_formula":
-            func = resolved.pop("func", None)
-            if func is not None and path is not None:
-                result = self._call_with_node(func, node, resolved)
+        elif tag in ("data_formula", "data_controller"):
+            result = self._call_with_node(resolved.pop("func"), node, resolved)
+            if tag == "data_formula":
                 if isinstance(result, dict):
                     result = Bag(source=result)
                 data.set_item(path, result)
-        elif tag == "data_controller":
-            func = resolved.pop("func", None)
-            if func is not None:
-                self._call_with_node(func, node, resolved)
 
         # Register formula/controller with pointer deps for reactivity
         if tag in ("data_formula", "data_controller"):

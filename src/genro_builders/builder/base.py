@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from abc import ABC
 from pathlib import Path
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from genro_bag import Bag
@@ -220,12 +221,12 @@ class BagBuilderBase(
         return path, dict(value=value, **kwargs)
 
     @data_element()
-    def data_formula(self, path, func=None, **kwargs):
+    def data_formula(self, path: str, func: Callable, **kwargs: Any):
         """Computed data: call func with resolved kwargs, write result at path."""
         return path, dict(func=func, **kwargs)
 
     @data_element()
-    def data_controller(self, func=None, **kwargs):
+    def data_controller(self, func: Callable, **kwargs: Any):
         """Controller: call func with resolved kwargs."""
         return None, dict(func=func, **kwargs)
 

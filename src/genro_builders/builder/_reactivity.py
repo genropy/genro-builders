@@ -228,7 +228,7 @@ class ReactivityEngine:
                             if delay is not None:
                                 self._schedule_delayed_formula(entry_id, entry, delay)
                             else:
-                                self._reexecute_formula(entry)
+                                self._execute_data_provider(entry)
                             rerun_needed = True
                             if entry["path"] is not None:
                                 changed_paths.add(entry["path"])
@@ -249,7 +249,7 @@ class ReactivityEngine:
 
         def on_timeout() -> None:
             self._active_timers.pop(entry_id, None)
-            self._reexecute_formula(entry)
+            self._execute_data_provider(entry)
             self._rerender()
 
         timer_id = set_timeout(delay, on_timeout)
@@ -259,7 +259,7 @@ class ReactivityEngine:
         """Periodic re-execution of a formula/controller with _interval."""
         entry = self._formula_registry.get(entry_id)
         if entry is not None:
-            self._reexecute_formula(entry)
+            self._execute_data_provider(entry)
             self._rerender()
 
     def _resolve_pointer_path(self, raw: str, node: BagNode) -> str:
@@ -269,27 +269,16 @@ class ReactivityEngine:
             path = path.split("?", 1)[0]
         return node.abs_datapath(path)
 
-    def _reexecute_formula(self, entry: dict[str, Any]) -> None:
+    def _execute_data_provider(self, entry: dict[str, Any]) -> None:
         """Re-execute a single formula/controller with fresh data."""
         b = self._builder
         node = entry["node"]
-        path = entry["path"]
-        raw_attrs = entry["raw_attrs"]
-        tag = entry["tag"]
-
-        resolved = b._resolve_infra_kwargs(raw_attrs, node, b.data)
-
-        if tag == "data_formula":
-            func = resolved.pop("func", None)
-            if func is not None and path is not None:
-                result = b._call_with_node(func, node, resolved)
-                if isinstance(result, dict):
-                    result = Bag(source=result)
-                b.data.set_item(path, result, _reason=node)
-        elif tag == "data_controller":
-            func = resolved.pop("func", None)
-            if func is not None:
-                b._call_with_node(func, node, resolved)
+        resolved = b._resolve_infra_kwargs(entry["raw_attrs"], node, b.data)
+        result = b._call_with_node(resolved.pop("func"), node, resolved)
+        if entry["tag"] == "data_formula":
+            if isinstance(result, dict):
+                result = Bag(source=result)
+            b.data.set_item(entry["path"], result, _reason=node)
 
     # -----------------------------------------------------------------------
     # Source change handlers (incremental compile)
