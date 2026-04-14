@@ -68,6 +68,10 @@ class Shop(ReactiveManager):
         self.page = self.set_builder("page", ShopBuilder)
         self.sidebar = self.set_builder("sidebar", ShopBuilder)
         self.run(subscribe=True)
+        # Write HTML on any data change (side effect via subscribe)
+        self.reactive_store.subscribe(
+            "html_writer", any=lambda **kw: self._write_html(),
+        )
 
     def store(self, data):
         # Products
@@ -102,12 +106,6 @@ class Shop(ReactiveManager):
             func=lambda subtotal, discount: round(subtotal - discount, 2),
             subtotal="^cart.subtotal",
             discount="^cart.discount",
-        )
-
-        # Write HTML on any cart change
-        source.data_controller(
-            func=lambda total: self._write_html(),
-            total="^cart.total",
         )
 
         head = source.head()

@@ -46,19 +46,16 @@ class LivePage(ReactiveManager):
     def __init__(self):
         self.page = self.set_builder("page", HtmlBuilder)
         self.run(subscribe=True)
+        # Re-write HTML on every data change (side effect via subscribe)
+        self.reactive_store.subscribe(
+            "html_writer", any=lambda **kw: self._write_html(),
+        )
 
     def store(self, data):
         data["title"] = "Live Page"
         data["message"] = "Edit me from the REPL!"
 
     def main(self, source):
-        # Controller: re-write HTML file on every data change
-        source.data_controller(
-            func=lambda title, message: self._write_html(),
-            title="^title",
-            message="^message",
-        )
-
         head = source.head()
         head.title("^title")
         head.style("""

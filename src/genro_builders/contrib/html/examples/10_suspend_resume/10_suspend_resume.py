@@ -1,12 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""10 — Suspend and resume: batched updates for performance.
+"""10 — Explicit render: pull model and render-on-demand.
 
 What you learn:
-    - suspend_output(): pause automatic re-rendering
-    - resume_output(): flush pending changes in one render
-    - Without suspension: N data changes = N renders
-    - With suspension: N data changes = 1 render
-    - ReactiveManager as the production pattern for reactive apps
+    - Pull model: data changes do NOT auto-render
+    - render() is called explicitly when you want output
+    - Multiple data changes → one render() call = efficient batching
+    - No need for suspend/resume — batching is natural
 
 Prerequisites: 08_reactive_basics
 
@@ -31,7 +30,7 @@ class CountingBuilder(HtmlBuilder):
 
 
 class Dashboard(ReactiveManager):
-    """Dashboard with multiple data fields — shows suspend/resume benefit."""
+    """Dashboard showing explicit render pattern."""
 
     def __init__(self):
         self.page = self.set_builder("page", CountingBuilder)
@@ -44,11 +43,6 @@ class Dashboard(ReactiveManager):
         data["wind_speed"] = 12
 
     def main(self, source):
-        source.data_setter("temperature", value="^temperature")
-        source.data_setter("humidity", value="^humidity")
-        source.data_setter("pressure", value="^pressure")
-        source.data_setter("wind_speed", value="^wind_speed")
-
         body = source.body()
         body.h1("Weather Dashboard")
         body.p("^temperature")
@@ -59,33 +53,40 @@ class Dashboard(ReactiveManager):
 
 app = Dashboard()
 store = app.reactive_store
-render_count[0] = 0  # reset after initial build+render
+render_count[0] = 0
 
-# --- Without suspension: each change triggers a render ---
-print("=== Without suspension ===\n")
+# --- Multiple changes, then one render ---
+print("=== Pull model: explicit render ===\n")
 
 store["temperature"] = 25
 store["humidity"] = 60
 store["pressure"] = 1015
 store["wind_speed"] = 8
 
-print(f"4 data changes → {render_count[0]} renders")
+print(f"4 data changes, renders so far: {render_count[0]}")
+print("(No auto-render in pull model)\n")
+
+output = app.page.render()
+print(f"After explicit render(): {render_count[0]} render total")
+assert "25" in output
+assert "60" in output
 print()
 
-# --- With suspension: batch all changes, one render ---
-print("=== With suspension ===\n")
+# --- Change + render pattern ---
+print("=== Change-then-render pattern ===\n")
 
 render_count[0] = 0
 
-app.page.suspend_output()
 store["temperature"] = 30
 store["humidity"] = 75
 store["pressure"] = 1010
 store["wind_speed"] = 15
-app.page.resume_output()
+output = app.page.render()
 
-print(f"4 data changes (suspended) → {render_count[0]} render")
+print(f"4 changes + 1 render = {render_count[0]} render call")
+assert "30" in output
+assert "75" in output
 print()
 
-print("Suspension is essential when updating many fields at once.")
-print("Without it, each change triggers a full render cycle.")
+print("In pull model, batching is natural — you control when to render.")
+print("No suspend/resume needed.")

@@ -1,16 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""09 — Controllers: side effects on data changes.
+"""09 — Active cache and data subscriptions: periodic refresh and side effects.
 
 What you learn:
-    - data_controller: runs a function for side effects (no data output)
-    - Unlike data_formula, a controller does not write to a data path
-    - Controllers fire on every change of their dependencies
-    - Use cases: logging, validation, notifications, syncing
-
-Note on _delay and _interval:
-    data_formula supports _delay (debounce) and _interval (periodic),
-    but these require an async event loop (asyncio.run, Textual, ASGI).
-    See example 11_live_repl for async usage.
+    - _cache_time on data_formula: periodic background refresh (active cache)
+    - data.subscribe(): react to data changes with side effects
+    - Pull model: formulas compute on-demand, active cache pushes updates
+    - Side effects (logging, alerts) use data.subscribe, not the builder
 
 Prerequisites: 08_reactive_basics
 
@@ -22,37 +17,32 @@ from __future__ import annotations
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.manager import ReactiveManager
 
-# --- data_controller: side effects ---
+# --- Part 1: data.subscribe for side effects ---
 
-print("=== data_controller: logging side effects ===\n")
+print("=== data.subscribe: logging side effects ===\n")
 
 log: list[str] = []
 
 
 class LoggingApp(ReactiveManager):
-    """Tracks every data change via data_controller."""
+    """Tracks data changes via data.subscribe (not via the builder)."""
 
     def __init__(self):
         self.page = self.set_builder("page", HtmlBuilder)
         self.run(subscribe=True)
+        # Side effects: subscribe directly on the data store
+        self.reactive_store.subscribe(
+            "logger",
+            any=lambda pathlist=None, **kw: log.append(
+                f"{'.'.join(str(p) for p in pathlist)} changed" if pathlist else "?"
+            ),
+        )
 
     def store(self, data):
         data["counter"] = 0
         data["name"] = "Alice"
 
     def main(self, source):
-        # Controller on counter: logs every change
-        source.data_controller(
-            func=lambda counter: log.append(f"counter changed to {counter}"),
-            counter="^counter",
-        )
-
-        # Controller on name: logs every change
-        source.data_controller(
-            func=lambda name: log.append(f"name changed to '{name}'"),
-            name="^name",
-        )
-
         body = source.body()
         body.p("^counter")
         body.p("^name")
@@ -60,65 +50,63 @@ class LoggingApp(ReactiveManager):
 
 app = LoggingApp()
 store = app.reactive_store
-
-# Initial values trigger controllers during build
-print(f"After build: {log}")
 log.clear()
 
-# Change counter 3 times → 3 controller calls
 store["counter"] = 1
 store["counter"] = 2
 store["counter"] = 3
 print(f"After 3 counter changes: {log}")
 log.clear()
 
-# Change name → name controller fires
 store["name"] = "Bob"
 print(f"After name change: {log}")
 log.clear()
 print()
 
 
-# --- data_controller with multiple dependencies ---
+# --- Part 2: data_formula with _cache_time (active cache) ---
 
-print("=== Controller with multiple dependencies ===\n")
+print("=== data_formula with active cache ===\n")
 
-alerts: list[str] = []
+print("Active cache requires an async event loop.")
+print("Use _cache_time=-N for periodic background refresh.")
+print("See example 11_live_repl for async usage.\n")
+
+# Sync example: data_formula without _cache_time (pull model)
 
 
-class AlertApp(ReactiveManager):
-    """Controller that fires when any of its dependencies change."""
+class PriceApp(ReactiveManager):
+    """Formulas compute on demand — no _cache_time needed for sync."""
 
     def __init__(self):
         self.page = self.set_builder("page", HtmlBuilder)
         self.run(subscribe=True)
 
     def store(self, data):
-        data["temperature"] = 20
-        data["threshold"] = 30
+        data["price"] = 100
+        data["tax_rate"] = 0.22
 
     def main(self, source):
-        # Controller watching two values — fires when either changes
-        source.data_controller(
-            func=lambda temperature, threshold: alerts.append(
-                f"ALERT: {temperature}°C" if temperature > threshold
-                else f"OK: {temperature}°C"
-            ),
-            temperature="^temperature",
-            threshold="^threshold",
+        source.data_formula(
+            "total",
+            func=lambda price, tax_rate: round(price * (1 + tax_rate), 2),
+            price="^price",
+            tax_rate="^tax_rate",
         )
-        source.body().p("^temperature")
+        body = source.body()
+        body.p("^total")
 
 
-app2 = AlertApp()
+app2 = PriceApp()
 store2 = app2.reactive_store
-alerts.clear()
+print(f"Initial total: {store2['total']}")
 
-store2["temperature"] = 25
-store2["temperature"] = 35  # exceeds threshold
-store2["threshold"] = 40    # raise threshold → OK again
-store2["temperature"] = 38  # still under new threshold
+store2["price"] = 200
+print(f"After price change: {store2['total']}")
 
-print(f"Alerts: {alerts}")
-print("\ndata_controller is the reactive hook for side effects.")
-print("It complements data_formula (which computes and stores values).")
+store2["tax_rate"] = 0.10
+print(f"After tax change: {store2['total']}")
+print()
+
+print("data.subscribe() replaces data_controller for side effects.")
+print("data_formula with _cache_time replaces _interval for periodic updates.")
