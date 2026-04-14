@@ -35,7 +35,9 @@ class SvgManager(ReactiveManager):
         self.page = self.set_builder("page", SvgBuilder)
 
     def render(self, **kwargs: Any) -> str:
-        """Render the SVG document."""
+        """Render the SVG document. Calls run() automatically if needed."""
+        if not len(self.page.built):
+            self.run()
         return self.page.render(**kwargs)
 
 

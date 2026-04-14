@@ -34,7 +34,9 @@ class HtmlManager(ReactiveManager):
         self.page = self.set_builder("page", HtmlBuilder)
 
     def render(self, **kwargs: Any) -> str:
-        """Render the HTML page."""
+        """Render the HTML page. Calls run() automatically if needed."""
+        if not len(self.page.built):
+            self.run()
         return self.page.render(**kwargs)
 
 

@@ -19,7 +19,9 @@ class MarkdownManager(ReactiveManager):
         self.page = self.set_builder("page", MarkdownBuilder)
 
     def render(self, **kwargs: Any) -> str:
-        """Render the Markdown document."""
+        """Render the Markdown document. Calls run() automatically if needed."""
+        if not len(self.page.built):
+            self.run()
         return self.page.render(**kwargs)
 
 

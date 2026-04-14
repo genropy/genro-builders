@@ -4,8 +4,7 @@
 What you learn:
     - HtmlManager: the standard entry point for HTML apps
     - main(source): populate the source Bag with elements
-    - run(): setup + build in one call
-    - page.render(): produce the HTML string
+    - render(): produce the HTML string (auto-builds if needed)
 
 Prerequisites: None. This is the starting point.
 
@@ -29,8 +28,6 @@ class HelloWorld(HtmlManager):
 
 
 app = HelloWorld()
-app.run()
-
 html = app.render()
 
 output = Path(__file__).with_suffix(".html")
