@@ -147,10 +147,15 @@ class BagCompilerBase(ABC):
         If the node has children, they are compiled with the handler's
         result as their parent (two roots walking in parallel).
 
+        Data element nodes are skipped — they are nop for compilation.
+
         Args:
             node: The built BagNode to compile.
             parent: The parent compiled object (e.g. Workbook, Widget).
         """
+        if node.attr.get("_is_data_element"):
+            return None
+
         tag = node.node_tag or node.label
 
         handler = self._compile_handlers.get(tag)

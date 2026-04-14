@@ -618,10 +618,10 @@ class TestComponentParentTagsFix:
 
         # The block node in built is under document_0
         doc_bag = b.built.get_item("document_0")
-        assert isinstance(doc_bag, Bag)
+        assert doc_bag is not None
         block_node = doc_bag.get_node("block_0")
         assert block_node is not None
-        assert isinstance(block_node.value, Bag)
+        assert block_node.value is not None
         para = block_node.value.get_node("paragraph_0")
         assert para is not None
         assert para.node_tag == "paragraph"

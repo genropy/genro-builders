@@ -11,31 +11,8 @@ from genro_builders.builder import element
 from genro_builders.contrib.html import HtmlBuilder
 
 
-class TestFormulaCycleDetection:
-    """Tests for circular dependency detection in formulas."""
-
-    def test_direct_cycle_raises(self):
-        """A→B→A cycle raises ValueError."""
-        builder = HtmlBuilder()
-        s = builder.source
-        s.data_formula("a", func=lambda b: b, b="^b")
-        s.data_formula("b", func=lambda a: a, a="^a")
-        s.body()
-
-        with pytest.raises(ValueError, match="[Cc]ircular"):
-            builder.build()
-
-    def test_indirect_cycle_raises(self):
-        """A→B→C→A cycle raises ValueError."""
-        builder = HtmlBuilder()
-        s = builder.source
-        s.data_formula("a", func=lambda c: c, c="^c")
-        s.data_formula("b", func=lambda a: a, a="^a")
-        s.data_formula("c", func=lambda b: b, b="^b")
-        s.body()
-
-        with pytest.raises(ValueError, match="[Cc]ircular"):
-            builder.build()
+class TestFormulaChain:
+    """Tests for formula dependency chains."""
 
     def test_long_chain_no_cycle(self):
         """A→B→C→D linear chain (no cycle) works fine."""

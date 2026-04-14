@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from genro_bag import Bag
 
 from ..builder_bag import BuilderBag
+from ..built_bag import BuiltBag
 from ._build import _BuildMixin
 from ._component import _ComponentMixin
 from ._decorators import data_element
@@ -188,14 +189,13 @@ class BagBuilderBase(
             self._source_shell.set_backref()
             self._source_shell.set_item("root", BuilderBag(builder=type(self)))
 
-            self._built_shell = BuilderBag(builder=type(self))
+            self._built_shell = BuiltBag()
             self._built_shell.set_backref()
-            self._built_shell.set_item("root", BuilderBag(builder=type(self)))
+            self._built_shell.set_item("root", BuiltBag())
 
             self._bag = self._source_shell.get_item("root")
 
             self._source_shell._pipeline_builder = self
-            self._built_shell._pipeline_builder = self
 
             # Data
             self._data = data if data is not None else Bag()
@@ -242,7 +242,7 @@ class BagBuilderBase(
         return self._source_shell.get_item("root")
 
     @property
-    def built(self) -> BuilderBag:
+    def built(self) -> BuiltBag:
         """The built Bag (components expanded, pointers resolved)."""
         return self._built_shell.get_item("root")
 
@@ -313,13 +313,6 @@ class BagBuilderBase(
         if self._reactivity is not None:
             return self._reactivity.binding
         return None
-
-    @property
-    def _formula_order(self) -> list[str]:
-        """Formula execution order (lives in ReactivityEngine)."""
-        if self._reactivity is not None:
-            return self._reactivity._formula_order
-        return []
 
     @property
     def _auto_compile(self) -> bool:

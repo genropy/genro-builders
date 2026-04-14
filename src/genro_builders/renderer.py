@@ -211,7 +211,13 @@ class BagRendererBase(ABC):
         - RenderNode: container — children fill it, then finalize to string
         - str: leaf — appended to parent, no child recursion
         - None: transparent — children recurse into current parent
+
+        Data element nodes (data_formula, data_controller, data_setter)
+        are skipped — they are nop for rendering.
         """
+        if node.attr.get("_is_data_element"):
+            return
+
         tag = node.node_tag or node.label
 
         handler = self._render_handlers.get(tag)

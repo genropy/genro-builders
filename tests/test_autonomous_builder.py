@@ -245,7 +245,7 @@ class TestAutonomousSourceDelete:
         assert "[heading:Title]" in builder.output
 
     def test_source_delete_with_pointer_cleanup(self):
-        """Deleting a node with ^pointer cleans up the subscription map."""
+        """Deleting a node with ^pointer removes it from output."""
         builder = TestBuilder()
         builder.data["title"] = "Hello"
         builder.source.heading("^title")
@@ -254,14 +254,8 @@ class TestAutonomousSourceDelete:
         builder.subscribe()
 
         assert "Hello" in builder.output
-        assert len(builder._binding.subscription_map) > 0
 
         builder.source.del_item("heading_0")
-
-        for entries in builder._binding.subscription_map.values():
-            for compiled_entry in entries:
-                node_path = compiled_entry.partition("?")[0]
-                assert node_path != "heading_0"
 
         assert "Hello" not in builder.output
         assert "[text:static]" in builder.output
@@ -403,20 +397,11 @@ class TestAutonomousSourceUpdate:
         assert "A" in builder.output
         assert "B" in builder.output
 
-        bindings_before = sum(
-            len(v) for v in builder._binding.subscription_map.values()
-        )
-
         builder.source.set_item("group_0", "replaced")
 
         assert "replaced" in builder.output
         assert "A" not in builder.output
         assert "B" not in builder.output
-
-        bindings_after = sum(
-            len(v) for v in builder._binding.subscription_map.values()
-        )
-        assert bindings_after < bindings_before
 
 
 # =============================================================================
@@ -485,92 +470,10 @@ class TestAutonomousCompiledObservable:
 # =============================================================================
 
 
-class TestAutonomousMapAdequacy:
-    """Tests that the subscription map adapts correctly."""
+class TestAutonomousReactiveAfterInsert:
+    """Tests that reactivity works after incremental insert."""
 
-    def test_insert_adds_to_map(self):
-        """Inserting a node with ^pointer adds an entry to the map."""
-        builder = TestBuilder()
-        builder.data["dynamic"] = "Resolved"
-        builder.source.heading("static")
-        builder.build()
-        builder.subscribe()
-
-        assert len(builder._binding.subscription_map) == 0
-
-        builder.source.text("^dynamic")
-
-        smap = builder._binding.subscription_map
-        assert "dynamic" in smap
-        assert any("text_0" in e for e in smap["dynamic"])
-
-    def test_delete_removes_from_map(self):
-        """Deleting a node with ^pointer removes its entry from the map."""
-        builder = TestBuilder()
-        builder.data["title"] = "T"
-        builder.data["body"] = "B"
-        builder.source.heading("^title")
-        builder.source.text("^body")
-        builder.build()
-        builder.subscribe()
-
-        smap = builder._binding.subscription_map
-        assert "title" in smap
-        assert "body" in smap
-
-        builder.source.del_item("heading_0")
-
-        smap = builder._binding.subscription_map
-        assert "title" not in smap
-        assert "body" in smap
-
-    def test_update_value_replaces_map_entry(self):
-        """Updating from static to ^pointer adds to the map."""
-        builder = TestBuilder()
-        builder.data["title"] = "Dynamic"
-        builder.source.heading("static")
-        builder.build()
-        builder.subscribe()
-
-        assert len(builder._binding.subscription_map) == 0
-
-        builder.source.set_item("heading_0", "^title")
-
-        smap = builder._binding.subscription_map
-        assert "title" in smap
-        assert "heading_0" in smap["title"]
-
-    def test_update_pointer_to_static_removes_from_map(self):
-        """Updating from ^pointer to static removes from the map."""
-        builder = TestBuilder()
-        builder.data["title"] = "Hello"
-        builder.source.heading("^title")
-        builder.build()
-        builder.subscribe()
-
-        assert "title" in builder._binding.subscription_map
-
-        builder.source.set_item("heading_0", "static now")
-
-        assert "title" not in builder._binding.subscription_map
-
-    def test_update_attr_pointer_adds_to_map(self):
-        """Updating attributes to include ^pointer adds to the map."""
-        builder = TestBuilder()
-        builder.data["theme.color"] = "blue"
-        builder.source.item(color="red")
-        builder.build()
-        builder.subscribe()
-
-        assert len(builder._binding.subscription_map) == 0
-
-        builder.source.set_attr("item_0", color="^theme.color")
-
-        smap = builder._binding.subscription_map
-        assert "theme.color" in smap
-        assert "item_0?color" in smap["theme.color"]
-
-    def test_insert_reactive_after_map_registration(self):
+    def test_insert_reactive_after_subscribe(self):
         """After insert, data changes propagate to the new node."""
         builder = TestBuilder()
         builder.data["val"] = "first"
