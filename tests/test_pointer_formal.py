@@ -114,10 +114,10 @@ class TestBuiltImmutableAfterDataChange:
         builder.build()
         builder.subscribe()
 
-        assert "Original" in builder.output
+        assert "Original" in builder.render()
 
         builder.data["title"] = "Updated"
-        assert "Updated" in builder.output
+        assert "Updated" in builder.render()
 
     def test_attr_pointer_unchanged_after_data_change(self):
         """Built attribute keeps ^pointer after data change."""

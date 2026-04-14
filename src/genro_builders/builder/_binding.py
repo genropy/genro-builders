@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Pointer utilities and reactive binding (legacy pattern).
+"""Pointer utilities and reactive binding (pull model).
 
 Pointer syntax:
     ^alfa.beta        — absolute path to data value
@@ -12,25 +12,17 @@ Functions:
     scan_for_pointers(node) — find all ^pointers in node value and attributes
 
 BindingManager:
-    Legacy-style reactive binding. Instead of a subscription map
-    (data_path → built_paths), maintains a flat list of reactive nodes.
+    Subscribes to data changes and signals "dirty" to the caller
+    via callback. No per-node dispatch — the caller (ReactivityEngine
+    or manager) decides what to do.
 
-    On data change, ALL reactive nodes are scanned. Each node checks
-    if the change affects its ^pointers (3-level matching: node,
-    container, child). This is the pattern used by Genropy's
-    gnrdomsource.js for years.
+    Maintains a list of reactive nodes (UI nodes with ^pointers) for
+    future use by partial compile. The list is NOT used for dispatch.
 
-    The built Bag is never modified — pointers stay formal.
-    Resolution happens just-in-time via runtime_value/runtime_attrs.
-
-3-level propagation:
-    When a data node changes, each reactive node determines if the
-    change affects any of its ^pointers:
+3-level path matching (utility, used by compiler for partial recompile):
     1. **node** — exact match (pointer path == changed path)
     2. **container** — ancestor changed (changed path is prefix of pointer path)
     3. **child** — descendant changed (pointer path is prefix of changed path)
-
-    All three levels trigger notification.
 """
 from __future__ import annotations
 
@@ -123,27 +115,52 @@ def scan_for_pointers(node: Any) -> list[tuple[PointerInfo, str]]:
 
 
 # ---------------------------------------------------------------------------
-# BindingManager (legacy pattern: list of reactive nodes)
+# Path matching utility (for compiler partial recompile)
+# ---------------------------------------------------------------------------
+
+
+def get_trigger_reason(watched_path: str, changed_path: str) -> str | None:
+    """Determine relationship between watched and changed paths.
+
+    Returns 'node', 'container', 'child', or None.
+
+    - node: exact match
+    - container: watched is a descendant of changed (ancestor changed)
+    - child: changed is a descendant of watched (child changed)
+    """
+    if watched_path == changed_path:
+        return "node"
+    if watched_path.startswith(changed_path + "."):
+        return "container"
+    if changed_path.startswith(watched_path + "."):
+        return "child"
+    return None
+
+
+# ---------------------------------------------------------------------------
+# BindingManager (pull model: any data change → callback)
 # ---------------------------------------------------------------------------
 
 
 class BindingManager:
-    """Manages reactive notifications using a flat list of reactive nodes.
+    """Subscribes to data changes and signals dirty via callback.
 
-    Legacy pattern: no subscription map. On each data change, all
-    reactive nodes are scanned. Each node's ^pointers are checked
-    against the changed path using 3-level matching.
+    No per-node dispatch. The callback receives the changed path
+    for potential use by partial compile.
+
+    Maintains a list of reactive nodes (UI nodes with ^pointers)
+    for future partial compile optimization.
     """
 
     def __init__(
         self,
-        on_node_updated: Callable[[BagNode], None] | None = None,
+        on_data_changed: Callable[[str], None] | None = None,
     ):
         self._reactive_nodes: list[BagNode] = []
         self._built: Bag | None = None
         self._data: Bag | None = None
         self._subscriber_id = "genro_builders_binding"
-        self._on_node_updated = on_node_updated
+        self._on_data_changed_callback = on_data_changed
 
     @property
     def reactive_nodes(self) -> list[BagNode]:
@@ -155,19 +172,14 @@ class BindingManager:
     # -------------------------------------------------------------------------
 
     def subscribe(self, built: Bag, data: Bag) -> None:
-        """Subscribe to data changes for reactive updates.
+        """Subscribe to data changes.
 
-        Walks the built Bag and collects all nodes with ^pointers
-        into the reactive nodes list. Then subscribes to data changes.
-
-        Args:
-            built: The built Bag (contains reactive nodes).
-            data: The data Bag (source of values).
+        Walks the built Bag and collects UI nodes with ^pointers.
+        Subscribes to any data change → callback.
         """
         self._built = built
         self._data = data
 
-        # Collect reactive nodes from the built bag
         self._reactive_nodes = []
         self._collect_reactive_nodes(built)
 
@@ -176,18 +188,10 @@ class BindingManager:
         data.subscribe(self._subscriber_id, any=self._on_data_changed)
 
     def _collect_reactive_nodes(self, bag: Bag) -> None:
-        """Walk the built bag and collect reactive nodes.
-
-        A node is reactive if it has ^pointers or _interval.
-        Nodes with _interval also get their timer started.
-        """
+        """Walk the built bag and collect nodes with ^pointers."""
         for node in bag:
-            has_pointers = bool(scan_for_pointers(node))
-            has_interval = node.attr.get("_interval") is not None
-            if has_pointers or has_interval:
+            if scan_for_pointers(node):
                 self._reactive_nodes.append(node)
-            if has_interval and hasattr(node, "start_interval"):
-                node.start_interval()
             value = node.get_value(static=True)
             if isinstance(value, Bag):
                 self._collect_reactive_nodes(value)
@@ -203,12 +207,9 @@ class BindingManager:
             self._reactive_nodes.remove(node)
 
     def unbind(self) -> None:
-        """Remove all subscriptions, stop timers, clear reactive nodes."""
+        """Remove all subscriptions, clear reactive nodes."""
         if self._data is not None:
             self._data.unsubscribe(self._subscriber_id, any=True)
-        for node in self._reactive_nodes:
-            if hasattr(node, "stop_interval"):
-                node.stop_interval()
         self._reactive_nodes.clear()
         self._built = None
         self._data = None
@@ -225,63 +226,9 @@ class BindingManager:
         evt: str = "",
         **kwargs: Any,
     ) -> None:
-        """Callback from data.subscribe — scan reactive nodes."""
-        if pathlist is None or self._data is None:
+        """Callback from data.subscribe — signal dirty."""
+        if pathlist is None:
             return
-
         changed_path = ".".join(str(p) for p in pathlist)
-        reason = kwargs.get("reason")
-
-        # Notify reactive nodes
-        self._update_reactive_nodes(changed_path, reason=reason)
-
-    def _update_reactive_nodes(
-        self, changed_path: str, reason: Any = None,
-    ) -> None:
-        """Scan all reactive nodes and notify those affected by the change.
-
-        For each node, checks all ^pointers against the changed path
-        using 3-level matching (node, container, child).
-        """
-        if self._data is None or self._built is None:
-            return
-
-        for node in self._reactive_nodes:
-            if node is reason:
-                continue
-            if self._node_affected(node, changed_path):
-                if hasattr(node, "on_data_changed"):
-                    node.on_data_changed(changed_path, reason=reason)
-                if self._on_node_updated:
-                    self._on_node_updated(node)
-
-    def _node_affected(self, node: BagNode, changed_path: str) -> bool:
-        """Check if any of the node's ^pointers are affected by the change."""
-        for pointer_info, _location in scan_for_pointers(node):
-            pointer_path = pointer_info.path
-            if pointer_info.attr:
-                # For attr pointers, check the base path
-                pass
-            trigger = self._get_trigger_reason(pointer_path, changed_path)
-            if trigger is not None:
-                return True
-        return False
-
-    def _get_trigger_reason(
-        self, watched_path: str, changed_path: str,
-    ) -> str | None:
-        """Determine relationship between watched and changed paths.
-
-        Returns 'node', 'container', 'child', or None.
-
-        - node: exact match
-        - container: watched is a descendant of changed (ancestor changed)
-        - child: changed is a descendant of watched (child changed)
-        """
-        if watched_path == changed_path:
-            return "node"
-        if watched_path.startswith(changed_path + "."):
-            return "container"
-        if changed_path.startswith(watched_path + "."):
-            return "child"
-        return None
+        if self._on_data_changed_callback:
+            self._on_data_changed_callback(changed_path)

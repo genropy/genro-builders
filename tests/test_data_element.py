@@ -1,8 +1,6 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for @data_element decorator and data_setter/data_formula/data_controller."""
+"""Tests for @data_element decorator and data_setter/data_formula (pull model)."""
 from __future__ import annotations
-
-import asyncio
 
 import pytest
 
@@ -24,10 +22,10 @@ class TestDataElementRegistration:
         assert info.get("is_data_element") is True
         assert info.get("handler_name") == "_dtel_data_setter"
 
-    def test_data_element_all_three_registered(self):
-        """All three data_element tags are registered in schema."""
+    def test_data_element_both_registered(self):
+        """Both data_element tags are registered in schema."""
         builder = TestBuilder()
-        for tag in ("data_setter", "data_formula", "data_controller"):
+        for tag in ("data_setter", "data_formula"):
             info = builder._get_schema_info(tag)
             assert info.get("is_data_element") is True
 
@@ -39,7 +37,7 @@ class TestDataElementRegistration:
                 def my_data(self): ...
 
     def test_data_element_inherited_by_subclass(self):
-        """Concrete builder inherits data_setter/formula/controller from BagBuilderBase."""
+        """Concrete builder inherits data_setter/formula from BagBuilderBase."""
 
         class MinimalBuilder(BagBuilderBase):
             @element()
@@ -48,7 +46,6 @@ class TestDataElementRegistration:
         builder = MinimalBuilder()
         assert "data_setter" in builder._schema_tag_names
         assert "data_formula" in builder._schema_tag_names
-        assert "data_controller" in builder._schema_tag_names
 
 
 # =============================================================================
@@ -79,16 +76,6 @@ class TestDataElementSource:
         assert node is not None
         assert node.attr.get("_is_data_element") is True
 
-    def test_data_controller_creates_source_node(self):
-        """data_controller creates a node with path=None."""
-        builder = TestBuilder()
-        builder.source.data_controller(func=lambda: None, _on_built=True)
-
-        node = builder.source.get_node("data_controller_0")
-        assert node is not None
-        assert node.attr.get("_is_data_element") is True
-        assert node.attr.get("_data_path") is None
-
     def test_data_element_transparent_in_sub_tags(self):
         """Data element inside element with strict sub_tags doesn't violate."""
 
@@ -104,7 +91,6 @@ class TestDataElementSource:
         container.data_setter("key", value=42)
         container.item()
 
-        # No validation error — data_setter is transparent
         assert builder.source.get_node("container_0") is not None
 
 
@@ -125,7 +111,7 @@ class TestDataElementBuild:
         assert builder.data["title"] == "Hello"
 
     def test_data_formula_computes(self):
-        """data_formula calls func and writes result."""
+        """data_formula installs resolver — reading data returns computed value."""
         builder = TestBuilder()
         builder.source.data_formula(
             "result", func=lambda a, b: a + b, a=10, b=20,
@@ -136,7 +122,7 @@ class TestDataElementBuild:
         assert builder.data["result"] == 30
 
     def test_data_formula_with_pointer(self):
-        """data_formula resolves ^pointer in kwargs before calling func."""
+        """data_formula resolves ^pointer deps from data store."""
         builder = TestBuilder()
         builder.data["input"] = 5
         builder.source.data_setter("multiplier", value=3)
@@ -150,15 +136,6 @@ class TestDataElementBuild:
         builder.build()
 
         assert builder.data["result"] == 15
-
-    def test_data_controller_executes(self):
-        """data_controller calls the function during build."""
-        called = []
-        builder = TestBuilder()
-        builder.source.data_controller(func=lambda: called.append(True), _on_built=True)
-        builder.build()
-
-        assert len(called) == 1
 
     def test_infra_before_normal(self):
         """Data set by data_setter is available to ^pointer in normal elements."""
@@ -216,15 +193,16 @@ class TestDataElementBuild:
 
 
 class TestOnBuiltHook:
-    """Tests for _onBuilt hook on data_controller."""
+    """Tests for _onBuilt hook on data_formula."""
 
     def test_on_built_called(self):
         """_onBuilt hook is called after build completes."""
         called = []
         builder = TestBuilder()
-        builder.source.data_controller(
-            func=lambda: None,
+        builder.source.data_formula(
+            "x", func=lambda: 1,
             _onBuilt=lambda b: called.append(b),
+            _on_built=True,
         )
         builder.build()
 
@@ -234,9 +212,10 @@ class TestOnBuiltHook:
         """_onBuilt hook receives the builder instance."""
         received = []
         builder = TestBuilder()
-        builder.source.data_controller(
-            func=lambda: None,
+        builder.source.data_formula(
+            "x", func=lambda: 1,
             _onBuilt=lambda b: received.append(b),
+            _on_built=True,
         )
         builder.build()
 
@@ -264,9 +243,6 @@ class TestDataElementEdgeCases:
         """Data elements inside component body are processed during build."""
         builder = TestBuilder()
         builder.source.section(title="Test")
-        # section component creates heading + text
-        # We need a component that uses data_setter internally
-        # For now, test that build doesn't crash with components
         builder.build()
         assert builder.built.get_node("section_0") is not None
 
@@ -274,8 +250,8 @@ class TestDataElementEdgeCases:
         """After rebuild, hooks from previous build are gone."""
         called = []
         builder = TestBuilder()
-        builder.source.data_controller(
-            func=lambda: None,
+        builder.source.data_formula(
+            "x", func=lambda: 1,
             _onBuilt=lambda b: called.append("hook"),
             _on_built=True,
         )
@@ -287,15 +263,30 @@ class TestDataElementEdgeCases:
 
 
 # =============================================================================
-# Reactivity (formula/controller re-execute on data change)
+# Reactivity (formula pull model)
 # =============================================================================
 
 
 class TestFormulaReactivity:
-    """Tests for reactive re-execution of data_formula and data_controller."""
+    """Tests for pull-based formula reactivity."""
 
-    def test_formula_reexecutes_on_data_change(self):
-        """After subscribe, changing a dependency re-executes the formula."""
+    def test_formula_reflects_data_change(self):
+        """After data change, reading formula returns fresh value (pull)."""
+        builder = TestBuilder()
+        builder.data["input"] = 10
+        builder.source.data_formula(
+            "result", func=lambda x: x * 2, x="^input",
+            _on_built=True,
+        )
+        builder.build()
+
+        assert builder.data["result"] == 20
+
+        builder.data["input"] = 5
+        assert builder.data["result"] == 10
+
+    def test_formula_render_reflects_data_change(self):
+        """After subscribe + data change, re-render shows fresh value."""
         builder = TestBuilder()
         builder.data["input"] = 10
         builder.source.data_formula(
@@ -304,17 +295,14 @@ class TestFormulaReactivity:
         )
         builder.source.heading("^result")
         builder.build()
-        builder.subscribe()
 
-        assert builder.data["result"] == 20
-        assert "20" in builder.output
+        assert "20" in builder.render()
 
         builder.data["input"] = 5
-        assert builder.data["result"] == 10
-        assert "10" in builder.output
+        assert "10" in builder.render()
 
     def test_formula_multiple_deps(self):
-        """Formula with multiple ^pointer deps re-executes on any change."""
+        """Formula with multiple ^pointer deps reflects any change."""
         builder = TestBuilder()
         builder.data["a"] = 3
         builder.data["b"] = 4
@@ -323,7 +311,6 @@ class TestFormulaReactivity:
             _on_built=True,
         )
         builder.build()
-        builder.subscribe()
 
         assert builder.data["sum"] == 7
 
@@ -332,77 +319,6 @@ class TestFormulaReactivity:
 
         builder.data["b"] = 1
         assert builder.data["sum"] == 11
-
-    def test_controller_reexecutes_on_data_change(self):
-        """Controller re-executes when dependency changes."""
-        log = []
-        builder = TestBuilder()
-        builder.data["trigger"] = "first"
-        builder.source.data_controller(
-            func=lambda val: log.append(val), val="^trigger",
-            _on_built=True,
-        )
-        builder.build()
-        builder.subscribe()
-
-        assert log == ["first"]
-
-        builder.data["trigger"] = "second"
-        assert log == ["first", "second"]
-
-
-
-# =============================================================================
-# _node injection
-# =============================================================================
-
-
-class TestNodeInjection:
-    """Tests for _node automatic injection in formula/controller callables."""
-
-    def test_node_injected_in_formula(self):
-        """Callable that declares _node receives the source node."""
-        received_nodes = []
-
-        def my_func(x, _node=None):
-            received_nodes.append(_node)
-            return x * 2
-
-        builder = TestBuilder()
-        builder.data["val"] = 5
-        builder.source.data_formula("result", func=my_func, x="^val", _on_built=True)
-        builder.build()
-
-        assert len(received_nodes) == 1
-        assert received_nodes[0] is not None
-        assert received_nodes[0].node_tag == "data_formula"
-
-    def test_node_not_required(self):
-        """Callable without _node works fine (no injection)."""
-        builder = TestBuilder()
-        builder.data["val"] = 5
-        builder.source.data_formula(
-            "result", func=lambda x: x * 2, x="^val",
-            _on_built=True,
-        )
-        builder.build()
-
-        assert builder.data["result"] == 10
-
-    def test_node_injected_with_kwargs(self):
-        """Callable with **kwargs receives _node."""
-        received = {}
-
-        def my_func(x, **kwargs):
-            received.update(kwargs)
-            return x
-
-        builder = TestBuilder()
-        builder.data["val"] = 5
-        builder.source.data_formula("result", func=my_func, x="^val", _on_built=True)
-        builder.build()
-
-        assert "_node" in received
 
 
 # =============================================================================
@@ -425,21 +341,19 @@ class TestComputedAttributes:
         output = builder.render()
         assert "red" in output
 
-    @pytest.mark.xfail(reason="callable attrs will be replaced by common data_formula pattern")
     def test_computed_attr_updates_on_data_change(self):
-        """Computed attr reflects data changes after subscribe."""
+        """Computed attr reflects data changes on re-render."""
         builder = TestBuilder()
         builder.data["selected"] = True
         builder.source.item(
             color=lambda selected='^selected': 'red' if selected else 'blue',
         )
         builder.build()
-        builder.subscribe()
 
-        assert "red" in builder.output
+        assert "red" in builder.render()
 
         builder.data["selected"] = False
-        assert "blue" in builder.output
+        assert "blue" in builder.render()
 
     def test_computed_attr_multiple_deps(self):
         """Callable with multiple ^pointer defaults."""
@@ -479,23 +393,21 @@ class TestComputedAttributes:
 
 
 # =============================================================================
-# Topological sort and cycle detection
+# Topological sort / cascade (pull model — natural via demand)
 # =============================================================================
 
 
-class TestTopologicalSort:
-    """Tests for formula dependency ordering and cycle detection."""
+class TestFormulaCascade:
+    """Tests for formula dependency chains — pull cascade."""
 
     def test_formula_cascade_order(self):
-        """Formula B depends on formula A — A executes first."""
+        """Formula B depends on formula A — pull resolves naturally."""
         builder = TestBuilder()
         builder.data["input"] = 10
-        # A: result_a = input * 2
         builder.source.data_formula(
             "result_a", func=lambda x: x * 2, x="^input",
             _on_built=True,
         )
-        # B: result_b = result_a + 1 (depends on A's output)
         builder.source.data_formula(
             "result_b", func=lambda x: x + 1, x="^result_a",
             _on_built=True,
@@ -506,7 +418,7 @@ class TestTopologicalSort:
         assert builder.data["result_b"] == 21
 
     def test_formula_cascade_reactive(self):
-        """After subscribe, changing input cascades through A then B."""
+        """After data change, cascade resolves on demand."""
         builder = TestBuilder()
         builder.data["input"] = 10
         builder.source.data_formula(
@@ -518,14 +430,13 @@ class TestTopologicalSort:
             _on_built=True,
         )
         builder.build()
-        builder.subscribe()
 
         builder.data["input"] = 5
         assert builder.data["result_a"] == 10
         assert builder.data["result_b"] == 11
 
     def test_independent_formulas_no_error(self):
-        """Independent formulas (no shared paths) don't cause cycle error."""
+        """Independent formulas coexist without issue."""
         builder = TestBuilder()
         builder.data["x"] = 1
         builder.data["y"] = 2
@@ -543,165 +454,16 @@ class TestTopologicalSort:
         assert builder.data["ry"] == 20
 
 
-
 # =============================================================================
-# Suspend / resume output
-# =============================================================================
-
-
-class TestSuspendResumeOutput:
-    """Tests for suspend_output / resume_output."""
-
-    def test_suspend_prevents_rerender(self):
-        """While suspended, data changes don't trigger render."""
-        builder = TestBuilder()
-        builder.data["title"] = "Original"
-        builder.source.heading("^title")
-        builder.build()
-        builder.subscribe()
-
-        assert "Original" in builder.output
-
-        builder.suspend_output()
-        builder.data["title"] = "Changed"
-        # output NOT updated — still shows Original
-        assert "Original" in builder.output
-
-    def test_resume_flushes_pending(self):
-        """resume_output triggers render if anything was pending."""
-        builder = TestBuilder()
-        builder.data["title"] = "Original"
-        builder.source.heading("^title")
-        builder.build()
-        builder.subscribe()
-
-        builder.suspend_output()
-        builder.data["title"] = "Updated"
-        assert "Original" in builder.output
-
-        builder.resume_output()
-        assert "Updated" in builder.output
-
-    def test_resume_no_pending_no_render(self):
-        """resume_output with no pending changes doesn't re-render."""
-        builder = TestBuilder()
-        builder.data["title"] = "Hello"
-        builder.source.heading("^title")
-        builder.build()
-        builder.subscribe()
-
-        original_output = builder.output
-        builder.suspend_output()
-        builder.resume_output()
-        assert builder.output == original_output
-
-    def test_multiple_changes_single_render(self):
-        """Multiple data changes during suspend result in one render."""
-        builder = TestBuilder()
-        builder.data["a"] = "1"
-        builder.data["b"] = "2"
-        builder.source.heading("^a")
-        builder.source.text("^b")
-        builder.build()
-        builder.subscribe()
-
-        builder.suspend_output()
-        builder.data["a"] = "X"
-        builder.data["b"] = "Y"
-        builder.resume_output()
-
-        assert "X" in builder.output
-        assert "Y" in builder.output
-
-
-# =============================================================================
-# _delay and _interval parameters
+# _delay — not applicable in pull model
 # =============================================================================
 
 
-class TestDelayAndInterval:
-    """Tests for _delay (debounce) and _interval (periodic) parameters."""
-
-    @pytest.mark.asyncio
-    async def test_delay_debounces_formula(self):
-        """Formula with _delay does not execute immediately on data change."""
-        builder = TestBuilder()
-        builder.data["input"] = 10
-        builder.source.data_formula(
-            "result", func=lambda x: x * 2, x="^input", _delay=0.2,
-            _on_built=True,
-        )
-        builder.build()
-        builder.subscribe()
-
-        assert builder.data["result"] == 20  # Initial build executed
-
-        builder.data["input"] = 5
-        # Not yet — delay pending
-        assert builder.data["result"] == 20
-
-        await asyncio.sleep(0.3)
-        assert builder.data["result"] == 10
-
-    @pytest.mark.asyncio
-    async def test_delay_resets_on_new_change(self):
-        """Rapid changes reset the delay — only last value executes."""
-        builder = TestBuilder()
-        builder.data["input"] = 1
-        builder.source.data_formula(
-            "result", func=lambda x: x * 10, x="^input", _delay=0.2,
-            _on_built=True,
-        )
-        builder.build()
-        builder.subscribe()
-
-        builder.data["input"] = 2
-        builder.data["input"] = 3
-        builder.data["input"] = 4
-        # All within delay window — only last should execute
-        await asyncio.sleep(0.3)
-        assert builder.data["result"] == 40
-
-    @pytest.mark.asyncio
-    async def test_interval_periodic_execution(self):
-        """Formula with _interval re-executes periodically."""
-        counter = {"n": 0}
-
-        def increment():
-            counter["n"] += 1
-
-        builder = TestBuilder()
-        builder.source.data_controller(func=increment, _interval=0.1, _on_built=True)
-        builder.build()
-        builder.subscribe()
-
-        assert counter["n"] == 1  # Initial execution during build
-
-        await asyncio.sleep(0.35)
-        assert counter["n"] >= 3  # At least 3 interval ticks
-
-    @pytest.mark.asyncio
-    async def test_interval_cancelled_on_clear(self):
-        """Interval timer is cancelled when builder is cleared/rebuilt."""
-        counter = {"n": 0}
-
-        def increment():
-            counter["n"] += 1
-
-        builder = TestBuilder()
-        builder.source.data_controller(func=increment, _interval=0.1, _on_built=True)
-        builder.build()
-        builder.subscribe()
-
-        await asyncio.sleep(0.15)
-        count_before = counter["n"]
-        builder.build()  # Clears timers
-        await asyncio.sleep(0.25)
-        # No more ticks after clear
-        assert counter["n"] == count_before + 1  # +1 from rebuild execution
+class TestDelayNotApplicable:
+    """_delay is not applicable in pull model (formulas are resolvers)."""
 
     def test_no_delay_executes_immediately(self):
-        """Formula without _delay executes immediately (existing behavior)."""
+        """Formula without _delay returns fresh value on read."""
         builder = TestBuilder()
         builder.data["input"] = 10
         builder.source.data_formula(
@@ -709,7 +471,8 @@ class TestDelayAndInterval:
             _on_built=True,
         )
         builder.build()
-        builder.subscribe()
+
+        assert builder.data["result"] == 20
 
         builder.data["input"] = 5
-        assert builder.data["result"] == 10  # Immediate
+        assert builder.data["result"] == 10

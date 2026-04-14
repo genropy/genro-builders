@@ -224,13 +224,8 @@ class BagBuilderBase(
 
     @data_element()
     def data_formula(self, path: str, func: Callable, **kwargs: Any):
-        """Computed data: call func with resolved kwargs, write result at path."""
+        """Computed data: install resolver at path in data Bag."""
         return path, dict(func=func, **kwargs)
-
-    @data_element()
-    def data_controller(self, func: Callable, **kwargs: Any):
-        """Controller: call func with resolved kwargs."""
-        return None, dict(func=func, **kwargs)
 
     # -----------------------------------------------------------------------
     # Pipeline properties
@@ -269,16 +264,6 @@ class BagBuilderBase(
             self._data.set_item(
                 node.label, node.value, _attributes=dict(node.attr),
             )
-        if self._reactivity is not None:
-            self._reactivity._rerender()
-
-    @property
-    def output(self) -> str | None:
-        """Last rendered output string, or None before first subscribe."""
-        if self._reactivity is not None:
-            return self._reactivity.output
-        return None
-
     # -----------------------------------------------------------------------
     # Reactivity (delegated to ReactivityEngine)
     # -----------------------------------------------------------------------
@@ -286,9 +271,8 @@ class BagBuilderBase(
     def subscribe(self) -> None:
         """Activate reactive bindings on the built Bag.
 
-        Enables formula re-execution, timers, incremental compile,
-        and output management. The ReactivityEngine is created
-        lazily by build() if not already present.
+        Enables incremental compile and data change tracking.
+        The ReactivityEngine is created lazily by build().
         """
         self._ensure_reactivity()
         self._reactivity.subscribe()
@@ -302,16 +286,6 @@ class BagBuilderBase(
             if main is not None:
                 main(self.source)
             self.build()
-
-    def suspend_output(self) -> None:
-        """Suspend render/compile output."""
-        if self._reactivity is not None:
-            self._reactivity.suspend_output()
-
-    def resume_output(self) -> None:
-        """Resume render/compile output."""
-        if self._reactivity is not None:
-            self._reactivity.resume_output()
 
     @property
     def _binding(self) -> Any:

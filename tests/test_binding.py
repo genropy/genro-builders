@@ -1,14 +1,19 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for reactive binding — end-to-end contract tests.
+"""Tests for reactive binding — pull model contract tests.
 
-Tests verify the public contract: data change → affected nodes notified.
-No internal structure (subscription map, registry) is inspected.
+Pull model: BindingManager subscribes to any data change and signals
+dirty via callback. No per-node dispatch, no per-node matching.
+The callback receives the changed path for potential partial compile.
 """
 from __future__ import annotations
 
 from genro_bag import Bag
 
-from genro_builders.builder._binding import BindingManager, scan_for_pointers
+from genro_builders.builder._binding import (
+    BindingManager,
+    get_trigger_reason,
+    scan_for_pointers,
+)
 
 
 def _make_built_bag(items: dict) -> Bag:
@@ -23,69 +28,87 @@ def _make_built_bag(items: dict) -> Bag:
     return bag
 
 
-def _setup_reactive(data: Bag, items: dict, callback=None) -> BindingManager:
-    """Create a BindingManager, build a bag with ^pointers, subscribe."""
-    bag = _make_built_bag(items)
-    manager = BindingManager(on_node_updated=callback)
-    manager.subscribe(bag, data)
-    return manager
+class TestDataChangeCallback:
+    """Any data change → callback fired with changed path."""
 
-
-class TestReactiveNotification:
-    """Data change → callback notified for affected nodes."""
-
-    def test_data_change_notifies_node_with_pointer(self):
-        """Changing data notifies node whose value is ^pointer."""
+    def test_callback_fires_on_data_change(self):
+        """Changing any data value fires the callback."""
         data = Bag()
         data.set_item("user.name", "Giovanni")
 
-        updated = []
-        _setup_reactive(data, {"display": "^user.name"},
-                        callback=lambda node: updated.append(node.label))
+        changes = []
+        bag = _make_built_bag({"display": "^user.name"})
+        manager = BindingManager(on_data_changed=lambda path: changes.append(path))
+        manager.subscribe(bag, data)
 
         data.set_item("user.name", "Marco")
-        assert "display" in updated
+        assert "user.name" in changes
 
-    def test_data_change_notifies_node_with_attr_pointer(self):
-        """Changing data notifies node whose attribute is ^pointer."""
-        data = Bag()
-        data.set_item("theme.color", "blue")
-
-        updated = []
-        _setup_reactive(data, {"widget": (None, {"bg": "^theme.color"})},
-                        callback=lambda node: updated.append(node.label))
-
-        data.set_item("theme.color", "red")
-        assert "widget" in updated
-
-    def test_multiple_nodes_notified(self):
-        """All nodes with ^pointer to changed path are notified."""
-        data = Bag()
-        data.set_item("val", "old")
-
-        updated = []
-        _setup_reactive(data, {"n1": "^val", "n2": "^val"},
-                        callback=lambda node: updated.append(node.label))
-
-        data.set_item("val", "new")
-        assert "n1" in updated
-        assert "n2" in updated
-
-    def test_unrelated_change_no_notification(self):
-        """Changing unrelated data does not trigger notification."""
+    def test_callback_fires_for_unrelated_change(self):
+        """In pull model, ANY data change fires the callback (no filtering)."""
         data = Bag()
         data.set_item("a", "original")
         data.set_item("b", "other")
 
-        updated = []
-        _setup_reactive(data, {"n": "^a"},
-                        callback=lambda node: updated.append(node))
+        changes = []
+        bag = _make_built_bag({"n": "^a"})
+        manager = BindingManager(on_data_changed=lambda path: changes.append(path))
+        manager.subscribe(bag, data)
 
         data.set_item("b", "changed")
-        assert len(updated) == 0
+        assert "b" in changes
+
+    def test_no_callback_without_subscribe(self):
+        """Without subscribe, no callback fires."""
+        changes = []
+        manager = BindingManager(on_data_changed=lambda path: changes.append(path))
+
+        data = Bag()
+        data.set_item("x", 1)
+        assert len(changes) == 0
+
+
+class TestReactiveNodesCollection:
+    """BindingManager collects UI nodes with ^pointers."""
+
+    def test_collects_nodes_with_value_pointer(self):
+        """Nodes with ^pointer value are collected."""
+        data = Bag()
+        data.set_item("x", 1)
+        bag = _make_built_bag({"n": "^x"})
+
+        manager = BindingManager()
+        manager.subscribe(bag, data)
+
+        assert len(manager.reactive_nodes) == 1
+        assert manager.reactive_nodes[0].label == "n"
+
+    def test_collects_nodes_with_attr_pointer(self):
+        """Nodes with ^pointer in attributes are collected."""
+        data = Bag()
+        data.set_item("color", "blue")
+        bag = _make_built_bag({"w": (None, {"bg": "^color"})})
+
+        manager = BindingManager()
+        manager.subscribe(bag, data)
+
+        assert len(manager.reactive_nodes) == 1
+
+    def test_does_not_collect_static_nodes(self):
+        """Nodes without ^pointers are not collected."""
+        data = Bag()
+        bag = _make_built_bag({"static": "hello"})
+
+        manager = BindingManager()
+        manager.subscribe(bag, data)
+
+        assert len(manager.reactive_nodes) == 0
+
+
+class TestPointerStaysFormal:
+    """Data change does NOT modify the built node — pointer stays formal."""
 
     def test_pointer_stays_formal_after_data_change(self):
-        """Data change does NOT modify the built node — pointer stays formal."""
         data = Bag()
         data.set_item("user.name", "Giovanni")
 
@@ -98,127 +121,46 @@ class TestReactiveNotification:
         assert bag.get_node("display").static_value == "^user.name"
 
 
-class TestThreeLevelPropagation:
-    """3-level trigger: node (exact), container (ancestor), child (descendant)."""
+class TestGetTriggerReason:
+    """get_trigger_reason utility — 3-level path matching."""
 
     def test_exact_match(self):
-        """Exact path match triggers notification."""
-        data = Bag()
-        data.set_item("user.name", "Alice")
+        assert get_trigger_reason("user.name", "user.name") == "node"
 
-        updated = []
-        _setup_reactive(data, {"display": "^user.name"},
-                        callback=lambda node: updated.append(node.label))
+    def test_container_match(self):
+        assert get_trigger_reason("user.name", "user") == "container"
 
-        data.set_item("user.name", "Bob")
-        assert "display" in updated
+    def test_child_match(self):
+        assert get_trigger_reason("user", "user.name") == "child"
 
-    def test_ancestor_changed(self):
-        """Ancestor change triggers notification (container level)."""
-        data = Bag()
-        data.set_item("user.name", "Alice")
+    def test_no_match(self):
+        assert get_trigger_reason("user.name", "config") is None
 
-        updated = []
-        _setup_reactive(data, {"display": "^user.name"},
-                        callback=lambda node: updated.append(node.label))
-
-        new_user = Bag()
-        new_user["name"] = "Bob"
-        data.set_item("user", new_user)
-        assert "display" in updated
-
-    def test_descendant_changed(self):
-        """Descendant change triggers notification (child level)."""
-        data = Bag()
-        data.set_item("user.name", "Alice")
-
-        updated = []
-        _setup_reactive(data, {"display": "^user"},
-                        callback=lambda node: updated.append(node.label))
-
-        data.set_item("user.name", "Bob")
-        assert "display" in updated
-
-    def test_unrelated_path_no_trigger(self):
-        """Unrelated path change does not trigger notification."""
-        data = Bag()
-        data.set_item("user.name", "Alice")
-        data.set_item("config.theme", "dark")
-
-        updated = []
-        _setup_reactive(data, {"display": "^user.name"},
-                        callback=lambda node: updated.append(node.label))
-
-        data.set_item("config.theme", "light")
-        assert len(updated) == 0
-
-    def test_get_trigger_reason_logic(self):
-        """Direct test of 3-level matching logic."""
-        manager = BindingManager()
-        assert manager._get_trigger_reason("user.name", "user.name") == "node"
-        assert manager._get_trigger_reason("user.name", "user") == "container"
-        assert manager._get_trigger_reason("user", "user.name") == "child"
-        assert manager._get_trigger_reason("user.name", "config") is None
-        assert manager._get_trigger_reason("user", "username") is None
-
-
-class TestAntiLoop:
-    """Anti-loop: _reason prevents re-notification of originating node."""
-
-    def test_reason_skips_originating_node(self):
-        """Writing to data with _reason=node skips that node."""
-        data = Bag()
-        data.set_item("val", "initial")
-
-        bag = _make_built_bag({"input_0": "^val", "label_0": "^val"})
-        updated = []
-        manager = BindingManager(
-            on_node_updated=lambda node: updated.append(node.label),
-        )
-        manager.subscribe(bag, data)
-
-        input_node = bag.get_node("input_0")
-        data.set_item("val", "from_input", _reason=input_node)
-
-        assert "label_0" in updated
-        assert "input_0" not in updated
-
-    def test_no_reason_updates_all(self):
-        """Without _reason, all nodes with matching ^pointer are notified."""
-        data = Bag()
-        data.set_item("val", "initial")
-
-        updated = []
-        _setup_reactive(data, {"n1": "^val", "n2": "^val"},
-                        callback=lambda node: updated.append(node.label))
-
-        data.set_item("val", "changed")
-        assert "n1" in updated
-        assert "n2" in updated
+    def test_prefix_not_false_positive(self):
+        assert get_trigger_reason("user", "username") is None
 
 
 class TestUnbind:
     """unbind() stops all notifications."""
 
     def test_unbind_stops_notifications(self):
-        """After unbind, data changes do not trigger notifications."""
         data = Bag()
         data.set_item("x", 1)
 
-        updated = []
-        manager = _setup_reactive(data, {"n": "^x"},
-                                  callback=lambda node: updated.append(node.label))
+        changes = []
+        bag = _make_built_bag({"n": "^x"})
+        manager = BindingManager(on_data_changed=lambda path: changes.append(path))
+        manager.subscribe(bag, data)
 
         manager.unbind()
         data.set_item("x", 2)
-        assert len(updated) == 0
+        assert len(changes) == 0
 
 
 class TestScanForPointers:
     """scan_for_pointers utility — pure function, no internals."""
 
     def test_scan_value_pointer(self):
-        """Detects ^pointer in node value."""
         bag = Bag()
         bag.set_item("n", "^path")
         node = bag.get_node("n")
@@ -228,7 +170,6 @@ class TestScanForPointers:
         assert pointers[0][1] == "value"
 
     def test_scan_attr_pointer(self):
-        """Detects ^pointer in node attributes."""
         bag = Bag()
         bag.set_item("n", None, color="^theme.color")
         node = bag.get_node("n")
@@ -237,7 +178,6 @@ class TestScanForPointers:
         assert pointers[0][0].path == "theme.color"
 
     def test_scan_no_pointers(self):
-        """No pointers returns empty list."""
         bag = Bag()
         bag.set_item("n", "static")
         node = bag.get_node("n")

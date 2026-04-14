@@ -1,14 +1,15 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """ReactivityEngine — encapsulated reactive layer for builders.
 
-Manages subscribe, incremental compile (source change handlers),
-and output suspension. Created lazily by ``builder.subscribe()`` —
-a builder without subscribe never instantiates this engine.
+Pull model: data changes set a dirty flag and the builder re-renders
+on demand. No per-node dispatch, no output caching in the builder.
 
-Reactivity follows the legacy pattern: the BindingManager notifies
-all built nodes whose ^pointers are affected by a data change.
-Each node decides what to do (execute func, update widget, etc.).
-Cascade propagation is natural — no guard, no topological sort.
+Manages:
+- BindingManager subscription (data change → dirty signal)
+- Source change handlers (incremental compile)
+
+Created lazily by ``builder.subscribe()`` — a builder without
+subscribe never instantiates this engine.
 """
 from __future__ import annotations
 
@@ -22,28 +23,19 @@ if TYPE_CHECKING:
     from genro_bag import BagNode
 
 
-
 class ReactivityEngine:
     """Encapsulated reactive layer for a builder.
 
-    Holds binding manager, timers, and output state.
-    Calls back into the builder for build walk and render operations.
+    Holds binding manager and incremental compile handlers.
+    Signals dirty to the builder/manager when data or source changes.
     """
 
     def __init__(self, builder: Any) -> None:
         self._builder = builder
         self._binding = BindingManager(
-            on_node_updated=self._on_node_updated,
+            on_data_changed=self._on_data_changed,
         )
         self._auto_compile = False
-        self._output_suspended = False
-        self._output_pending = False
-        self._output: str | None = None
-
-    @property
-    def output(self) -> str | None:
-        """Last rendered output string, or None before first render."""
-        return self._output
 
     @property
     def binding(self) -> BindingManager:
@@ -57,7 +49,7 @@ class ReactivityEngine:
     def subscribe(self) -> None:
         """Activate reactive bindings on the built Bag.
 
-        The BindingManager collects all built nodes with ^pointers.
+        The BindingManager subscribes to data changes.
         Source change handlers enable incremental compile.
         """
         b = self._builder
@@ -71,7 +63,6 @@ class ReactivityEngine:
         )
 
         self._auto_compile = True
-        self._rerender()
 
     def rebuild(self, main: Any = None) -> None:
         """Full rebuild: clear source, optionally re-populate, build."""
@@ -95,40 +86,13 @@ class ReactivityEngine:
         """Rebind this engine to new data. Called by BuilderManager."""
         if self._auto_compile:
             self._binding.subscribe(self._builder.built, new_data)
-            self._rerender()
 
     # -----------------------------------------------------------------------
-    # Output management
+    # Callbacks
     # -----------------------------------------------------------------------
 
-    def _on_node_updated(self, node: BagNode) -> None:
-        """Called by BindingManager when a reactive node is affected.
-
-        The node has its turn — it decides what to do. If it has a func
-        attribute, it executes and writes to the data store (cascade).
-        The rerender happens regardless.
-        """
-        if self._auto_compile:
-            self._rerender()
-
-    def _rerender(self) -> None:
-        """Re-render the built bag without re-building."""
-        if self._output_suspended:
-            self._output_pending = True
-            return
-        b = self._builder
-        self._output = b.render(b.built)
-
-    def suspend_output(self) -> None:
-        """Suspend render/compile output."""
-        self._output_suspended = True
-
-    def resume_output(self) -> None:
-        """Resume render/compile output. Flushes pending if any."""
-        self._output_suspended = False
-        if self._output_pending:
-            self._output_pending = False
-            self._rerender()
+    def _on_data_changed(self, changed_path: str) -> None:
+        """Called by BindingManager on any data change."""
 
     # -----------------------------------------------------------------------
     # Source change handlers (incremental compile)
@@ -149,14 +113,10 @@ class ReactivityEngine:
         parts = [str(p) for p in pathlist] if pathlist else []
         parts.append(node.label)
         path = ".".join(parts)
-        # Stop timers and unregister before deleting
         built_node = b.built.get_node(path)
         if built_node is not None:
-            if hasattr(built_node, "stop_interval"):
-                built_node.stop_interval()
             self._binding.unregister_node(built_node)
         b.built.del_item(path, _reason="source")
-        self._rerender()
 
     def _on_source_inserted(
         self,
@@ -174,11 +134,11 @@ class ReactivityEngine:
 
         if node.node_tag == "data_setter":
             b._execute_data_setter(node, b.data)
-            self._rerender()
             return None
 
-        if node.attr.get("_is_data_element"):
-            b._prepare_data_element(node)
+        if node.node_tag == "data_formula":
+            b._install_formula_resolver(node, b.data)
+            return None
 
         parent_path = ".".join(str(p) for p in pathlist) if pathlist else ""
 
@@ -200,7 +160,6 @@ class ReactivityEngine:
                     node, resolved, target_bag, node_path, ind,
                 )
                 self._binding.register_node(target_bag.get_node(node.label))
-                self._rerender()
 
             return cont_inserted()
 
@@ -208,7 +167,6 @@ class ReactivityEngine:
         built_node = target_bag.get_node(node.label)
         if built_node is not None:
             self._binding.register_node(built_node)
-        self._rerender()
         return None
 
     def _on_source_updated(
@@ -227,7 +185,10 @@ class ReactivityEngine:
 
         if node is not None and node.node_tag == "data_setter":
             b._execute_data_setter(node, b.data)
-            self._rerender()
+            return None
+
+        if node is not None and node.node_tag == "data_formula":
+            b._install_formula_resolver(node, b.data)
             return None
 
         if node is not None and node.attr.get("_is_data_element"):
@@ -245,7 +206,6 @@ class ReactivityEngine:
                 async def cont_updated(value=value):
                     resolved = await value
                     b._materialize_updated(built_node, resolved, path)
-                    self._rerender()
 
                 return cont_updated()
 
@@ -255,4 +215,4 @@ class ReactivityEngine:
             if node is not None:
                 built_node.set_attr(dict(node.attr))
 
-        self._rerender()
+        return None

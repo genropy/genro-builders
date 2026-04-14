@@ -8,8 +8,8 @@ it without any reference to source, grammar, or builder.
 BuiltBagNode provides:
     - data — direct reference to the data Bag (set at build time)
     - runtime_value / runtime_attrs — resolved attributes for render/compile
-    - execute_func() — execute a data provider function (formula/controller)
-    - set_data() — write to data Bag with anti-loop protection
+    - execute_func() — execute a data provider function (data_controller)
+    - current_from_datasource() — resolve ^pointer to value
 
 BuiltBag provides:
     - Uses BuiltBagNode as node class
@@ -21,33 +21,8 @@ import inspect
 from typing import Any
 
 from genro_bag import Bag, BagNode
-from genro_toolbox.smarttimer import cancel_timer, set_interval, set_timeout
 
 from .builder._binding import is_pointer
-
-
-def _make_timer_callback(
-    built_bag: Bag, node_path: str, timer_id_holder: list,
-) -> Any:
-    """Create a timer callback that looks up the node by path.
-
-    If the node no longer exists in the built bag, auto-cancels
-    the timer. No reference to the node object — no memory leak.
-
-    Args:
-        built_bag: The root built Bag (long-lived object).
-        node_path: Path to the node in the built bag.
-        timer_id_holder: Single-element list holding the timer_id
-            (set after timer creation, needed for auto-cancel).
-    """
-    def callback():
-        node = built_bag.get_node(node_path)
-        if node is None:
-            if timer_id_holder:
-                cancel_timer(timer_id_holder[0])
-            return
-        node._execute_now()
-    return callback
 
 
 class BuiltBagNode(BagNode):
@@ -61,18 +36,6 @@ class BuiltBagNode(BagNode):
     """
 
     _data: Bag | None = None
-    _delay_timer: str | None = None
-    _interval_timer: str | None = None
-
-    def _root_bag(self) -> Bag:
-        """Walk up parent chain to find the root built Bag."""
-        bag = self._parent_bag
-        while bag is not None:
-            parent_node = bag.parent_node
-            if parent_node is None:
-                return bag
-            bag = parent_node._parent_bag
-        return self._parent_bag
 
     @property
     def data(self) -> Bag:
@@ -226,77 +189,6 @@ class BuiltBagNode(BagNode):
         attrs.pop("datapath", None)
         return attrs
 
-    def execute_func(self, raw_attrs: dict[str, Any]) -> Any:
-        """Execute this node's data provider function.
-
-        Resolves ^pointers via get_relative_data, executes func.
-        """
-        resolved = {
-            k: self.current_from_datasource(v)
-            for k, v in raw_attrs.items()
-            if not k.startswith("_")
-        }
-        func = resolved.pop("func")
-        if self.attr.get("_accepts_node"):
-            resolved["_node"] = self
-        return func(**resolved)
-
-    def on_data_changed(self, changed_path: str, reason: Any = None) -> None:
-        """Called by BindingManager when a dependent data path changes.
-
-        The node has its turn — it decides what to do.
-        If it has a func (data_formula/data_controller), executes it
-        and writes the result to the data store (cascade propagation).
-
-        If _delay is set, debounces: cancels previous timer, schedules
-        new execution after _delay ms. Only the last trigger executes.
-        """
-        func = self.attr.get("func")
-        if func is None:
-            return
-
-        delay = self.attr.get("_delay")
-        if delay is not None:
-            if self._delay_timer is not None:
-                cancel_timer(self._delay_timer)
-            holder: list[str] = []
-            self._delay_timer = set_timeout(
-                delay, _make_timer_callback(self._root_bag(), self.fullpath, holder),
-            )
-            holder.append(self._delay_timer)
-        else:
-            self._execute_now()
-
-    def _execute_now(self) -> None:
-        """Execute this node's func and write result to data store."""
-        self._delay_timer = None
-        raw_attrs = {k: v for k, v in self.attr.items() if not k.startswith("_")}
-        result = self.execute_func(raw_attrs)
-
-        path = self.attr.get("_data_path")
-        if path is not None and result is not None:
-            if isinstance(result, dict):
-                result = Bag(source=result)
-            self.set_relative_data(path, result)
-
-    def start_interval(self) -> None:
-        """Start periodic execution if _interval is set."""
-        interval = self.attr.get("_interval")
-        if interval is not None:
-            holder: list[str] = []
-            self._interval_timer = set_interval(
-                interval, _make_timer_callback(self._root_bag(), self.fullpath, holder),
-            )
-            holder.append(self._interval_timer)
-
-    def stop_interval(self) -> None:
-        """Stop periodic execution."""
-        if self._interval_timer is not None:
-            cancel_timer(self._interval_timer)
-            self._interval_timer = None
-        if self._delay_timer is not None:
-            cancel_timer(self._delay_timer)
-            self._delay_timer = None
 
 
 class BuiltBag(Bag):

@@ -234,6 +234,5 @@ class TestSvgBuilderReactivity:
         builder.build()
         builder.subscribe()
 
-        output = builder.output
-        assert output is not None
+        output = builder.render()
         assert "<circle" in output

@@ -49,8 +49,8 @@ class TestFormulaExceptions:
         with pytest.raises(ZeroDivisionError):
             builder.build()
 
-    def test_formula_exception_propagates_on_data_change(self):
-        """Exception in formula during reactive re-execution propagates."""
+    def test_formula_exception_propagates_on_render(self):
+        """Exception in formula resolver propagates during render (pull model)."""
         builder = HtmlBuilder()
         s = builder.source
         s.data_setter("x", value=1)
@@ -64,26 +64,12 @@ class TestFormulaExceptions:
         body.p(value="^result")
 
         builder.build()
-        builder.subscribe()
+        assert builder.data["result"] == 1.0
 
-        # Now set x=0 to trigger ZeroDivisionError
+        builder.data["x"] = 0
+        # In pull model, the exception occurs when the resolver is read
         with pytest.raises(ZeroDivisionError):
-            builder.data["x"] = 0
-
-    def test_controller_exception_propagates(self):
-        """Exception in data_controller propagates during build."""
-        builder = HtmlBuilder()
-        s = builder.source
-        s.data_setter("x", value="not_a_number")
-
-        def bad_controller(x):
-            raise ValueError(f"Bad value: {x}")
-
-        s.data_controller(func=bad_controller, x="^x", _on_built=True)
-        s.body()
-
-        with pytest.raises(ValueError, match="Bad value"):
-            builder.build()
+            builder.render()
 
 
 class TestTemplateContextDefaults:

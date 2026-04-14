@@ -123,11 +123,11 @@ class TestAutonomousReactivity:
         builder.build()
         builder.subscribe()
 
-        assert "Original" in builder.output
+        assert "Original" in builder.render()
 
         builder.data["title"] = "Updated"
 
-        assert "Updated" in builder.output
+        assert "Updated" in builder.render()
 
     def test_data_change_partial_update(self):
         """Only nodes bound to changed data are updated."""
@@ -138,13 +138,13 @@ class TestAutonomousReactivity:
         builder.build()
         builder.subscribe()
 
-        assert "Hello" in builder.output
-        assert "static content" in builder.output
+        assert "Hello" in builder.render()
+        assert "static content" in builder.render()
 
         builder.data["title"] = "Changed"
 
-        assert "Changed" in builder.output
-        assert "static content" in builder.output
+        assert "Changed" in builder.render()
+        assert "static content" in builder.render()
 
 
 # =============================================================================
@@ -163,7 +163,7 @@ class TestAutonomousRebuild:
         builder.build()
         builder.subscribe()
 
-        assert "v1" in builder.output
+        assert "v1" in builder.render()
 
         builder.data["title"] = "v2"
 
@@ -173,7 +173,7 @@ class TestAutonomousRebuild:
         builder.rebuild(main=new_main)
         builder.subscribe()
 
-        assert "v2" in builder.output
+        assert "v2" in builder.render()
 
 
 # =============================================================================
@@ -192,13 +192,13 @@ class TestAutonomousDataReplacement:
         builder.build()
         builder.subscribe()
 
-        assert "Alice" in builder.output
+        assert "Alice" in builder.render()
 
         new_data = Bag()
         new_data["name"] = "Bob"
         builder.data = new_data
 
-        assert "Bob" in builder.output
+        assert "Bob" in builder.render()
 
 
 # =============================================================================
@@ -237,12 +237,12 @@ class TestAutonomousSourceDelete:
         builder.build()
         builder.subscribe()
 
-        assert "[heading:Title]" in builder.output
-        assert "[text:Content]" in builder.output
+        assert "[heading:Title]" in builder.render()
+        assert "[text:Content]" in builder.render()
 
         builder.source.del_item("text_0")
-        assert "[text:Content]" not in builder.output
-        assert "[heading:Title]" in builder.output
+        assert "[text:Content]" not in builder.render()
+        assert "[heading:Title]" in builder.render()
 
     def test_source_delete_with_pointer_cleanup(self):
         """Deleting a node with ^pointer removes it from output."""
@@ -253,12 +253,12 @@ class TestAutonomousSourceDelete:
         builder.build()
         builder.subscribe()
 
-        assert "Hello" in builder.output
+        assert "Hello" in builder.render()
 
         builder.source.del_item("heading_0")
 
-        assert "Hello" not in builder.output
-        assert "[text:static]" in builder.output
+        assert "Hello" not in builder.render()
+        assert "[text:static]" in builder.render()
 
     def test_source_delete_subtree(self):
         """Deleting a node with children removes the entire subtree."""
@@ -269,13 +269,13 @@ class TestAutonomousSourceDelete:
         builder.build()
         builder.subscribe()
 
-        assert "Child1" in builder.output
-        assert "Child2" in builder.output
+        assert "Child1" in builder.render()
+        assert "Child2" in builder.render()
 
         builder.source.del_item("group_0")
 
-        assert "Child1" not in builder.output
-        assert "Child2" not in builder.output
+        assert "Child1" not in builder.render()
+        assert "Child2" not in builder.render()
 
 
 # =============================================================================
@@ -293,13 +293,13 @@ class TestAutonomousSourceInsert:
         builder.build()
         builder.subscribe()
 
-        assert "[heading:Title]" in builder.output
-        assert "Extra" not in builder.output
+        assert "[heading:Title]" in builder.render()
+        assert "Extra" not in builder.render()
 
         builder.source.text("Extra")
 
-        assert "Extra" in builder.output
-        assert "[heading:Title]" in builder.output
+        assert "Extra" in builder.render()
+        assert "[heading:Title]" in builder.render()
 
     def test_source_insert_with_pointer(self):
         """Inserted node with ^pointer gets bound to data."""
@@ -309,11 +309,11 @@ class TestAutonomousSourceInsert:
         builder.build()
         builder.subscribe()
 
-        assert "Resolved" not in builder.output
+        assert "Resolved" not in builder.render()
 
         builder.source.text("^dynamic")
 
-        assert "Resolved" in builder.output
+        assert "Resolved" in builder.render()
 
     def test_source_insert_at_position(self):
         """Inserted node appears at the correct position."""
@@ -325,10 +325,10 @@ class TestAutonomousSourceInsert:
 
         builder.source.text("Second", node_position=1)
 
-        assert builder.output is not None
-        first_pos = builder.output.index("First")
-        second_pos = builder.output.index("Second")
-        third_pos = builder.output.index("Third")
+        assert builder.render() is not None
+        first_pos = builder.render().index("First")
+        second_pos = builder.render().index("Second")
+        third_pos = builder.render().index("Third")
         assert first_pos < second_pos < third_pos
 
 
@@ -347,12 +347,12 @@ class TestAutonomousSourceUpdate:
         builder.build()
         builder.subscribe()
 
-        assert "Original" in builder.output
+        assert "Original" in builder.render()
 
         builder.source.set_item("heading_0", "Modified")
 
-        assert "Modified" in builder.output
-        assert "Original" not in builder.output
+        assert "Modified" in builder.render()
+        assert "Original" not in builder.render()
 
     def test_source_update_attr(self):
         """Updating a node attribute in the source updates the output."""
@@ -361,12 +361,12 @@ class TestAutonomousSourceUpdate:
         builder.build()
         builder.subscribe()
 
-        assert "color=red" in builder.output
+        assert "color=red" in builder.render()
 
         builder.source.set_attr("item_0", color="blue")
 
-        assert "color=blue" in builder.output
-        assert "color=red" not in builder.output
+        assert "color=blue" in builder.render()
+        assert "color=red" not in builder.render()
 
     def test_source_update_pointer_rebind(self):
         """Updating a static value to a ^pointer binds it to data."""
@@ -376,12 +376,12 @@ class TestAutonomousSourceUpdate:
         builder.build()
         builder.subscribe()
 
-        assert "static" in builder.output
-        assert "Dynamic" not in builder.output
+        assert "static" in builder.render()
+        assert "Dynamic" not in builder.render()
 
         builder.source.set_item("heading_0", "^title")
 
-        assert "Dynamic" in builder.output
+        assert "Dynamic" in builder.render()
 
     def test_source_update_value_replaces_subtree(self):
         """Updating a node that had children replaces the entire subtree."""
@@ -394,14 +394,14 @@ class TestAutonomousSourceUpdate:
         builder.build()
         builder.subscribe()
 
-        assert "A" in builder.output
-        assert "B" in builder.output
+        assert "A" in builder.render()
+        assert "B" in builder.render()
 
         builder.source.set_item("group_0", "replaced")
 
-        assert "replaced" in builder.output
-        assert "A" not in builder.output
-        assert "B" not in builder.output
+        assert "replaced" in builder.render()
+        assert "A" not in builder.render()
+        assert "B" not in builder.render()
 
 
 # =============================================================================
@@ -482,7 +482,7 @@ class TestAutonomousReactiveAfterInsert:
         builder.subscribe()
 
         builder.source.text("^val")
-        assert "first" in builder.output
+        assert "first" in builder.render()
 
         builder.data["val"] = "second"
-        assert "second" in builder.output
+        assert "second" in builder.render()

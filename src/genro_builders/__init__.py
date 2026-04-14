@@ -43,6 +43,7 @@ from genro_builders.builder._component import ComponentProxy, ComponentResolver
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode, Component
 from genro_builders.compiler import BagCompilerBase, compiler
 from genro_builders.contrib.yaml import YamlRendererBase
+from genro_builders.formula_resolver import FormulaResolver
 from genro_builders.manager import BuilderManager, ReactiveManager
 from genro_builders.renderer import BagRendererBase, RenderNode, renderer
 
@@ -59,6 +60,7 @@ __all__ = [
     "Component",
     "ComponentProxy",
     "ComponentResolver",
+    "FormulaResolver",
     "PointerInfo",
     "ReactiveManager",
     "RenderNode",
