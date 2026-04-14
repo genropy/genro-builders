@@ -22,6 +22,8 @@ import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from genro_builders.contrib.live._registry import LiveRegistry
+
 if TYPE_CHECKING:
     from genro_builders.manager import BuilderManager
 
@@ -153,8 +155,6 @@ class LiveSession:
         server = LiveServer(self, port=port)
         server.start()
         if name is not None:
-            from genro_builders.contrib.live._registry import LiveRegistry
-
             registry = LiveRegistry()
             registry.register(name, server.port, server.token)
         return server

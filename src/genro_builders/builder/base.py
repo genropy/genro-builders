@@ -26,6 +26,7 @@ from genro_bag import Bag
 
 from ..builder_bag import BuilderBag
 from ._build import _BuildMixin
+from ._component import _ComponentMixin
 from ._decorators import data_element
 from ._grammar import _GrammarMixin
 from ._output import _OutputMixin
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
 class BagBuilderBase(
     _OutputMixin,
     _BuildMixin,
+    _ComponentMixin,
     _GrammarMixin,
     ABC,
 ):

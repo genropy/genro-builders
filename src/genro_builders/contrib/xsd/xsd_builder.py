@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 from genro_bag import Bag
 
 from genro_builders.builder import BagBuilderBase, SchemaBuilder
+from genro_builders.builder_bag import BuilderBag
 
 from .xsd_reader import XsdReader
 
@@ -51,8 +52,6 @@ class XsdBuilder(BagBuilderBase):
         reader = XsdReader(xsd_source)
 
         # Generate schema from XSD elements
-        from genro_builders.builder_bag import BuilderBag
-
         schema_bag = BuilderBag(builder=SchemaBuilder)
         for name, sub_tags, cav in reader.iter_elements():
             attrs: dict[str, Any] = {"sub_tags": sub_tags}

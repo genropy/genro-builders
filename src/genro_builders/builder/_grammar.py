@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
 
+from ..builder_bag import BuilderBag
 from ._utilities import _check_type, _parse_parent_tags_spec, _parse_sub_tags_spec
 
 if TYPE_CHECKING:
@@ -86,71 +87,6 @@ class _GrammarMixin:
             return self._add_element(destination_bag, node_value, node_tag=node_tag, **kwargs)
 
         return wrapper
-
-    def _handle_component(
-        self,
-        destination_bag: Bag,
-        info: dict,
-        node_tag: str,
-        kwargs: dict,
-    ) -> Any:
-        """Handle component invocation - lazy registration with resolver.
-
-        Registers the component node with a ComponentResolver. The handler
-        body is NOT called here -- it will be called lazily when the node
-        is accessed with static=False (during expand or compile).
-
-        Always returns a ComponentProxy that delegates to destination_bag.
-        If the component has named slots, the proxy also provides access
-        to slot Bags via attribute access.
-
-        Args:
-            destination_bag: The parent Bag where component will be added.
-            info: Schema info for the component.
-            node_tag: The tag name for the component.
-            kwargs: Arguments passed to the component (stored as attributes).
-
-        Returns:
-            ComponentProxy wrapping destination_bag (and optional slot Bags).
-        """
-        from ..builder_bag import BuilderBag
-        from ._component import ComponentProxy, ComponentResolver
-
-        # Extract internal kwargs that need special handling
-        kwargs.pop("node_value", None)
-        node_label = kwargs.pop("node_label", None)
-        node_position = kwargs.pop("node_position", None)
-
-        # Register node with kwargs as attributes, no expansion
-        node = self._add_element(
-            destination_bag,
-            node_value=None,
-            node_tag=node_tag,
-            node_label=node_label,
-            node_position=node_position,
-            **kwargs,
-        )
-
-        # Attach resolver for lazy expansion
-        handler_name = info.get("handler_name")
-        handler = getattr(self, handler_name) if handler_name else None
-        builder_class = info.get("component_builder") or type(self)
-        based_on = info.get("based_on")
-        slot_names = info.get("slots") or []
-
-        # Create slot Bags (empty, to be populated at recipe time)
-        slots = {name: BuilderBag(builder=builder_class) for name in slot_names}
-
-        resolver = ComponentResolver(
-            handler=handler,
-            builder_class=builder_class,
-            based_on=based_on,
-            builder=self,
-            slots=slots if slots else None,
-        )
-        node.resolver = resolver
-
-        return ComponentProxy(destination_bag, slots)
 
     def _add_element(
         self,
@@ -262,8 +198,6 @@ class _GrammarMixin:
         Uses _bag_call for schema elements (handles components and tag renames).
         Falls back to self._child() for unknown tags (provides validation errors).
         """
-        from ..builder_bag import BuilderBag
-
         if not isinstance(node.value, Bag):
             node.value = BuilderBag()
             node.value.builder = self

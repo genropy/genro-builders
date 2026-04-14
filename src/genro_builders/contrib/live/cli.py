@@ -17,11 +17,14 @@ import code
 import importlib.util
 import os
 import readline  # noqa: F401 — enables line editing in REPL
+import signal
 import shutil
 import socket
 import subprocess
 import sys
 from typing import Any
+
+from genro_builders.contrib.live import enable_remote
 
 from genro_builders.contrib.live._proxy import LiveProxy
 from genro_builders.contrib.live._registry import LiveRegistry
@@ -73,9 +76,6 @@ class LiveCLI:
         app_name = os.path.splitext(os.path.basename(file_path))[0]
 
         app = app_class()
-
-        from genro_builders.contrib.live import enable_remote
-
         server = enable_remote(app, port=port, name=app_name)
 
         print(f"Live session '{app_name}' on port {server.port}")
@@ -83,8 +83,6 @@ class LiveCLI:
         print("Press Ctrl+C to stop")
 
         try:
-            import signal
-
             signal.pause()
         except KeyboardInterrupt:
             print("\nStopping...")

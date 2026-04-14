@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Component infrastructure — proxy and lazy resolver.
+"""Component infrastructure — proxy, resolver, and mixin.
 
 ComponentProxy: transparent proxy returned by component calls.
     Wraps the parent Bag (root) and optional named slot Bags.
@@ -9,13 +9,19 @@ ComponentResolver: lazy expansion of components via BagResolver.
     Attached to component nodes at creation time. Executes the
     handler body on first non-static access (walk, expand, compile).
     Supports inheritance via ``based_on``.
+
+_ComponentMixin: builder mixin for component handling.
+    Owns _handle_component() — creates ComponentResolver and
+    ComponentProxy when a component tag is dispatched.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from genro_bag import Bag
+from genro_bag import Bag, BagNode
 from genro_bag.resolver import BagSyncResolver
+
+from ..builder_bag import BuilderBag, Component
 
 # ---------------------------------------------------------------------------
 # ComponentProxy
@@ -120,8 +126,6 @@ class ComponentResolver(BagSyncResolver):
         if based_on:
             comp_bag = self._resolve_parent(based_on, builder_instance, kwargs)
         else:
-            from ..builder_bag import Component
-
             comp_bag = Component(builder=builder_class)
             comp_bag._skip_parent_validation = True
 
@@ -131,8 +135,6 @@ class ComponentResolver(BagSyncResolver):
 
         # Mount slot content into destination Bags
         if slots and isinstance(result, dict):
-            from genro_bag import BagNode
-
             for slot_name, dest in result.items():
                 source_bag = slots.get(slot_name)
                 if source_bag is None or len(source_bag) == 0:
@@ -140,7 +142,6 @@ class ComponentResolver(BagSyncResolver):
 
                 if isinstance(dest, BagNode):
                     if not isinstance(dest.value, Bag):
-                        from ..builder_bag import BuilderBag
                         dest.value = BuilderBag(builder=builder_class)
                     dest_bag = dest.value
                 else:
@@ -161,8 +162,6 @@ class ComponentResolver(BagSyncResolver):
         self, based_on: str, builder_instance: Any, kwargs: dict[str, Any],
     ) -> Bag:
         """Resolve the parent component, handling recursive based_on chains."""
-        from ..builder_bag import Component
-
         parent_info = builder_instance._get_schema_info(based_on)
         parent_handler_name = parent_info.get("handler_name")
         parent_handler = getattr(builder_instance, parent_handler_name) if parent_handler_name else None
@@ -179,3 +178,65 @@ class ComponentResolver(BagSyncResolver):
             parent_handler(comp_bag, **kwargs)
 
         return comp_bag
+
+
+# ---------------------------------------------------------------------------
+# _ComponentMixin
+# ---------------------------------------------------------------------------
+
+
+class _ComponentMixin:
+    """Builder mixin for component handling.
+
+    Owns the component lifecycle: creates ComponentResolver for lazy
+    expansion and returns ComponentProxy to the caller.
+    """
+
+    def _handle_component(
+        self,
+        destination_bag: Bag,
+        info: dict,
+        node_tag: str,
+        kwargs: dict,
+    ) -> Any:
+        """Handle component invocation — lazy registration with resolver.
+
+        Registers the component node with a ComponentResolver. The handler
+        body is NOT called here — it will be called lazily when the node
+        is accessed with static=False (during expand or compile).
+
+        Returns a ComponentProxy that delegates to destination_bag.
+        If the component has named slots, the proxy also provides access
+        to slot Bags via attribute access.
+        """
+        kwargs.pop("node_value", None)
+        node_label = kwargs.pop("node_label", None)
+        node_position = kwargs.pop("node_position", None)
+
+        node = self._add_element(
+            destination_bag,
+            node_value=None,
+            node_tag=node_tag,
+            node_label=node_label,
+            node_position=node_position,
+            **kwargs,
+        )
+
+        handler_name = info.get("handler_name")
+        handler = getattr(self, handler_name) if handler_name else None
+        builder_class = info.get("component_builder") or type(self)
+        based_on = info.get("based_on")
+        slot_names = info.get("slots") or []
+
+        slots = {name: BuilderBag(builder=builder_class) for name in slot_names}
+
+        resolver = ComponentResolver(
+            handler=handler,
+            builder_class=builder_class,
+            based_on=based_on,
+            builder=self,
+            slots=slots if slots else None,
+        )
+        node.resolver = resolver
+
+        return ComponentProxy(destination_bag, slots)
