@@ -1,12 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""03 — BuilderManager: separating data from structure.
+"""03 — HtmlManager: separating data from structure.
 
 What you learn:
-    - BuilderManager coordinates builders with a shared data store
+    - HtmlManager coordinates a builder with a shared data store
     - store(data): populate shared data (called first)
     - main(source): build the HTML structure (called second)
-    - set_builder(): register a builder by name
-    - run(): orchestrates setup + build in one call
+    - render(): auto-runs setup + build if needed
     - No super().__init__() needed — handled by __init_subclass__
 
 Prerequisites: 02_static_page
@@ -18,16 +17,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.contrib.html import HtmlBuilder
-from genro_builders.manager import BuilderManager
+from genro_builders.contrib.html import HtmlManager
 
 
-class ContactList(BuilderManager):
+class ContactList(HtmlManager):
     """A contact list page. Data and structure are separate."""
-
-    def __init__(self):
-        self.page = self.set_builder("page", HtmlBuilder)
-        self.run()
 
     def store(self, data):
         """Populate shared data. Called before main()."""
@@ -42,19 +36,21 @@ class ContactList(BuilderManager):
         head = source.head()
         head.title("Contact List")
         head.style("""
-            body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
+            .page { font-family: sans-serif; max-width: 600px; margin: 2em auto;
+                    color: #333; background: #fff; padding: 1.5em; border-radius: 8px; }
             table { width: 100%; border-collapse: collapse; }
             th, td { padding: 0.5em; text-align: left; border-bottom: 1px solid #ddd; }
-            th { background: #f0f4f8; }
+            th { background: #f0f4f8; color: #1e293b; }
+            h1 { color: #1e293b; }
         """)
 
         body = source.body()
-        body.h1("Team Contacts")
+        page = body.div(_class="page")
+        page.h1("Team Contacts")
 
-        # Access data from the reactive store
         contacts = self.reactive_store["contacts"]
 
-        table = body.table()
+        table = page.table()
         thead = table.thead()
         header = thead.tr()
         header.th("Name")
@@ -70,7 +66,7 @@ class ContactList(BuilderManager):
 
 
 app = ContactList()
-html = app.page.render()
+html = app.render()
 
 output = Path(__file__).with_suffix(".html")
 output.write_text(html)
