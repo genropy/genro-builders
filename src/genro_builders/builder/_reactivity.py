@@ -33,7 +33,10 @@ class ReactivityEngine:
 
     def __init__(self, builder: Any) -> None:
         self._builder = builder
-        self._binding = BindingManager(on_node_updated=self._on_node_updated)
+        self._binding = BindingManager(
+            on_node_updated=self._on_node_updated,
+            on_formulas_triggered=self._dispatch_formulas,
+        )
         self._formula_registry: dict[str, dict[str, Any]] = {}
         self._formula_order: list[str] = []
         self._active_timers: dict[str, str] = {}
@@ -41,6 +44,7 @@ class ReactivityEngine:
         self._output_suspended = False
         self._output_pending = False
         self._output: str | None = None
+        self._dispatching_formulas = False
 
     @property
     def output(self) -> str | None:
@@ -73,12 +77,6 @@ class ReactivityEngine:
             update=self._on_source_updated,
         )
 
-        if self._formula_registry:
-            b.data.subscribe(
-                "formula_watcher",
-                any=self._on_formula_data_changed,
-            )
-
         for entry_id, entry in self._formula_registry.items():
             interval = entry.get("_interval")
             if interval is not None:
@@ -105,9 +103,6 @@ class ReactivityEngine:
     def clear(self) -> None:
         """Clear binding, timers, formula registry."""
         self._binding.unbind()
-        data = self._builder._data
-        if data is not None:
-            data.unsubscribe("formula_watcher", any=True)
         for timer_id in self._active_timers.values():
             cancel_timer(timer_id)
         self._active_timers = {}
@@ -198,45 +193,51 @@ class ReactivityEngine:
 
         return order
 
-    def _on_formula_data_changed(
-        self,
-        node: BagNode | None = None,
-        pathlist: list | None = None,
-        oldvalue: Any = None,
-        evt: str = "",
-        **kwargs: Any,
+    def _dispatch_formulas(
+        self, changed_paths: set[str], reason: Any,
     ) -> None:
-        """Re-execute formula/controller when their dependencies change."""
-        if pathlist is None or not self._formula_registry:
+        """Re-execute formulas/controllers whose dependencies match.
+
+        Called by BindingManager as part of unified dispatch.
+        Processes formulas in topological order, cascading output paths.
+        The ``_dispatching_formulas`` guard prevents re-entry when a
+        formula writes to data and triggers a nested ``_on_data_changed``.
+        """
+        if not self._formula_registry or self._dispatching_formulas:
             return
 
-        changed_path = ".".join(str(p) for p in pathlist)
-        changed_paths = {changed_path}
-        rerun_needed = False
+        self._dispatching_formulas = True
+        try:
+            changed_paths = set(changed_paths)
+            rerun_needed = False
 
-        for entry_id in self._formula_order:
-            entry = self._formula_registry[entry_id]
-            for v in entry["raw_attrs"].values():
-                if is_pointer(v):
-                    dep_path = self._resolve_pointer_path(v, entry["node"])
-                    if any(
-                        dep_path == cp
-                        or cp.startswith(dep_path + ".")
-                        or dep_path.startswith(cp + ".")
-                        for cp in changed_paths
-                    ):
-                        delay = entry.get("_delay")
-                        if delay is not None:
-                            self._schedule_delayed_formula(entry_id, entry, delay)
-                        else:
-                            self._reexecute_formula(entry)
-                        rerun_needed = True
-                        if entry["path"] is not None:
-                            changed_paths.add(entry["path"])
-                        break
+            for entry_id in self._formula_order:
+                entry = self._formula_registry[entry_id]
+                if entry["node"] is reason:
+                    continue
+                for v in entry["raw_attrs"].values():
+                    if is_pointer(v):
+                        dep_path = self._resolve_pointer_path(v, entry["node"])
+                        if any(
+                            dep_path == cp
+                            or cp.startswith(dep_path + ".")
+                            or dep_path.startswith(cp + ".")
+                            for cp in changed_paths
+                        ):
+                            delay = entry.get("_delay")
+                            if delay is not None:
+                                self._schedule_delayed_formula(entry_id, entry, delay)
+                            else:
+                                self._reexecute_formula(entry)
+                            rerun_needed = True
+                            if entry["path"] is not None:
+                                changed_paths.add(entry["path"])
+                            break
 
-        if rerun_needed:
-            self._rerender()
+            if rerun_needed:
+                self._rerender()
+        finally:
+            self._dispatching_formulas = False
 
     def _schedule_delayed_formula(
         self, entry_id: str, entry: dict[str, Any], delay: float,
@@ -284,7 +285,7 @@ class ReactivityEngine:
                 result = b._call_with_node(func, node, resolved)
                 if isinstance(result, dict):
                     result = Bag(source=result)
-                b.data.set_item(path, result)
+                b.data.set_item(path, result, _reason=node)
         elif tag == "data_controller":
             func = resolved.pop("func", None)
             if func is not None:

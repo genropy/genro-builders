@@ -153,12 +153,17 @@ class BindingManager:
     on_node_updated callback. The built Bag is never modified.
     """
 
-    def __init__(self, on_node_updated: Callable[[BagNode], None] | None = None):
+    def __init__(
+        self,
+        on_node_updated: Callable[[BagNode], None] | None = None,
+        on_formulas_triggered: Callable[[set[str], Any], None] | None = None,
+    ):
         self._subscription_map: dict[str, list[str]] = defaultdict(list)
         self._built: Bag | None = None
         self._data: Bag | None = None
         self._subscriber_id = "genro_builders_binding"
         self._on_node_updated = on_node_updated
+        self._on_formulas_triggered = on_formulas_triggered
 
     @property
     def subscription_map(self) -> dict[str, list[str]]:
@@ -290,6 +295,9 @@ class BindingManager:
                 self._update_bound_nodes(f"{changed_path}?{attr_name}", reason=reason)
         else:
             self._update_bound_nodes(changed_path, reason=reason)
+
+        if self._on_formulas_triggered:
+            self._on_formulas_triggered({changed_path}, reason)
 
     def _update_bound_nodes(self, data_key: str, reason: str | None = None) -> None:
         """Notify all built nodes bound to a data key, with 3-level matching.
