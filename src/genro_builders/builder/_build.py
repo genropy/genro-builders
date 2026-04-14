@@ -283,17 +283,24 @@ class _BuildMixin:
 
         # Keep raw attrs (with ^pointers) for reactivity registration
         raw_attrs = {k: v for k, v in attrs.items() if not k.startswith("_")}
-        resolved = self._resolve_infra_kwargs(attrs, node, data)
 
         tag = node.node_tag
         if tag == "data_setter":
-            value = resolved.get("value")
+            value = node.current_from_datasource(attrs.get("value"), data)
             if isinstance(value, dict):
                 value = Bag(source=value)
             if path is not None:
                 data.set_item(path, value)
         elif tag in ("data_formula", "data_controller"):
-            result = self._call_with_node(resolved.pop("func"), node, resolved)
+            func = raw_attrs.get("func")
+            if "_accepts_node" not in node.attr:
+                sig = inspect.signature(func)
+                node.attr["_accepts_node"] = (
+                    "_node" in sig.parameters
+                    or any(p.kind == inspect.Parameter.VAR_KEYWORD
+                           for p in sig.parameters.values())
+                )
+            result = node.execute_func(attrs, data)
             if tag == "data_formula":
                 if isinstance(result, dict):
                     result = Bag(source=result)
@@ -318,29 +325,6 @@ class _BuildMixin:
         on_built = attrs.get("_onBuilt")
         if callable(on_built):
             self._infra_on_built_hooks.append(on_built)
-
-    def _call_with_node(
-        self, func: Any, node: BagNode, resolved: dict[str, Any],
-    ) -> Any:
-        """Call func with resolved kwargs, injecting _node if accepted."""
-        sig = inspect.signature(func)
-        if "_node" in sig.parameters or any(
-            p.kind == inspect.Parameter.VAR_KEYWORD
-            for p in sig.parameters.values()
-        ):
-            resolved["_node"] = node
-        return func(**resolved)
-
-    def _resolve_infra_kwargs(
-        self, attrs: dict[str, Any], node: BagNode, data: Bag,
-    ) -> dict[str, Any]:
-        """Resolve ^pointer values in data element attributes."""
-        resolved: dict[str, Any] = {}
-        for k, v in attrs.items():
-            if k.startswith("_"):
-                continue
-            resolved[k] = node.current_from_datasource(v, data)
-        return resolved
 
     # -----------------------------------------------------------------------
     # Pointer resolution

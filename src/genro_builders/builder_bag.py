@@ -259,6 +259,26 @@ class BuilderBagNode(BagNode):
             return None
         return self.current_from_datasource(value, data)
 
+    def execute_func(self, raw_attrs: dict[str, Any], data: Bag) -> Any:
+        """Resolve attrs and execute the func in this node's context.
+
+        Resolves ^pointer values, extracts ``func``, and calls it.
+        The node is the natural scope — mirrors Genropy's
+        ``setDataNodeValueDo`` where ``this`` is the node.
+
+        Whether ``_node`` is injected depends on the ``_accepts_node``
+        flag set at registration time by ``_process_infra_node``.
+        """
+        resolved = {
+            k: self.current_from_datasource(v, data)
+            for k, v in raw_attrs.items()
+            if not k.startswith("_")
+        }
+        func = resolved.pop("func")
+        if self.attr.get("_accepts_node"):
+            resolved["_node"] = self
+        return func(**resolved)
+
     def evaluate_on_node(self, data: Bag) -> dict[str, Any]:
         """Resolve all attributes and value in two passes.
 

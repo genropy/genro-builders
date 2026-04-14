@@ -271,14 +271,12 @@ class ReactivityEngine:
 
     def _execute_data_provider(self, entry: dict[str, Any]) -> None:
         """Re-execute a single formula/controller with fresh data."""
-        b = self._builder
         node = entry["node"]
-        resolved = b._resolve_infra_kwargs(entry["raw_attrs"], node, b.data)
-        result = b._call_with_node(resolved.pop("func"), node, resolved)
+        result = node.execute_func(entry["raw_attrs"], self._builder.data)
         if entry["tag"] == "data_formula":
             if isinstance(result, dict):
                 result = Bag(source=result)
-            b.data.set_item(entry["path"], result, _reason=node)
+            self._builder.data.set_item(entry["path"], result, _reason=node)
 
     # -----------------------------------------------------------------------
     # Source change handlers (incremental compile)
