@@ -36,7 +36,7 @@ class StaticPage(HtmlManager):
         head.meta(charset="utf-8")
         head.title("My Static Page")
         head.style("""
-            body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
+            body { font-family: sans-serif; max-width: 600px; margin: 2em auto; color: #333; }
             .hero { background: #f0f4f8; padding: 1.5em; border-radius: 8px; }
             .nav { list-style: none; padding: 0; display: flex; gap: 1em; }
             .nav li a { text-decoration: none; color: #2563eb; }
