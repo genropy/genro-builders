@@ -31,7 +31,7 @@ class HelloWorld(HtmlManager):
 app = HelloWorld()
 app.run()
 
-html = app.page.render()
+html = app.render()
 
 output = Path(__file__).with_suffix(".html")
 output.write_text(html)

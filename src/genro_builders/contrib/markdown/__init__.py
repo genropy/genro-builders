@@ -1,6 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Markdown builder and renderer module."""
 
+from typing import Any
+
 from genro_builders.manager import ReactiveManager
 
 from .markdown_builder import MarkdownBuilder, MarkdownRenderer
@@ -15,6 +17,10 @@ class MarkdownManager(ReactiveManager):
 
     def __init__(self):
         self.page = self.set_builder("page", MarkdownBuilder)
+
+    def render(self, **kwargs: Any) -> str:
+        """Render the Markdown document."""
+        return self.page.render(**kwargs)
 
 
 __all__ = ["MarkdownBuilder", "MarkdownManager", "MarkdownRenderer"]

@@ -13,8 +13,10 @@ Example:
     >>>
     >>> app = HelloWorld()
     >>> app.run()
-    >>> print(app.page.render())
+    >>> print(app.render())
 """
+
+from typing import Any
 
 from genro_builders.manager import ReactiveManager
 
@@ -30,6 +32,10 @@ class HtmlManager(ReactiveManager):
 
     def __init__(self):
         self.page = self.set_builder("page", HtmlBuilder)
+
+    def render(self, **kwargs: Any) -> str:
+        """Render the HTML page."""
+        return self.page.render(**kwargs)
 
 
 __all__ = ["HtmlBuilder", "HtmlManager", "HtmlRenderer"]
