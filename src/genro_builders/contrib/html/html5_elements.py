@@ -221,7 +221,7 @@ class Html5Elements:
     @element()
     def hr(self): ...
 
-    @element(sub_tags='head,body')
+    @element(sub_tags='head')
     def html(self): ...
 
     @element(

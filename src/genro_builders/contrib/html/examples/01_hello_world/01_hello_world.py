@@ -3,7 +3,7 @@
 
 What you learn:
     - HtmlManager: the standard entry point for HTML apps
-    - main(html): populate the <html> document
+    - main(source): populate the source Bag with elements
     - render(): produce the HTML string (auto-builds if needed)
 
 Prerequisites: None. This is the starting point.
@@ -21,8 +21,8 @@ from genro_builders.contrib.html import HtmlManager
 class HelloWorld(HtmlManager):
     """Minimal HTML app."""
 
-    def main(self, html):
-        body = html.body()
+    def main(self, source):
+        body = source.body()
         body.h1("Hello World")
         body.p("This is my first builder page.")
 
