@@ -5,25 +5,13 @@ What you learn:
     - enable_remote(): start a socket server on a running ReactiveManager
     - genro-live connect: open a Python REPL to manipulate source and data
     - Changes in the REPL update the HTML file instantly
-    - The browser (with live-reload) shows changes in real time
+    - Data and CSS from external files
 
 Prerequisites: 08_reactive_basics, contrib/live installed
 
 Setup:
     Terminal 1: python 11_live_repl.py          # starts the app + server
     Terminal 2: genro-live connect livepage      # opens REPL
-
-    For auto-reload in the browser, use any live-reload tool:
-        npx live-server --watch=11_live_repl.html
-    or:
-        python -m http.server  (then manually refresh)
-
-REPL commands:
-    source.h2("New heading")          # add an element to source
-    data["title"] = "Updated Title"   # change reactive data
-    remote.builders()                 # list builder names
-    /help                             # REPL help
-    /quit                             # disconnect
 
 Usage:
     python 11_live_repl.py
@@ -33,11 +21,16 @@ from __future__ import annotations
 import signal
 from pathlib import Path
 
+from genro_bag import Bag
+from genro_bag.resolvers import FileResolver
+
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.contrib.live import enable_remote
 from genro_builders.manager import ReactiveManager
+from genro_builders.render_target import FileRenderTarget
 
-OUTPUT = Path(__file__).with_suffix(".html")
+HERE = Path(__file__).parent
+OUTPUT = HERE / "11_live_repl.html"
 
 
 class LivePage(ReactiveManager):
@@ -46,37 +39,29 @@ class LivePage(ReactiveManager):
     def on_init(self):
         self.page = self.register_builder("page", HtmlBuilder)
         self.run(subscribe=True)
-        # Re-write HTML on every data change (side effect via subscribe)
-        self.reactive_store.subscribe(
-            "html_writer", any=lambda **kw: self._write_html(),
+        self.set_render_target("html",
+            target=FileRenderTarget(OUTPUT),
         )
-
-    def store(self, data):
-        data["title"] = "Live Page"
-        data["message"] = "Edit me from the REPL!"
 
     def main(self, source):
         head = source.head()
         head.title("^title")
-        head.style("""
-            body { font-family: sans-serif; max-width: 600px; margin: 2em auto; }
-            h1 { color: #2563eb; }
-        """)
+        # FileResolver: pull model — content loaded on demand at render time
+        head.style(FileResolver("style.css", base_path=str(HERE)))
 
         body = source.body()
         body.h1("^title")
         body.p("^message")
 
-    def _write_html(self):
-        """Write current render to file."""
-        html = self.page.render()
-        OUTPUT.write_text(html)
-
 
 app = LivePage()
-app._write_html()  # initial write
+app.local_store("page").fill_from(
+    Bag.from_json((HERE / "data.json").read_text()),
+)
+app.page.build()
+# Initial render to file
+OUTPUT.write_text(app.page.render())
 
-# Start remote server — REPL clients connect to this
 server = enable_remote(app, name="livepage")
 
 print(f"Live session 'livepage' on port {server.port}")
@@ -86,8 +71,8 @@ print("Connect from another terminal:")
 print("  genro-live connect livepage")
 print()
 print("Then try:")
-print('  data["title"] = "Hello from REPL!"')
-print('  data["message"] = "This updates the HTML file instantly."')
+print('  data["page.title"] = "Hello from REPL!"')
+print('  data["page.message"] = "This updates the HTML file instantly."')
 print()
 print("Press Ctrl+C to stop.")
 

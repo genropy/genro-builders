@@ -1,0 +1,5 @@
+[
+  {"label": "p0", "value": null, "attr": {"name": "Headphones", "price": "$79", "description": "30h battery"}},
+  {"label": "p1", "value": null, "attr": {"name": "Keyboard", "price": "$129", "description": "Mechanical"}},
+  {"label": "p2", "value": null, "attr": {"name": "Monitor", "price": "$349", "description": "4K 144Hz"}}
+]

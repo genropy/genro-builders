@@ -33,7 +33,7 @@ from genro_toolbox import smartawait, smartcontinuation
 from ..builder_bag import BuilderBag
 from ..built_bag import BuiltBag
 from ..formula_resolver import FormulaResolver
-from ._binding import is_pointer, parse_pointer
+from ._binding import is_pointer, parse_pointer, scan_for_pointers
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
@@ -188,6 +188,7 @@ class _BuildMixin:
             node_tag=node.node_tag,
         )
         new_node._data = data
+        new_node._builder_name = self._builder_name
 
     def _materialize_iterate(
         self,
@@ -204,7 +205,15 @@ class _BuildMixin:
         the child's path.
         """
         pointer_info = parse_pointer(iterate_raw)
-        data_path = pointer_info.path
+        raw_path = pointer_info.path
+        if pointer_info.volume is not None:
+            raw_path = f"{pointer_info.volume}:{raw_path}"
+
+        # Resolve to absolute path in global_store via the source node
+        data_path = node.abs_datapath(raw_path) if hasattr(node, "abs_datapath") else raw_path
+
+        # Register build dependency: iterate structure depends on this data path
+        self._register_dep(data_path, built_path, "build")
 
         data_bag = data.get_item(data_path)
 
@@ -218,6 +227,7 @@ class _BuildMixin:
             node_tag=node.node_tag,
         )
         container_node._data = data
+        container_node._builder_name = self._builder_name
 
         if not isinstance(data_bag, Bag):
             return
@@ -236,9 +246,57 @@ class _BuildMixin:
                 _attributes={"datapath": child_path},
             )
             child_node._data = data
+            child_node._builder_name = self._builder_name
             self._build_walk(
                 value, child_node.value, data, prefix=child_built_path,
             )
+
+    # -----------------------------------------------------------------------
+    # Dependency registration (for manager's DependencyGraph)
+    # -----------------------------------------------------------------------
+
+    def _register_dep(self, source_path: str, target: str, dep_type: str) -> None:
+        """Register a dependency edge in the manager's graph.
+
+        No-op if there is no manager or the manager has no graph.
+        """
+        manager = getattr(self, "_manager", None)
+        if manager is None:
+            return
+        graph = getattr(manager, "_dep_graph", None)
+        if graph is None:
+            return
+        from ..dependency_graph import DepEdge
+        graph.add(DepEdge(
+            source_path=source_path,
+            target=target,
+            dep_type=dep_type,
+            builder_name=getattr(self, "_builder_name", None),
+        ))
+
+    def _register_formula_deps(self, formula_path: str, dep_paths: dict[str, str]) -> None:
+        """Register formula dependency edges: each dep_path → formula_path.
+
+        Paths are as they appear in the data store (no automatic prefixing).
+        Formula resolver paths match the global_store layout.
+        """
+        for dep_path in dep_paths.values():
+            self._register_dep(dep_path, formula_path, "formula")
+
+    def _register_render_deps(self, bag: Bag) -> None:
+        """Walk the built bag and register render edges for ^pointer nodes."""
+        for node in bag:
+            for pointer_info, _location in scan_for_pointers(node):
+                # Reconstruct path with volume for abs_datapath resolution
+                raw_path = pointer_info.path
+                if pointer_info.volume is not None:
+                    raw_path = f"{pointer_info.volume}:{raw_path}"
+                abs_path = node.abs_datapath(raw_path) if hasattr(node, "abs_datapath") else raw_path
+                node_path = node.fullpath if hasattr(node, "fullpath") else node.label
+                self._register_dep(abs_path, node_path, "render")
+            value = node.get_value(static=True)
+            if isinstance(value, Bag):
+                self._register_render_deps(value)
 
     def _execute_data_setter(self, node: BagNode, data: Bag) -> None:
         """Execute a data_setter at build time. Write value to data store.
@@ -249,7 +307,7 @@ class _BuildMixin:
         attrs = dict(node.attr)
         path = attrs.get("_data_path")
 
-        if path is not None and path.startswith(".") and hasattr(node, "abs_datapath"):
+        if path is not None and hasattr(node, "abs_datapath"):
             path = node.abs_datapath(path)
 
         value = node.current_from_datasource(attrs.get("value"), data)
@@ -275,7 +333,7 @@ class _BuildMixin:
         if path is None:
             return
 
-        if path.startswith(".") and hasattr(node, "abs_datapath"):
+        if hasattr(node, "abs_datapath"):
             path = node.abs_datapath(path)
 
         func = attrs.get("func")
@@ -290,7 +348,7 @@ class _BuildMixin:
                 continue
             if is_pointer(v):
                 ptr_path = v[1:]
-                if ptr_path.startswith(".") and hasattr(node, "abs_datapath"):
+                if hasattr(node, "abs_datapath"):
                     ptr_path = node.abs_datapath(ptr_path)
                 dep_paths[k] = ptr_path
             else:
@@ -310,6 +368,9 @@ class _BuildMixin:
             old_node.resolver = None
 
         data.set_resolver(path, resolver)
+
+        # Register formula dependency edges in the manager's graph
+        self._register_formula_deps(path, dep_paths)
 
         # Collect _on_built formula paths for warm-up in finalize
         if attrs.get("_on_built"):
@@ -360,6 +421,8 @@ class _BuildMixin:
             for hook in self._infra_on_built_hooks:
                 hook(self)
             self._infra_on_built_hooks = []
+            # Register render dependency edges from built ^pointers
+            self._register_render_deps(self.built)
 
         return smartcontinuation(walk_result, finalize)
 
@@ -421,6 +484,7 @@ class _BuildMixin:
             _reason="source",
         )
         new_node._data = self.data
+        new_node._builder_name = self._builder_name
 
         if isinstance(value, Bag):
             self._build_walk(

@@ -3,23 +3,17 @@
 
 What you learn:
     - Everything together: components, iterate, pointers, reactivity, live REPL
-    - Multi-builder: page + sidebar sharing a reactive store
+    - Multi-builder: page + sidebar sharing a global store
     - @component with main_tag for reusable HTML patterns
     - data_formula for computed values (cart total, item count)
-    - data_controller for side effects (write HTML on change)
-    - contrib/live for real-time manipulation from REPL
+    - data.subscribe for side effects (write HTML on change)
+    - Data and CSS from external files
 
 Prerequisites: All previous examples (01-11)
 
 Setup:
     Terminal 1: python 12_full_app.py
     Terminal 2: genro-live connect shop
-
-REPL commands:
-    data["cart.item_count"] = 3           # change cart item count
-    data["discount_pct"] = 20             # apply 20% discount
-    source.h2("Flash Sale!")              # add element to page
-    remote.builders()                     # ["page", "sidebar"]
 
 Usage:
     python 12_full_app.py
@@ -30,13 +24,15 @@ import signal
 from pathlib import Path
 
 from genro_bag import Bag
+from genro_bag.resolvers import FileResolver
 
 from genro_builders.builder import component
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.contrib.live import enable_remote
 from genro_builders.manager import ReactiveManager
 
-OUTPUT = Path(__file__).with_suffix(".html")
+HERE = Path(__file__).parent
+OUTPUT = HERE / "12_full_app.html"
 
 
 class ShopBuilder(HtmlBuilder):
@@ -44,7 +40,6 @@ class ShopBuilder(HtmlBuilder):
 
     @component(main_tag='div', sub_tags='')
     def product_card(self, comp, **kwargs):
-        """Product card with data-bound fields."""
         card = comp.div(_class="product-card")
         card.h3("^.?name")
         card.p("^.?price", _class="price")
@@ -52,7 +47,6 @@ class ShopBuilder(HtmlBuilder):
 
     @component(main_tag='div', sub_tags='')
     def cart_summary(self, comp, **kwargs):
-        """Shopping cart summary with computed totals."""
         box = comp.div(_class="cart-summary")
         box.h3("Cart")
         box.p("^cart.item_count", _class="count")
@@ -68,26 +62,12 @@ class Shop(ReactiveManager):
         self.page = self.register_builder("page", ShopBuilder)
         self.sidebar = self.register_builder("sidebar", ShopBuilder)
         self.run(subscribe=True)
-        # Write HTML on any data change (side effect via subscribe)
-        self.reactive_store.subscribe(
-            "html_writer", any=lambda **kw: self._write_html(),
-        )
 
-    def store(self, data):
-        # Products
-        products = Bag()
-        products.set_item("p0", None, name="Headphones", price="$79", description="30h battery")
-        products.set_item("p1", None, name="Keyboard", price="$129", description="Mechanical")
-        products.set_item("p2", None, name="Monitor", price="$349", description="4K 144Hz")
-        data["products"] = products
-
-        # Cart state
-        data["cart.item_count"] = 2
-        data["cart.unit_price"] = 79
-        data["discount_pct"] = 10
+    def on_data_changed(self, impacted):
+        """Re-render impacted builders and write combined HTML."""
+        self._write_html()
 
     def main_page(self, source):
-        """Page builder: product catalog."""
         # Computed cart values
         source.data_formula(
             "cart.subtotal",
@@ -110,16 +90,8 @@ class Shop(ReactiveManager):
 
         head = source.head()
         head.title("GenroShop")
-        head.style("""
-            body { font-family: sans-serif; max-width: 800px; margin: 2em auto; }
-            .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1em; }
-            .product-card { border: 1px solid #ddd; border-radius: 8px; padding: 1em; }
-            .product-card h3 { margin-top: 0; }
-            .price { color: #16a34a; font-weight: bold; }
-            .desc { color: #666; }
-            .cart-summary { background: #f0f4f8; padding: 1em; border-radius: 8px; margin-top: 1.5em; }
-            .total { font-size: 1.3em; font-weight: bold; color: #2563eb; }
-        """)
+        # FileResolver: pull model — content loaded on demand at render time
+        head.style(FileResolver("style.css", base_path=str(HERE)))
 
         body = source.body()
         body.h1("GenroShop")
@@ -128,11 +100,9 @@ class Shop(ReactiveManager):
         catalog.product_card(iterate="^products")
 
     def main_sidebar(self, source):
-        """Sidebar builder: cart summary."""
         source.body().cart_summary()
 
     def _write_html(self):
-        """Combine page + sidebar into one HTML file."""
         page_html = self.page.render()
         sidebar_html = self.sidebar.render()
         combined = f"{page_html}\n<!-- Sidebar -->\n{sidebar_html}"
@@ -140,6 +110,17 @@ class Shop(ReactiveManager):
 
 
 app = Shop()
+
+# Load data from external files
+# products.json is Bag node format → FileResolver with as_bag=True
+app.local_store("page").set_resolver(
+    "products", FileResolver("products.json", as_bag=True, base_path=str(HERE)),
+)
+# cart.json is flat dict → fill_from spreads keys into local_store
+app.local_store("page").fill_from(
+    Bag.from_json((HERE / "cart.json").read_text()),
+)
+app.page.build()
 app._write_html()
 
 server = enable_remote(app, name="shop")
@@ -150,9 +131,9 @@ print()
 print("Connect: genro-live connect shop")
 print()
 print("Try:")
-print('  data["cart.item_count"] = 5')
-print('  data["discount_pct"] = 25')
-print('  data["cart.unit_price"] = 129')
+print('  data["page.cart.item_count"] = 5')
+print('  data["page.discount_pct"] = 25')
+print('  data["page.cart.unit_price"] = 129')
 print()
 print("Press Ctrl+C to stop.")
 

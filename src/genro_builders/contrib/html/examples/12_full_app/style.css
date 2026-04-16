@@ -1,0 +1,12 @@
+body { font-family: sans-serif; max-width: 800px; margin: 2em auto; }
+.catalog {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1em;
+}
+.product-card { border: 1px solid #ddd; border-radius: 8px; padding: 1em; }
+.product-card h3 { margin-top: 0; }
+.price { color: #16a34a; font-weight: bold; }
+.desc { color: #666; }
+.cart-summary { background: #f0f4f8; padding: 1em; border-radius: 8px; margin-top: 1.5em; }
+.total { font-size: 1.3em; font-weight: bold; color: #2563eb; }
