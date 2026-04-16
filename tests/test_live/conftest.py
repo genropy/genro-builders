@@ -17,11 +17,9 @@ class SimpleApp(BuilderManager):
     def on_init(self):
         self.page = self.register_builder("page", TestBuilder)
 
-    def store(self, data):
-        data["title"] = "Hello"
-        data["count"] = 42
-
     def main(self, source):
+        self.local_store()["title"] = "Hello"
+        self.local_store()["count"] = 42
         source.heading(value="^title")
         source.text(value="body text")
 
@@ -33,10 +31,8 @@ class MultiApp(BuilderManager):
         self.page = self.register_builder("page", TestBuilder)
         self.sidebar = self.register_builder("sidebar", TestBuilder)
 
-    def store(self, data):
-        data["title"] = "Multi"
-
     def main_page(self, source):
+        self.local_store()["title"] = "Multi"
         source.heading(value="^title")
 
     def main_sidebar(self, source):

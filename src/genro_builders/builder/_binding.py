@@ -43,16 +43,18 @@ class PointerInfo:
     """Parsed ^pointer information.
 
     Attributes:
-        raw: The original string (e.g., '^alfa.beta?color').
-        path: The data path without ^ prefix (e.g., 'alfa.beta').
+        raw: The original string (e.g., '^data:alfa.beta?color').
+        path: The data path without ^ and volume (e.g., 'alfa.beta').
         attr: The attribute name after ? (e.g., 'color'), or None.
         is_relative: True if path starts with '.' (relative to datapath).
+        volume: Builder name before ':' (e.g., 'data'), or None.
     """
 
     raw: str
     path: str
     attr: str | None
     is_relative: bool
+    volume: str | None = None
 
 
 def is_pointer(value: Any) -> bool:
@@ -63,19 +65,28 @@ def is_pointer(value: Any) -> bool:
 def parse_pointer(raw: str) -> PointerInfo:
     """Parse a ^pointer string into its components.
 
+    Syntax: ``^[volume:]path[?attr]``
+
     Args:
         raw: The raw pointer string (must start with '^').
 
     Returns:
-        PointerInfo with path, attr, and is_relative.
+        PointerInfo with path, attr, volume, and is_relative.
 
     Example:
         >>> parse_pointer('^alfa.beta?color')
         PointerInfo(raw='^alfa.beta?color', path='alfa.beta', attr='color', is_relative=False)
         >>> parse_pointer('^.name')
         PointerInfo(raw='^.name', path='.name', attr=None, is_relative=True)
+        >>> parse_pointer('^data:company')
+        PointerInfo(raw='^data:company', path='company', attr=None, is_relative=False, volume='data')
     """
     body = raw[1:]  # strip ^
+
+    # Extract volume (builder name) before ':'
+    volume = None
+    if ":" in body and not body.startswith(".") and not body.startswith("#"):
+        volume, body = body.split(":", 1)
 
     attr = None
     if "?" in body:
@@ -83,7 +94,7 @@ def parse_pointer(raw: str) -> PointerInfo:
 
     is_relative = body.startswith(".")
 
-    return PointerInfo(raw=raw, path=body, attr=attr, is_relative=is_relative)
+    return PointerInfo(raw=raw, path=body, attr=attr, is_relative=is_relative, volume=volume)
 
 
 def scan_for_pointers(node: Any) -> list[tuple[PointerInfo, str]]:

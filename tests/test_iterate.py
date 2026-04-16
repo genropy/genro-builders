@@ -37,14 +37,12 @@ class TestIterateBasic:
             def on_init(self):
                 self.page = self.register_builder("page", IterableBuilder)
 
-            def store(self, data):
+            def main(self, source):
                 persone = Bag()
                 persone.set_item("r0", None, nome="Mario", cognome="Rossi")
                 persone.set_item("r1", None, nome="Anna", cognome="Verdi")
                 persone.set_item("r2", None, nome="Luca", cognome="Bianchi")
-                data["persone"] = persone
-
-            def main(self, source):
+                self.local_store()["persone"] = persone
                 source.person_card(iterate='^persone')
 
         app = App()
@@ -65,13 +63,11 @@ class TestIterateBasic:
             def on_init(self):
                 self.page = self.register_builder("page", IterableBuilder)
 
-            def store(self, data):
+            def main(self, source):
                 persone = Bag()
                 persone.set_item("r0", None, nome="Mario", cognome="Rossi")
                 persone.set_item("r1", None, nome="Anna", cognome="Verdi")
-                data["persone"] = persone
-
-            def main(self, source):
+                self.local_store()["persone"] = persone
                 source.person_card(iterate='^persone')
 
         app = App()
@@ -91,10 +87,8 @@ class TestIterateBasic:
             def on_init(self):
                 self.page = self.register_builder("page", IterableBuilder)
 
-            def store(self, data):
-                data["persone"] = Bag()
-
             def main(self, source):
+                self.local_store()["persone"] = Bag()
                 source.person_card(iterate='^persone')
 
         app = App()

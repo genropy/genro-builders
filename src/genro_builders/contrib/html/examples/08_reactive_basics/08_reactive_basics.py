@@ -6,6 +6,7 @@ What you learn:
     - data_formula: declare a computed value (FormulaResolver, pull model)
     - Formula dependency chains resolve naturally on demand
     - Changing data → re-render shows fresh values
+    - Data from external JSON, CSS from external file
 
 Prerequisites: 04_pointers
 
@@ -16,16 +17,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from genro_bag import Bag
+from genro_bag.resolvers import FileResolver
+
 from genro_builders.contrib.html import HtmlManager
+
+HERE = Path(__file__).parent
 
 
 class PriceCalculator(HtmlManager):
     """Reactive price calculator: change base_price → net and total update."""
-
-    def store(self, data):
-        data["base_price"] = 100
-        data["discount"] = 0.1
-        data["tax_rate"] = 0.22
 
     def main(self, source):
         source.data_setter("base_price", value="^base_price")
@@ -47,13 +48,8 @@ class PriceCalculator(HtmlManager):
 
         head = source.head()
         head.title("Price Calculator")
-        head.style("""
-            .page { font-family: sans-serif; max-width: 400px; margin: 2em auto;
-                    color: #333; background: #fff; padding: 1.5em; border-radius: 8px; }
-            .result { font-size: 1.3em; color: #16a34a; font-weight: bold; }
-            .detail { color: #666; }
-            h1 { color: #1e293b; }
-        """)
+        # FileResolver: pull model — content loaded on demand at render time
+        head.style(FileResolver("style.css", base_path=str(HERE)))
 
         body = source.body()
         page = body.div(_class="page")
@@ -63,10 +59,13 @@ class PriceCalculator(HtmlManager):
         page.p("^total", _class="result")
 
 
-output = Path(__file__).with_suffix(".html")
+output = HERE / "08_reactive_basics.html"
 app = PriceCalculator()
+app.local_store("page").fill_from(
+    Bag.from_json((HERE / "data.json").read_text()),
+)
 app.run()
-store = app.reactive_store
+store = app.local_store("page")
 
 print("=== Reactive Price Calculator ===\n")
 print(f"Initial: base={store['base_price']}, net={store['net_price']}, total={store['total']}")

@@ -62,27 +62,26 @@ class TestDataProxy:
     """Tests for DataProxy operations via real server."""
 
     def test_getitem(self, live_proxy):
-        """data[key] reads from reactive_store."""
-        assert live_proxy.data["title"] == "Hello"
-        assert live_proxy.data["count"] == 42
+        """data[key] reads from global_store."""
+        assert live_proxy.data["page.title"] == "Hello"
+        assert live_proxy.data["page.count"] == 42
 
     def test_setitem(self, live_proxy, simple_app):
-        """data[key] = value writes to reactive_store."""
+        """data[key] = value writes to global_store."""
         live_proxy.data["new_key"] = "new_value"
-        assert simple_app.reactive_store["new_key"] == "new_value"
+        assert simple_app.global_store["new_key"] == "new_value"
 
     def test_delitem(self, live_proxy, simple_app):
-        """del data[key] removes from reactive_store."""
+        """del data[key] removes from global_store."""
         live_proxy.data["temp"] = "to_delete"
-        assert simple_app.reactive_store["temp"] == "to_delete"
+        assert simple_app.global_store["temp"] == "to_delete"
         del live_proxy.data["temp"]
-        assert "temp" not in list(simple_app.reactive_store.keys())
+        assert "temp" not in list(simple_app.global_store.keys())
 
     def test_keys(self, live_proxy):
-        """data.keys() lists reactive_store keys."""
+        """data.keys() lists global_store keys."""
         keys = live_proxy.data.keys()
-        assert "title" in keys
-        assert "count" in keys
+        assert "page" in keys
 
 
 class TestEndToEnd:
@@ -96,6 +95,6 @@ class TestEndToEnd:
         assert len(source_keys) >= 3
 
     def test_data_manipulation_visible_on_manager(self, live_proxy, simple_app):
-        """Data set via proxy is visible on the manager's reactive_store."""
+        """Data set via proxy is visible on the manager's global_store."""
         live_proxy.data["e2e_key"] = "e2e_value"
-        assert simple_app.reactive_store["e2e_key"] == "e2e_value"
+        assert simple_app.global_store["e2e_key"] == "e2e_value"

@@ -64,7 +64,7 @@ class LiveCLI:
 
         app_class = None
         for obj in vars(module).values():
-            if isinstance(obj, type) and hasattr(obj, "set_builder") and obj.__name__ == "Application":
+            if isinstance(obj, type) and hasattr(obj, "register_builder") and obj.__name__ == "Application":
                 app_class = obj
                 break
 
@@ -257,7 +257,7 @@ class LiveCLI:
             f"Variables:\n"
             f"  remote  — LiveProxy (top-level proxy)\n"
             f"  source  — SourceProxy (default builder source)\n"
-            f"  data    — DataProxy (reactive_store)\n"
+            f"  data    — DataProxy (global_store)\n"
             f"\n"
             f"Slash commands:\n"
             f"  /help      — show this help\n"

@@ -1,0 +1,13 @@
+.page {
+    font-family: sans-serif;
+    max-width: 600px;
+    margin: 2em auto;
+    color: #333;
+    background: #fff;
+    padding: 1.5em;
+    border-radius: 8px;
+}
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 0.5em; text-align: left; border-bottom: 1px solid #ddd; }
+th { background: #f0f4f8; color: #1e293b; }
+h1 { color: #1e293b; }

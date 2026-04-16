@@ -1,0 +1,5 @@
+[
+  {"label": "c0", "value": null, "attr": {"name": "Alice Johnson", "email": "alice@example.com", "role": "Engineer"}},
+  {"label": "c1", "value": null, "attr": {"name": "Bob Smith", "email": "bob@example.com", "role": "Designer"}},
+  {"label": "c2", "value": null, "attr": {"name": "Carol White", "email": "carol@example.com", "role": "Manager"}}
+]

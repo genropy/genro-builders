@@ -1,0 +1,9 @@
+{
+  "pr_title": "feat: add SSO callback validation",
+  "branch": "feature/sso-callback",
+  "author": "gporcari",
+  "has_migration": true,
+  "has_breaking_change": false,
+  "has_new_deps": true,
+  "changes_summary": "Adds CORS validation on the SSO callback endpoint. Includes a DB migration for the allowed_origins column."
+}

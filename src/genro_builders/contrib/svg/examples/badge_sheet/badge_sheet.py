@@ -52,10 +52,10 @@ class BadgeBuilder(SvgBuilder):
 class BadgeSheet(BuilderManager):
     """Manager that builds a sheet of badges from data."""
 
-    def __init__(self):
-        self.page = self.set_builder("page", BadgeBuilder)
+    def on_init(self):
+        self.page = self.register_builder("page", BadgeBuilder)
 
-    def store(self, data):
+    def main(self, source):
         people = Bag()
         people.set_item("p0", None,
                         name="Alice Rossi", role="Lead Developer", color="#3498db")
@@ -65,10 +65,9 @@ class BadgeSheet(BuilderManager):
                         name="Sara Bianchi", role="Project Manager", color="#e74c3c")
         people.set_item("p3", None,
                         name="Luca Neri", role="Backend Engineer", color="#9b59b6")
-        data["people"] = people
+        self.local_store()["people"] = people
 
-    def main(self, source):
-        n_people = len(self.reactive_store["people"])
+        n_people = len(self.local_store()["people"])
         total_h = n_people * (BADGE_H + GAP) + GAP
 
         svg = source.svg(

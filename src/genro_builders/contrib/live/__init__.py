@@ -6,8 +6,8 @@ Enable remote control on a running manager::
     from genro_builders.contrib.live import enable_remote
 
     class MyApp(ReactiveManager):
-        def __init__(self):
-            self.page = self.set_builder('page', HtmlBuilder)
+        def on_init(self):
+            self.page = self.register_builder('page', HtmlBuilder)
             self.run(subscribe=True)
 
     app = MyApp()
@@ -19,7 +19,7 @@ Connect from another process::
 
     remote = connect(name="myapp")
     remote.source("page").div("Hello!")
-    remote.data["title"] = "Updated"
+    remote.data["page.title"] = "Updated"
 """
 from __future__ import annotations
 

@@ -2,7 +2,7 @@
 """LiveSession and LiveServer — remote command execution for BuilderManager.
 
 LiveSession wraps a BuilderManager, exposing its builders' source Bags
-and the shared reactive_store for remote manipulation. Commands are
+and the shared global_store for remote manipulation. Commands are
 dispatched via handle_command() with structured namespaces (source.*, data.*).
 
 LiveServer runs a TCP socket server in a daemon thread, authenticating
@@ -70,7 +70,7 @@ class _FrameProtocol:
 class LiveSession:
     """Wraps a BuilderManager for remote command execution.
 
-    Exposes source (per-builder) and data (reactive_store) for remote
+    Exposes source (per-builder) and data (global_store) for remote
     manipulation. The safe_call() method is overridable for thread-safety
     in host environments (e.g., Textual's call_from_thread).
 
@@ -197,20 +197,20 @@ class LiveSession:
         source[key] = value
 
     def _handle_data_getitem(self, key: str) -> Any:
-        """Get value from reactive_store."""
-        return self._manager.reactive_store[key]
+        """Get value from global_store."""
+        return self._manager.global_store[key]
 
     def _handle_data_setitem(self, key: str, value: Any) -> None:
-        """Set value on reactive_store."""
-        self._manager.reactive_store[key] = value
+        """Set value on global_store."""
+        self._manager.global_store[key] = value
 
     def _handle_data_keys(self) -> list[str]:
-        """List keys in reactive_store."""
-        return list(self._manager.reactive_store.keys())
+        """List keys in global_store."""
+        return list(self._manager.global_store.keys())
 
     def _handle_data_delitem(self, key: str) -> None:
-        """Delete key from reactive_store."""
-        del self._manager.reactive_store[key]
+        """Delete key from global_store."""
+        del self._manager.global_store[key]
 
     def _handle_builders(self) -> list[str]:
         """List registered builder names."""

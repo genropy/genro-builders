@@ -1,0 +1,11 @@
+{
+  "version": "1.2.0",
+  "date": "2026-04-13",
+  "entries": [
+    ["feat", "Add SSO callback validation"],
+    ["feat", "Add dark mode support"],
+    ["fix", "Fix CORS headers on API responses"],
+    ["fix", "Fix pagination offset in /items endpoint"],
+    ["docs", "Update API reference for v1.2"]
+  ]
+}

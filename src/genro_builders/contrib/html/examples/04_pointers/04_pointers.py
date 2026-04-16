@@ -2,71 +2,60 @@
 """04 — Pointers: declarative data binding with ^pointer syntax.
 
 What you learn:
-    - ^pointer syntax: '^key' as first arg binds element content to data
-    - Data is resolved at render time from the reactive store
-    - Changing data produces different output on next render
+    - ^pointer syntax: '^key' binds element content to data
+    - Data is resolved at render time from the builder's namespace
+    - Swap JSON file → different output, same structure
     - Pointer vs inline: inline is static, pointer is resolved from data
 
 Prerequisites: 03_builder_manager
 
 Usage:
     python 04_pointers.py
+    python 04_pointers.py product_alt.json
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+from genro_bag import Bag
+from genro_bag.resolvers import FileResolver
+
 from genro_builders.contrib.html import HtmlManager
+
+HERE = Path(__file__).parent
 
 
 class ProductCard(HtmlManager):
     """A product card with data-bound fields."""
 
-    def store(self, data):
-        data["name"] = "Wireless Headphones"
-        data["price"] = "$79.99"
-        data["description"] = "Premium sound quality with 30-hour battery life."
-        data["in_stock"] = "In Stock"
-
     def main(self, source):
         head = source.head()
         head.title("Product Card")
-        head.style("""
-            .page { font-family: sans-serif; max-width: 400px; margin: 2em auto;
-                    color: #333; background: #fff; padding: 1.5em; border-radius: 8px; }
-            .price { font-size: 1.5em; color: #16a34a; font-weight: bold; }
-            .stock { color: #666; font-size: 0.9em; }
-            h2 { color: #1e293b; }
-        """)
+        # FileResolver: pull model — content loaded on demand at render time
+        head.style(FileResolver("style.css", base_path=str(HERE)))
 
         body = source.body()
         page = body.div(_class="page")
 
-        # ^pointer as first arg: content is resolved from reactive_store
+        # ^pointer: content resolved from builder's namespace at render time
         page.h2("^name")
         page.p("^price", _class="price")
         page.p("^description")
         page.p("^in_stock", _class="stock")
 
 
-# First render — original data
+# Choose data file from command line or default
+data_file = sys.argv[1] if len(sys.argv) > 1 else "product.json"
+
 app = ProductCard()
-html1 = app.render()
+app.local_store("page").fill_from(
+    Bag.from_json((HERE / data_file).read_text()),
+)
+html = app.render()
 
-output = Path(__file__).with_suffix(".html")
-output.write_text(html1)
-print("=== Original ===")
-print(html1)
-
-# Change data → next render shows new values (pull model)
-app.reactive_store["name"] = "Studio Monitor Speakers"
-app.reactive_store["price"] = "$249.99"
-app.reactive_store["description"] = "Flat frequency response for accurate mixing."
-app.reactive_store["in_stock"] = "Pre-order"
-
-html2 = app.render()
-print("\n=== After data change ===")
-print(html2)
-
-output.write_text(html2)
-print(f"\nSaved to {output}")
+output = HERE / "04_pointers.html"
+output.write_text(html)
+print(html)
+print(f"\nData: {data_file}")
+print(f"Saved to {output}")

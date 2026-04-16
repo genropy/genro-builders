@@ -12,8 +12,8 @@ from .helpers import TestBuilder
 class TestManagerBasics:
     """Tests for basic BuilderManager operations."""
 
-    def test_set_builder(self):
-        """set_builder creates and returns a builder."""
+    def test_register_builder(self):
+        """register_builder creates and returns a builder."""
 
         class App(BuilderManager):
             def on_init(self):
@@ -31,7 +31,7 @@ class TestManagerBasics:
                 self.page = self.register_builder("page", TestBuilder)
 
         app = App()
-        assert app.page.data is app.reactive_store
+        assert app.page.data is app.global_store
 
     def test_manager_data_is_backref_enabled(self):
         """Manager's data Bag has backref enabled by __init_subclass__."""
@@ -41,7 +41,7 @@ class TestManagerBasics:
                 self.page = self.register_builder("page", TestBuilder)
 
         app = App()
-        assert app.reactive_store.backref is True
+        assert app.global_store.backref is True
 
     def test_no_super_init_needed(self):
         """Subclass __init__ does not need super().__init__()."""
@@ -54,7 +54,7 @@ class TestManagerBasics:
         app = App()
         assert app.custom == "value"
         assert app.page is not None
-        assert isinstance(app.reactive_store, Bag)
+        assert isinstance(app.global_store, Bag)
 
 
 class TestManagerMultipleBuilders:
@@ -70,7 +70,7 @@ class TestManagerMultipleBuilders:
 
         app = App()
         assert app.b1.data is app.b2.data
-        assert app.b1.data is app.reactive_store
+        assert app.b1.data is app.global_store
 
     def test_data_replacement_propagates(self):
         """Replacing manager.data updates all builders."""
@@ -83,10 +83,10 @@ class TestManagerMultipleBuilders:
         app = App()
         new_data = Bag()
         new_data["key"] = "value"
-        app.reactive_store = new_data
+        app.global_store = new_data
 
-        assert app.b1.data is app.reactive_store
-        assert app.b2.data is app.reactive_store
+        assert app.b1.data is app.global_store
+        assert app.b2.data is app.global_store
         assert app.b1.data["key"] == "value"
 
     def test_data_setter_accepts_dict(self):
@@ -97,9 +97,9 @@ class TestManagerMultipleBuilders:
                 pass
 
         app = App()
-        app.reactive_store = {"name": "test"}
-        assert isinstance(app.reactive_store, Bag)
-        assert app.reactive_store["name"] == "test"
+        app.global_store = {"name": "test"}
+        assert isinstance(app.global_store, Bag)
+        assert app.global_store["name"] == "test"
 
 
 class TestManagerBuild:
@@ -168,10 +168,8 @@ class TestManagerRun:
                 self.page = self.register_builder("page", TestBuilder)
                 self.run()
 
-            def store(self, data):
-                data["title"] = "Hello"
-
             def main(self, source):
+                self.local_store()["title"] = "Hello"
                 source.heading(value="^title")
 
         app = App()

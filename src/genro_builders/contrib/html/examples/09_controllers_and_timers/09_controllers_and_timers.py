@@ -6,6 +6,7 @@ What you learn:
     - data.subscribe(): react to data changes with side effects
     - Pull model: formulas compute on-demand, active cache pushes updates
     - Side effects (logging, alerts) use data.subscribe, not the builder
+    - Data from external JSON files
 
 Prerequisites: 08_reactive_basics
 
@@ -14,8 +15,14 @@ Usage:
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+from genro_bag import Bag
+
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.manager import ReactiveManager
+
+HERE = Path(__file__).parent
 
 # --- Part 1: data.subscribe for side effects ---
 
@@ -30,17 +37,12 @@ class LoggingApp(ReactiveManager):
     def on_init(self):
         self.page = self.register_builder("page", HtmlBuilder)
         self.run(subscribe=True)
-        # Side effects: subscribe directly on the data store
-        self.reactive_store.subscribe(
+        self.global_store.subscribe(
             "logger",
             any=lambda pathlist=None, **kw: log.append(
                 f"{'.'.join(str(p) for p in pathlist)} changed" if pathlist else "?"
             ),
         )
-
-    def store(self, data):
-        data["counter"] = 0
-        data["name"] = "Alice"
 
     def main(self, source):
         body = source.body()
@@ -49,7 +51,11 @@ class LoggingApp(ReactiveManager):
 
 
 app = LoggingApp()
-store = app.reactive_store
+app.local_store("page").fill_from(
+    Bag.from_json((HERE / "data.json").read_text()),
+)
+app.page.build()
+store = app.local_store("page")
 log.clear()
 
 store["counter"] = 1
@@ -72,8 +78,6 @@ print("Active cache requires an async event loop.")
 print("Use _cache_time=-N for periodic background refresh.")
 print("See example 11_live_repl for async usage.\n")
 
-# Sync example: data_formula without _cache_time (pull model)
-
 
 class PriceApp(ReactiveManager):
     """Formulas compute on demand — no _cache_time needed for sync."""
@@ -81,10 +85,6 @@ class PriceApp(ReactiveManager):
     def on_init(self):
         self.page = self.register_builder("page", HtmlBuilder)
         self.run(subscribe=True)
-
-    def store(self, data):
-        data["price"] = 100
-        data["tax_rate"] = 0.22
 
     def main(self, source):
         source.data_formula(
@@ -98,7 +98,11 @@ class PriceApp(ReactiveManager):
 
 
 app2 = PriceApp()
-store2 = app2.reactive_store
+app2.local_store("page").fill_from(
+    Bag.from_json((HERE / "price_data.json").read_text()),
+)
+app2.page.build()
+store2 = app2.local_store("page")
 print(f"Initial total: {store2['total']}")
 
 store2["price"] = 200

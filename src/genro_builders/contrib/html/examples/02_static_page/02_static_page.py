@@ -7,6 +7,16 @@ What you learn:
     - Nesting: div > h2 + ul > li
     - Attributes: _class (maps to class), id, href
     - Python methods = reusable building blocks
+    - FileResolver: load CSS from external file (lazy, on-demand)
+
+Genro ecosystem note:
+    ``FileResolver`` (from genro-bag) is a resolver — a pull-based
+    mechanism where the value is computed/loaded on first access.
+    When you write ``head.style(FileResolver('style.css'))``, the CSS
+    file is NOT read immediately. It is read at render time, when the
+    node's value is needed. If the file changes between renders, the
+    next render picks up the new version. This is the same pull model
+    used by ``data_formula`` for computed values.
 
 Prerequisites: 01_hello_world
 
@@ -17,7 +27,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from genro_bag.resolvers import FileResolver
+
 from genro_builders.contrib.html import HtmlManager
+
+HERE = Path(__file__).parent
 
 
 class StaticPage(HtmlManager):
@@ -36,16 +50,9 @@ class StaticPage(HtmlManager):
         head = source.head()
         head.meta(charset="utf-8")
         head.title("My Static Page")
-        head.style("""
-            .page { font-family: sans-serif; max-width: 600px; margin: 2em auto;
-                    color: #333; background: #fff; padding: 1.5em; border-radius: 8px; }
-            .hero { background: #eef2ff; padding: 1.5em; border-radius: 8px; margin-bottom: 1em; }
-            h1, h2 { color: #1e293b; }
-            .nav { list-style: none; padding: 0; display: flex; gap: 1em; }
-            .nav li a { text-decoration: none; color: #2563eb; }
-            ul { color: #475569; }
-            footer { margin-top: 2em; color: #94a3b8; font-size: 0.9em; }
-        """)
+        # FileResolver reads the CSS file lazily at render time.
+        # If style.css changes, the next render picks up the new version.
+        head.style(FileResolver("style.css", base_path=str(HERE)))
 
     def hero(self, body):
         hero = body.div(_class="hero")
@@ -72,7 +79,7 @@ class StaticPage(HtmlManager):
 app = StaticPage()
 html = app.render()
 
-output = Path(__file__).with_suffix(".html")
+output = HERE / "02_static_page.html"
 output.write_text(html)
 print(html)
 print(f"\nSaved to {output}")

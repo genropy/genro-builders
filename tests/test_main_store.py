@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for main()/store() pattern via BuilderManager."""
+"""Tests for main() pattern via BuilderManager."""
 from __future__ import annotations
 
 from genro_builders.manager import BuilderManager
@@ -8,7 +8,7 @@ from .helpers import TestBuilder
 
 
 class TestMainStore:
-    """Tests for main/store pattern on BuilderManager."""
+    """Tests for main pattern on BuilderManager."""
 
     def test_main_populates_source(self):
         """Subclass main() is called to populate source."""
@@ -25,17 +25,15 @@ class TestMainStore:
         app.build()
         assert "from main" in app.page.render()
 
-    def test_store_populates_data(self):
-        """Subclass store() populates data before main."""
+    def test_data_populated_in_main(self):
+        """Data can be populated inside main() via local_store."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.page = self.register_builder("page", TestBuilder)
 
-            def store(self, data):
-                data["msg"] = "hello"
-
             def main(self, source):
+                self.local_store()["msg"] = "hello"
                 source.heading(value="^msg")
 
         app = App()
@@ -43,28 +41,8 @@ class TestMainStore:
         app.build()
         assert "hello" in app.page.render()
 
-    def test_store_called_before_main(self):
-        """store() is called before main()."""
-        order = []
-
-        class App(BuilderManager):
-            def on_init(self):
-                self.page = self.register_builder("page", TestBuilder)
-
-            def store(self, data):
-                order.append("store")
-
-            def main(self, source):
-                order.append("main")
-                source.heading("test")
-
-        app = App()
-        app.setup()
-        app.build()
-        assert order == ["store", "main"]
-
-    def test_no_main_no_store_still_works(self):
-        """Manager without main/store works (manual population)."""
+    def test_no_main_still_works(self):
+        """Manager without main works (manual population)."""
 
         class App(BuilderManager):
             def on_init(self):
@@ -99,18 +77,50 @@ class TestMainStore:
         assert "header" in output
         assert "body" in output
 
-    def test_store_only_no_main(self):
-        """Only store() without main() — user populates source manually."""
+    def test_data_only_no_main(self):
+        """Data populated before setup — user populates source manually."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.page = self.register_builder("page", TestBuilder)
 
-            def store(self, data):
-                data["title"] = "Hello"
-
         app = App()
+        app.local_store("page")["title"] = "Hello"
         app.setup()
         app.page.source.heading(value="^title")
         app.build()
         assert "Hello" in app.page.render()
+
+    def test_local_store_in_main(self):
+        """local_store() works inside main() dispatch."""
+
+        class App(BuilderManager):
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
+
+            def main(self, source):
+                self.local_store()["title"] = "From local"
+                source.heading("test")
+
+        app = App()
+        app.setup()
+        assert app.global_store["page.title"] == "From local"
+
+    def test_local_store_with_name(self):
+        """local_store(name) returns the named builder's namespace."""
+
+        class App(BuilderManager):
+            def on_init(self):
+                self.page = self.register_builder("page", TestBuilder)
+                self.sidebar = self.register_builder("sidebar", TestBuilder)
+
+            def main_page(self, source):
+                self.local_store("sidebar")["color"] = "blue"
+                source.heading("test")
+
+            def main_sidebar(self, source):
+                source.heading("test")
+
+        app = App()
+        app.setup()
+        assert app.global_store["sidebar.color"] == "blue"

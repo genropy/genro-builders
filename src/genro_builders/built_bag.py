@@ -36,6 +36,7 @@ class BuiltBagNode(BagNode):
     """
 
     _data: Bag | None = None
+    _builder_name: str | None = None
 
     @property
     def data(self) -> Bag:
@@ -76,18 +77,45 @@ class BuiltBagNode(BagNode):
         return result
 
     def abs_datapath(self, path: str) -> str:
-        """Resolve any path form to an absolute datapath.
+        """Resolve any path form to an absolute datapath in the global store.
 
-        Supports:
-            'user.name'  — absolute: returned as-is
-            '.name'      — relative: resolved from this node's datapath
+        Supports volume syntax (``volume:local_path``) and two local forms:
+            'field'      — local to current builder
+            '.field'     — relative: resolved from this node's datapath
+
+        In managed context (node has ``_builder_name``), the builder name
+        is prepended. In standalone context, the path is returned as-is.
         """
+        builder_name = self._builder_name
+
+        # Handle volume syntax: "other_builder:local_path"
+        volume = None
+        if ":" in path and not path.startswith("."):
+            volume, path = path.split(":", 1)
+
         if path.startswith("."):
             datapath = self._resolve_datapath()
             if not datapath:
-                return path[1:] if path[1:] else ""
-            return f"{datapath}.{path[1:]}" if path[1:] else datapath
-        return path
+                resolved = path[1:] if path[1:] else ""
+            else:
+                resolved = f"{datapath}.{path[1:]}" if path[1:] else datapath
+            # Relative paths resolved via datapath chain may already include
+            # the builder name (e.g. iterate sets absolute datapaths).
+            # If so, skip prepending to avoid double-prefix.
+            prefix = volume if volume is not None else builder_name
+            if prefix and resolved.startswith(f"{prefix}."):
+                return resolved
+            if prefix is not None:
+                return f"{prefix}.{resolved}" if resolved else prefix
+            return resolved
+
+        resolved = path
+
+        # Prepend volume or builder name
+        prefix = volume if volume is not None else builder_name
+        if prefix is not None:
+            return f"{prefix}.{resolved}" if resolved else prefix
+        return resolved
 
     def get_relative_data(self, path: str) -> Any:
         """Read a value from the data Bag, resolving relative paths.

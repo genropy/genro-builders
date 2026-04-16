@@ -33,24 +33,23 @@ class TestLiveSessionDispatch:
         assert len(keys) >= 2
 
     def test_data_getitem(self, live_session):
-        """data.__getitem__ reads from reactive_store."""
-        result = live_session.handle_command(("data.__getitem__", "title"))
+        """data.__getitem__ reads from global_store."""
+        result = live_session.handle_command(("data.__getitem__", "page.title"))
         assert result == "Hello"
 
     def test_data_setitem(self, live_session):
-        """data.__setitem__ writes to reactive_store."""
+        """data.__setitem__ writes to global_store."""
         live_session.handle_command(("data.__setitem__", "new_key", "new_value"))
         result = live_session.handle_command(("data.__getitem__", "new_key"))
         assert result == "new_value"
 
     def test_data_keys(self, live_session):
-        """data.__keys__ lists reactive_store keys."""
+        """data.__keys__ lists global_store keys."""
         keys = live_session.handle_command(("data.__keys__",))
-        assert "title" in keys
-        assert "count" in keys
+        assert "page" in keys
 
     def test_data_delitem(self, live_session):
-        """data.__delitem__ removes from reactive_store."""
+        """data.__delitem__ removes from global_store."""
         live_session.handle_command(("data.__setitem__", "temp", "value"))
         live_session.handle_command(("data.__delitem__", "temp"))
         keys = live_session.handle_command(("data.__keys__",))
@@ -158,7 +157,7 @@ class TestLiveServer:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
                 sock.connect(("127.0.0.1", live_server.port))
-                msg = pickle.dumps((live_server.token, ("data.__getitem__", "title")))
+                msg = pickle.dumps((live_server.token, ("data.__getitem__", "page.title")))
                 proto.send(sock, msg)
                 raw = proto.recv(sock)
                 status, result = pickle.loads(raw)

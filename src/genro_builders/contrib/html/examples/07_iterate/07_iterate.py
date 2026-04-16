@@ -5,7 +5,7 @@ What you learn:
     - iterate='^path': replicate a component once per child in data
     - ^.?attr: resolve an attribute from the current data node
     - datapath: each iteration gets its own data namespace
-    - The data is a Bag of nodes with attributes (set_item with kwargs)
+    - Data is a Bag of nodes with attributes (loaded from JSON)
     - The component body uses relative pointers to access per-item data
 
 Prerequisites: 05_components, 04_pointers
@@ -17,11 +17,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_bag import Bag
+from genro_bag.resolvers import FileResolver
 
 from genro_builders.builder import component
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.manager import ReactiveManager
+
+HERE = Path(__file__).parent
 
 
 class CatalogBuilder(HtmlBuilder):
@@ -43,43 +45,11 @@ class ProductCatalog(ReactiveManager):
     def on_init(self):
         self.page = self.register_builder("page", CatalogBuilder)
 
-    def store(self, data):
-        products = Bag()
-        products.set_item(
-            "p0", None,
-            name="Wireless Headphones", price="$79.99",
-            description="Premium sound, 30h battery.", category="Audio",
-        )
-        products.set_item(
-            "p1", None,
-            name="Mechanical Keyboard", price="$129.99",
-            description="Cherry MX, RGB backlight.", category="Input",
-        )
-        products.set_item(
-            "p2", None,
-            name="USB-C Hub", price="$49.99",
-            description="7-in-1: HDMI, USB-A, SD, ethernet.", category="Accessories",
-        )
-        products.set_item(
-            "p3", None,
-            name="4K Monitor", price="$349.99",
-            description="27-inch IPS, 144Hz, USB-C.", category="Display",
-        )
-        data["products"] = products
-
     def main(self, source):
         head = source.head()
         head.title("Product Catalog — Iterate")
-        head.style("""
-            .page { font-family: sans-serif; max-width: 700px; margin: 2em auto;
-                    color: #333; background: #fff; padding: 1.5em; border-radius: 8px; }
-            .catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1em; }
-            .card { border: 1px solid #ddd; border-radius: 8px; padding: 1em; }
-            .card h3 { margin-top: 0; color: #1e293b; }
-            .price { color: #16a34a; font-weight: bold; font-size: 1.2em; }
-            .category { color: #666; font-size: 0.85em; text-transform: uppercase; }
-            h1 { color: #1e293b; }
-        """)
+        # FileResolver: pull model — content loaded on demand at render time
+        head.style(FileResolver("style.css", base_path=str(HERE)))
 
         body = source.body()
         page = body.div(_class="page")
@@ -91,10 +61,14 @@ class ProductCatalog(ReactiveManager):
 
 
 app = ProductCatalog()
+# FileResolver with as_bag=True: Bag node format (label/value/attr) preserved
+app.local_store("page").set_resolver(
+    "products", FileResolver("products.json", as_bag=True, base_path=str(HERE)),
+)
 app.run()
 html = app.page.render()
 
-output = Path(__file__).with_suffix(".html")
+output = HERE / "07_iterate.html"
 output.write_text(html)
 print(html)
 print(f"\nSaved to {output}")

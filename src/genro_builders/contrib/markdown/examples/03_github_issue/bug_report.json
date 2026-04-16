@@ -1,0 +1,15 @@
+{
+  "title": "Login fails with SSO on Safari",
+  "labels": "bug, auth, priority:high",
+  "assignee": "gporcari",
+  "environment": "macOS 15.3 / Safari 18.2",
+  "description": "When attempting to log in via SSO (SAML), Safari redirects to a blank page instead of completing the auth flow.",
+  "steps": [
+    "Go to /login",
+    "Click 'Sign in with SSO'",
+    "Enter company email and submit",
+    "Observe blank page after IdP redirect"
+  ],
+  "expected": "User is redirected to the dashboard after successful authentication.",
+  "actual": "Safari shows a blank page. Console shows a CORS error on the callback URL."
+}

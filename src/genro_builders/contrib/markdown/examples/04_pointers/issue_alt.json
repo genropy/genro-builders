@@ -1,0 +1,8 @@
+{
+  "title": "Dark mode toggle not persisted",
+  "label": "enhancement",
+  "assignee": "mrossi",
+  "description": "User enables dark mode in Settings, but after page refresh the preference is lost and light mode is restored.",
+  "expected": "Dark mode preference is saved to localStorage and restored on load.",
+  "actual": "Preference is only in memory — lost on refresh."
+}

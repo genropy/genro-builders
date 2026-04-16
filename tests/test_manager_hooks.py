@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BuilderManager hooks: store, main, setup, build."""
+"""Tests for BuilderManager hooks: main, setup, build."""
 from __future__ import annotations
 
 from genro_bag import Bag
@@ -9,20 +9,18 @@ from genro_builders.manager import BuilderManager
 from .helpers import TestBuilder
 
 
-class TestStore:
-    """Tests for store hook."""
+class TestDataPopulation:
+    """Tests for populating data via global_store / local_store."""
 
-    def test_store_populates_store(self):
-        """store() sets shared values at store root."""
+    def test_local_store_populates_data(self):
+        """local_store sets values in the builder's namespace."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.page = self.register_builder("page", TestBuilder)
 
-            def store(self, data):
-                data["title"] = "Hello"
-
             def main(self, source):
+                self.local_store()["title"] = "Hello"
                 source.heading("^title")
 
         app = App()
@@ -30,22 +28,20 @@ class TestStore:
         app.build()
         assert "Hello" in app.page.render()
 
-    def test_store_accessible_by_all_builders(self):
-        """Shared data is accessible by all builders."""
+    def test_cross_builder_data_via_volume(self):
+        """Data from one builder accessible by another via volume syntax."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.a = self.register_builder("a", TestBuilder)
                 self.b = self.register_builder("b", TestBuilder)
 
-            def store(self, data):
-                data["shared"] = "Common Value"
-
             def main_a(self, source):
+                self.local_store()["shared"] = "Common Value"
                 source.heading("^shared")
 
             def main_b(self, source):
-                source.text("^shared")
+                source.text("^a:shared")
 
         app = App()
         app.setup()
@@ -115,55 +111,48 @@ class TestPrivateData:
     """Tests for per-builder private data namespace."""
 
     def test_private_namespace_created(self):
-        """set_builder creates builders.<name> in the store."""
+        """register_builder creates <name> namespace directly in the store."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.page = self.register_builder("page", TestBuilder)
 
         app = App()
-        builders = app.reactive_store.get_item("builders")
-        assert builders is not None
-        assert isinstance(builders, Bag)
-        page_data = builders.get_item("page")
+        page_data = app.global_store.get_item("page")
         assert page_data is not None
         assert isinstance(page_data, Bag)
 
-    def test_store_sets_private_data(self):
-        """Private data can be set via store()."""
+    def test_private_data_set_via_global_store(self):
+        """Private data can be set via global_store path."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.page = self.register_builder("page", TestBuilder)
 
-            def store(self, data):
-                data["builders.page.color"] = "blue"
-
             def main(self, source):
+                self.global_store["page.color"] = "blue"
                 source.heading("test")
 
         app = App()
         app.setup()
         app.build()
-        assert app.reactive_store["builders.page.color"] == "blue"
+        assert app.global_store["page.color"] == "blue"
 
-    def test_store_root_is_reactive_store(self):
-        """Store argument is the reactive store root."""
+    def test_private_data_set_via_local_store(self):
+        """Private data can be set via local_store."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.page = self.register_builder("page", TestBuilder)
 
-            def store(self, data):
-                data["title"] = "Hello"
-
             def main(self, source):
-                source.heading("^title")
+                self.local_store()["color"] = "red"
+                source.heading("test")
 
         app = App()
         app.setup()
         app.build()
-        assert "Hello" in app.page.render()
+        assert app.global_store["page.color"] == "red"
 
     def test_multi_builder_private_data_isolated(self):
         """Each builder's private data is isolated."""
@@ -173,58 +162,50 @@ class TestPrivateData:
                 self.a = self.register_builder("a", TestBuilder)
                 self.b = self.register_builder("b", TestBuilder)
 
-            def store(self, data):
-                data["builders.a.value"] = "A-private"
-                data["builders.b.value"] = "B-private"
-
             def main_a(self, source):
+                self.local_store()["value"] = "A-private"
                 source.heading("test")
 
             def main_b(self, source):
+                self.local_store()["value"] = "B-private"
                 source.heading("test")
 
         app = App()
         app.setup()
         app.build()
-        assert app.reactive_store["builders.a.value"] == "A-private"
-        assert app.reactive_store["builders.b.value"] == "B-private"
+        assert app.global_store["a.value"] == "A-private"
+        assert app.global_store["b.value"] == "B-private"
 
 
 class TestBuildPipeline:
     """Tests for full build pipeline."""
 
     def test_setup_then_build(self):
-        """setup → build in correct order."""
-        order = []
+        """setup → build produces output."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.page = self.register_builder("page", TestBuilder)
 
-            def store(self, data):
-                order.append("store")
-                data["title"] = "Hello"
-
             def main(self, source):
-                order.append("main")
+                self.local_store()["title"] = "Hello"
                 source.heading("^title")
 
         app = App()
         app.setup()
         app.build()
-        assert order == ["store", "main"]
         assert "Hello" in app.page.render()
 
-    def test_reactive_store_property(self):
-        """reactive_store property returns the data Bag."""
+    def test_global_store_property(self):
+        """global_store property returns the data Bag."""
 
         class App(BuilderManager):
             def on_init(self):
                 self.page = self.register_builder("page", TestBuilder)
 
         app = App()
-        assert isinstance(app.reactive_store, Bag)
-        assert app.reactive_store.backref is True
+        assert isinstance(app.global_store, Bag)
+        assert app.global_store.backref is True
 
     def test_no_hooks_manual_usage(self):
         """Manager without hooks — user populates source manually."""

@@ -1,0 +1,8 @@
+{
+  "title": "API returns 500 on empty payload",
+  "label": "bug",
+  "assignee": "gporcari",
+  "description": "POST /api/v1/items with an empty JSON body returns 500 instead of 422 Unprocessable Entity.",
+  "expected": "422 response with validation error details.",
+  "actual": "500 Internal Server Error with a NoneType traceback."
+}

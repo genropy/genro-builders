@@ -2,7 +2,7 @@
 """Client proxies for remote LiveSession control.
 
 LiveProxy connects to a running LiveServer and provides SourceProxy
-(per-builder source manipulation) and DataProxy (reactive_store access).
+(per-builder source manipulation) and DataProxy (global_store access).
 
 Each command opens a new TCP connection, sends a framed pickle message,
 and receives the response. This keeps the protocol stateless and avoids
@@ -59,7 +59,7 @@ class LiveProxy:
 
     @property
     def data(self) -> DataProxy:
-        """Return a DataProxy for the reactive_store."""
+        """Return a DataProxy for the global_store."""
         return DataProxy(self)
 
     def builders(self) -> list[str]:
@@ -111,24 +111,24 @@ class SourceProxy:
 
 
 class DataProxy:
-    """Proxy for the reactive_store. Dict-like access over the wire."""
+    """Proxy for the global_store. Dict-like access over the wire."""
 
     def __init__(self, live_proxy: LiveProxy) -> None:
         self._live_proxy = live_proxy
 
     def __getitem__(self, key: str) -> Any:
-        """Get value from reactive_store."""
+        """Get value from global_store."""
         return self._live_proxy._send(("data.__getitem__", key))
 
     def __setitem__(self, key: str, value: Any) -> None:
-        """Set value on reactive_store."""
+        """Set value on global_store."""
         self._live_proxy._send(("data.__setitem__", key, value))
 
     def __delitem__(self, key: str) -> None:
-        """Delete key from reactive_store."""
+        """Delete key from global_store."""
         self._live_proxy._send(("data.__delitem__", key))
 
     def keys(self) -> list[str]:
-        """List keys in reactive_store."""
+        """List keys in global_store."""
         result: list[str] = self._live_proxy._send(("data.__keys__",))
         return result

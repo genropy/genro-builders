@@ -1,0 +1,6 @@
+[
+  {"label": "p0", "value": null, "attr": {"name": "Wireless Headphones", "price": "$79.99", "description": "Premium sound, 30h battery.", "category": "Audio"}},
+  {"label": "p1", "value": null, "attr": {"name": "Mechanical Keyboard", "price": "$129.99", "description": "Cherry MX, RGB backlight.", "category": "Input"}},
+  {"label": "p2", "value": null, "attr": {"name": "USB-C Hub", "price": "$49.99", "description": "7-in-1: HDMI, USB-A, SD, ethernet.", "category": "Accessories"}},
+  {"label": "p3", "value": null, "attr": {"name": "4K Monitor", "price": "$349.99", "description": "27-inch IPS, 144Hz, USB-C.", "category": "Display"}}
+]

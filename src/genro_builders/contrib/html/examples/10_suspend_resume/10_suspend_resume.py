@@ -4,8 +4,9 @@
 What you learn:
     - Pull model: data changes do NOT auto-render
     - render() is called explicitly when you want output
-    - Multiple data changes → one render() call = efficient batching
+    - Multiple data changes + one render() call = efficient batching
     - No need for suspend/resume — batching is natural
+    - Data from external JSON file
 
 Prerequisites: 08_reactive_basics
 
@@ -14,8 +15,14 @@ Usage:
 """
 from __future__ import annotations
 
+from pathlib import Path
+
+from genro_bag import Bag
+
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.manager import ReactiveManager
+
+HERE = Path(__file__).parent
 
 render_count = [0]
 original_render = HtmlBuilder.render
@@ -36,12 +43,6 @@ class Dashboard(ReactiveManager):
         self.page = self.register_builder("page", CountingBuilder)
         self.run(subscribe=True)
 
-    def store(self, data):
-        data["temperature"] = 20
-        data["humidity"] = 45
-        data["pressure"] = 1013
-        data["wind_speed"] = 12
-
     def main(self, source):
         body = source.body()
         body.h1("Weather Dashboard")
@@ -52,7 +53,11 @@ class Dashboard(ReactiveManager):
 
 
 app = Dashboard()
-store = app.reactive_store
+app.local_store("page").fill_from(
+    Bag.from_json((HERE / "data.json").read_text()),
+)
+app.page.build()
+store = app.local_store("page")
 render_count[0] = 0
 
 # --- Multiple changes, then one render ---

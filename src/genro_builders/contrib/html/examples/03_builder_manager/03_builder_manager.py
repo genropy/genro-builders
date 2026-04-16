@@ -3,10 +3,10 @@
 
 What you learn:
     - HtmlManager coordinates a builder with a shared data store
-    - store(data): populate shared data (called first)
-    - main(source): build the HTML structure (called second)
+    - Data lives in external files (JSON), loaded at runtime
+    - CSS lives in external files, loaded via style tag
+    - main(source): defines only the HTML structure
     - render(): auto-runs setup + build if needed
-    - No super().__init__() needed — handled by __init_subclass__
 
 Prerequisites: 02_static_page
 
@@ -17,38 +17,28 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from genro_bag.resolvers import FileResolver
+
 from genro_builders.contrib.html import HtmlManager
+
+HERE = Path(__file__).parent
 
 
 class ContactList(HtmlManager):
     """A contact list page. Data and structure are separate."""
 
-    def store(self, data):
-        """Populate shared data. Called before main()."""
-        data["contacts"] = [
-            {"name": "Alice Johnson", "email": "alice@example.com", "role": "Engineer"},
-            {"name": "Bob Smith", "email": "bob@example.com", "role": "Designer"},
-            {"name": "Carol White", "email": "carol@example.com", "role": "Manager"},
-        ]
-
     def main(self, source):
-        """Build the HTML structure using data from store()."""
+        """Build the HTML structure — data comes from outside."""
         head = source.head()
         head.title("Contact List")
-        head.style("""
-            .page { font-family: sans-serif; max-width: 600px; margin: 2em auto;
-                    color: #333; background: #fff; padding: 1.5em; border-radius: 8px; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { padding: 0.5em; text-align: left; border-bottom: 1px solid #ddd; }
-            th { background: #f0f4f8; color: #1e293b; }
-            h1 { color: #1e293b; }
-        """)
+        # FileResolver: pull model — content loaded on demand at render time
+        head.style(FileResolver("style.css", base_path=str(HERE)))
 
         body = source.body()
         page = body.div(_class="page")
         page.h1("Team Contacts")
 
-        contacts = self.reactive_store["contacts"]
+        contacts = self.local_store()["contacts"]
 
         table = page.table()
         thead = table.thead()
@@ -60,15 +50,20 @@ class ContactList(HtmlManager):
         tbody = table.tbody()
         for contact in contacts:
             row = tbody.tr()
-            row.td(contact["name"])
-            row.td().a(contact["email"], href=f"mailto:{contact['email']}")
-            row.td(contact["role"])
+            row.td(contact.attr.get("name"))
+            row.td(contact.attr.get("email"))
+            row.td(contact.attr.get("role"))
 
 
 app = ContactList()
+# FileResolver with as_bag=True: JSON is parsed into a Bag on first access.
+# The Bag node format (label/value/attr) is preserved — perfect for iterate.
+app.local_store("page").set_resolver(
+    "contacts", FileResolver("contacts.json", as_bag=True, base_path=str(HERE)),
+)
 html = app.render()
 
-output = Path(__file__).with_suffix(".html")
+output = HERE / "03_builder_manager.html"
 output.write_text(html)
 print(html)
 print(f"\nSaved to {output}")

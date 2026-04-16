@@ -172,6 +172,9 @@ class BagBuilderBase(
         )
         self._node_id_map: dict[str, BagNode] = {}
 
+        # Builder name: set by register_builder() when managed
+        self._builder_name: str | None = None
+
         if bag is not None:
             # Internal: BuilderBag passes itself as bag
             self._bag = bag
@@ -213,6 +216,9 @@ class BagBuilderBase(
             # Reactivity: None until subscribe() is called
             self._reactivity: ReactivityEngine | None = None
 
+            # Hook for subclasses to configure schema after init
+            self.on_configure()
+
     # -----------------------------------------------------------------------
     # Built-in data elements
     # -----------------------------------------------------------------------
@@ -226,6 +232,17 @@ class BagBuilderBase(
     def data_formula(self, path: str, func: Callable, **kwargs: Any):
         """Computed data: install resolver at path in data Bag."""
         return path, dict(func=func, **kwargs)
+
+    # -----------------------------------------------------------------------
+    # Configuration hook
+    # -----------------------------------------------------------------------
+
+    def on_configure(self) -> None:
+        """Hook called after __init__ completes (standard instantiation only).
+
+        Override in subclasses to declare schema elements on the source.
+        Useful for DataBuilder to auto-populate field definitions.
+        """
 
     # -----------------------------------------------------------------------
     # Pipeline properties
@@ -245,7 +262,7 @@ class BagBuilderBase(
     def data(self) -> Bag:
         """The data Bag. Shared with the manager when one is present."""
         if self._manager is not None:
-            return self._manager.reactive_store
+            return self._manager.global_store
         return self._data
 
     @data.setter
@@ -256,7 +273,7 @@ class BagBuilderBase(
         All BuiltBagNode references to _data remain valid.
         """
         if self._manager is not None:
-            self._manager.reactive_store = value
+            self._manager.global_store = value
             return
         new_data = Bag(source=value) if isinstance(value, dict) else value
         self._data.clear()

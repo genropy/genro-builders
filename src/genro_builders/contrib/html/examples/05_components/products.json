@@ -1,0 +1,5 @@
+[
+  {"name": "Wireless Headphones", "price": "$79.99", "description": "Premium sound, 30h battery."},
+  {"name": "Mechanical Keyboard", "price": "$129.99", "description": "Cherry MX switches, RGB backlight."},
+  {"name": "USB-C Hub", "price": "$49.99", "description": "7-in-1: HDMI, USB-A, SD, ethernet."}
+]
