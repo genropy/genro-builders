@@ -6,13 +6,14 @@ processes data elements, and materializes normal elements into the
 built Bag. Incremental compile (source-change handlers) lives in
 ``_reactivity.ReactivityEngine``.
 
-Async-safe: when called inside an async context (running event loop),
-``build()`` and the incremental handlers return coroutines instead of
-None.  Component resolvers that return coroutines from
-``get_value(static=False)`` are awaited transparently via the
-continuation pattern (same as ``_htraverse`` in genro-bag).
+Async-safe by delegation: every value flowing through the walk comes
+from ``node.get_value()`` and is passed through ``smartcontinuation``,
+which transparently handles both concrete values (sync path) and
+coroutines (async continuation). The walk itself has no knowledge of
+asyncio — the async/sync decision is absorbed by the resolver layer
+and by ``smartcontinuation``.
 
-Sync usage (unchanged)::
+Sync usage::
 
     builder.build()
 
@@ -24,40 +25,19 @@ Async usage::
 
 from __future__ import annotations
 
-import asyncio
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from genro_bag import Bag
-from genro_toolbox import smartawait, smartcontinuation
+from genro_bag import Bag, BagNode
+from genro_toolbox import smartcontinuation
 
-from ..builder_bag import BuilderBag
+from ..builder_bag import BuilderBag, Component
 from ..built_bag import BuiltBag
 from ..formula_resolver import FormulaResolver
 from ._binding import is_pointer, parse_pointer, scan_for_pointers
 
-if TYPE_CHECKING:
-    from genro_bag import BagNode
-
 
 class _BuildMixin:
     """Mixin for build walk and materialization."""
-
-    # -----------------------------------------------------------------------
-    # Async context detection
-    # -----------------------------------------------------------------------
-
-    @property
-    def in_async_context(self) -> bool:
-        """Whether we are currently running inside an async context."""
-        try:
-            asyncio.get_running_loop()
-            return True
-        except RuntimeError:
-            return False
-
-    def _is_coroutine(self, value: Any) -> bool:
-        """Check if value is a coroutine (only possible in async context)."""
-        return self.in_async_context and asyncio.iscoroutine(value)
 
     # -----------------------------------------------------------------------
     # Build walk (source -> built materialization)
@@ -70,28 +50,27 @@ class _BuildMixin:
         data: Bag,
         prefix: str = "",
     ) -> Any:
-        """Recursive walk: two-pass processing.
+        """Recursive walk: materialize source into built.
 
-        Pass 1: Process data_element nodes (side effects on data Bag).
-        Pass 2: Materialize normal elements and components in built.
+        Data elements (data_setter, data_formula) are accumulated in
+        _pending_data_elements for deferred processing — they need the
+        built tree to be complete so that abs_datapath can resolve
+        relative paths via the ancestor chain.
 
-        Returns None in sync context, or a coroutine in async context
-        (when a resolver returns a coroutine from get_value).
+        Elements are materialized directly. Components are expanded
+        (transparent macro) and their content is processed recursively
+        into the same target. Components with iterate expand N times,
+        once per data child.
 
-        Args:
-            source: The source Bag to compile from.
-            target: The built Bag to populate.
-            data: Data Bag for ^pointer resolution.
-            prefix: Path prefix for built node paths.
+        Returns None in sync context, or a coroutine in async context.
         """
-        # Pass 1: process infrastructure nodes (populate data store, then discard)
+        # Accumulate data elements with their built parent for deferred processing
+        built_parent = target.parent_node
         for node in source:
-            if node.node_tag == "data_setter":
-                self._execute_data_setter(node, data)
-            elif node.node_tag == "data_formula":
-                self._install_formula_resolver(node, data)
+            if node.node_tag in ("data_setter", "data_formula"):
+                self._pending_data_elements.append((node, built_parent))
+                continue
 
-        # Pass 2: materialize all nodes except data infrastructure into built
         nodes = [
             n for n in source
             if n.node_tag not in ("data_setter", "data_formula")
@@ -106,69 +85,62 @@ class _BuildMixin:
         data: Bag,
         prefix: str,
     ) -> Any:
-        """Process nodes[idx:] into target. Returns None or coroutine."""
+        """Process nodes[idx:] into target.
+
+        Returns None in sync path, or a coroutine when any resolver in
+        the walk produced an awaitable. ``smartcontinuation`` folds the
+        two cases into a single code path.
+        """
         while idx < len(nodes):
             node = nodes[idx]
             built_path = f"{prefix}.{node.label}" if prefix else node.label
 
+            # --- Component with iterate: expand N times ---
             iterate_raw = node.attr.get("iterate")
-            if iterate_raw and is_pointer(iterate_raw) and node.resolver is not None:
-                self._materialize_iterate(
+            if iterate_raw and is_pointer(iterate_raw) and node.attr.get("_is_component"):
+                self._run_component_iterate(
                     node, iterate_raw, target, data, built_path,
                 )
                 idx += 1
                 continue
 
-            value = node.get_value(static=False) if node.resolver is not None else node.static_value
+            # --- Component without iterate: expand once (transparent macro) ---
+            if node.attr.get("_is_component"):
+                proxy = node.value
+                comp_bag = self._run_component(proxy)
+                if isinstance(comp_bag, Bag):
+                    walk = self._build_walk(comp_bag, target, data, prefix)
+                    next_idx = idx + 1
 
-            if self._is_coroutine(value):
-                remaining_idx = idx
-                remaining_nodes = nodes
+                    def after_walk(_: Any, next_idx: int = next_idx) -> Any:
+                        return self._build_walk_nodes(nodes, next_idx, target, data, prefix)
 
-                async def cont(
-                    value=value,
-                    node=node,
-                    built_path=built_path,
-                    remaining_nodes=remaining_nodes,
-                    remaining_idx=remaining_idx,
-                ):
-                    resolved = await value
-                    self._materialize_node(node, resolved, target, data, built_path)
-                    if isinstance(resolved, Bag):
-                        child_result = self._build_walk(
-                            resolved, target.get_node(node.label).value,
-                            data, prefix=built_path,
-                        )
-                        await smartawait(child_result)
-                    # Process remaining nodes
-                    rest = self._build_walk_nodes(
-                        remaining_nodes, remaining_idx + 1, target, data, prefix,
+                    return smartcontinuation(walk, after_walk)
+                idx += 1
+                continue
+
+            # --- Element: materialize and recurse on children ---
+            value = node.get_value()
+
+            def after_element(
+                resolved: Any,
+                node: BagNode = node,
+                built_path: str = built_path,
+                next_idx: int = idx + 1,
+            ) -> Any:
+                new_node = self._materialize_node(node, resolved, target, data, built_path)
+                if isinstance(resolved, Bag):
+                    child_result = self._build_walk(
+                        resolved, new_node.value, data, prefix=built_path,
                     )
-                    await smartawait(rest)
 
-                return cont()
+                    def after_child(_: Any, next_idx: int = next_idx) -> Any:
+                        return self._build_walk_nodes(nodes, next_idx, target, data, prefix)
 
-            self._materialize_node(node, value, target, data, built_path)
-            if isinstance(value, Bag):
-                child_result = self._build_walk(value, target.get_node(node.label).value, data, prefix=built_path)
-                if self._is_coroutine(child_result):
-                    remaining_idx = idx + 1
-                    remaining_nodes = nodes
+                    return smartcontinuation(child_result, after_child)
+                return self._build_walk_nodes(nodes, next_idx, target, data, prefix)
 
-                    async def cont_child(
-                        child_result=child_result,
-                        remaining_nodes=remaining_nodes,
-                        remaining_idx=remaining_idx,
-                    ):
-                        await child_result
-                        rest = self._build_walk_nodes(
-                            remaining_nodes, remaining_idx, target, data, prefix,
-                        )
-                        await smartawait(rest)
-
-                    return cont_child()
-
-            idx += 1
+            return smartcontinuation(value, after_element)
 
         return None
 
@@ -179,18 +151,116 @@ class _BuildMixin:
         target: Bag,
         data: Bag,
         built_path: str,
-    ) -> None:
-        """Materialize a single node into the target bag."""
-        new_node = target.set_item(
-            node.label,
-            value if not isinstance(value, Bag) else BuiltBag(),
-            _attributes=dict(node.attr),
-            node_tag=node.node_tag,
-        )
-        new_node._data = data
-        new_node._builder_name = self._builder_name
+    ) -> BagNode:
+        """Materialize a single element node into the target bag.
 
-    def _materialize_iterate(
+        Uses ``_child`` (grammar) so that labels are auto-generated in
+        the target — transparent components calling the same element
+        multiple times produce unique labels (no collision).
+
+        Returns the newly created node.
+        """
+        attrs = dict(node.attr)
+        attrs.pop("node_id", None)  # node_id is not a build-time attr
+        return self._child(
+            target,
+            node.node_tag,
+            node_value=value if not isinstance(value, Bag) else BuiltBag(),
+            **attrs,
+        )
+
+    def _run_component(self, proxy: Any) -> Bag:
+        """Execute a component handler, returning the populated Bag.
+
+        Handler signature is strict: ``handler(self, comp)``. No framework
+        kwargs. The expanded bag must be a tree (exactly one top-level
+        node); if ``main_tag`` is declared in the schema, the top-level
+        node_tag must match. Both invariants are validated here.
+        """
+        builder = object.__getattribute__(proxy, "_builder")
+        comp_name = object.__getattribute__(proxy, "_component_name")
+        info = builder._get_schema_info(comp_name)
+        handler_name = info.get("handler_name")
+        handler = getattr(builder, handler_name) if handler_name else None
+        builder_class = info.get("component_builder") or type(builder)
+        based_on = info.get("based_on")
+
+        if based_on:
+            comp_bag = self._resolve_parent_component(based_on, builder)
+        else:
+            comp_bag = Component(builder=builder_class)
+            comp_bag._skip_parent_validation = True
+
+        result = handler(comp_bag) if handler else None
+
+        # Mount slot content into destinations (if the handler returns a
+        # ``{slot_name: destination}`` dict).
+        slots = object.__getattribute__(proxy, "_slots")
+        if slots and isinstance(result, dict):
+            for slot_name, dest in result.items():
+                source_bag = slots.get(slot_name)
+                if source_bag is None or len(source_bag) == 0:
+                    continue
+                if isinstance(dest, BagNode):
+                    if not isinstance(dest.value, Bag):
+                        dest.value = BuilderBag(builder=builder_class)
+                    dest_bag = dest.value
+                else:
+                    dest_bag = dest
+                for src_node in source_bag:
+                    Bag.set_item(
+                        dest_bag,
+                        src_node.label,
+                        src_node.value,
+                        _attributes=dict(src_node.attr),
+                        node_tag=src_node.node_tag,
+                    )
+
+        self._validate_component_tree(comp_bag, comp_name, info)
+        return comp_bag
+
+    def _validate_component_tree(
+        self, comp_bag: Bag, comp_name: str, info: dict,
+    ) -> None:
+        """Enforce: exactly one top-level node; match ``main_tag`` if declared.
+
+        A component must produce a tree (single root), not a forest.
+        If ``main_tag`` is declared in the schema, the top-level node_tag
+        must match it.
+        """
+        top_count = len(comp_bag)
+        if top_count != 1:
+            raise ValueError(
+                f"Component '{comp_name}' must produce a single top-level node, "
+                f"got {top_count}",
+            )
+        top = next(iter(comp_bag))
+        main_tag = info.get("main_tag")
+        if main_tag and top.node_tag != main_tag:
+            raise ValueError(
+                f"Component '{comp_name}' declared main_tag='{main_tag}' "
+                f"but produced top-level node_tag='{top.node_tag}'",
+            )
+
+    def _resolve_parent_component(self, based_on: str, builder: Any) -> Bag:
+        """Resolve a based_on chain: run the parent handler(s) first."""
+        parent_info = builder._get_schema_info(based_on)
+        parent_handler_name = parent_info.get("handler_name")
+        parent_handler = getattr(builder, parent_handler_name) if parent_handler_name else None
+        parent_builder_class = parent_info.get("component_builder") or type(builder)
+        parent_based_on = parent_info.get("based_on")
+
+        if parent_based_on:
+            comp_bag = self._resolve_parent_component(parent_based_on, builder)
+        else:
+            comp_bag = Component(builder=parent_builder_class)
+            comp_bag._skip_parent_validation = True
+
+        if parent_handler:
+            parent_handler(comp_bag)
+        return comp_bag
+
+    def _run_component_iterate(
         self,
         node: BagNode,
         iterate_raw: str,
@@ -198,58 +268,34 @@ class _BuildMixin:
         data: Bag,
         built_path: str,
     ) -> None:
-        """Materialize a component N times, once per child in the iterated bag.
+        """Expand a component N times, once per child in the iterated data.
 
-        Creates a container node in built, then for each child of the data bag
-        pointed to by iterate_raw, expands the component with datapath set to
-        the child's path.
+        For each child, runs the handler and then injects a relative
+        ``datapath='.{child.label}'`` on the component's unique top-level
+        node. The framework always overrides: the top-level's datapath
+        resolution relies on ancestors providing an absolute anchor.
         """
         pointer_info = parse_pointer(iterate_raw)
         raw_path = pointer_info.path
         if pointer_info.volume is not None:
             raw_path = f"{pointer_info.volume}:{raw_path}"
 
-        # Resolve to absolute path in global_store via the source node
         data_path = node.abs_datapath(raw_path) if hasattr(node, "abs_datapath") else raw_path
-
-        # Register build dependency: iterate structure depends on this data path
         self._register_dep(data_path, built_path, "build")
-
         data_bag = data.get_item(data_path)
-
-        # Create container node in built (strip iterate — consumed here)
-        container_bag = BuiltBag()
-        container_attrs = {k: v for k, v in node.attr.items() if k != "iterate"}
-        container_node = target.set_item(
-            node.label,
-            container_bag,
-            _attributes=container_attrs,
-            node_tag=node.node_tag,
-        )
-        container_node._data = data
-        container_node._builder_name = self._builder_name
 
         if not isinstance(data_bag, Bag):
             return
 
+        proxy = node.value
         for child_data_node in data_bag:
-            child_path = f"{data_path}.{child_data_node.label}"
-            # Expand the component for this child
-            value = node.get_value(static=False)
-            if not isinstance(value, Bag):
-                continue
-
-            child_built_path = f"{built_path}.{child_data_node.label}"
-            child_node = container_bag.set_item(
-                child_data_node.label,
-                BuiltBag(),
-                _attributes={"datapath": child_path},
+            comp_bag = self._run_component(proxy)
+            top = next(iter(comp_bag))
+            top.set_attr(
+                {"datapath": f".{child_data_node.label}"},
+                trigger=False,
             )
-            child_node._data = data
-            child_node._builder_name = self._builder_name
-            self._build_walk(
-                value, child_node.value, data, prefix=child_built_path,
-            )
+            self._build_walk(comp_bag, target, data, built_path)
 
     # -----------------------------------------------------------------------
     # Dependency registration (for manager's DependencyGraph)
@@ -298,19 +344,84 @@ class _BuildMixin:
             if isinstance(value, Bag):
                 self._register_render_deps(value)
 
-    def _execute_data_setter(self, node: BagNode, data: Bag) -> None:
-        """Execute a data_setter at build time. Write value to data store.
+    def _context_datapath(self, context_node: BagNode | None) -> str:
+        """Get the absolute datapath from a built context node.
 
-        data_setter is a one-shot: it populates the data store and is
-        not materialized in the built bag.
+        Composes the node's own datapath with its ancestor chain,
+        then prepends the builder name.
+        """
+        if context_node is None:
+            builder_name = getattr(self, "_builder_name", None)
+            return builder_name or ""
+
+        # The node's own datapath + ancestor chain
+        own_dp = context_node.attr.get("datapath", "")
+        if hasattr(context_node, "_resolve_datapath"):
+            ancestor_dp = context_node._resolve_datapath()
+        else:
+            ancestor_dp = ""
+
+        if own_dp and ancestor_dp:
+            base = f"{ancestor_dp}.{own_dp[1:]}" if own_dp.startswith(".") else own_dp
+        elif own_dp:
+            base = own_dp
+        else:
+            base = ancestor_dp
+
+        # Prepend builder_name if not already present
+        builder_name = getattr(context_node, "_builder_name", None)
+        if builder_name and not base.startswith(f"{builder_name}."):
+            return f"{builder_name}.{base}" if base else builder_name
+        return base
+
+    def _resolve_data_path(self, path: str, context_node: BagNode | None) -> str:
+        """Resolve a data element path relative to the built context.
+
+        Composes relative paths (starting with '.') with the context
+        node's datapath. Absolute paths get the builder_name prefix.
+        """
+        ctx_dp = self._context_datapath(context_node)
+        if path.startswith("."):
+            suffix = path[1:]
+            return f"{ctx_dp}.{suffix}" if suffix else ctx_dp
+        # Absolute path — prepend builder name
+        builder_name = getattr(self, "_builder_name", None)
+        if builder_name is not None:
+            return f"{builder_name}.{path}" if path else builder_name
+        return path
+
+    def _resolve_pointer_path(self, pointer_value: str, context_node: BagNode | None) -> str:
+        """Resolve a ^pointer value using the built-tree context node."""
+        path = pointer_value[1:]  # strip ^
+        return self._resolve_data_path(path, context_node)
+
+    def _process_pending_data_elements(self, data: Bag) -> None:
+        """Process accumulated data elements after the built tree is complete.
+
+        Data elements are processed deferred so that abs_datapath can
+        resolve relative paths via the built ancestor chain.
+        """
+        for source_node, built_parent in self._pending_data_elements:
+            if source_node.node_tag == "data_setter":
+                self._execute_data_setter(source_node, built_parent, data)
+            elif source_node.node_tag == "data_formula":
+                self._install_formula_resolver(source_node, built_parent, data)
+        self._pending_data_elements = []
+
+    def _execute_data_setter(
+        self, node: BagNode, context_node: BagNode | None, data: Bag,
+    ) -> None:
+        """Execute a data_setter. Write value to data store.
+
+        Uses context_node (built parent) for path resolution.
         """
         attrs = dict(node.attr)
         path = attrs.get("_data_path")
 
-        if path is not None and hasattr(node, "abs_datapath"):
-            path = node.abs_datapath(path)
+        if path is not None:
+            path = self._resolve_data_path(path, context_node)
 
-        value = node.current_from_datasource(attrs.get("value"), data)
+        value = node.current_from_datasource(attrs.get("value"), data) if hasattr(node, "current_from_datasource") else attrs.get("value")
         if isinstance(value, dict):
             value = Bag(source=value)
         if path is not None:
@@ -320,21 +431,19 @@ class _BuildMixin:
         if callable(on_built):
             self._infra_on_built_hooks.append(on_built)
 
-    def _install_formula_resolver(self, node: BagNode, data: Bag) -> None:
-        """Install a FormulaResolver on the data store for a data_formula.
+    def _install_formula_resolver(
+        self, node: BagNode, context_node: BagNode | None, data: Bag,
+    ) -> None:
+        """Install a FormulaResolver on the data store.
 
-        Like data_setter, a data_formula is a one-shot: it installs a
-        resolver on the data store node and leaves no trace in source
-        or built bag. Reading ``data[path]`` triggers the resolver,
-        which computes the value on-demand (pull model).
+        Uses context_node (built parent) for path resolution.
         """
         attrs = dict(node.attr)
         path = attrs.get("_data_path")
         if path is None:
             return
 
-        if hasattr(node, "abs_datapath"):
-            path = node.abs_datapath(path)
+        path = self._resolve_data_path(path, context_node)
 
         func = attrs.get("func")
         if func is None:
@@ -347,17 +456,17 @@ class _BuildMixin:
             if k.startswith("_") or k == "func":
                 continue
             if is_pointer(v):
-                ptr_path = v[1:]
-                if hasattr(node, "abs_datapath"):
-                    ptr_path = node.abs_datapath(ptr_path)
-                dep_paths[k] = ptr_path
+                dep_paths[k] = self._resolve_pointer_path(v, context_node)
             else:
                 static_kwargs[k] = v
 
         cache_time = attrs.get("_cache_time", 0)
-        read_only = cache_time == 0
+        interval = attrs.get("_interval")
+        read_only = cache_time == 0 and interval is None
 
-        resolver = FormulaResolver(func=func, cache_time=cache_time, read_only=read_only)
+        resolver = FormulaResolver(
+            func=func, cache_time=cache_time, interval=interval, read_only=read_only,
+        )
         resolver._data_bag = data
         resolver._dep_paths = dep_paths
         resolver._static_kwargs = static_kwargs
@@ -395,10 +504,12 @@ class _BuildMixin:
     def build(self) -> Any:
         """Materialize source -> built.
 
-        Two-pass walk:
-        - Pass 1: data_setter writes static values, data_formula installs
-          resolvers on the data store (pull model).
-        - Pass 2: materialize normal elements into the built bag.
+        Two-phase pipeline:
+        - Phase 1 (walk): materialize elements and expand components
+          into the built bag. Data elements are accumulated for phase 2.
+        - Phase 2 (finalize): process data elements (setter/formula)
+          using the complete built tree for path resolution, then
+          warm up formulas and register render dependencies.
 
         Does NOT activate reactivity -- call ``subscribe()`` separately.
 
@@ -408,12 +519,15 @@ class _BuildMixin:
         self._clear_built()
         self._infra_on_built_hooks: list[Any] = []
         self._on_built_formula_paths: list[str] = []
+        self._pending_data_elements: list[tuple] = []
 
         walk_result = self._build_walk(
             self.source, self.built, self.data,
         )
 
         def finalize(_: Any) -> None:
+            # Phase 2: process data elements with complete built tree
+            self._process_pending_data_elements(self.data)
             # Warm up formula resolvers with _on_built=True
             for path in self._on_built_formula_paths:
                 self.data.get_item(path)
@@ -483,8 +597,6 @@ class _BuildMixin:
             node_position=ind,
             _reason="source",
         )
-        new_node._data = self.data
-        new_node._builder_name = self._builder_name
 
         if isinstance(value, Bag):
             self._build_walk(

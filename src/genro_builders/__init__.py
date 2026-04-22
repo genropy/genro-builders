@@ -40,7 +40,7 @@ from genro_builders.builder._binding import (
     parse_pointer,
     scan_for_pointers,
 )
-from genro_builders.builder._component import ComponentProxy, ComponentResolver
+from genro_builders.builder._component import ComponentProxy
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode, Component
 from genro_builders.compiler import BagCompilerBase, compiler
 from genro_builders.contrib.yaml import YamlRendererBase
@@ -60,7 +60,6 @@ __all__ = [
     "BuilderManager",
     "Component",
     "ComponentProxy",
-    "ComponentResolver",
     "FormulaResolver",
     "PointerInfo",
     "ReactiveManager",
