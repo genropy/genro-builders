@@ -7,9 +7,8 @@ import warnings
 import pytest
 
 from genro_builders import BagBuilderBase
-from genro_builders.builder_bag import BuilderBag as Bag
 from genro_builders.builder import element
-
+from genro_builders.builder_bag import BuilderBag as Bag
 
 # =============================================================================
 # Tests for BagBuilderBase functionality
@@ -557,16 +556,24 @@ class TestComponentParentTagsFix:
         from genro_builders.builder import component
 
         class Builder(BagBuilderBase):
-            @element(sub_tags="paragraph,address_block")
+            @element(sub_tags="address_block_root,paragraph")
             def document(self): ...
 
-            @element(parent_tags="document,address_block")
+            @element(sub_tags="paragraph")
+            def address_block_root(self): ...
+
+            @element(parent_tags="document,address_block_root")
             def paragraph(self): ...
 
-            @component(sub_tags="", parent_tags="document")
-            def address_block(self, comp, **kwargs):
-                comp.paragraph()
-                comp.paragraph()
+            @component(
+                main_tag="address_block_root",
+                sub_tags="",
+                parent_tags="document",
+            )
+            def address_block(self, comp, main_kwargs=None):
+                root = comp.address_block_root(**(main_kwargs or {}))
+                root.paragraph()
+                root.paragraph()
 
         b = Builder()
         doc = b.source.document()
@@ -597,7 +604,7 @@ class TestComponentParentTagsFix:
             b.source.address_block()
 
     def test_component_elements_in_built_under_correct_parent(self):
-        """After build, component inner elements are under the correct parent."""
+        """After build, component inner elements go directly into parent (transparent)."""
         from genro_builders.builder import component
 
         class Builder(BagBuilderBase):
@@ -616,12 +623,9 @@ class TestComponentParentTagsFix:
         doc.block()
         b.build()
 
-        # The block node in built is under document_0
+        # Component is transparent: paragraph goes directly into document_0
         doc_bag = b.built.get_item("document_0")
         assert doc_bag is not None
-        block_node = doc_bag.get_node("block_0")
-        assert block_node is not None
-        assert block_node.value is not None
-        para = block_node.value.get_node("paragraph_0")
+        para = doc_bag.get_node("paragraph_0")
         assert para is not None
         assert para.node_tag == "paragraph"

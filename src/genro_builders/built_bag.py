@@ -28,21 +28,35 @@ from .builder._binding import is_pointer
 class BuiltBagNode(BagNode):
     """Node in the built tree. Resolves pointers, executes functions, writes data.
 
-    Each node holds a direct reference to the data Bag (_data),
-    set during materialization. No parent chain traversal needed.
+    Lightweight: no local data/builder refs. Everything is discovered
+    by walking up the ancestor chain to the pipeline builder stored
+    on the built shell bag.
 
     Inherits from BagNode (not BuilderBagNode): no grammar delegation,
     no schema awareness, no __getattr__ magic. Pure execution.
     """
 
-    _data: Bag | None = None
-    _builder_name: str | None = None
+    __slots__ = ()
+
+    def _find_builder(self) -> Any:
+        """Walk up the bag hierarchy to find the pipeline builder."""
+        bag = self._parent_bag
+        while bag is not None:
+            pipeline_builder = getattr(bag, "_pipeline_builder", None)
+            if pipeline_builder is not None:
+                return pipeline_builder
+            parent_node = bag.parent_node
+            if parent_node is None:
+                break
+            bag = parent_node._parent_bag
+        return None
 
     @property
     def data(self) -> Bag:
-        """Direct access to the data Bag — O(1)."""
-        if self._data is not None:
-            return self._data
+        """Data Bag — discovered via ancestor chain."""
+        builder = self._find_builder()
+        if builder is not None:
+            return builder.data
         return Bag()
 
     def _resolve_datapath(self) -> str:
@@ -83,10 +97,12 @@ class BuiltBagNode(BagNode):
             'field'      — local to current builder
             '.field'     — relative: resolved from this node's datapath
 
-        In managed context (node has ``_builder_name``), the builder name
-        is prepended. In standalone context, the path is returned as-is.
+        In managed context (pipeline builder found via ancestor chain),
+        the builder name is prepended. In standalone context, the path
+        is returned as-is.
         """
-        builder_name = self._builder_name
+        builder = self._find_builder()
+        builder_name = getattr(builder, "_builder_name", None) if builder is not None else None
 
         # Handle volume syntax: "other_builder:local_path"
         volume = None
@@ -96,9 +112,12 @@ class BuiltBagNode(BagNode):
         if path.startswith("."):
             datapath = self._resolve_datapath()
             if not datapath:
-                resolved = path[1:] if path[1:] else ""
-            else:
-                resolved = f"{datapath}.{path[1:]}" if path[1:] else datapath
+                raise ValueError(
+                    f"Unresolved relative datapath '{path}': no absolute "
+                    f"datapath anchor found in the ancestor chain. "
+                    f"Provide a datapath on an ancestor node."
+                )
+            resolved = f"{datapath}.{path[1:]}" if path[1:] else datapath
             # Relative paths resolved via datapath chain may already include
             # the builder name (e.g. iterate sets absolute datapaths).
             # If so, skip prepending to avoid double-prefix.

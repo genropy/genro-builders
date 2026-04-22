@@ -98,7 +98,7 @@ class _BuildMixin:
             # --- Component with iterate: expand N times ---
             iterate_raw = node.attr.get("iterate")
             if iterate_raw and is_pointer(iterate_raw) and node.attr.get("_is_component"):
-                self._run_component_iterate(
+                self._expand_component_iterate(
                     node, iterate_raw, target, data, built_path,
                 )
                 idx += 1
@@ -107,7 +107,7 @@ class _BuildMixin:
             # --- Component without iterate: expand once (transparent macro) ---
             if node.attr.get("_is_component"):
                 proxy = node.value
-                comp_bag = self._run_component(proxy)
+                comp_bag = self._expand_component(proxy)
                 if isinstance(comp_bag, Bag):
                     walk = self._build_walk(comp_bag, target, data, prefix)
                     next_idx = idx + 1
@@ -169,13 +169,16 @@ class _BuildMixin:
             **attrs,
         )
 
-    def _run_component(self, proxy: Any) -> Bag:
+    def _expand_component(self, proxy: Any, **framework_kwargs: Any) -> Bag:
         """Execute a component handler, returning the populated Bag.
 
-        Handler signature is strict: ``handler(self, comp)``. No framework
-        kwargs. The expanded bag must be a tree (exactly one top-level
-        node); if ``main_tag`` is declared in the schema, the top-level
-        node_tag must match. Both invariants are validated here.
+        Handler receives ``main_kwargs=dict`` built from framework-provided
+        ``main_*`` kwargs (today just ``main_datapath`` from iterate). The
+        handler is expected to splat ``main_kwargs`` on the main widget.
+
+        The expanded bag must be a tree (exactly one top-level node); if
+        ``main_tag`` is declared in the schema, the top-level node_tag
+        must match. Both invariants are validated here.
         """
         builder = object.__getattribute__(proxy, "_builder")
         comp_name = object.__getattribute__(proxy, "_component_name")
@@ -185,13 +188,21 @@ class _BuildMixin:
         builder_class = info.get("component_builder") or type(builder)
         based_on = info.get("based_on")
 
+        main_kwargs = {
+            k[len("main_"):]: v
+            for k, v in framework_kwargs.items()
+            if k.startswith("main_")
+        }
+
         if based_on:
-            comp_bag = self._resolve_parent_component(based_on, builder)
+            comp_bag = self._resolve_parent_component(
+                based_on, builder, main_kwargs,
+            )
         else:
             comp_bag = Component(builder=builder_class)
             comp_bag._skip_parent_validation = True
 
-        result = handler(comp_bag) if handler else None
+        result = handler(comp_bag, main_kwargs=main_kwargs) if handler else None
 
         # Mount slot content into destinations (if the handler returns a
         # ``{slot_name: destination}`` dict).
@@ -242,8 +253,14 @@ class _BuildMixin:
                 f"but produced top-level node_tag='{top.node_tag}'",
             )
 
-    def _resolve_parent_component(self, based_on: str, builder: Any) -> Bag:
-        """Resolve a based_on chain: run the parent handler(s) first."""
+    def _resolve_parent_component(
+        self, based_on: str, builder: Any, main_kwargs: dict,
+    ) -> Bag:
+        """Resolve a based_on chain: run the parent handler(s) first.
+
+        Framework ``main_kwargs`` flow down the based_on chain: each
+        parent handler receives the same main_kwargs as the leaf.
+        """
         parent_info = builder._get_schema_info(based_on)
         parent_handler_name = parent_info.get("handler_name")
         parent_handler = getattr(builder, parent_handler_name) if parent_handler_name else None
@@ -251,16 +268,18 @@ class _BuildMixin:
         parent_based_on = parent_info.get("based_on")
 
         if parent_based_on:
-            comp_bag = self._resolve_parent_component(parent_based_on, builder)
+            comp_bag = self._resolve_parent_component(
+                parent_based_on, builder, main_kwargs,
+            )
         else:
             comp_bag = Component(builder=parent_builder_class)
             comp_bag._skip_parent_validation = True
 
         if parent_handler:
-            parent_handler(comp_bag)
+            parent_handler(comp_bag, main_kwargs=main_kwargs)
         return comp_bag
 
-    def _run_component_iterate(
+    def _expand_component_iterate(
         self,
         node: BagNode,
         iterate_raw: str,
@@ -270,10 +289,10 @@ class _BuildMixin:
     ) -> None:
         """Expand a component N times, once per child in the iterated data.
 
-        For each child, runs the handler and then injects a relative
-        ``datapath='.{child.label}'`` on the component's unique top-level
-        node. The framework always overrides: the top-level's datapath
-        resolution relies on ancestors providing an absolute anchor.
+        For each child, passes ``main_datapath='.{child.label}'`` to the
+        handler via framework ``main_kwargs``. The handler splats these
+        on the main widget. Resolution of the relative datapath relies
+        on ancestors providing an absolute anchor (no fallback).
         """
         pointer_info = parse_pointer(iterate_raw)
         raw_path = pointer_info.path
@@ -289,11 +308,8 @@ class _BuildMixin:
 
         proxy = node.value
         for child_data_node in data_bag:
-            comp_bag = self._run_component(proxy)
-            top = next(iter(comp_bag))
-            top.set_attr(
-                {"datapath": f".{child_data_node.label}"},
-                trigger=False,
+            comp_bag = self._expand_component(
+                proxy, main_datapath=f".{child_data_node.label}",
             )
             self._build_walk(comp_bag, target, data, built_path)
 

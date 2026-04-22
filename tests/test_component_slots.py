@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from genro_builders.builder import BagBuilderBase, component, element
-from genro_builders.builder_bag import BuilderBag
 from genro_builders.builder._component import ComponentProxy
+from genro_builders.builder_bag import BuilderBag
 
 
 class TestComponentProxy:
@@ -222,16 +222,20 @@ class TestSlotPopulation:
 
 
 class TestSlotMounting:
-    """Tests for slot content being mounted at compile time."""
+    """Tests for slot content being mounted at _expand_component time."""
 
     def test_slot_content_mounted_into_dest(self):
-        """At compile time, slot content is copied into destination Bags."""
+        """_expand_component mounts slot content into destination Bags."""
 
         class Builder(BagBuilderBase):
-            @component(slots=["content"])
-            def panel(self, comp, **kwargs):
-                comp.header("Panel Title")
-                body = comp.container()
+            @element(sub_tags="header,container")
+            def panel_root(self): ...
+
+            @component(main_tag="panel_root", slots=["content"])
+            def panel(self, comp, main_kwargs=None):
+                root = comp.panel_root(**(main_kwargs or {}))
+                root.header("Panel Title")
+                body = root.container()
                 return {"content": body}
 
             @element()
@@ -248,26 +252,26 @@ class TestSlotMounting:
         proxy.content.item("Item 1")
         proxy.content.item("Item 2")
 
-        # Trigger lazy expansion
-        node = bag.get_node("panel_0")
-        expanded = node.get_value(static=False)
-
-        # The expanded bag should have: header + container
-        assert len(expanded) == 2
-        # The container should have the 2 items from the slot
-        container_node = expanded.get_node("container_0")
-        assert len(container_node.value) == 2
-        assert container_node.value["item_0"] == "Item 1"
-        assert container_node.value["item_1"] == "Item 2"
+        expanded = bag._builder._expand_component(proxy)
+        root = next(iter(expanded))
+        assert root.node_tag == "panel_root"
+        children = list(root.value)
+        assert [n.node_tag for n in children] == ["header", "container"]
+        container = root.value.get_node("container_0")
+        assert [n.value for n in container.value] == ["Item 1", "Item 2"]
 
     def test_multiple_slots_mounted(self):
         """Multiple slots are mounted into their respective destinations."""
 
         class Builder(BagBuilderBase):
-            @component(slots=["left", "right"])
-            def split(self, comp, **kwargs):
-                left_pane = comp.container()
-                right_pane = comp.container()
+            @element(sub_tags="container")
+            def split_root(self): ...
+
+            @component(main_tag="split_root", slots=["left", "right"])
+            def split(self, comp, main_kwargs=None):
+                root = comp.split_root(**(main_kwargs or {}))
+                left_pane = root.container()
+                right_pane = root.container()
                 return {"left": left_pane, "right": right_pane}
 
             @element(sub_tags="*")
@@ -282,24 +286,24 @@ class TestSlotMounting:
         proxy.left.item("L2")
         proxy.right.item("R1")
 
-        # Trigger expansion
-        node = bag.get_node("split_0")
-        expanded = node.get_value(static=False)
-
-        left_container = expanded.get_node("container_0")
-        right_container = expanded.get_node("container_1")
-        assert len(left_container.value) == 2
-        assert len(right_container.value) == 1
-        assert left_container.value["item_0"] == "L1"
-        assert right_container.value["item_0"] == "R1"
+        expanded = bag._builder._expand_component(proxy)
+        root = next(iter(expanded))
+        left = root.value.get_node("container_0").value
+        right = root.value.get_node("container_1").value
+        assert [n.value for n in left] == ["L1", "L2"]
+        assert [n.value for n in right] == ["R1"]
 
     def test_slot_preserves_attributes(self):
         """Slot content preserves node attributes during mounting."""
 
         class Builder(BagBuilderBase):
-            @component(slots=["content"])
-            def panel(self, comp, **kwargs):
-                body = comp.container()
+            @element(sub_tags="container")
+            def panel_root(self): ...
+
+            @component(main_tag="panel_root", slots=["content"])
+            def panel(self, comp, main_kwargs=None):
+                root = comp.panel_root(**(main_kwargs or {}))
+                body = root.container()
                 return {"content": body}
 
             @element(sub_tags="*")
@@ -312,9 +316,9 @@ class TestSlotMounting:
         proxy = bag.panel()
         proxy.content.item("styled", color="red", size=42)
 
-        node = bag.get_node("panel_0")
-        expanded = node.get_value(static=False)
-        container = expanded.get_node("container_0")
+        expanded = bag._builder._expand_component(proxy)
+        root = next(iter(expanded))
+        container = root.value.get_node("container_0")
         item_node = container.value.get_node("item_0")
         assert item_node.attr["color"] == "red"
         assert item_node.attr["size"] == 42
@@ -323,9 +327,13 @@ class TestSlotMounting:
         """Slot content preserves node tags during mounting."""
 
         class Builder(BagBuilderBase):
-            @component(slots=["content"])
-            def panel(self, comp, **kwargs):
-                body = comp.container()
+            @element(sub_tags="container")
+            def panel_root(self): ...
+
+            @component(main_tag="panel_root", slots=["content"])
+            def panel(self, comp, main_kwargs=None):
+                root = comp.panel_root(**(main_kwargs or {}))
+                body = root.container()
                 return {"content": body}
 
             @element(sub_tags="*")
@@ -342,9 +350,9 @@ class TestSlotMounting:
         proxy.content.header("Title")
         proxy.content.footer("End")
 
-        node = bag.get_node("panel_0")
-        expanded = node.get_value(static=False)
-        container = expanded.get_node("container_0")
+        expanded = bag._builder._expand_component(proxy)
+        root = next(iter(expanded))
+        container = root.value.get_node("container_0")
         tags = [n.node_tag for n in container.value]
         assert tags == ["header", "footer"]
 

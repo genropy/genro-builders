@@ -47,6 +47,13 @@ class ComponentProxy:
         object.__setattr__(self, "_component_name", component_name)
         object.__setattr__(self, "_builder", builder)
 
+    def set_backref(self, node: Any = None, parent: Any = None) -> None:
+        """No-op. The proxy wraps the root bag; it does not participate
+        in backref propagation on its own."""
+
+    def clear_backref(self) -> None:
+        """No-op. Symmetric with set_backref."""
+
     def __getattr__(self, name: str) -> Any:
         slot_names = object.__getattribute__(self, "_slot_names")
         if name in slot_names:

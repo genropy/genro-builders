@@ -36,7 +36,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "genro-bag>=0.16.0",
+    "genro-bag>=0.17.1",
     "genro-toolbox>=0.6.1",
 ]
 
@@ -57,8 +57,13 @@ docs = [
 xsd-validate = [
     "xmlschema>=3.0",
 ]
+jupyter = [
+    "ipython>=8.0",
+    "jupyter>=1.0",
+    "watchfiles>=0.21",
+]
 all = [
-    "genro-builders[dev,docs,xsd-validate]",
+    "genro-builders[dev,docs,xsd-validate,jupyter]",
 ]
 
 [project.scripts]

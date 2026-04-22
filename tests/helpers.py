@@ -45,6 +45,9 @@ class TestBuilder(BagBuilderBase):
 
     _renderers = {"test": TestRenderer}
 
+    @element(sub_tags="heading,text")
+    def section_root(self): ...
+
     @element()
     def heading(self): ...
 
@@ -54,7 +57,8 @@ class TestBuilder(BagBuilderBase):
     @element()
     def item(self): ...
 
-    @component()
-    def section(self, comp, title=None, **kwargs):
-        comp.heading(title)
-        comp.text("default content")
+    @component(main_tag="section_root")
+    def section(self, comp, main_kwargs=None, title=None, **kwargs):
+        root = comp.section_root(**(main_kwargs or {}))
+        root.heading(title)
+        root.text("default content")

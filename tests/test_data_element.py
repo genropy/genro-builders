@@ -242,11 +242,15 @@ class TestDataElementEdgeCases:
     """Edge case tests for data_element."""
 
     def test_data_element_in_component(self):
-        """Data elements inside component body are processed during build."""
+        """Component expands to its single tree under the parent."""
         builder = TestBuilder()
         builder.source.section(title="Test")
         builder.build()
-        assert builder.built.get_node("section_0") is not None
+        # New contract: section is a tree rooted at section_root
+        root = builder.built.get_node("section_root_0")
+        assert root is not None
+        assert root.value.get_node("heading_0") is not None
+        assert root.value.get_node("text_0") is not None
 
     def test_rebuild_clears_hooks(self):
         """After rebuild, hooks from previous build are gone."""
@@ -486,11 +490,11 @@ class TestDelayNotApplicable:
 
 
 class TestActiveCache:
-    """Tests for data_formula with _cache_time < 0 (active cache)."""
+    """Tests for data_formula with _interval (active cache)."""
 
     @pytest.mark.asyncio
     async def test_active_cache_refreshes_periodically(self):
-        """Formula with _cache_time=-N refreshes in background."""
+        """Formula with _interval=N refreshes in background."""
         counter = {"n": 0}
 
         def incrementing():
@@ -499,7 +503,7 @@ class TestActiveCache:
 
         builder = TestBuilder()
         builder.source.data_formula(
-            "ticker", func=incrementing, _cache_time=-0.1,
+            "ticker", func=incrementing, _interval=0.1,
             _on_built=True,
         )
         builder.build()
@@ -526,7 +530,7 @@ class TestActiveCache:
 
         builder = TestBuilder()
         builder.source.data_formula(
-            "ticker", func=incrementing, _cache_time=-0.1,
+            "ticker", func=incrementing, _interval=0.1,
             _on_built=True,
         )
         builder.build()
@@ -548,7 +552,7 @@ class TestActiveCache:
         builder = TestBuilder()
         builder.source.data_formula(
             "ticker", func=lambda: (counter_a.__setitem__("n", counter_a["n"] + 1), counter_a["n"])[1],
-            _cache_time=-0.1,
+            _interval=0.1,
             _on_built=True,
         )
         builder.build()
@@ -561,7 +565,7 @@ class TestActiveCache:
         builder.source.clear()
         builder.source.data_formula(
             "ticker", func=lambda: (counter_b.__setitem__("n", counter_b["n"] + 1), counter_b["n"])[1],
-            _cache_time=-0.1,
+            _interval=0.1,
             _on_built=True,
         )
         builder.build()

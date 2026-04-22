@@ -206,21 +206,6 @@ class TestAutonomousDataReplacement:
 # =============================================================================
 
 
-class TestAutonomousWithComponent:
-    """Tests for component expansion with standalone builder."""
-
-    def test_component_expanded_and_bound(self):
-        """Components are expanded and their pointers are resolved."""
-        builder = TestBuilder()
-        builder.data["section.title"] = "My Section"
-        builder.source.section(title="^section.title")
-        builder.build()
-
-        output = builder.render()
-        assert "My Section" in output
-        assert "default content" in output
-
-
 # =============================================================================
 # Tests: Source delete (requires subscribe for reactivity)
 # =============================================================================

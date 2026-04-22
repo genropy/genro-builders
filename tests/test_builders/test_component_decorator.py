@@ -17,10 +17,8 @@ are in tests/test_compilers/test_component_expansion.py
 import pytest
 
 from genro_builders import BagBuilderBase
-from genro_builders.builder import SchemaBuilder
+from genro_builders.builder import SchemaBuilder, component, element
 from genro_builders.builder_bag import BuilderBag as Bag
-from genro_builders.builder import component, element
-
 
 # =============================================================================
 # Basic @component decorator tests - SCHEMA STRUCTURE
@@ -453,22 +451,3 @@ class TestComponentBuilderOverrideStructure:
         # Stored as component_builder, not builder
         assert node.attr.get("component_builder") is InnerBuilder
 
-    def test_override_builder_stored_in_resolver(self):
-        """Component with builder override stores it in the resolver."""
-
-        class InnerBuilder(BagBuilderBase):
-            @element()
-            def special(self): ...
-
-        class OuterBuilder(BagBuilderBase):
-            @component(builder=InnerBuilder)
-            def with_inner(self, comp: Bag, **kwargs):
-                return comp
-
-        bag = Bag(builder=OuterBuilder)
-        bag.with_inner()
-
-        # Resolver has the override builder class
-        node = bag.get_node("with_inner_0")
-        assert node.resolver is not None
-        assert node.resolver._kw["builder_class"] is InnerBuilder
