@@ -287,5 +287,5 @@ def render(self, built_bag, output=None):
 
 ## What's Next?
 
-See [Creating Builder Packages](creating-builder-packages.md) for how to
+See [Manager Architecture](manager-architecture.md) for how to
 structure a complete builder package with manager, examples, and tests.

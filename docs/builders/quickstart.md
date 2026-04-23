@@ -139,4 +139,4 @@ BagNode : ... at ...
 - Learn to [create custom builders](custom-builders.md)
 - Explore [HtmlBuilder features](html-builder.md)
 - Understand [validation](validation.md)
-- Master [advanced patterns](advanced.md)
+- Master the [manager architecture](manager-architecture.md)

@@ -180,14 +180,13 @@ See [XSD Builder](xsd-builder.md) for complete documentation.
 :maxdepth: 1
 
 quickstart
+manager-architecture
 custom-builders
 custom-renderers
-creating-builder-packages
 html-builder
 markdown-builder
 xsd-builder
 validation
-advanced
 examples
 faq
 ```

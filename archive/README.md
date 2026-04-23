@@ -79,7 +79,12 @@ kept in sync after each archive commit.
 
 | Archive path | Original path | Reason |
 |--------------|---------------|--------|
-| *(populated by archive commits 3.1)* | | |
+| `archive/docs/contract.md` | `docs/builders/contract.md` | "builder name is prepended", "reactive_store" — replaced by `manager-architecture.md` |
+| `archive/docs/architecture.md` | `docs/builders/architecture.md` | Describes the legacy BindingManager + store model |
+| `archive/docs/reactive-data.md` | `docs/builders/reactive-data.md` | Uses `reactive_store.subscribe(...)` |
+| `archive/docs/advanced.md` | `docs/builders/advanced.md` | Documents removed APIs `suspend_output()` / `resume_output()` |
+| `archive/docs/creating-builder-packages.md` | `docs/builders/creating-builder-packages.md` | Uses `reactive_store` and `data_controller` |
+| `archive/docs/svg-builder.md` | `docs/builders/svg-builder.md` | Uses removed property `builder.output` |
 
 ### tests/
 

@@ -13,7 +13,7 @@ Builders use four decorators to define their schema:
 | `@component`     | Composite structures with code logic       | **Yes** (must have body) |
 | `@data_element`  | Data infrastructure (setter/formula/ctrl)  | **Yes** (must have body) |
 
-For `@data_element` details, see [Reactive Data](reactive-data.md).
+For `@data_element` details, see [Manager Architecture §10](manager-architecture.md).
 
 ## Basic Structure
 
@@ -789,4 +789,4 @@ See [Validation](validation.md) for more details.
 ## What's Next?
 
 Once you have a builder, add a renderer or compiler and wrap it in a manager.
-See [Creating Builder Packages](creating-builder-packages.md) for the full picture.
+See [Manager Architecture](manager-architecture.md) for the full picture.
