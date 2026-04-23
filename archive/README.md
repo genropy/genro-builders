@@ -90,7 +90,27 @@ kept in sync after each archive commit.
 
 | Archive path | Original path | Marker found |
 |--------------|---------------|--------------|
-| *(populated by archive commits 3.2)* | | |
+| `archive/tests/test_main_store.py` | `tests/test_main_store.py` | `global_store` |
+| `archive/tests/test_manager.py` | `tests/test_manager.py` | `global_store` + legacy register API |
+| `archive/tests/test_manager_hooks.py` | `tests/test_manager_hooks.py` | `global_store` |
+| `archive/tests/test_reactive_manager.py` | `tests/test_reactive_manager.py` | `global_store` + legacy register API |
+| `archive/tests/test_async_build.py` | `tests/test_async_build.py` | `ComponentResolver` (removed) |
+| `archive/tests/test_autonomous_builder.py` | `tests/test_autonomous_builder.py` | `.data["page.title"]` manual prepend |
+| `archive/tests/test_abs_datapath.py` | `tests/test_abs_datapath.py` | Legacy grammar; to be rewritten against §6.1 |
+| `archive/tests/test_binding.py` | `tests/test_binding.py` | Legacy pull-model reactive binding |
+| `archive/tests/test_build_e2e.py` | `tests/test_build_e2e.py` | Mixed: legacy `page.lines.a.total` asserts + new failing test |
+| `archive/tests/test_compiler_base.py` | `tests/test_compiler_base.py` | Suspect (deleted in wip by the user) |
+| `archive/tests/test_data_builder.py` | `tests/test_data_builder.py` | Suspect (deleted in wip by the user) |
+| `archive/tests/test_data_element.py` | `tests/test_data_element.py` | Exercises build/formula/cache on the legacy model |
+| `archive/tests/test_dependency_graph.py` | `tests/test_dependency_graph.py` | Whole-file archive (integration half is legacy; unit half will be rebuilt) |
+| `archive/tests/test_iterate.py` | `tests/test_iterate.py` | Suspect (deleted in wip by the user) |
+| `archive/tests/test_node_id.py` | `tests/test_node_id.py` | Symbolic form to be rewritten against §6.5 |
+| `archive/tests/test_pointer_formal.py` | `tests/test_pointer_formal.py` | Failing; assumes legacy grammar |
+| `archive/tests/test_pointer.py` | `tests/test_pointer.py` | Legacy pointer parsing/resolution |
+| `archive/tests/test_reactivity_edge_cases.py` | `tests/test_reactivity_edge_cases.py` | Legacy reactive model |
+| `archive/tests/test_render_target.py` | `tests/test_render_target.py` | Failing auto-render edge cases |
+| `archive/tests/test_runtime_attrs.py` | `tests/test_runtime_attrs.py` | Failing; evaluate_on_node legacy path |
+| `archive/tests/test_live/` (6 files: `__init__.py`, `conftest.py`, `test_protocol.py`, `test_proxy.py`, `test_registry.py`, `test_server.py`) | `tests/test_live/` | `global_store`, `.data["page.xxx"]`, legacy `LiveServer`/`live_proxy` setup |
 
 ### examples/
 
