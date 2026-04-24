@@ -91,49 +91,48 @@ class BuiltBagNode(BagNode):
         return result
 
     def abs_datapath(self, path: str) -> str:
-        """Resolve any path form to an absolute datapath in the global store.
+        """Resolve any path form to an absolute datapath.
 
-        Supports volume syntax (``volume:local_path``) and two local forms:
-            'field'      — local to current builder
-            '.field'     — relative: resolved from this node's datapath
+        Grammar (see ``docs/builders/manager-architecture.md`` §5–§6):
 
-        In managed context (pipeline builder found via ancestor chain),
-        the builder name is prepended. In standalone context, the path
-        is returned as-is.
+            'field'             — absolute in the current builder's local_store.
+            '.field'            — relative: resolved via the ancestor datapath chain.
+            'volume:field'      — absolute in another builder's local_store.
+            'volume:.field'     — not portable (see §5.5).
+
+        **No prepend, no silent fallback.** The method never inserts a
+        builder name into the returned path. A relative path that cannot
+        find an absolute anchor in the ancestor chain raises ``ValueError``.
+
+        The returned string preserves the ``volume:`` prefix when present;
+        volume routing is performed at read/write time through the manager
+        registry, not here. This method only computes a path string.
         """
-        builder = self._find_builder()
-        builder_name = getattr(builder, "_builder_name", None) if builder is not None else None
-
-        # Handle volume syntax: "other_builder:local_path"
         volume = None
         if ":" in path and not path.startswith("."):
             volume, path = path.split(":", 1)
 
         if path.startswith("."):
-            datapath = self._resolve_datapath()
-            if not datapath:
+            own_dp = self.attr.get("datapath", "")
+            ancestor_dp = self._resolve_datapath()
+            if own_dp.startswith("."):
+                base = f"{ancestor_dp}.{own_dp[1:]}" if ancestor_dp else ""
+            elif own_dp:
+                base = own_dp
+            else:
+                base = ancestor_dp
+            if not base:
                 raise ValueError(
                     f"Unresolved relative datapath '{path}': no absolute "
                     f"datapath anchor found in the ancestor chain. "
                     f"Provide a datapath on an ancestor node."
                 )
-            resolved = f"{datapath}.{path[1:]}" if path[1:] else datapath
-            # Relative paths resolved via datapath chain may already include
-            # the builder name (e.g. iterate sets absolute datapaths).
-            # If so, skip prepending to avoid double-prefix.
-            prefix = volume if volume is not None else builder_name
-            if prefix and resolved.startswith(f"{prefix}."):
-                return resolved
-            if prefix is not None:
-                return f"{prefix}.{resolved}" if resolved else prefix
-            return resolved
+            resolved = f"{base}.{path[1:]}" if path[1:] else base
+        else:
+            resolved = path
 
-        resolved = path
-
-        # Prepend volume or builder name
-        prefix = volume if volume is not None else builder_name
-        if prefix is not None:
-            return f"{prefix}.{resolved}" if resolved else prefix
+        if volume is not None:
+            return f"{volume}:{resolved}" if resolved else volume
         return resolved
 
     def get_relative_data(self, path: str) -> Any:

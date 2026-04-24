@@ -40,6 +40,8 @@ class BuilderBagNode(BagNode):
     live on BuiltBagNode — this class is for the source, not the built.
     """
 
+    __slots__ = ()
+
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes to builder if available."""
         if name.startswith("_"):
@@ -85,34 +87,32 @@ class BuilderBagNode(BagNode):
     # -------------------------------------------------------------------------
 
     def abs_datapath(self, path: str) -> str:
-        """Resolve any path form to an absolute datapath in the global store.
+        """Resolve any path form to an absolute datapath (source-side).
 
-        Supports volume syntax (``volume:local_path``) and three local forms:
-            'field'             — local to current builder
-            '.field'            — relative: resolved from this node's datapath
-            '#node_id.field'    — symbolic: resolved via node_id lookup
+        Grammar (see ``docs/builders/manager-architecture.md`` §5–§6):
 
-        In managed context (builder has ``_builder_name``), the builder name
-        is prepended to produce a global store path. In standalone context,
-        the path is returned as-is (no prepend).
+            'field'             — absolute in the current builder's local_store.
+            '.field'            — relative: resolved via the ancestor datapath chain.
+            'volume:field'      — absolute in another builder's local_store.
+            '#node_id.field'    — symbolic: resolved via node_id lookup (source-side only).
+            'volume:#node_id.field' — symbolic with cross-builder lookup.
 
-        Args:
-            path: The path to resolve, optionally with ``volume:`` prefix.
+        **No prepend, no silent fallback.** The method never inserts a
+        builder name into the returned path. A relative path that cannot
+        find an anchor raises ``ValueError``.
 
-        Returns:
-            Absolute datapath string in the global store.
+        The returned string preserves the ``volume:`` prefix when present;
+        volume routing is performed at read/write time through the manager
+        registry, not here.
 
         Raises:
+            ValueError: If the path is relative without a datapath anchor.
             KeyError: If a #node_id reference cannot be found.
         """
-        builder_name = self._find_builder_name()
-
-        # Handle volume syntax: "other_builder:local_path"
         volume = None
         if ":" in path and not path.startswith(".") and not path.startswith("#"):
             volume, path = path.split(":", 1)
 
-        # Resolve the local path
         if path.startswith("#"):
             resolved = self._resolve_symbolic(path, volume=volume)
         elif path.startswith("."):
@@ -125,21 +125,20 @@ class BuilderBagNode(BagNode):
         else:
             resolved = path
 
-        # Prepend volume or builder name
-        prefix = volume if volume is not None else builder_name
-        if prefix is not None:
-            return f"{prefix}.{resolved}" if resolved else prefix
+        if volume is not None:
+            return f"{volume}:{resolved}" if resolved else volume
         return resolved
 
     def _resolve_symbolic(self, path: str, volume: str | None = None) -> str:
-        """Resolve a #node_id symbolic path to a local path (no builder prefix).
+        """Resolve a #node_id symbolic path to an absolute datapath.
 
-        '#address.street' → find node_id 'address', get its datapath,
-        append '.street'. When volume is given, looks up the node_id
-        in the specified builder (cross-builder resolution).
+        ``#address.street`` → find node_id 'address', take its datapath,
+        append '.street'. When volume is given, looks up the node_id in
+        the specified builder (cross-builder resolution).
 
-        Returns the local path without builder name prefix — the caller
-        (abs_datapath) handles prepending.
+        Returns the resolved local path. The caller (``abs_datapath``)
+        re-prefixes the ``volume:`` qualifier if present; no builder
+        name is ever added.
         """
         without_hash = path[1:]
         dot_pos = without_hash.find(".")
@@ -171,24 +170,6 @@ class BuilderBagNode(BagNode):
         if rest:
             return f"{target_datapath}.{rest}" if target_datapath else rest
         return target_datapath
-
-    def _find_builder_name(self) -> str | None:
-        """Walk up the bag hierarchy to find the pipeline builder's name.
-
-        The pipeline builder is stored as ``_pipeline_builder`` on the
-        source shell bag. Returns its ``_builder_name`` or None if not
-        in a managed context.
-        """
-        bag = self._parent_bag
-        while bag is not None:
-            pipeline_builder = getattr(bag, "_pipeline_builder", None)
-            if pipeline_builder is not None:
-                return getattr(pipeline_builder, "_builder_name", None)
-            parent_node = bag.parent_node
-            if parent_node is None:
-                break
-            bag = parent_node._parent_bag
-        return None
 
     def _resolve_path(self, path: str) -> tuple[str, str | None]:
         """Parse and resolve a data path.
