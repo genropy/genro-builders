@@ -116,4 +116,15 @@ kept in sync after each archive commit.
 
 | Archive path | Original path | Reason |
 |--------------|---------------|--------|
-| *(populated by archive commits 3.3)* | | |
+| `archive/examples/legacy-numbered/01_hello_world/` | `src/genro_builders/contrib/html/examples/01_hello_world/` | Legacy numbered example — reactive_store / prepend |
+| `archive/examples/legacy-numbered/02_static_page/` | `src/genro_builders/contrib/html/examples/02_static_page/` | Legacy numbered example |
+| `archive/examples/legacy-numbered/03_builder_manager/` | `src/genro_builders/contrib/html/examples/03_builder_manager/` | Legacy numbered example (manager multi-builder pre-contract) |
+| `archive/examples/legacy-numbered/04_pointers/` | `src/genro_builders/contrib/html/examples/04_pointers/` | Legacy pointer grammar (no volume syntax) |
+| `archive/examples/legacy-numbered/05_components/` | `src/genro_builders/contrib/html/examples/05_components/` | Legacy component model |
+| `archive/examples/legacy-numbered/06_abstract_and_validation/` | `src/genro_builders/contrib/html/examples/06_abstract_and_validation/` | Validation on legacy setup |
+| `archive/examples/legacy-numbered/07_iterate/` | `src/genro_builders/contrib/html/examples/07_iterate/` | Legacy iterate path resolution |
+| `archive/examples/legacy-numbered/08_reactive_basics/` | `src/genro_builders/contrib/html/examples/08_reactive_basics/` | Uses `reactive_store` |
+| `archive/examples/legacy-numbered/09_controllers_and_timers/` | `src/genro_builders/contrib/html/examples/09_controllers_and_timers/` | Uses `data_controller` (removed) |
+| `archive/examples/legacy-numbered/10_suspend_resume/` | `src/genro_builders/contrib/html/examples/10_suspend_resume/` | Uses `suspend_output()`/`resume_output()` (removed) |
+| `archive/examples/legacy-numbered/11_live_repl/` | `src/genro_builders/contrib/html/examples/11_live_repl/` | Legacy live REPL on pre-contract manager |
+| `archive/examples/legacy-numbered/12_full_app/` | `src/genro_builders/contrib/html/examples/12_full_app/` | Full-stack legacy example |
