@@ -199,6 +199,7 @@ class BagBuilderBase(
             self._bag = self._source_shell.get_item("root")
 
             self._source_shell._pipeline_builder = self
+            self._built_shell._pipeline_builder = self
 
             # Data
             self._data = data if data is not None else Bag()
