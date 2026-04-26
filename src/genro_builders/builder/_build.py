@@ -360,57 +360,6 @@ class _BuildMixin:
             if isinstance(value, Bag):
                 self._register_render_deps(value)
 
-    def _context_datapath(self, context_node: BagNode | None) -> str:
-        """Get the absolute datapath from a built context node.
-
-        Composes the node's own datapath with its ancestor chain,
-        then prepends the builder name.
-        """
-        if context_node is None:
-            builder_name = getattr(self, "_builder_name", None)
-            return builder_name or ""
-
-        # The node's own datapath + ancestor chain
-        own_dp = context_node.attr.get("datapath", "")
-        if hasattr(context_node, "_resolve_datapath"):
-            ancestor_dp = context_node._resolve_datapath()
-        else:
-            ancestor_dp = ""
-
-        if own_dp and ancestor_dp:
-            base = f"{ancestor_dp}.{own_dp[1:]}" if own_dp.startswith(".") else own_dp
-        elif own_dp:
-            base = own_dp
-        else:
-            base = ancestor_dp
-
-        # Prepend builder_name if not already present
-        builder_name = getattr(context_node, "_builder_name", None)
-        if builder_name and not base.startswith(f"{builder_name}."):
-            return f"{builder_name}.{base}" if base else builder_name
-        return base
-
-    def _resolve_data_path(self, path: str, context_node: BagNode | None) -> str:
-        """Resolve a data element path relative to the built context.
-
-        Composes relative paths (starting with '.') with the context
-        node's datapath. Absolute paths get the builder_name prefix.
-        """
-        ctx_dp = self._context_datapath(context_node)
-        if path.startswith("."):
-            suffix = path[1:]
-            return f"{ctx_dp}.{suffix}" if suffix else ctx_dp
-        # Absolute path — prepend builder name
-        builder_name = getattr(self, "_builder_name", None)
-        if builder_name is not None:
-            return f"{builder_name}.{path}" if path else builder_name
-        return path
-
-    def _resolve_pointer_path(self, pointer_value: str, context_node: BagNode | None) -> str:
-        """Resolve a ^pointer value using the built-tree context node."""
-        path = pointer_value[1:]  # strip ^
-        return self._resolve_data_path(path, context_node)
-
     def _process_pending_data_elements(self, data: Bag) -> None:
         """Process accumulated data elements after the built tree is complete.
 
@@ -429,19 +378,20 @@ class _BuildMixin:
     ) -> None:
         """Execute a data_setter. Write value to data store.
 
-        Uses context_node (built parent) for path resolution.
+        Path resolution uses the built context node's ``abs_datapath``
+        — the only resolver for datapath semantics. No manual composition.
         """
         attrs = dict(node.attr)
-        path = attrs.get("_data_path")
+        raw_path = attrs.get("_data_path")
+        if raw_path is None or context_node is None:
+            return
 
-        if path is not None:
-            path = self._resolve_data_path(path, context_node)
-
-        value = node.current_from_datasource(attrs.get("value"), data) if hasattr(node, "current_from_datasource") else attrs.get("value")
+        path = context_node.abs_datapath(raw_path)
+        value = node.current_from_datasource(attrs.get("value"), data) \
+            if hasattr(node, "current_from_datasource") else attrs.get("value")
         if isinstance(value, dict):
             value = Bag(source=value)
-        if path is not None:
-            data.set_item(path, value)
+        data.set_item(path, value)
 
         on_built = attrs.get("_onBuilt")
         if callable(on_built):
@@ -452,40 +402,39 @@ class _BuildMixin:
     ) -> None:
         """Install a FormulaResolver on the data store.
 
-        Uses context_node (built parent) for path resolution.
+        The store path is resolved once via ``context_node.abs_datapath``.
+        Dependency pointers stay as ``^...`` strings in the resolver kwargs
+        and are resolved lazily at load time by the resolver's on_loading
+        hook, which uses the same built context node to call abs_datapath.
         """
         attrs = dict(node.attr)
-        path = attrs.get("_data_path")
-        if path is None:
+        raw_path = attrs.get("_data_path")
+        if raw_path is None or context_node is None:
             return
-
-        path = self._resolve_data_path(path, context_node)
 
         func = attrs.get("func")
         if func is None:
             return
 
-        # Separate pointer deps from static kwargs
-        dep_paths: dict[str, str] = {}
-        static_kwargs: dict[str, Any] = {}
+        path = context_node.abs_datapath(raw_path)
+
+        # Collect kwargs for the resolver: pointers stay as pointers.
+        resolver_kwargs: dict[str, Any] = {"func": func}
         for k, v in attrs.items():
             if k.startswith("_") or k == "func":
                 continue
-            if is_pointer(v):
-                dep_paths[k] = self._resolve_pointer_path(v, context_node)
-            else:
-                static_kwargs[k] = v
+            resolver_kwargs[k] = v
 
         cache_time = attrs.get("_cache_time", 0)
         interval = attrs.get("_interval")
         read_only = cache_time == 0 and interval is None
 
         resolver = FormulaResolver(
-            func=func, cache_time=cache_time, interval=interval, read_only=read_only,
+            cache_time=cache_time, interval=interval, read_only=read_only,
+            **resolver_kwargs,
         )
         resolver._data_bag = data
-        resolver._dep_paths = dep_paths
-        resolver._static_kwargs = static_kwargs
+        resolver._built_context = context_node
 
         # Stop old resolver's timer if replacing
         old_node = data.get_node(path)
@@ -495,6 +444,11 @@ class _BuildMixin:
         data.set_resolver(path, resolver)
 
         # Register formula dependency edges in the manager's graph
+        dep_paths = {
+            k: context_node.abs_datapath(v[1:])
+            for k, v in resolver_kwargs.items()
+            if isinstance(v, str) and v.startswith("^")
+        }
         self._register_formula_deps(path, dep_paths)
 
         # Collect _on_built formula paths for warm-up in finalize
