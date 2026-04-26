@@ -1,13 +1,13 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Manager registry tests (Tranche B, Fase 1).
+"""Manager registry tests.
 
 Covers the registry-based manager API: ``local_store(name)``,
-``resolve_volume(name)`` and the alias guarantee that
+``resolve_volume(name)``, and the invariant
 ``manager.local_store(name) is builder._data``.
 
-Compat tests for the still-living monolithic ``_data`` are kept here
-until Fase 3 removes ``global_store``; they are renamed/removed at
-that point.
+Also asserts that no monolithic data store exists on the manager —
+the previous ``global_store`` and ``_data`` attributes have been
+removed.
 """
 
 from __future__ import annotations
@@ -71,22 +71,25 @@ class TestLocalStoreRegistry:
         assert captured["b"] is app._builders["b"]._data
 
 
-class TestRegisterBuilderAliases:
-    """Compat invariant: ``_data["<name>"]`` aliases ``builder._data``.
+class TestNoMonolithicStore:
+    """The manager exposes no monolithic data store."""
 
-    Both handles point to the same Bag object — writes through one are
-    visible through the other. The monolithic ``_data`` is removed in
-    Fase 3; this test will be replaced at that point.
-    """
-
-    def test_register_builder_aliases_global_store_entry(self) -> None:
+    def test_no_global_store_attribute(self) -> None:
         app = _App()
-        assert app.global_store.get_item("page") is app.local_store("page")
-        assert app.global_store.get_item("sidebar") is app.local_store("sidebar")
+        assert not hasattr(app, "global_store")
+
+    def test_no_underscore_data_attribute(self) -> None:
+        app = _App()
+        assert not hasattr(app, "_data")
+
+    def test_stores_registry_holds_each_builder_data(self) -> None:
+        app = _App()
+        assert app._stores["page"] is app._builders["page"]._data
+        assert app._stores["sidebar"] is app._builders["sidebar"]._data
 
 
 class TestBuilderDataIsPrivate:
-    """Fase 2: ``builder.data`` always returns the private ``_data`` Bag."""
+    """``builder.data`` always returns the private ``_data`` Bag."""
 
     def test_builder_data_is_private_bag_when_managed(self) -> None:
         app = _App()
@@ -102,12 +105,12 @@ class TestBuilderDataIsPrivate:
         assert page.data is original
         assert page.data.get_item("title") == "hello"
 
-    def test_global_store_reflects_builder_data_writes(self) -> None:
-        """Compat alias holds: writes via ``builder.data`` show up in
-        ``global_store["<name>"]`` because the two handles are the
+    def test_resolve_volume_reflects_builder_data_writes(self) -> None:
+        """Writes via ``builder.data`` are visible via
+        ``manager.resolve_volume(name)`` because both handles are the
         same Bag object.
         """
         app = _App()
         page = app._builders["page"]
         page.data["title"] = "x"
-        assert app.global_store.get_item("page.title") == "x"
+        assert app.resolve_volume("page").get_item("title") == "x"

@@ -339,8 +339,9 @@ class _BuildMixin:
     def _register_formula_deps(self, formula_path: str, dep_paths: dict[str, str]) -> None:
         """Register formula dependency edges: each dep_path → formula_path.
 
-        Paths are as they appear in the data store (no automatic prefixing).
-        Formula resolver paths match the global_store layout.
+        Paths are as ``abs_datapath`` returns them: plain (local) for the
+        builder's own data, ``volume:rest`` for cross-builder pointers.
+        No automatic prefixing of the builder name.
         """
         for dep_path in dep_paths.values():
             self._register_dep(dep_path, formula_path, "formula")

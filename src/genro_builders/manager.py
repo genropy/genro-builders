@@ -1,15 +1,18 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BuilderManager and ReactiveManager — coordinate builders with shared data.
+"""BuilderManager and ReactiveManager — registry of builders.
 
-A BuilderManager coordinates one or more builders that share a common
-reactive data store (``global_store``). Each builder gets a private
-data namespace directly at ``global_store['<name>']``.
+A BuilderManager is a registry of builders. Each builder owns a
+private ``local_store`` Bag (its own data area). The manager itself
+holds no monolithic data store.
 
-The reactive store is a Bag with ^pointer support. Builders resolve
-pointers against it:
-    - ``^key`` — reads from the builder's own namespace.
+Cross-builder data access goes through volume syntax: a pointer
+``^name:key`` resolves the volume part to ``manager.resolve_volume(name)``,
+which returns the local_store of the builder registered under ``name``.
+
+Pointer forms resolved by builders:
+    - ``^key`` — reads from the builder's own local_store.
     - ``^.key`` — relative, reads via the datapath chain.
-    - ``^other:key`` — reads from another builder's namespace (volume syntax).
+    - ``^other:key`` — reads from another builder's local_store (volume syntax).
 
 Data infrastructure elements (``data_setter``, ``data_formula``)
 are processed during the build phase. They write to the shared
@@ -85,10 +88,11 @@ from .render_target import RenderTarget
 
 
 class BuilderManager:
-    """Sync coordinator for one or more builders with a shared data store.
+    """Sync coordinator: a registry of builders, each with its own local_store.
 
-    The global store is a Bag partitioned by builder name. Each builder's
-    data lives at ``global_store['<name>']``. No intermediate levels.
+    The manager holds a ``{name: builder._data}`` registry of per-builder
+    local_store Bags. There is no monolithic shared store. Cross-builder
+    data access goes through ``resolve_volume(name)``.
 
     Subclass lifecycle:
         ``on_init()``: Override to register builders via ``register_builder()``.
@@ -103,11 +107,10 @@ class BuilderManager:
     For reactive bindings, use ``ReactiveManager`` instead.
     """
 
-    __slots__ = ("_data", "_builders", "_current_builder_name")
+    __slots__ = ("_stores", "_builders", "_current_builder_name")
 
     def __init__(self) -> None:
-        self._data = Bag()
-        self._data.set_backref()
+        self._stores: dict[str, Bag] = {}
         self._builders: dict[str, Any] = {}
         self._current_builder_name: str | None = None
         self.on_init()
@@ -115,57 +118,17 @@ class BuilderManager:
     def on_init(self) -> None:
         """Override to register builders via ``register_builder()``."""
 
-    @property
-    def global_store(self) -> Bag:
-        """The shared reactive data store.
-
-        Partitioned by builder name. Each builder's data lives at
-        ``global_store['<name>']``. Builders resolve ``^pointer``
-        paths against this store.
-        """
-        return self._data
-
-    @global_store.setter
-    def global_store(self, value: Bag | dict[str, Any]) -> None:
-        """Replace the store contents in-place.
-
-        For each top-level key matching a registered builder, replaces
-        that builder's private ``_data`` content (clear + copy). Other
-        keys fall back to direct ``_data.set_item``. The monolithic
-        ``_data`` Bag object is preserved; builder Bag identities are
-        preserved. The whole monolithic store is removed in a follow-up
-        phase.
-        """
-        new_data = Bag(source=value) if isinstance(value, dict) else value
-        for node in new_data:
-            name = node.label
-            if name in self._builders:
-                builder = self._builders[name]
-                builder._data.clear()
-                child_value = node.value
-                if isinstance(child_value, Bag):
-                    for sub in child_value:
-                        builder._data.set_item(
-                            sub.label, sub.value, _attributes=dict(sub.attr),
-                        )
-                else:
-                    builder._data.set_item(
-                        "_value", child_value, _attributes=dict(node.attr),
-                    )
-            else:
-                self._data.set_item(
-                    name, node.value, _attributes=dict(node.attr),
-                )
-
     def register_builder(self, name: str, builder_class: type, **kwargs: Any) -> Any:
-        """Create a builder, register it, and set up its private data namespace.
+        """Create a builder and record it in the registry.
 
-        Creates the builder, registers it in the builder registry, and
-        creates a private data namespace at ``global_store['<name>']``.
+        The builder owns its private ``_data`` Bag. The manager records
+        a reference to that Bag in ``self._stores`` so that
+        ``resolve_volume(name)`` and ``local_store(name)`` can find it.
 
         Args:
             name: Name for the builder. Used for main dispatch
-                (``main_<name>``) and data namespace (``<name>``).
+                (``main_<name>``) and as the volume identifier in
+                cross-builder pointers (``^<name>:path``).
             builder_class: The BagBuilderBase subclass to instantiate.
             **kwargs: Extra kwargs passed to the builder constructor.
 
@@ -176,12 +139,10 @@ class BuilderManager:
         self._builders[name] = builder
         builder._builder_name = name
 
-        # Alias the builder's private _data Bag in the monolithic store.
-        # Both handles point to the same Bag object: writes via
-        # builder._data are visible at manager._data["<name>"] and vice
-        # versa. The monolithic _data is scheduled for removal in a
-        # later phase; this alias preserves compat in the meantime.
-        self._data.set_item(name, builder._data)
+        store = builder._data
+        if not store.backref:
+            store.set_backref()
+        self._stores[name] = store
 
         return builder
 
@@ -205,9 +166,9 @@ class BuilderManager:
                 "local_store() called without a builder name and no "
                 "current builder context (outside main dispatch)"
             )
-        if name not in self._builders:
+        if name not in self._stores:
             raise KeyError(f"Builder '{name}' not registered")
-        return self._builders[name]._data
+        return self._stores[name]
 
     def resolve_volume(self, name: str) -> Bag:
         """Return the local_store Bag of a registered builder by volume name.
@@ -336,17 +297,19 @@ class ReactiveManager(BuilderManager):
         return super().build()
 
     def subscribe(self) -> None:
-        """Activate reactive bindings: subscribe to global store changes.
+        """Activate reactive bindings: subscribe to each builder's local_store.
 
         Also activates per-builder reactive bindings (incremental compile).
         Requires an async event loop for flush via call_soon.
         """
         if not self._subscribed:
-            if not self._data.backref:
-                self._data.set_backref()
-            self._data.subscribe(
-                self._SUBSCRIBER_ID, any=self._on_store_changed,
-            )
+            for name, store in self._stores.items():
+                if not store.backref:
+                    store.set_backref()
+                store.subscribe(
+                    self._SUBSCRIBER_ID,
+                    any=self._make_store_callback(name),
+                )
             self._subscribed = True
 
         for builder in self._builders.values():
@@ -355,10 +318,25 @@ class ReactiveManager(BuilderManager):
     def unsubscribe(self) -> None:
         """Deactivate reactive bindings."""
         if self._subscribed:
-            self._data.unsubscribe(self._SUBSCRIBER_ID, any=True)
+            for store in self._stores.values():
+                store.unsubscribe(self._SUBSCRIBER_ID, any=True)
             self._subscribed = False
         self._pending_changes.clear()
         self._flush_scheduled = False
+
+    def _make_store_callback(self, builder_name: str) -> Any:
+        """Build a per-builder subscribe callback that captures the name."""
+        def callback(
+            node: BagNode | None = None,
+            pathlist: list | None = None,
+            evt: str = "",
+            **kwargs: Any,
+        ) -> None:
+            self._on_store_changed(
+                builder_name=builder_name,
+                node=node, pathlist=pathlist, evt=evt, **kwargs,
+            )
+        return callback
 
     # -----------------------------------------------------------------------
     # Render targets
@@ -423,16 +401,21 @@ class ReactiveManager(BuilderManager):
 
     def _on_store_changed(
         self,
+        builder_name: str | None = None,
         node: BagNode | None = None,
         pathlist: list | None = None,
         evt: str = "",
         **kwargs: Any,
     ) -> None:
-        """Callback from global_store.subscribe — collect changed path."""
+        """Callback from a builder's local_store subscribe — collect changed path.
+
+        ``pathlist`` is local to the builder's store. The reconstructed
+        path matches what ``abs_datapath`` registers in the dependency
+        graph (no builder_name prefix).
+        """
         if self._dispatching or pathlist is None:
             return
 
-        # Reconstruct the full changed path
         parts = [str(p) for p in pathlist]
         if evt in ("ins", "del") and node is not None:
             parts.append(node.label)
