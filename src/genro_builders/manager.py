@@ -154,20 +154,24 @@ class BuilderManager:
         self._builders[name] = builder
         builder._builder_name = name
 
-        # Create private data namespace directly at store root
-        self._data.set_item(name, Bag())
+        # Alias the builder's private _data Bag in the monolithic store.
+        # Both handles point to the same Bag object: writes via
+        # builder._data are visible at manager._data["<name>"] and vice
+        # versa. The monolithic _data is scheduled for removal in a
+        # later phase; this alias preserves compat in the meantime.
+        self._data.set_item(name, builder._data)
 
         return builder
 
     def local_store(self, builder: str | None = None) -> Bag:
-        """Return the private data namespace for a builder.
+        """Return the private data Bag owned by a registered builder.
 
         Args:
             builder: Builder name. If None, uses the current builder
                 context (set automatically during ``main()`` dispatch).
 
         Returns:
-            The builder's private Bag within the global store.
+            The builder's private ``_data`` Bag.
 
         Raises:
             RuntimeError: If no builder context and no name given.
@@ -179,10 +183,20 @@ class BuilderManager:
                 "local_store() called without a builder name and no "
                 "current builder context (outside main dispatch)"
             )
-        result = self._data.get_item(name)
-        if result is None or not isinstance(result, Bag):
+        if name not in self._builders:
             raise KeyError(f"Builder '{name}' not registered")
-        return result
+        return self._builders[name]._data
+
+    def resolve_volume(self, name: str) -> Bag:
+        """Return the local_store Bag of a registered builder by volume name.
+
+        Semantic alias of ``local_store(name)`` used during pointer
+        resolution: ``^name:path`` resolves the volume part to this Bag.
+
+        Raises:
+            KeyError: If the named builder is not registered.
+        """
+        return self.local_store(name)
 
     def main(self, source: Any) -> None:
         """Populate the source of a single-builder manager. Override in subclass.
