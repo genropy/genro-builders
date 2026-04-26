@@ -83,3 +83,31 @@ class TestRegisterBuilderAliases:
         app = _App()
         assert app.global_store.get_item("page") is app.local_store("page")
         assert app.global_store.get_item("sidebar") is app.local_store("sidebar")
+
+
+class TestBuilderDataIsPrivate:
+    """Fase 2: ``builder.data`` always returns the private ``_data`` Bag."""
+
+    def test_builder_data_is_private_bag_when_managed(self) -> None:
+        app = _App()
+        page = app._builders["page"]
+        assert page.data is page._data
+
+    def test_builder_data_setter_clears_in_place(self) -> None:
+        app = _App()
+        page = app._builders["page"]
+        original = page._data
+        page.data = {"title": "hello"}
+        assert page._data is original
+        assert page.data is original
+        assert page.data.get_item("title") == "hello"
+
+    def test_global_store_reflects_builder_data_writes(self) -> None:
+        """Compat alias holds: writes via ``builder.data`` show up in
+        ``global_store["<name>"]`` because the two handles are the
+        same Bag object.
+        """
+        app = _App()
+        page = app._builders["page"]
+        page.data["title"] = "x"
+        assert app.global_store.get_item("page.title") == "x"

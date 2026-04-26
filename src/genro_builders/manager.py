@@ -127,13 +127,35 @@ class BuilderManager:
 
     @global_store.setter
     def global_store(self, value: Bag | dict[str, Any]) -> None:
-        """Replace the global store. Rebinds all registered builders."""
+        """Replace the store contents in-place.
+
+        For each top-level key matching a registered builder, replaces
+        that builder's private ``_data`` content (clear + copy). Other
+        keys fall back to direct ``_data.set_item``. The monolithic
+        ``_data`` Bag object is preserved; builder Bag identities are
+        preserved. The whole monolithic store is removed in a follow-up
+        phase.
+        """
         new_data = Bag(source=value) if isinstance(value, dict) else value
-        if not new_data.backref:
-            new_data.set_backref()
-        self._data = new_data
-        for builder in self._builders.values():
-            builder._rebind_data(new_data)
+        for node in new_data:
+            name = node.label
+            if name in self._builders:
+                builder = self._builders[name]
+                builder._data.clear()
+                child_value = node.value
+                if isinstance(child_value, Bag):
+                    for sub in child_value:
+                        builder._data.set_item(
+                            sub.label, sub.value, _attributes=dict(sub.attr),
+                        )
+                else:
+                    builder._data.set_item(
+                        "_value", child_value, _attributes=dict(node.attr),
+                    )
+            else:
+                self._data.set_item(
+                    name, node.value, _attributes=dict(node.attr),
+                )
 
     def register_builder(self, name: str, builder_class: type, **kwargs: Any) -> Any:
         """Create a builder, register it, and set up its private data namespace.

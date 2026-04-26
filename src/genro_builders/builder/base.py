@@ -261,9 +261,11 @@ class BagBuilderBase(
 
     @property
     def data(self) -> Bag:
-        """The data Bag. Shared with the manager when one is present."""
-        if self._manager is not None:
-            return self._manager.global_store
+        """The builder's private data Bag (its local_store).
+
+        Each builder owns its data unconditionally — managed or not.
+        Cross-builder access goes through ``manager.resolve_volume(name)``.
+        """
         return self._data
 
     @data.setter
@@ -273,9 +275,6 @@ class BagBuilderBase(
         Clears the existing data and copies content from the new value.
         All BuiltBagNode references to _data remain valid.
         """
-        if self._manager is not None:
-            self._manager.global_store = value
-            return
         new_data = Bag(source=value) if isinstance(value, dict) else value
         self._data.clear()
         for node in new_data:
