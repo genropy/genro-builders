@@ -78,7 +78,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from genro_bag import Bag, BagNode
-from genro_toolbox import smartawait
+from genro_toolbox import is_async_context, smartawait
 
 from .dependency_graph import DependencyGraph
 from .render_target import RenderTarget
@@ -468,25 +468,46 @@ class ReactiveManager(BuilderManager):
                 entry.last_render_time = now
 
     def run(self, *, subscribe: bool = False) -> Any:
-        """Setup, build, and optionally subscribe -- single-call lifecycle.
+        """Setup, build, and activate reactive wiring -- single-call lifecycle.
+
+        Auto-activation: if render targets are registered and we are in an
+        async context, reactive subscription and the initial render happen
+        automatically. Explicit ``subscribe=True`` forces subscription even
+        without render targets or in sync context.
 
         Returns None when all builders are synchronous, or a coroutine
         when any builder's build() returns an awaitable.
 
         Args:
-            subscribe: If True, also activate reactive bindings after build.
+            subscribe: If True, force reactive bindings regardless of
+                render targets or async context.
         """
         self.setup()
         build_result = self.build()
 
+        def activate() -> None:
+            auto = bool(self._render_targets) and is_async_context()
+            if subscribe or auto:
+                self.subscribe()
+            if self._render_targets:
+                self._render_all_targets()
+
         if inspect.isawaitable(build_result):
             async def cont():
                 await smartawait(build_result)
-                if subscribe:
-                    self.subscribe()
+                activate()
 
             return cont()
 
-        if subscribe:
-            self.subscribe()
+        activate()
         return None
+
+    def _render_all_targets(self) -> None:
+        """Render every registered target once. Used for initial render."""
+        now = time.monotonic()
+        for (b_name, r_name), entry in self._render_targets.items():
+            builder = self._builders.get(b_name)
+            if builder is None:
+                continue
+            entry.target.write(builder.render(name=r_name))
+            entry.last_render_time = now
