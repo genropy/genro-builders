@@ -116,7 +116,7 @@ class BuilderBagNode(BagNode):
         if path.startswith("#"):
             resolved = self._resolve_symbolic(path, volume=volume)
         elif path.startswith("."):
-            datapath = self._resolve_datapath()
+            datapath = self._walk_ancestor_datapath()
             if not datapath:
                 raise ValueError(
                     f"Relative pointer '^{path}' used without a datapath context"
@@ -164,31 +164,14 @@ class BuilderBagNode(BagNode):
 
         target_datapath = target_node.attr.get("datapath", "")
 
-        if not target_datapath and hasattr(target_node, "_resolve_datapath"):
-            target_datapath = target_node._resolve_datapath()
+        if not target_datapath and hasattr(target_node, "_walk_ancestor_datapath"):
+            target_datapath = target_node._walk_ancestor_datapath()
 
         if rest:
             return f"{target_datapath}.{rest}" if target_datapath else rest
         return target_datapath
 
-    def _resolve_path(self, path: str) -> tuple[str, str | None]:
-        """Parse and resolve a data path.
-
-        Returns:
-            Tuple of (resolved_path, attr_name_or_none).
-        """
-        attr_name = None
-        if "?" in path:
-            path, attr_name = path.split("?", 1)
-
-        if path == "." and attr_name is not None:
-            path = self._resolve_datapath() or ""
-        else:
-            path = self.abs_datapath(path)
-
-        return path, attr_name
-
-    def _resolve_datapath(self) -> str:
+    def _walk_ancestor_datapath(self) -> str:
         """Compose hierarchical datapath by walking up the ancestor chain.
 
         Collects ``datapath`` attributes from ancestor nodes. Relative

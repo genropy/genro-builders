@@ -59,7 +59,7 @@ class BuiltBagNode(BagNode):
             return builder.data
         return Bag()
 
-    def _resolve_datapath(self) -> str:
+    def _walk_ancestor_datapath(self) -> str:
         """Compose hierarchical datapath by walking up the ancestor chain.
 
         Collects ``datapath`` attributes from ancestor nodes. Relative
@@ -114,7 +114,7 @@ class BuiltBagNode(BagNode):
 
         if path.startswith("."):
             own_dp = self.attr.get("datapath", "")
-            ancestor_dp = self._resolve_datapath()
+            ancestor_dp = self._walk_ancestor_datapath()
             if own_dp.startswith("."):
                 base = f"{ancestor_dp}.{own_dp[1:]}" if ancestor_dp else ""
             elif own_dp:

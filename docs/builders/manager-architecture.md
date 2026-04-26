@@ -1279,8 +1279,8 @@ following items are the load-bearing ones.
 
 ## 14. Migration — What Must Die
 
-> **Status (Tranche A + B + partial C complete)**: items 1–8 and 12 are
-> done. Items 9–11 and 13 remain partial — see the per-item notes.
+> **Status (Tranche A + B + C complete)**: items 1–8, 12 and 13 are
+> done. Items 9–11 remain partial — see the per-item notes.
 
 The working tree at commit `1a5cab3` still contained automatisms that
 the target architecture forbids. The list below is preserved for
@@ -1342,23 +1342,13 @@ historical reference; each item is annotated with its current status.
     just a path string for the dependency graph):
     `_register_dep`, `_register_render_deps`, `_register_formula_deps`.
 
-13. **Collapse `_resolve_datapath` into `abs_datapath`**. Today both
+13. ✅ **Done (Tranche C final)**: `_resolve_datapath` renamed to
+    `_walk_ancestor_datapath` in both
     [src/genro_builders/built_bag.py](../../src/genro_builders/built_bag.py)
-    and [src/genro_builders/builder_bag.py](../../src/genro_builders/builder_bag.py)
-    expose a `_resolve_datapath()` method that walks the ancestor chain
-    and is immediately consumed by `abs_datapath` three lines below.
-    The target architecture has a single primitive — `abs_datapath` —
-    with the ancestor walk as an internal step:
-    - Inline the walk inside `abs_datapath`, or keep it as a private
-      helper named to avoid the suggestion that it is a public peer
-      (e.g. `_walk_ancestor_datapath`, never `_resolve_datapath`).
-    - Remove every external caller of `_resolve_datapath`. Inspection
-      of the current tree shows the only call sites are inside
-      `abs_datapath` itself (built and source) and `_resolve_symbolic`
-      (source side) — no user code touches it, so the collapse is
-      source-compatible for downstream consumers.
-    - Update invariant 13 enforcement: `_resolve_datapath` as a
-      standalone method should not exist in the final API surface.
+    and [src/genro_builders/builder_bag.py](../../src/genro_builders/builder_bag.py).
+    The helper is now clearly private; ``abs_datapath`` is the only
+    primitive in the public API surface. The dead-code wrapper
+    ``BuilderBagNode._resolve_path`` was removed at the same time.
 
 ---
 
