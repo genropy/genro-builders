@@ -1279,27 +1279,28 @@ following items are the load-bearing ones.
 
 ## 14. Migration — What Must Die
 
-The working tree at commit `1a5cab3` still contains automatisms that
-the target architecture forbids. For the target to be reached, the
-following items must be removed or refactored (see
-`temp/findings_abs_datapath_auto_prepend.md`).
+> **Status (Tranche A + B + partial C complete)**: items 1–8 and 12 are
+> done. Items 9–11 and 13 remain partial — see the per-item notes.
 
-1. Prepend of `builder_name` in `BuiltBagNode.abs_datapath`
-   ([src/genro_builders/built_bag.py](../../src/genro_builders/built_bag.py)).
-2. Prepend of `builder_name` in `BuilderBagNode.abs_datapath`
-   ([src/genro_builders/builder_bag.py](../../src/genro_builders/builder_bag.py)).
-3. `BuilderBagNode._find_builder_name()` — dead code after (2).
-4. Docstrings claiming "builder name is prepended" / "managed context"
-   in both files.
-5. `BuilderManager._data` as a monolithic Bag → replace with a registry
-   `{name: Bag}` of references to each builder's local_store.
-6. `global_store` property → either remove or turn into an explicit
-   error ("no monolithic data Bag").
-7. `register_builder` currently does `self._data.set_item(name, Bag())`
-   — must be removed; the builder owns its local_store.
-8. `data_setter` / `data_formula` writing to the monolithic data Bag →
-   write to the **current** builder's local_store (or the volume if
-   the path has one).
+The working tree at commit `1a5cab3` still contained automatisms that
+the target architecture forbids. The list below is preserved for
+historical reference; each item is annotated with its current status.
+
+1. ✅ **Done (Tranche A)**: prepend of `builder_name` in
+   `BuiltBagNode.abs_datapath` removed.
+2. ✅ **Done (Tranche A)**: prepend of `builder_name` in
+   `BuilderBagNode.abs_datapath` removed.
+3. ✅ **Done (Tranche A)**: `BuilderBagNode._find_builder_name()` removed.
+4. ✅ **Done (Tranche A)**: docstrings cleaned up.
+5. ✅ **Done (Tranche B)**: `BuilderManager._data` removed; replaced
+   with a `{name: builder._data}` registry in `self._stores`.
+6. ✅ **Done (Tranche B)**: `global_store` property removed (hard break).
+7. ✅ **Done (Tranche B)**: `register_builder` no longer creates a
+   `Bag()` namespace — it records a reference to the builder's
+   private `_data`.
+8. ✅ **Done (Tranche B)**: `data_setter` and `data_formula` route
+   writes through `set_relative_data` / `set_resolver` on the
+   resolved target Bag (own local_store or remote volume).
 9. Tests assuming `global_store["page.xxx"]`:
    `tests/test_main_store.py`,
    `tests/test_build_e2e.py::test_per_row_formula_values`,
@@ -1319,56 +1320,27 @@ following items must be removed or refactored (see
     symbolic, volume + symbolic), with the symbolic branch routed
     through `node_by_id` (source side) and erroring cleanly on the
     built side, where no id map exists.
-12. **Route every data access through the relative API**. The codebase
-    today still has call sites that bypass
-    `node.get_relative_data` / `node.set_relative_data` and touch the
-    Bag directly (or go through `abs_datapath` + `get_item`/`set_item`
-    by hand). They must be migrated so that invariant 12 holds.
+12. ✅ **Done (Tranche B + partial C)**: every applicative read/write
+    flows through `node.get_relative_data` / `node.set_relative_data`.
 
-    Direct `data.*_item` offenders:
-    - [src/genro_builders/builder/_build.py:394](../../src/genro_builders/builder/_build.py#L394) —
-      `data.set_item(path, value)` in `_execute_data_setter` must become
-      `context_node.set_relative_data(raw_path, value)`.
-    - [src/genro_builders/builder/_build.py:503](../../src/genro_builders/builder/_build.py#L503) —
-      `self.data.get_item(path)` during `_on_built` warm-up must become
-      a `get_relative_data` on the appropriate built anchor.
-    - [src/genro_builders/builder_bag.py:247-264](../../src/genro_builders/builder_bag.py#L247-L264) —
-      `BuilderBagNode.current_from_datasource` currently reimplements
-      resolution by hand (`abs_datapath` + `data.get_item`). It must be
-      realigned with the canonical one-liner that already lives on
-      `BuiltBagNode`
-      ([src/genro_builders/built_bag.py:189-193](../../src/genro_builders/built_bag.py#L189-L193)):
-      delegate to `self.get_relative_data(value[1:])`. The source-side
-      and the built-side versions then share the exact same contract,
-      and the scalar helper (§10.7) becomes a thin wrapper over the
-      relative API across the board.
-
-    `abs_datapath` + manual read/write offenders (same bug in a
-    different costume):
-    - [src/genro_builders/builder/_build.py:302](../../src/genro_builders/builder/_build.py#L302) /
-      [L304](../../src/genro_builders/builder/_build.py#L304) —
-      `node.abs_datapath(raw_path)` + `data.get_item(data_path)` in
-      `_expand_component_iterate` collapses into one
-      `node.get_relative_data(raw_path)` call.
-    - [src/genro_builders/builder/_build.py:389](../../src/genro_builders/builder/_build.py#L389) —
-      `context_node.abs_datapath(raw_path)` before the `data.set_item` call
-      above disappears once the setter uses `set_relative_data`.
-    - [src/genro_builders/formula_resolver.py:72](../../src/genro_builders/formula_resolver.py#L72) —
-      `ctx.abs_datapath(value[1:])` + `data_bag.get_item(abs_path)` becomes
-      `ctx.get_relative_data(value[1:])` once the relative API carries
-      volume routing in full.
+    Migrated:
+    - `_execute_data_setter` ([src/genro_builders/builder/_build.py](../../src/genro_builders/builder/_build.py)):
+      now calls `context_node.set_relative_data(raw_path, value)`.
+    - `_install_formula_resolver` ([src/genro_builders/builder/_build.py](../../src/genro_builders/builder/_build.py)):
+      installs the resolver on the target Bag returned by
+      `context_node._resolve_target_bag(resolved_path)` (volume-aware).
+    - `_on_built` warm-up: stores `(target_bag, local_path)` and reads
+      `target_bag.get_item(local_path)` — volume-aware.
+    - `_expand_component_iterate`: reads via
+      `node.get_relative_data(raw_path)`.
+    - `BuilderBagNode.current_from_datasource`: now a one-liner that
+      delegates to `self.get_relative_data(value[1:])`.
+    - `FormulaResolver.on_loading`: resolves dependency pointers via
+      `ctx.get_relative_data(value[1:])`. The `_data_bag` field is gone.
 
     Legitimate remaining callers of `abs_datapath` (no read, no write —
-    just a path string):
-    - `_register_dep` / `_register_render_deps` / `_register_formula_deps`
-      in [src/genro_builders/builder/_build.py](../../src/genro_builders/builder/_build.py)
-      compute the absolute path key for the dependency graph. They are
-      allowed to keep calling `abs_datapath` directly.
-
-    Finally, data infrastructure installers (`set_resolver`, writes of
-    the initial value) remain bottom-of-the-stack plumbing but must be
-    invoked from inside `set_relative_data`, never as a shortcut in
-    caller code.
+    just a path string for the dependency graph):
+    `_register_dep`, `_register_render_deps`, `_register_formula_deps`.
 
 13. **Collapse `_resolve_datapath` into `abs_datapath`**. Today both
     [src/genro_builders/built_bag.py](../../src/genro_builders/built_bag.py)

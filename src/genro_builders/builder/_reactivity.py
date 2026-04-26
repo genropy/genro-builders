@@ -80,15 +80,6 @@ class ReactivityEngine:
         self._binding.unbind()
 
     # -----------------------------------------------------------------------
-    # Data rebind
-    # -----------------------------------------------------------------------
-
-    def rebind_data(self, new_data: Bag) -> None:
-        """Rebind this engine to new data. Called by BuilderManager."""
-        if self._auto_compile:
-            self._binding.subscribe(self._builder.built, new_data)
-
-    # -----------------------------------------------------------------------
     # Callbacks
     # -----------------------------------------------------------------------
 

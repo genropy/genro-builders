@@ -318,7 +318,3 @@ class BagBuilderBase(
             return self._reactivity._auto_compile
         return False
 
-    def _rebind_data(self, new_data: Bag) -> None:
-        """Rebind to new data. Called by BuilderManager."""
-        if self._reactivity is not None:
-            self._reactivity.rebind_data(new_data)
