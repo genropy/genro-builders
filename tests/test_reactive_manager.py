@@ -46,18 +46,28 @@ def _add_render_edge(app: _RecordingApp, source_path: str, builder: str) -> None
 
 
 class TestSubscribeAttachesToEachStore:
-    """``subscribe()`` attaches to every registered builder's local_store."""
+    """After ``subscribe()`` a change in any builder's local_store fires
+    a dispatch; before ``subscribe()`` it does not.
+    """
 
-    def test_subscribe_attaches_to_each_local_store(self) -> None:
+    def test_no_dispatch_before_subscribe(self) -> None:
         app = _RecordingApp()
+        _add_render_edge(app, "title", "page")
+
+        app.resolve_volume("page").set_item("title", "x")
+
+        assert app.dispatches == []
+
+    def test_dispatch_after_subscribe_for_any_builder(self) -> None:
+        app = _RecordingApp()
+        _add_render_edge(app, "title", "page")
+        _add_render_edge(app, "color", "sidebar")
         app.subscribe()
 
-        sub_id = app._SUBSCRIBER_ID
-        for name in ("page", "sidebar"):
-            store = app.resolve_volume(name)
-            assert sub_id in store._ins_subscribers
-            assert sub_id in store._upd_subscribers
-            assert sub_id in store._del_subscribers
+        app.resolve_volume("page").set_item("title", "T")
+        app.resolve_volume("sidebar").set_item("color", "red")
+
+        assert app.dispatches == [{"page": "render"}, {"sidebar": "render"}]
 
     def test_subscribe_is_idempotent(self) -> None:
         app = _RecordingApp()
@@ -71,29 +81,20 @@ class TestSubscribeAttachesToEachStore:
         assert len(app.dispatches) == 1
 
 
-class TestUnsubscribeDetachesAllStores:
-    """``unsubscribe()`` removes the subscriber from every store."""
+class TestUnsubscribeStopsDispatch:
+    """After ``unsubscribe()`` mutations no longer fire dispatches."""
 
-    def test_unsubscribe_detaches_all_stores(self) -> None:
+    def test_no_dispatch_after_unsubscribe(self) -> None:
         app = _RecordingApp()
+        _add_render_edge(app, "title", "page")
         app.subscribe()
+
+        app.resolve_volume("page").set_item("title", "first")
         app.unsubscribe()
+        app.resolve_volume("page").set_item("title", "second")
 
-        sub_id = app._SUBSCRIBER_ID
-        for name in ("page", "sidebar"):
-            store = app.resolve_volume(name)
-            assert sub_id not in store._ins_subscribers
-            assert sub_id not in store._upd_subscribers
-            assert sub_id not in store._del_subscribers
-
-    def test_unsubscribe_clears_pending_changes(self) -> None:
-        app = _RecordingApp()
-        app.subscribe()
-        app._pending_changes.append("phantom")
-        app.unsubscribe()
-
-        assert app._pending_changes == []
-        assert app._flush_scheduled is False
+        # One dispatch from before unsubscribe; nothing after.
+        assert app.dispatches == [{"page": "render"}]
 
 
 class TestSyncDispatch:
@@ -118,10 +119,9 @@ class TestSyncDispatch:
 
         assert app.dispatches == []
 
-    def test_dispatching_flag_blocks_reentrancy(self) -> None:
-        """While ``on_data_changed`` runs, further store mutations are
-        not re-collected — the ``_dispatching`` guard prevents the
-        callback from re-entering the queue.
+    def test_inner_mutation_does_not_re_dispatch(self) -> None:
+        """A store mutation done from inside ``on_data_changed`` must
+        not loop: the manager produces a single dispatch, not two.
         """
         recorded: list[Any] = []
 
@@ -137,8 +137,6 @@ class TestSyncDispatch:
 
         app.resolve_volume("page").set_item("title", "first")
 
-        # Exactly one dispatch — the inner mutation is suppressed by the
-        # _dispatching guard.
         assert len(recorded) == 1
 
 
