@@ -223,23 +223,86 @@ class BuilderBagNode(BagNode):
     # Value resolution (inspired by Genropy's currentFromDatasource pattern)
     # -------------------------------------------------------------------------
 
+    def _pipeline_builder(self) -> Any:
+        """Walk up the bag hierarchy to find the pipeline builder.
+
+        The pipeline builder is the ``BagBuilderBase`` instance that
+        owns the source/built shells (and that holds the back-reference
+        to the manager). Mirrors ``BuiltBagNode._find_builder``.
+        """
+        bag = self._parent_bag
+        while bag is not None:
+            pipeline_builder = getattr(bag, "_pipeline_builder", None)
+            if pipeline_builder is not None:
+                return pipeline_builder
+            parent_node = bag.parent_node
+            if parent_node is None:
+                break
+            bag = parent_node._parent_bag
+        return None
+
+    def _resolve_target_bag(self, resolved: str) -> tuple[Bag, str]:
+        """Split a resolved path into (target_bag, local_path).
+
+        Mirrors ``BuiltBagNode._resolve_target_bag``: if ``resolved``
+        carries a ``volume:`` prefix, the target Bag is the volume's
+        local_store fetched from the manager registry; otherwise the
+        target is the builder's own local_store.
+
+        Raises:
+            KeyError: If the volume name is not registered.
+            RuntimeError: If a volume is referenced but the builder has
+                no manager attached.
+        """
+        if ":" in resolved and not resolved.startswith("."):
+            volume, local_path = resolved.split(":", 1)
+            pipeline = self._pipeline_builder()
+            manager = getattr(pipeline, "_manager", None) if pipeline else None
+            if manager is None:
+                raise RuntimeError(
+                    f"Volume '{volume}' referenced but builder has no "
+                    f"manager — volumes require a registry."
+                )
+            return manager.resolve_volume(volume), local_path
+        pipeline = self._pipeline_builder()
+        own_data = pipeline._data if pipeline is not None else Bag()
+        return own_data, resolved
+
+    def get_relative_data(self, path: str) -> Any:
+        """Read a value from the data Bag, resolving relative paths and volumes."""
+        attr_name = None
+        if "?" in path:
+            path, attr_name = path.split("?", 1)
+        resolved = self.abs_datapath(path)
+        target_bag, local_path = self._resolve_target_bag(resolved)
+        if attr_name is not None:
+            node = target_bag.get_node(local_path)
+            return node.attr.get(attr_name) if node is not None else None
+        return target_bag.get_item(local_path)
+
+    def set_relative_data(self, path: str, value: Any) -> None:
+        """Write a value to the data Bag, resolving relative paths and volumes."""
+        attr_name = None
+        if "?" in path:
+            path, attr_name = path.split("?", 1)
+        resolved = self.abs_datapath(path)
+        target_bag, local_path = self._resolve_target_bag(resolved)
+        if attr_name is not None:
+            target_bag.set_attr(local_path, **{attr_name: value})
+        else:
+            target_bag.set_item(local_path, value, _reason=self)
+
     def current_from_datasource(self, value: Any, data: Bag) -> Any:
         """Resolve a single value from this node's perspective.
 
-        If value is a ^pointer string, resolves it against data using
-        this node's datapath chain. Otherwise returns as-is.
-        Used at build time by _process_infra_node.
+        If value is a ``^pointer`` string, resolves it via
+        ``get_relative_data`` (which handles volume routing). The
+        ``data`` parameter is kept for backward compatibility with
+        callers that still pass it; resolution always uses the
+        registry-aware path.
         """
         if is_pointer(value):
-            path = value[1:]
-            attr_name = None
-            if "?" in path:
-                path, attr_name = path.split("?", 1)
-            resolved_path = self.abs_datapath(path)
-            if attr_name is not None:
-                node = data.get_node(resolved_path)
-                return node.attr.get(attr_name) if node is not None else None
-            return data.get_item(resolved_path)
+            return self.get_relative_data(value[1:])
         return value
 
 

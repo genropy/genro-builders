@@ -301,7 +301,10 @@ class _BuildMixin:
 
         data_path = node.abs_datapath(raw_path) if hasattr(node, "abs_datapath") else raw_path
         self._register_dep(data_path, built_path, "build")
-        data_bag = data.get_item(data_path)
+        if hasattr(node, "get_relative_data"):
+            data_bag = node.get_relative_data(raw_path)
+        else:
+            data_bag = data.get_item(data_path)
 
         if not isinstance(data_bag, Bag):
             return
@@ -377,22 +380,21 @@ class _BuildMixin:
     def _execute_data_setter(
         self, node: BagNode, context_node: BagNode | None, data: Bag,
     ) -> None:
-        """Execute a data_setter. Write value to data store.
+        """Execute a data_setter. Write value via the built context node.
 
-        Path resolution uses the built context node's ``abs_datapath``
-        — the only resolver for datapath semantics. No manual composition.
+        Routing (own local_store vs volume) is handled by
+        ``context_node.set_relative_data``.
         """
         attrs = dict(node.attr)
         raw_path = attrs.get("_data_path")
         if raw_path is None or context_node is None:
             return
 
-        path = context_node.abs_datapath(raw_path)
         value = node.current_from_datasource(attrs.get("value"), data) \
             if hasattr(node, "current_from_datasource") else attrs.get("value")
         if isinstance(value, dict):
             value = Bag(source=value)
-        data.set_item(path, value)
+        context_node.set_relative_data(raw_path, value)
 
         on_built = attrs.get("_onBuilt")
         if callable(on_built):
@@ -401,12 +403,16 @@ class _BuildMixin:
     def _install_formula_resolver(
         self, node: BagNode, context_node: BagNode | None, data: Bag,
     ) -> None:
-        """Install a FormulaResolver on the data store.
+        """Install a FormulaResolver on the target data store.
 
-        The store path is resolved once via ``context_node.abs_datapath``.
-        Dependency pointers stay as ``^...`` strings in the resolver kwargs
-        and are resolved lazily at load time by the resolver's on_loading
-        hook, which uses the same built context node to call abs_datapath.
+        Path resolution and volume routing go through
+        ``context_node._resolve_target_bag``: the resolver lives on the
+        local_store of the volume the path points to, or on the
+        builder's own local_store for plain paths.
+
+        Dependency pointers stay as ``^...`` strings in the resolver
+        kwargs and are resolved lazily at load time by ``on_loading``
+        via ``context_node.get_relative_data``.
         """
         attrs = dict(node.attr)
         raw_path = attrs.get("_data_path")
@@ -417,7 +423,8 @@ class _BuildMixin:
         if func is None:
             return
 
-        path = context_node.abs_datapath(raw_path)
+        resolved_path = context_node.abs_datapath(raw_path)
+        target_bag, local_path = context_node._resolve_target_bag(resolved_path)
 
         # Collect kwargs for the resolver: pointers stay as pointers.
         resolver_kwargs: dict[str, Any] = {"func": func}
@@ -434,27 +441,26 @@ class _BuildMixin:
             cache_time=cache_time, interval=interval, read_only=read_only,
             **resolver_kwargs,
         )
-        resolver._data_bag = data
         resolver._built_context = context_node
 
-        # Stop old resolver's timer if replacing
-        old_node = data.get_node(path)
+        # Stop old resolver's timer if replacing.
+        old_node = target_bag.get_node(local_path)
         if old_node is not None and old_node.resolver is not None:
             old_node.resolver = None
 
-        data.set_resolver(path, resolver)
+        target_bag.set_resolver(local_path, resolver)
 
-        # Register formula dependency edges in the manager's graph
+        # Register formula dependency edges in the manager's graph.
         dep_paths = {
             k: context_node.abs_datapath(v[1:])
             for k, v in resolver_kwargs.items()
             if isinstance(v, str) and v.startswith("^")
         }
-        self._register_formula_deps(path, dep_paths)
+        self._register_formula_deps(resolved_path, dep_paths)
 
-        # Collect _on_built formula paths for warm-up in finalize
+        # Collect _on_built formula warm-up entries: (target_bag, local_path).
         if attrs.get("_on_built"):
-            self._on_built_formula_paths.append(path)
+            self._on_built_formula_paths.append((target_bag, local_path))
 
         on_built = attrs.get("_onBuilt")
         if callable(on_built):
@@ -489,7 +495,7 @@ class _BuildMixin:
         self._ensure_reactivity()
         self._clear_built()
         self._infra_on_built_hooks: list[Any] = []
-        self._on_built_formula_paths: list[str] = []
+        self._on_built_formula_paths: list[tuple[Bag, str]] = []
         self._pending_data_elements: list[tuple] = []
 
         walk_result = self._build_walk(
@@ -499,9 +505,11 @@ class _BuildMixin:
         def finalize(_: Any) -> None:
             # Phase 2: process data elements with complete built tree
             self._process_pending_data_elements(self.data)
-            # Warm up formula resolvers with _on_built=True
-            for path in self._on_built_formula_paths:
-                self.data.get_item(path)
+            # Warm up formula resolvers with _on_built=True. Each entry
+            # is (target_bag, local_path) — the target_bag may be a
+            # remote volume's local_store.
+            for target_bag, local_path in self._on_built_formula_paths:
+                target_bag.get_item(local_path)
             self._on_built_formula_paths = []
             for hook in self._infra_on_built_hooks:
                 hook(self)

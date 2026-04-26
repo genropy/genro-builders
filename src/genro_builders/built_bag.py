@@ -135,41 +135,70 @@ class BuiltBagNode(BagNode):
             return f"{volume}:{resolved}" if resolved else volume
         return resolved
 
+    def _resolve_target_bag(self, resolved: str) -> tuple[Bag, str]:
+        """Split a resolved path into (target_bag, local_path).
+
+        If ``resolved`` carries a ``volume:`` prefix, the target Bag is
+        the volume's local_store fetched from the manager registry; the
+        local path is whatever follows the colon. Otherwise the target
+        Bag is the builder's own local_store and the local path is the
+        full ``resolved`` string.
+
+        Raises:
+            KeyError: If the volume name is not registered.
+            RuntimeError: If a volume is referenced but no manager is
+                attached to the builder (standalone builder).
+        """
+        if ":" in resolved and not resolved.startswith("."):
+            volume, local_path = resolved.split(":", 1)
+            builder = self._find_builder()
+            manager = getattr(builder, "_manager", None) if builder else None
+            if manager is None:
+                raise RuntimeError(
+                    f"Volume '{volume}' referenced but builder has no "
+                    f"manager — volumes require a registry."
+                )
+            return manager.resolve_volume(volume), local_path
+        return self.data, resolved
+
     def get_relative_data(self, path: str) -> Any:
-        """Read a value from the data Bag, resolving relative paths.
+        """Read a value from the data Bag, resolving relative paths and volumes.
 
         Args:
             path: Data path. Syntax:
-                'alfa.beta'       — absolute
-                '.beta'           — relative to this node's datapath
-                'alfa.beta?color' — attribute 'color' of node 'alfa.beta'
+                'alfa.beta'         — absolute in the builder's local_store
+                '.beta'             — relative to this node's datapath
+                'volume:alfa.beta'  — absolute in another builder's local_store
+                'alfa.beta?color'   — attribute 'color' of node 'alfa.beta'
         """
         attr_name = None
         if "?" in path:
             path, attr_name = path.split("?", 1)
         resolved = self.abs_datapath(path)
+        target_bag, local_path = self._resolve_target_bag(resolved)
         if attr_name is not None:
-            node = self.data.get_node(resolved)
+            node = target_bag.get_node(local_path)
             return node.attr.get(attr_name) if node is not None else None
-        return self.data.get_item(resolved)
+        return target_bag.get_item(local_path)
 
     def set_relative_data(self, path: str, value: Any) -> None:
-        """Write a value to the data Bag, resolving relative paths.
+        """Write a value to the data Bag, resolving relative paths and volumes.
 
-        Anti-loop: _reason=self is automatic.
+        Anti-loop: ``_reason=self`` is automatic.
 
         Args:
-            path: Data path (same syntax as get_relative_data).
+            path: Data path (same syntax as ``get_relative_data``).
             value: The value to set.
         """
         attr_name = None
         if "?" in path:
             path, attr_name = path.split("?", 1)
         resolved = self.abs_datapath(path)
+        target_bag, local_path = self._resolve_target_bag(resolved)
         if attr_name is not None:
-            self.data.set_attr(resolved, **{attr_name: value})
+            target_bag.set_attr(local_path, **{attr_name: value})
         else:
-            self.data.set_item(resolved, value, _reason=self)
+            target_bag.set_item(local_path, value, _reason=self)
 
     def current_from_datasource(self, value: Any) -> Any:
         """Resolve a single value: if ^pointer, read from data; else return as-is."""

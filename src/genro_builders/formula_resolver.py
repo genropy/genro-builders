@@ -47,20 +47,18 @@ class FormulaResolver(BagSyncResolver):
     }
 
     def init(self) -> None:
-        """Post-init hook: set up built context + data bag."""
-        self._data_bag: Bag | None = None
+        """Post-init hook: set up the built context."""
         self._built_context: Any = None
 
     def on_loading(self, kw: dict[str, Any]) -> dict[str, Any]:
-        """Resolve pointer kwargs against the built context + data bag.
+        """Resolve pointer kwargs against the built context.
 
         Non-pointer kwargs pass through unchanged. Pointers are resolved
-        via ``built_context.abs_datapath(path)`` into absolute data-store
-        paths and read from ``data_bag``.
+        via ``built_context.get_relative_data(path)``, which routes
+        through the manager registry for ``volume:`` paths.
         """
         ctx = self._built_context
-        data_bag = self._data_bag
-        if ctx is None or data_bag is None:
+        if ctx is None:
             return kw
 
         resolved: dict[str, Any] = {}
@@ -69,8 +67,7 @@ class FormulaResolver(BagSyncResolver):
                 resolved[name] = value
                 continue
             if _is_pointer(value):
-                abs_path = ctx.abs_datapath(value[1:])
-                resolved[name] = data_bag.get_item(abs_path)
+                resolved[name] = ctx.get_relative_data(value[1:])
             else:
                 resolved[name] = value
         return resolved
