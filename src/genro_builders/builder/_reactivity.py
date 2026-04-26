@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
+from genro_toolbox import smartcontinuation
 
 from ._binding import BindingManager
 
@@ -151,23 +152,13 @@ class ReactivityEngine:
 
         node_path = f"{parent_path}.{node.label}" if parent_path else node.label
 
-        value = node.get_value(static=False) if node.resolver is not None else node.static_value
+        def after_inserted(resolved: Any) -> None:
+            b._materialize_inserted(node, resolved, target_bag, node_path, ind)
+            built_node = target_bag.get_node(node.label)
+            if built_node is not None:
+                self._binding.register_node(built_node)
 
-        if b._is_coroutine(value):
-            async def cont_inserted(value=value):
-                resolved = await value
-                b._materialize_inserted(
-                    node, resolved, target_bag, node_path, ind,
-                )
-                self._binding.register_node(target_bag.get_node(node.label))
-
-            return cont_inserted()
-
-        b._materialize_inserted(node, value, target_bag, node_path, ind)
-        built_node = target_bag.get_node(node.label)
-        if built_node is not None:
-            self._binding.register_node(built_node)
-        return None
+        return smartcontinuation(node.get_value(), after_inserted)
 
     def _on_source_updated(
         self,
@@ -200,19 +191,12 @@ class ReactivityEngine:
             return None
 
         if evt == "upd_value":
-            value = node.get_value(static=False) if node.resolver is not None else node.static_value
+            def after_updated(resolved: Any) -> None:
+                b._materialize_updated(built_node, resolved, path)
 
-            if b._is_coroutine(value):
-                async def cont_updated(value=value):
-                    resolved = await value
-                    b._materialize_updated(built_node, resolved, path)
+            return smartcontinuation(node.get_value(), after_updated)
 
-                return cont_updated()
-
-            b._materialize_updated(built_node, value, path)
-
-        elif evt == "upd_attrs":
-            if node is not None:
-                built_node.set_attr(dict(node.attr))
+        if evt == "upd_attrs" and node is not None:
+            built_node.set_attr(dict(node.attr))
 
         return None
