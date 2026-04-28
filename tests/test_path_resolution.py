@@ -92,6 +92,20 @@ class TestAbsoluteAndRelative:
         with pytest.raises(ValueError, match="without a datapath context"):
             node.abs_datapath(".name")
 
+    def test_relative_chain_without_absolute_anchor_raises(self) -> None:
+        """Chain with ONLY relative datapaths (no absolute anchor anywhere)
+        must surface a ValueError. A relative datapath like ``.r0`` is never
+        promoted to an anchor by stripping its leading dot. Contract §5.1
+        / invariant #16 (no hidden automatisms).
+        """
+        builder = _Container()
+        outer = builder.source.container(datapath=".r0")  # relative
+        inner = outer.container(datapath=".child")        # relative
+        leaf = inner.item("x")
+
+        with pytest.raises(ValueError, match="without a datapath context"):
+            leaf.abs_datapath(".name")
+
 
 # ---------------------------------------------------------------------------
 # Form 3 — volume:path

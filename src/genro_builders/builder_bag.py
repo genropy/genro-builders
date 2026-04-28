@@ -174,11 +174,17 @@ class BuilderBagNode(BagNode):
     def _walk_ancestor_datapath(self) -> str:
         """Compose hierarchical datapath by walking up the ancestor chain.
 
-        Collects ``datapath`` attributes from ancestor nodes. Relative
-        datapaths (starting with '.') are concatenated; absolute datapaths
-        reset the chain.
+        Collects ``datapath`` attributes from ancestor nodes. The walk
+        stops at the closest absolute datapath (which resets the chain).
+        Returns the empty string when the chain has no absolute anchor —
+        the caller (``abs_datapath``) then raises ``ValueError`` per
+        contract §13.3 (no silent fallback).
+
+        A relative datapath (``.xxx``) is never promoted to an anchor by
+        stripping its leading dot.
         """
         parts: list[str] = []
+        found_absolute = False
         current_bag = self._parent_bag
 
         while current_bag is not None:
@@ -189,17 +195,18 @@ class BuilderBagNode(BagNode):
             if dp:
                 parts.append(dp)
                 if not dp.startswith("."):
+                    found_absolute = True
                     break
             current_bag = node._parent_bag
+
+        if not found_absolute:
+            return ""
 
         parts.reverse()
 
         result = ""
         for part in parts:
-            if part.startswith("."):
-                result = f"{result}.{part[1:]}" if result else part[1:]
-            else:
-                result = part
+            result = f"{result}.{part[1:]}" if part.startswith(".") else part
         return result
 
     # -------------------------------------------------------------------------
