@@ -78,6 +78,13 @@ class _GrammarMixin:
             node_value = args[0] if args else kwargs.get("node_value")
             self._validate_call_args(info, node_value, kwargs)
 
+            # iterate is a component-only capability (contract §8.1).
+            if kwargs.get("iterate") and not info.get("is_component"):
+                raise TypeError(
+                    f"iterate requires a @component node (with body to expand); "
+                    f"'{node_tag}' is an @element",
+                )
+
             # Check if this is a component
             if info.get("is_component"):
                 return self._handle_component(destination_bag, info, node_tag, kwargs)

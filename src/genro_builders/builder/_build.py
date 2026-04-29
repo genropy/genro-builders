@@ -96,8 +96,9 @@ class _BuildMixin:
             built_path = f"{prefix}.{node.label}" if prefix else node.label
 
             # --- Component with iterate: expand N times ---
+            # iterate is component-only (enforced at call time, contract §8.1).
             iterate_raw = node.attr.get("iterate")
-            if iterate_raw and is_pointer(iterate_raw) and node.attr.get("_is_component"):
+            if iterate_raw and is_pointer(iterate_raw):
                 self._expand_component_iterate(
                     node, iterate_raw, target, data, built_path,
                 )
@@ -319,8 +320,14 @@ class _BuildMixin:
         else:
             data_bag = data.get_item(data_path)
 
-        if not isinstance(data_bag, Bag):
+        # Contract §8.2: missing path is OK (0 replicas); non-Bag target is TypeError.
+        if data_bag is None:
             return
+        if not isinstance(data_bag, Bag):
+            raise TypeError(
+                f"iterate target must be a Bag, got "
+                f"{type(data_bag).__name__} at path '{data_path}'",
+            )
 
         proxy = node.value
         for child_data_node in data_bag:
