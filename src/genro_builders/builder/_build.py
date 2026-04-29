@@ -172,9 +172,16 @@ class _BuildMixin:
     def _expand_component(self, proxy: Any, **framework_kwargs: Any) -> Bag:
         """Execute a component handler, returning the populated Bag.
 
-        Handler receives ``main_kwargs=dict`` built from framework-provided
-        ``main_*`` kwargs (today just ``main_datapath`` from iterate). The
-        handler is expected to splat ``main_kwargs`` on the main widget.
+        Handler receives ``main_kwargs=dict`` produced by merging:
+          * user main kwargs (from call-time ``main_*`` / ``main_kwargs={...}``,
+            stored on the proxy as ``_user_main_kwargs``);
+          * framework main kwargs (e.g. ``main_datapath`` injected by iterate).
+
+        On key collision the framework value wins, **except** for
+        ``datapath`` where the two are concatenated as
+        ``f"{user_datapath}{framework_datapath}"`` (the framework already
+        emits the leading dot, so the result is ``"<user>.<row>"``). See
+        contract §2bis.8 / §8.3.
 
         The expanded bag must be a tree (exactly one top-level node); if
         ``main_tag`` is declared in the schema, the top-level node_tag
@@ -182,17 +189,23 @@ class _BuildMixin:
         """
         builder = object.__getattribute__(proxy, "_builder")
         comp_name = object.__getattribute__(proxy, "_component_name")
+        user_main_kwargs = object.__getattribute__(proxy, "_user_main_kwargs")
         info = builder._get_schema_info(comp_name)
         handler_name = info.get("handler_name")
         handler = getattr(builder, handler_name) if handler_name else None
         builder_class = info.get("component_builder") or type(builder)
         based_on = info.get("based_on")
 
-        main_kwargs = {
+        framework_main_kwargs = {
             k[len("main_"):]: v
             for k, v in framework_kwargs.items()
             if k.startswith("main_")
         }
+        main_kwargs = {**user_main_kwargs, **framework_main_kwargs}
+        user_dp = user_main_kwargs.get("datapath")
+        framework_dp = framework_main_kwargs.get("datapath")
+        if user_dp and framework_dp:
+            main_kwargs["datapath"] = f"{user_dp}{framework_dp}"
 
         if based_on:
             comp_bag = self._resolve_parent_component(

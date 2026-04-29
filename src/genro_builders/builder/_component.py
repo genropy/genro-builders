@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 from genro_bag import Bag
+from genro_toolbox.dict_utils import dictExtract
 
 from ..builder_bag import BuilderBag
 
@@ -40,12 +41,14 @@ class ComponentProxy:
         slot_names: tuple[str, ...] | list[str] = (),
         component_name: str | None = None,
         builder: Any = None,
+        user_main_kwargs: dict | None = None,
     ) -> None:
         object.__setattr__(self, "_root", root)
         object.__setattr__(self, "_slot_names", tuple(slot_names))
         object.__setattr__(self, "_slots", {})
         object.__setattr__(self, "_component_name", component_name)
         object.__setattr__(self, "_builder", builder)
+        object.__setattr__(self, "_user_main_kwargs", user_main_kwargs or {})
 
     def set_backref(self, node: Any = None, parent: Any = None) -> None:
         """No-op. The proxy wraps the root bag; it does not participate
@@ -130,8 +133,14 @@ class _ComponentMixin:
 
         Creates a ComponentProxy and attaches it as node_value on the
         source node. The proxy carries the component identity
-        (component_name + builder) so the build walk can find the
-        handler via the schema registry and execute it.
+        (component_name + builder) plus optional user-supplied
+        ``main_kwargs`` to be splatted on the main widget at build time.
+
+        Extracts ``main_*`` prefixed kwargs and ``main_kwargs={...}`` from
+        the user call (per contract §2bis.8): both forms are equivalent
+        and the explicit ``main_kwargs`` dict wins on key collision. The
+        residual kwargs (non-``main_*``) become attributes of the source
+        node.
 
         The handler body is NOT called here. It is called by the build
         walk when it reaches the component source node.
@@ -140,6 +149,10 @@ class _ComponentMixin:
         node_label = kwargs.pop("node_label", None)
         node_position = kwargs.pop("node_position", None)
 
+        explicit_main = kwargs.pop("main_kwargs", None) or {}
+        prefixed_main = dictExtract(kwargs, "main_", pop=True, slice_prefix=True)
+        user_main_kwargs = {**prefixed_main, **explicit_main}
+
         slot_names = info.get("slots") or []
 
         proxy = ComponentProxy(
@@ -147,6 +160,7 @@ class _ComponentMixin:
             slot_names=slot_names,
             component_name=node_tag,
             builder=self,
+            user_main_kwargs=user_main_kwargs,
         )
 
         node = self._add_element(
