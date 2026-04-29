@@ -471,8 +471,13 @@ while the component body controls the overall layout.
 >>> from genro_builders.builder import BagBuilderBase, element, component
 
 >>> class LayoutBuilder(BagBuilderBase):
+...     # Note: 'frame', 'header', 'pane', 'item' are illustrative element names
+...     # for this fictional layout builder, not standard tags.
+...     @element(sub_tags='*')
+...     def frame(self): ...
+...
 ...     @element()
-...     def toolbar(self): ...
+...     def header(self): ...
 ...
 ...     @element(sub_tags='*')
 ...     def pane(self): ...
@@ -480,11 +485,12 @@ while the component body controls the overall layout.
 ...     @element()
 ...     def item(self): ...
 ...
-...     @component(slots=['left', 'right'])
+...     @component(slots=['left', 'right'], main_tag='frame', sub_tags='')
 ...     def split_panel(self, comp, title='', **kwargs):
-...         comp.toolbar(title)
-...         left_pane = comp.pane(side='left')
-...         right_pane = comp.pane(side='right')
+...         root = comp.frame()             # one top-level node (single-root)
+...         root.header(title)
+...         left_pane = root.pane(side='left')   # child of root
+...         right_pane = root.pane(side='right') # child of root
 ...         return {'left': left_pane, 'right': right_pane}
 
 >>> page = BuilderBag(builder=LayoutBuilder)
@@ -497,9 +503,9 @@ BagNode : ... at ...
 BagNode : ... at ...
 
 >>> # Chaining still works via proxy delegation
->>> page.toolbar('Page footer')  # doctest: +ELLIPSIS
+>>> page.header('Page footer')  # doctest: +ELLIPSIS
 BagNode : ... at ...
->>> len(page)  # split_panel + toolbar
+>>> len(page)  # split_panel + header
 2
 ```
 
@@ -580,7 +586,7 @@ How it works:
 
 1. The builder reads `^people` from the data store
 2. For each child (`p0`, `p1`, `p2`), it creates an instance of `badge`
-3. Each instance gets `datapath` set to `people.p0`, `people.p1`, etc.
+3. Each instance gets `datapath` set to a **relative** path (`.p0`, `.p1`, ...); the absolute anchor is provided by an ancestor with absolute datapath (e.g., a container declared above).
 4. The `^.?name` pointers resolve against the corresponding data node
 
 The component knows nothing about iteration — it describes one badge.
