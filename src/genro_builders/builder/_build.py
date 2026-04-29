@@ -159,16 +159,25 @@ class _BuildMixin:
         the target — transparent components calling the same element
         multiple times produce unique labels (no collision).
 
+        ``node_id``, when present on the source node, is preserved on the
+        built node as an attribute (contract §6, invariant #21). The map
+        ``_node_id_map`` is source-only at Stage 1; ``node_id`` on the
+        built side is a plain attribute. Built-side ``^#X`` resolution
+        will be wired in later commits (FASE 3).
+
         Returns the newly created node.
         """
         attrs = dict(node.attr)
-        attrs.pop("node_id", None)  # node_id is not a build-time attr
-        return self._child(
+        node_id = attrs.pop("node_id", None)
+        built_node = self._child(
             target,
             node.node_tag,
             node_value=value if not isinstance(value, Bag) else BuiltBag(),
             **attrs,
         )
+        if node_id is not None:
+            built_node.set_attr({"node_id": node_id}, trigger=False)
+        return built_node
 
     def _expand_component(self, proxy: Any, **framework_kwargs: Any) -> Bag:
         """Execute a component handler, returning the populated Bag.

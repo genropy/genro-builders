@@ -191,3 +191,20 @@ class TestSymbolicPointer:
 
         with pytest.raises(KeyError):
             node.abs_datapath("#nonexistent.foo")
+
+
+# ---------------------------------------------------------------------------
+# node_id preservation in built (contract §6, invariant #21)
+# ---------------------------------------------------------------------------
+
+
+class TestNodeIdPreservedInBuilt:
+    """``node_id`` survives the build phase as an attribute of the built node."""
+
+    def test_node_id_survives_on_built_node(self) -> None:
+        builder = _Container()
+        builder.source.container(node_id="addr", datapath="customer.address")
+        _maybe_run(builder.build())
+
+        built_node = next(iter(builder.built))
+        assert built_node.attr.get("node_id") == "addr"
