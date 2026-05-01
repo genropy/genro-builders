@@ -215,7 +215,7 @@ class BagRendererBase(ABC):
         Data element nodes (data_formula, data_controller, data_setter)
         are skipped — they are nop for rendering.
         """
-        if node.attr.get("_is_data_element"):
+        if node._is_data_element:
             return
 
         tag = node.node_tag or node.label

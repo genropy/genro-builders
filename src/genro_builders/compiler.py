@@ -153,7 +153,7 @@ class BagCompilerBase(ABC):
             node: The built BagNode to compile.
             parent: The parent compiled object (e.g. Workbook, Widget).
         """
-        if node.attr.get("_is_data_element"):
+        if node._is_data_element:
             return None
 
         tag = node.node_tag or node.label

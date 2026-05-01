@@ -52,6 +52,10 @@ class BuiltBagNode(BagNode):
         return None
 
     @property
+    def _is_data_element(self) -> bool:
+        return bool(self.attr.get("_is_data_element"))
+
+    @property
     def data(self) -> Bag:
         """Data Bag — discovered via ancestor chain."""
         builder = self._find_builder()

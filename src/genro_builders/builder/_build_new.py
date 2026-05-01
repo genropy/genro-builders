@@ -4,9 +4,11 @@
 Replaces ``_BuildMixin.build()`` for the HtmlBuilder. The legacy
 ``_BuildMixin`` stays alive for the other contrib builders.
 
-Step (a): ``build()`` is a no-op. ``new_built()`` returns a fresh
-``BuiltBagNew`` instance. Features are added one at a time on the
-mixins below.
+Plain-html step: ``build()`` mirrors source nodes into the built tree,
+copying tag, value, and attrs. Container values (sub-Bags) are
+recreated as ``BuiltBagNew`` and walked recursively. Features beyond
+plain html (pointers, callables, components, iterate, data elements)
+are added one at a time.
 """
 
 from __future__ import annotations
@@ -21,7 +23,21 @@ class _BuiltBagMixin:
 
 
 class _BuiltNodeMixin:
-    """Helpers for the built node. Empty — features added one at a time."""
+    """Helpers for the built node. Features added one at a time."""
+
+    @property
+    def _is_data_element(self) -> bool:
+        return False
+
+    @property
+    def runtime_value(self) -> Any:
+        return self.get_value(static=True)
+
+    @property
+    def runtime_attrs(self) -> dict[str, Any]:
+        attrs = dict(self.attr)
+        attrs.pop("datapath", None)
+        return attrs
 
 
 class BuiltBagNodeNew(BagNode, _BuiltNodeMixin):
@@ -39,4 +55,27 @@ class _BuildMixinNew:
         return BuiltBagNew()
 
     def build(self) -> Any:
-        pass
+        self.built.clear()
+        self._mirror(self.source, self.built)
+
+    def _mirror(self, src_bag: Bag, dst_bag: Bag) -> None:
+        for src_node in src_bag:
+            value = src_node.value
+            if isinstance(value, Bag):
+                dst_value = BuiltBagNew()
+                Bag.set_item(
+                    dst_bag,
+                    src_node.label,
+                    dst_value,
+                    _attributes=dict(src_node.attr),
+                    node_tag=src_node.node_tag,
+                )
+                self._mirror(value, dst_value)
+            else:
+                Bag.set_item(
+                    dst_bag,
+                    src_node.label,
+                    value,
+                    _attributes=dict(src_node.attr),
+                    node_tag=src_node.node_tag,
+                )
