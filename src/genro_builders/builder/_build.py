@@ -507,6 +507,9 @@ class _BuildMixin:
             self._reactivity = ReactivityEngine(self)
         return self._reactivity
 
+    def new_built(self) -> Bag:
+        return BuiltBag()
+
     def build(self) -> Any:
         """Materialize source -> built.
 

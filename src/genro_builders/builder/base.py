@@ -192,9 +192,9 @@ class BagBuilderBase(
             self._source_shell.set_backref()
             self._source_shell.set_item("root", BuilderBag(builder=type(self)))
 
-            self._built_shell = BuiltBag()
+            self._built_shell = self.new_built()
             self._built_shell.set_backref()
-            self._built_shell.set_item("root", BuiltBag())
+            self._built_shell.set_item("root", self.new_built())
 
             self._bag = self._source_shell.get_item("root")
 

@@ -8,6 +8,7 @@ from typing import Any
 from genro_bag import Bag, BagNode
 
 from ...builder import BagBuilderBase
+from ...builder._build_new import _BuildMixinNew
 from ...renderer import BagRendererBase, RenderNode
 from .html5_elements import Html5Elements
 
@@ -56,7 +57,7 @@ class HtmlRenderer(BagRendererBase):
         return f"<{tag}{attrs_str}>{node_value}</{tag}>"
 
 
-class HtmlBuilder(BagBuilderBase, Html5Elements):
+class HtmlBuilder(_BuildMixinNew, BagBuilderBase, Html5Elements):
     """Builder for HTML5 elements."""
 
     _renderers = {"html": HtmlRenderer}
