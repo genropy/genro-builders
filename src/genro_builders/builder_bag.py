@@ -1,392 +1,163 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BuilderBag and BuilderBagNode - Bag subclasses with builder support.
+"""Builder-aware Bag and BagNode — level 1 of the bag/node layering.
 
-BuilderBag extends Bag to support domain-specific builders that define
-grammars for creating nodes. BuilderBagNode extends BagNode to delegate
-attribute access to the builder.
+Decision 3: ``BuilderBag`` and ``BuilderBagNode`` are obtained by
+combining ``Bag`` with ``_BuilderBagMixin`` and ``BagNode`` with
+``_BuilderBagNodeMixin``. The grammar-aware logic lives in the mixins;
+the base classes from ``genro-bag`` stay untouched.
 
-Example:
-    >>> from genro_builders import BuilderBag
-    >>> from genro_builders.contrib.html import HtmlBuilder
-    >>> html = BuilderBag(builder=HtmlBuilder)
-    >>> html.div(id='main').p(value='Hello')
+Decision 10: every node carries two slots, ``_builder`` and
+``_handler``. ``_builder`` is the active dialect for that node;
+``_handler`` is the BuilderHandler that owns the tree. They are set
+at attach time. Immutability is convention-only during the restart
+(see ``feedback_lightweight_nodes.md``).
+
+Decision 12: this module defines only level 1 (base common between
+source and built). Level 2 (``BuilderSourceBag`` / ``BuilderBuiltBag``)
+follows in 2.3.
 """
 from __future__ import annotations
 
 from typing import Any
 
 from genro_bag import Bag, BagNode
-from genro_toolbox.decorators import extract_kwargs
+
+_BUILDERBAG_PROTECTED = frozenset({"node_class"})
 
 
-_BUILDERBAG_PROTECTED = frozenset({"builder", "node_class"})
+class _BuilderBagNodeMixin:
+    """Builder-aware logic for nodes: schema dispatch via __getattr__.
 
-
-class BuilderBagNode(BagNode):
-    """BagNode with builder delegation and path resolution.
-
-    When a builder is attached to the parent Bag, allows calling
-    builder methods directly on nodes to add children:
-
-        node = bag.div()  # returns BuilderBagNode
-        node.span()       # delegates to builder._command_on_node()
-
-    Path resolution methods resolve paths relative to this node's
-    position in the tree, using the ``datapath`` attribute chain.
-    Used at build time by _process_infra_node.
-
-    Execution methods (runtime_value, runtime_attrs, evaluate_on_node)
-    live on BuiltBagNode — this class is for the source, not the built.
+    The actual slots ``_builder``/``_handler`` are declared on the
+    final ``BuilderBagNode`` class (BagNode itself uses __slots__,
+    so the slots must live on the concrete class to avoid a layout
+    conflict).
     """
 
     __slots__ = ()
 
+    def _resolve_builder(self) -> Any:
+        """Return the active builder, falling back to the parent bag.
+
+        Nodes are not always attached with their slots populated (e.g.
+        when created via plain ``Bag.set_item``). The slot acts as a
+        cache; if empty, look it up on the containing bag.
+        """
+        try:
+            value = object.__getattribute__(self, "_builder")
+        except AttributeError:
+            value = None
+        if value is not None:
+            return value
+        parent = self._parent_bag
+        return getattr(parent, "_builder", None) if parent is not None else None
+
     def __getattr__(self, name: str) -> Any:
-        """Delegate unknown attributes to builder if available."""
+        """Delegate unknown attribute access to the active builder.
+
+        ``node.div('hello')`` becomes ``builder._command_on_node(...)``
+        when the active builder carries a tag named ``div`` in its
+        schema.
+        """
         if name.startswith("_"):
-            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-
-        builder = self._parent_bag._builder if self._parent_bag is not None else None
-
-        if builder is not None:
-            return lambda node_value=None, node_position=None, **attrs: builder._command_on_node(
-                self, name, node_position=node_position, node_value=node_value, **attrs
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
             )
-
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        builder = self._resolve_builder()
+        if builder is None or name not in builder._schema_tag_names:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+        return lambda node_value=None, node_position=None, **attrs: builder._command_on_node(
+            self, name,
+            node_position=node_position, node_value=node_value, **attrs,
+        )
 
     def __dir__(self) -> list[str]:
-        """Return allowed child tags for autocompletion.
-
-        Uses the node's node_tag to look up sub_tags_compiled in the
-        builder schema, returning only the tags that are valid children.
-        """
+        """Expose schema tag names for autocompletion."""
         base = set(super().__dir__())
-        builder = self._parent_bag._builder if self._parent_bag is not None else None
-        if builder is None or not self.node_tag:
-            return sorted(base)
-
-        info = builder._get_schema_info(self.node_tag)
-        sub_tags = info.get("sub_tags")
-        if sub_tags == "":
-            return sorted(base)
-
-        sub_tags_compiled = info.get("sub_tags_compiled")
-        if isinstance(sub_tags_compiled, dict):
-            base.update(sub_tags_compiled.keys())
-        elif sub_tags_compiled == "*" or sub_tags is None:
-            for schema_node in builder._schema:
-                name = schema_node.label
-                if not name.startswith("@"):
-                    base.add(name)
+        builder = self._resolve_builder()
+        if builder is not None:
+            base.update(builder._schema_tag_names)
         return sorted(base)
 
-    # -------------------------------------------------------------------------
-    # Data resolution (used at build time only)
-    # -------------------------------------------------------------------------
 
-    def abs_datapath(self, path: str) -> str:
-        """Resolve any path form to an absolute datapath (source-side).
+class _BuilderBagMixin:
+    """Builder-aware logic for bags: schema dispatch via __getattribute__.
 
-        Grammar (see ``docs/builders/manager-architecture.md`` §5–§6):
-
-            'field'             — absolute in the current builder's local_store.
-            '.field'            — relative: resolved via the ancestor datapath chain.
-            'volume:field'      — absolute in another builder's local_store.
-            '#node_id.field'    — symbolic: resolved via node_id lookup (source-side only).
-            'volume:#node_id.field' — symbolic with cross-builder lookup.
-
-        **No prepend, no silent fallback.** The method never inserts a
-        builder name into the returned path. A relative path that cannot
-        find an anchor raises ``ValueError``.
-
-        The returned string preserves the ``volume:`` prefix when present;
-        volume routing is performed at read/write time through the manager
-        registry, not here.
-
-        Raises:
-            ValueError: If the path is relative without a datapath anchor.
-            KeyError: If a #node_id reference cannot be found.
-        """
-        volume = None
-        if ":" in path and not path.startswith(".") and not path.startswith("#"):
-            volume, path = path.split(":", 1)
-
-        if path.startswith("#"):
-            resolved = self._resolve_symbolic(path, volume=volume)
-        elif path.startswith("."):
-            datapath = self._walk_ancestor_datapath()
-            if not datapath:
-                raise ValueError(
-                    f"Relative pointer '^{path}' used without a datapath context"
-                )
-            resolved = f"{datapath}.{path[1:]}" if path[1:] else datapath
-        else:
-            resolved = path
-
-        if volume is not None:
-            return f"{volume}:{resolved}" if resolved else volume
-        return resolved
-
-    def _resolve_symbolic(self, path: str, volume: str | None = None) -> str:
-        """Resolve a #node_id symbolic path to an absolute datapath.
-
-        ``#address.street`` → find node_id 'address', take its datapath,
-        append '.street'. When volume is given, looks up the node_id in
-        the specified builder (cross-builder resolution).
-
-        Returns the resolved local path. The caller (``abs_datapath``)
-        re-prefixes the ``volume:`` qualifier if present; no builder
-        name is ever added.
-        """
-        without_hash = path[1:]
-        dot_pos = without_hash.find(".")
-        if dot_pos >= 0:
-            node_id = without_hash[:dot_pos]
-            rest = without_hash[dot_pos + 1:]
-        else:
-            node_id = without_hash
-            rest = ""
-
-        builder = self._parent_bag._builder if self._parent_bag is not None else None
-        if builder is None:
-            raise KeyError(f"Cannot resolve symbolic path '{path}': no builder")
-
-        # Cross-builder resolution: look up node_id in the volume's builder
-        if volume is not None and builder._manager is not None:
-            target_builder = builder._manager._builders.get(volume)
-            if target_builder is None:
-                raise KeyError(f"Builder '{volume}' not found for symbolic path '{path}'")
-            target_node = target_builder.node_by_id(node_id)
-        else:
-            target_node = builder.node_by_id(node_id)
-
-        target_datapath = target_node.attr.get("datapath", "")
-
-        if not target_datapath and hasattr(target_node, "_walk_ancestor_datapath"):
-            target_datapath = target_node._walk_ancestor_datapath()
-
-        if rest:
-            return f"{target_datapath}.{rest}" if target_datapath else rest
-        return target_datapath
-
-    def _walk_ancestor_datapath(self) -> str:
-        """Compose hierarchical datapath by walking up the ancestor chain.
-
-        Collects ``datapath`` attributes from ancestor nodes. The walk
-        stops at the closest absolute datapath (which resets the chain).
-        Returns the empty string when the chain has no absolute anchor —
-        the caller (``abs_datapath``) then raises ``ValueError`` per
-        contract §13.3 (no silent fallback).
-
-        A relative datapath (``.xxx``) is never promoted to an anchor by
-        stripping its leading dot.
-        """
-        parts: list[str] = []
-        found_absolute = False
-        current_bag = self._parent_bag
-
-        while current_bag is not None:
-            node = current_bag.parent_node
-            if node is None:
-                break
-            dp = node.attr.get("datapath", "")
-            if dp:
-                parts.append(dp)
-                if not dp.startswith("."):
-                    found_absolute = True
-                    break
-            current_bag = node._parent_bag
-
-        if not found_absolute:
-            return ""
-
-        parts.reverse()
-
-        result = ""
-        for part in parts:
-            result = f"{result}.{part[1:]}" if part.startswith(".") else part
-        return result
-
-    # -------------------------------------------------------------------------
-    # Value resolution (inspired by Genropy's currentFromDatasource pattern)
-    # -------------------------------------------------------------------------
-
-    def _pipeline_builder(self) -> Any:
-        """Walk up the bag hierarchy to find the pipeline builder.
-
-        The pipeline builder is the ``BagBuilderBase`` instance that
-        owns the source/built shells (and that holds the back-reference
-        to the manager). Mirrors ``BuiltBagNode._find_builder``.
-        """
-        bag = self._parent_bag
-        while bag is not None:
-            pipeline_builder = getattr(bag, "_pipeline_builder", None)
-            if pipeline_builder is not None:
-                return pipeline_builder
-            parent_node = bag.parent_node
-            if parent_node is None:
-                break
-            bag = parent_node._parent_bag
-        return None
-
-    def _resolve_target_bag(self, resolved: str) -> tuple[Bag, str]:
-        """Split a resolved path into (target_bag, local_path).
-
-        Mirrors ``BuiltBagNode._resolve_target_bag``: if ``resolved``
-        carries a ``volume:`` prefix, the target Bag is the volume's
-        local_store fetched from the manager registry; otherwise the
-        target is the builder's own local_store.
-
-        Raises:
-            KeyError: If the volume name is not registered.
-            RuntimeError: If a volume is referenced but the builder has
-                no manager attached.
-        """
-        if ":" in resolved and not resolved.startswith("."):
-            volume, local_path = resolved.split(":", 1)
-            pipeline = self._pipeline_builder()
-            manager = getattr(pipeline, "_manager", None) if pipeline else None
-            if manager is None:
-                raise RuntimeError(
-                    f"Volume '{volume}' referenced but builder has no "
-                    f"manager — volumes require a registry."
-                )
-            return manager.resolve_volume(volume), local_path
-        pipeline = self._pipeline_builder()
-        own_data = pipeline._data if pipeline is not None else Bag()
-        return own_data, resolved
-
-    def get_relative_data(self, path: str) -> Any:
-        """Read a value from the data Bag, resolving relative paths and volumes."""
-        attr_name = None
-        if "?" in path:
-            path, attr_name = path.split("?", 1)
-        resolved = self.abs_datapath(path)
-        target_bag, local_path = self._resolve_target_bag(resolved)
-        if attr_name is not None:
-            node = target_bag.get_node(local_path)
-            return node.attr.get(attr_name) if node is not None else None
-        return target_bag.get_item(local_path)
-
-    def set_relative_data(self, path: str, value: Any) -> None:
-        """Write a value to the data Bag, resolving relative paths and volumes."""
-        attr_name = None
-        if "?" in path:
-            path, attr_name = path.split("?", 1)
-        resolved = self.abs_datapath(path)
-        target_bag, local_path = self._resolve_target_bag(resolved)
-        if attr_name is not None:
-            target_bag.set_attr(local_path, **{attr_name: value})
-        else:
-            target_bag.set_item(local_path, value, _reason=self)
-
-    def current_from_datasource(self, value: Any, data: Bag) -> Any:
-        """Resolve a single value from this node's perspective.
-
-        If value is a ``^pointer`` string, resolves it via
-        ``get_relative_data`` (which handles volume routing). The
-        ``data`` parameter is kept for backward compatibility with
-        callers that still pass it; resolution always uses the
-        registry-aware path.
-        """
-        if isinstance(value, str) and value.startswith("^"):
-            return self.get_relative_data(value[1:])
-        return value
-
-
-
-
-class BuilderBag(Bag):
-    """Bag with builder support.
-
-    Extends Bag to accept a builder class that defines a grammar for
-    creating nodes with validation, schema constraints, and compilation.
-
-    Attributes:
-        node_class: Uses BuilderBagNode for builder-aware nodes.
-        _builder: The BagBuilderBase instance attached to this bag.
+    Bag itself does not use __slots__, so ``_builder``/``_handler``
+    live in ``__dict__`` on the concrete class.
     """
 
-    node_class: type[BagNode] = BuilderBagNode
-    _skip_parent_validation: bool = False
-
-    @extract_kwargs(builder=True)
-    def __init__(
-        self,
-        source: dict[str, Any] | None = None,
-        builder: Any = None,
-        builder_kwargs: dict | None = None,
-    ):
-        """Create a new BuilderBag.
-
-        Args:
-            source: Optional dict to initialize from.
-            builder: Optional BagBuilderBase class for domain-specific
-                node creation (e.g., HtmlBuilder for HTML generation).
-            builder_kwargs: Extra kwargs passed to builder constructor.
-                Can also be passed with builder_ prefix.
-        """
-        super().__init__(source=source)
-        self._builder = builder(self, **builder_kwargs) if builder else None
-
-    @property
-    def builder(self) -> Any:
-        """Get the builder associated with this Bag."""
-        return self._builder
-
-    @builder.setter
-    def builder(self, value: Any) -> None:
-        """Set the builder for this Bag."""
-        self._builder = value
+    __slots__ = ()
 
     def __getattribute__(self, name: str) -> Any:
-        """Grammar-first attribute resolution.
+        """Resolve attribute lookup with grammar priority.
 
-        Resolution order:
-        1. _prefix/dunder → normal (fast path)
-        2. Infrastructure ('builder', 'node_class') → normal
-        3. 'bag_' prefix → strip prefix, Bag method
-        4. Builder set + name in schema → grammar tag (priority)
-        5. Normal resolution (Bag methods, etc.)
+        Order:
+            1. dunder / private → normal lookup (fast path).
+            2. infrastructure names (``node_class``) → normal.
+            3. ``bag_<name>`` → strip prefix and look up the underlying Bag.
+            4. ``_builder`` set and ``name`` in its schema → grammar dispatch.
+            5. fallback to normal lookup.
         """
         if name.startswith("_"):
             return super().__getattribute__(name)
-
         if name in _BUILDERBAG_PROTECTED:
             return super().__getattribute__(name)
-
         if name.startswith("bag_"):
             return super().__getattribute__(name[4:])
-
         try:
             builder = super().__getattribute__("_builder")
         except AttributeError:
             builder = None
         if builder is not None and name in builder._schema_tag_names:
             return builder._bag_call(self, name)
-
         return super().__getattribute__(name)
 
     def __dir__(self) -> list[str]:
-        """Schema elements, bag_ aliases for colliders, and base attributes."""
+        """Expose schema tag names alongside the regular Bag API."""
         base = set(super().__dir__())
-        if self._builder is not None:
-            schema_tags = self._builder._schema_tag_names
-            for tag in schema_tags:
-                base.add(tag)
-                if tag in base:
-                    base.add(f"bag_{tag}")
+        builder = getattr(self, "_builder", None)
+        if builder is not None:
+            base.update(builder._schema_tag_names)
         return sorted(base)
 
 
-class Component(BuilderBag):
-    """The internal bag passed to @component handlers.
+class BuilderBagNode(BagNode, _BuilderBagNodeMixin):
+    """Level-1 node: BagNode with builder-aware attribute dispatch.
 
-    Semantically identical to BuilderBag. Exists as a named type
-    so that component handler signatures read naturally::
-
-        @component(sub_tags='')
-        def login_form(self, comp: Component, **kwargs):
-            comp.input(name='username')
+    Source-side and built-side nodes inherit from this (decision 12).
     """
+
+    __slots__ = ("_builder", "_handler")
+
+
+class BuilderBag(Bag, _BuilderBagMixin):
+    """Level-1 bag: Bag with builder-aware attribute dispatch.
+
+    Source-side and built-side bags inherit from this (decision 12).
+    Level-1 bags are not instantiated directly in normal flows; the
+    handler uses level-2 subclasses.
+    """
+
+    node_class: type[BagNode] = BuilderBagNode
+
+    def __init__(
+        self,
+        source: dict[str, Any] | None = None,
+        *,
+        builder: Any = None,
+        handler: Any = None,
+    ):
+        """Initialize the bag and attach the active builder/handler.
+
+        Args:
+            source: Optional dict to seed the Bag (mirrors ``Bag.__init__``).
+            builder: BagBuilderBase instance whose schema drives attribute
+                dispatch on this bag (and on nodes attached to it).
+            handler: BuilderHandler that owns the tree this bag belongs to.
+        """
+        super().__init__(source=source)
+        self._builder = builder
+        self._handler = handler

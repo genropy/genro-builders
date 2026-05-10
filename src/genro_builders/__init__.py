@@ -6,18 +6,24 @@ Builders declare a domain-specific grammar via decorators
 during fase 2 of the 2026-05 restart) drive the create/build/render
 lifecycle on top of the grammar.
 
-Core classes (fase 1):
+Core classes:
     BagBuilderBase: Grammar base — @element, @abstract, @component.
-    BuilderBag / BuilderBagNode: Bag subclasses with grammar-aware
-        attribute resolution. Layering refinement (decision 12,
-        BuilderSourceBag/BuilderBuiltBag) lands in fase 2.
-    Component: Bag passed to @component handlers.
-    ComponentProxy: Proxy returned by component calls (fluent chain).
+    BuilderBag / BuilderBagNode: level 1 of the bag/node layering
+        (decision 12). Contain the slots ``_builder`` and ``_handler``
+        and the grammar-aware attribute resolution shared between
+        source and built.
+    BuilderSourceBag / BuilderSourceBagNode: level 2 source side.
+    BuilderBuiltBag / BuilderBuiltBagNode: level 2 built side.
 """
 
 from genro_builders.builder import BagBuilderBase
-from genro_builders.builder._component import ComponentProxy
-from genro_builders.builder_bag import BuilderBag, BuilderBagNode, Component
+from genro_builders.builder_bag import BuilderBag, BuilderBagNode
+from genro_builders.built_bag import (
+    BuilderBuiltBag,
+    BuilderBuiltBagNode,
+    BuilderSourceBag,
+    BuilderSourceBagNode,
+)
 
 __version__ = "0.16.0"
 
@@ -25,6 +31,8 @@ __all__ = [
     "BagBuilderBase",
     "BuilderBag",
     "BuilderBagNode",
-    "Component",
-    "ComponentProxy",
+    "BuilderBuiltBag",
+    "BuilderBuiltBagNode",
+    "BuilderSourceBag",
+    "BuilderSourceBagNode",
 ]

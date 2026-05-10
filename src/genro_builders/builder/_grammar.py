@@ -155,6 +155,29 @@ class _GrammarMixin:
             self._accept_child(parent_node, parent_info, node_tag, node_position)
 
         child_info = self._get_schema_info(node_tag)
+
+        # ----------------------------------------------------------------
+        # Decision 2 (rinegoziata 2026-05-08): @subbuilder declares a
+        # subtree where the active builder switches. Pending implementation:
+        # at attach time the new node's _builder slot must become an
+        # instance of `subbuilder_class`, and from there on grammar
+        # dispatch (sub_tags validation, render, etc.) follows that
+        # builder. The host builder only owns the parent_tags rule that
+        # placed this node; the subtree's grammar belongs to the
+        # sub-builder. To implement: instantiate `subbuilder_class`,
+        # assign to `child_node._builder` (and `_handler` from the host),
+        # and let _accept_child / _validate_sub_tags use that schema for
+        # children. Until then this raise keeps the contract honest.
+        # ----------------------------------------------------------------
+        if child_info.get("is_subbuilder"):
+            raise NotImplementedError(
+                f"@subbuilder switching is not implemented yet "
+                f"(decision 2, 2026-05-03 decisions, rinegoziata 2026-05-08). "
+                f"Element '{node_tag}' declared subbuilder="
+                f"{child_info.get('subbuilder_class')!r}; the framework "
+                f"does not yet swap the active _builder for the subtree.",
+            )
+
         if not getattr(build_where, '_skip_parent_validation', False):
             self._validate_parent_tags(child_info, parent_node)
 
@@ -206,8 +229,16 @@ class _GrammarMixin:
         Falls back to self._child() for unknown tags (provides validation errors).
         """
         if not isinstance(node.value, Bag):
-            node.value = BuilderBag()
-            node.value.builder = self
+            # Sub-bag must be the same type as the parent bag (so a
+            # source node spawns a source sub-bag, a built node a built
+            # sub-bag). _builder/_handler propagate from the parent.
+            parent_bag = node._parent_bag
+            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
+            sub_bag = sub_bag_cls(
+                builder=getattr(parent_bag, "_builder", None) if parent_bag else None,
+                handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
+            )
+            node.value = sub_bag
 
         if child_tag in self._schema:
             info = self._get_schema_info(child_tag)
