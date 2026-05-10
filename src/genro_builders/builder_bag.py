@@ -18,7 +18,6 @@ from typing import Any
 from genro_bag import Bag, BagNode
 from genro_toolbox.decorators import extract_kwargs
 
-from .builder._binding import is_pointer
 
 _BUILDERBAG_PROTECTED = frozenset({"builder", "node_class"})
 
@@ -291,7 +290,7 @@ class BuilderBagNode(BagNode):
         callers that still pass it; resolution always uses the
         registry-aware path.
         """
-        if is_pointer(value):
+        if isinstance(value, str) and value.startswith("^"):
             return self.get_relative_data(value[1:])
         return value
 

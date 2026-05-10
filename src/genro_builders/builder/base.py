@@ -1,15 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BagBuilderBase — base class for Bag builders with grammar and validation.
+"""BagBuilderBase — grammar base class for Bag builders.
 
-A builder is a machine: it defines a domain-specific grammar via decorators
-(@element, @abstract, @component), materializes a source Bag into a built
-Bag (expanding components and resolving ^pointers), and produces output via
-named renderers (BagRendererBase, serialized) or compilers (BagCompilerBase,
-live objects).
-
-Reactivity (subscribe, formula re-execution, timers, incremental compile)
-is encapsulated in ``ReactivityEngine``, created lazily on first
-``subscribe()`` call.
+A builder declares the grammar of a dialect via decorators
+(@element, @abstract, @component) and the schema of valid tag
+placements (sub_tags, parent_tags). Engine responsibilities — source,
+built, the create/build/render phases, render_target, node_id index —
+live on the BuilderHandler (decisions 1, 8, 9).
 
 Exports:
     BagBuilderBase: Base class for all builders.
@@ -18,57 +14,36 @@ Exports:
 from __future__ import annotations
 
 from abc import ABC
-from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any
 
 from genro_bag import Bag
 
-from ..builder_bag import BuilderBag
-from ..built_bag import BuiltBag
 from ._build import _BuildMixin
 from ._component import _ComponentMixin
-from ._decorators import data_element
 from ._grammar import _GrammarMixin
-from ._output import _OutputMixin
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
-
-if TYPE_CHECKING:
-    from genro_bag import BagNode
-
-    from ._reactivity import ReactivityEngine
 
 
 class BagBuilderBase(
-    _OutputMixin,
     _BuildMixin,
     _ComponentMixin,
     _GrammarMixin,
     ABC,
 ):
-    """Abstract base class for Bag builders.
+    """Abstract base class for Bag builders (grammar only).
 
-    A builder provides domain-specific methods for creating nodes in a Bag.
-    Define elements using decorators:
+    A builder declares the dialect via decorators:
         - @element: Pure schema elements (body MUST be empty)
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
-        - @component: Composite structures (body called at compile time only)
+        - @component: Composite structures (body called at expand time only)
 
-    Reactivity is optional: call ``subscribe()`` to activate formula
-    re-execution, timers, incremental compile, and output management.
-    Without subscribe, the builder is a pure grammar + build + render machine.
-
-    Usage:
-        >>> builder = MyBuilder()
-        >>> builder.source.div()     # populate source
-        >>> builder.build()          # materialize source -> built
-        >>> builder.render()         # produce output
+    Engine concerns (source/built bags, the three lifecycle phases,
+    render_target, node_id) belong to the BuilderHandler.
     """
 
     _class_schema: Bag  # Schema built from decorators at class definition
     _schema_path: str | Path | None = None  # Default schema path (class attribute)
-    _renderers: ClassVar[dict[str, type]] = {}  # Named renderer classes
-    _compilers: ClassVar[dict[str, type]] = {}  # Named compiler classes
 
     # -----------------------------------------------------------------------
     # Initialization
@@ -145,176 +120,7 @@ class BagBuilderBase(
             if not node.label.startswith("@")
         )
 
-    def __init__(
-        self,
-        bag: Bag | None = None,
-        schema_path: str | Path | None = None,
-        *,
-        manager: Any = None,
-        data: Bag | None = None,
-    ) -> None:
-        """Initialize the builder.
-
-        Args:
-            bag: Reserved for internal use by BuilderBag.
-            schema_path: Optional path to load a pre-compiled schema from.
-            manager: Optional BuilderManager for shared data coordination.
-            data: Optional initial data Bag.
-        """
-        # Grammar
-        if schema_path is not None:
-            self._schema = Bag().fill_from(schema_path)
-        else:
-            self._schema = type(self)._class_schema
-        self._schema_tag_names = frozenset(
-            node.label for node in self._schema.nodes
-            if not node.label.startswith("@")
-        )
-        self._node_id_map: dict[str, BagNode] = {}
-
-        # Builder name: set by register_builder() when managed
-        self._builder_name: str | None = None
-
-        if bag is not None:
-            # Internal: BuilderBag passes itself as bag
-            self._bag = bag
-            self._bag.set_backref()
-            self._manager = None
-            self._data = data if data is not None else Bag()
-            self._reactivity: ReactivityEngine | None = None
-        else:
-            # Standard instantiation: builder owns the full pipeline
-            self._manager = manager
-
-            # Shells wrap the root Bags so that set_backref() gives root
-            # nodes a parent reference, needed for fullpath resolution.
-            self._source_shell = BuilderBag(builder=type(self))
-            self._source_shell.set_backref()
-            self._source_shell.set_item("root", BuilderBag(builder=type(self)))
-
-            self._built_shell = self.new_built()
-            self._built_shell.set_backref()
-            self._built_shell.set_item("root", self.new_built())
-
-            self._bag = self._source_shell.get_item("root")
-
-            self._source_shell._pipeline_builder = self
-            self._built_shell._pipeline_builder = self
-
-            # Data
-            self._data = data if data is not None else Bag()
-            if not self._data.backref:
-                self._data.set_backref()
-
-            # Output
-            self._renderer_instances: dict[str, Any] = {
-                name: cls(self) for name, cls in type(self)._renderers.items()
-            }
-            self._compiler_instances: dict[str, Any] = {
-                name: cls(self) for name, cls in type(self)._compilers.items()
-            }
-
-            # Reactivity: None until subscribe() is called
-            self._reactivity: ReactivityEngine | None = None
-
-            # Hook for subclasses to configure schema after init
-            self.on_configure()
-
-    # -----------------------------------------------------------------------
-    # Built-in data elements
-    # -----------------------------------------------------------------------
-
-    @data_element()
-    def data_setter(self, path, value=None, **kwargs):
-        """Static data: write value at path in data Bag."""
-        return path, dict(value=value, **kwargs)
-
-    @data_element()
-    def data_formula(self, path: str, func: Callable, **kwargs: Any):
-        """Computed data: install resolver at path in data Bag."""
-        return path, dict(func=func, **kwargs)
-
-    # -----------------------------------------------------------------------
-    # Configuration hook
-    # -----------------------------------------------------------------------
-
-    def on_configure(self) -> None:
-        """Hook called after __init__ completes (standard instantiation only).
-
-        Override in subclasses to declare schema elements on the source.
-        Useful for DataBuilder to auto-populate field definitions.
-        """
-
-    # -----------------------------------------------------------------------
-    # Pipeline properties
-    # -----------------------------------------------------------------------
-
-    @property
-    def source(self) -> BuilderBag:
-        """The source Bag where elements are added."""
-        return self._source_shell.get_item("root")
-
-    @property
-    def built(self) -> BuiltBag:
-        """The built Bag (components expanded, pointers resolved)."""
-        return self._built_shell.get_item("root")
-
-    @property
-    def data(self) -> Bag:
-        """The builder's private data Bag (its local_store).
-
-        Each builder owns its data unconditionally — managed or not.
-        Cross-builder access goes through ``manager.resolve_volume(name)``.
-        """
-        return self._data
-
-    @data.setter
-    def data(self, value: Bag | dict[str, Any]) -> None:
-        """Replace the data content. The data Bag object stays the same.
-
-        Clears the existing data and copies content from the new value.
-        All BuiltBagNode references to _data remain valid.
-        """
-        new_data = Bag(source=value) if isinstance(value, dict) else value
-        self._data.clear()
-        for node in new_data:
-            self._data.set_item(
-                node.label, node.value, _attributes=dict(node.attr),
-            )
-    # -----------------------------------------------------------------------
-    # Reactivity (delegated to ReactivityEngine)
-    # -----------------------------------------------------------------------
-
-    def subscribe(self) -> None:
-        """Activate reactive bindings on the built Bag.
-
-        Enables incremental compile and data change tracking.
-        The ReactivityEngine is created lazily by build().
-        """
-        self._ensure_reactivity()
-        self._reactivity.subscribe()
-
-    def rebuild(self, main: Any = None) -> None:
-        """Full rebuild: clear source, optionally re-populate, build."""
-        if self._reactivity is not None:
-            self._reactivity.rebuild(main)
-        else:
-            self._clear_source()
-            if main is not None:
-                main(self.source)
-            self.build()
-
-    @property
-    def _binding(self) -> Any:
-        """Access the binding manager (lives in ReactivityEngine)."""
-        if self._reactivity is not None:
-            return self._reactivity.binding
-        return None
-
-    @property
-    def _auto_compile(self) -> bool:
-        """Whether incremental compile is active (lives in ReactivityEngine)."""
-        if self._reactivity is not None:
-            return self._reactivity._auto_compile
-        return False
-
+    def __init__(self) -> None:
+        """Initialize the builder. Grammar-only state (decisions 1, 8)."""
+        self._schema = type(self)._class_schema
+        self._schema_tag_names = type(self)._schema_tag_names

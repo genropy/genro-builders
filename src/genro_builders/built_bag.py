@@ -22,7 +22,6 @@ from typing import Any
 
 from genro_bag import Bag, BagNode
 
-from .builder._binding import is_pointer
 
 
 class BuiltBagNode(BagNode):
@@ -213,7 +212,7 @@ class BuiltBagNode(BagNode):
 
     def current_from_datasource(self, value: Any) -> Any:
         """Resolve a single value: if ^pointer, read from data; else return as-is."""
-        if is_pointer(value):
+        if isinstance(value, str) and value.startswith("^"):
             return self.get_relative_data(value[1:])
         return value
 
