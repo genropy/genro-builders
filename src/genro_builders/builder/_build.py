@@ -19,8 +19,5 @@ from __future__ import annotations
 class _BuildMixin:
     """Build pipeline. Reimplemented per 2026-05-03/04 decisions."""
 
-    def build(self) -> None:
+    def build(self, source, built) -> None:
         """Materialize source into built. Reimplemented in fase 2."""
-
-    def new_built(self):
-        """Return a fresh built bag. Reimplemented in fase 2."""
