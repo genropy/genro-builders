@@ -1,17 +1,30 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""SvgBuilder and SvgRenderer — SVG document builder and renderer."""
+"""SvgBuilder — SVG dialect for genro-builders.
+
+Pairs the dialect grammar from ``SvgElements`` (W3C SVG 1.1/2 schema)
+with a linear ``render_svg`` mode. SVG is XML by definition, so void
+tags are always self-closing; the legacy style ``<rect />`` (space
+before the slash, per W3C XHTML recommendation followed by most SVG
+tools) is preserved.
+
+Attribute names use kebab-case in SVG (``stroke-width``) but Python
+identifiers can't contain hyphens, so users write ``stroke_width`` and
+the renderer maps presentation attributes via ``_KEBAB_ATTRS``.
+``_class`` / ``_for`` map to ``class`` / ``for`` like in HTML.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
-from genro_bag import Bag, BagNode
+from genro_bag import Bag
 
 from ...builder import BagBuilderBase
-from ...renderer import BagRendererBase, RenderNode
 from .svg_elements import SvgElements
 
-# Presentation attributes that use kebab-case in SVG.
+
+_ATTR_MAP = {"_class": "class", "_for": "for"}
+
 _KEBAB_ATTRS = frozenset({
     "alignment_baseline", "baseline_shift", "clip_path", "clip_rule",
     "color_interpolation", "color_interpolation_filters", "dominant_baseline",
@@ -41,56 +54,74 @@ _VOID_TAGS = frozenset({
     "polyline", "rect", "set", "stop", "use",
 })
 
-
-def _render_attr(key: str, value: Any) -> str:
-    """Render a single attribute, converting underscore to kebab where needed."""
-    if key in _KEBAB_ATTRS:
-        key = key.replace("_", "-")
-    elif key == "class_":
-        key = "class"
-    return f'{key}="{value}"'
-
-
-class SvgRenderer(BagRendererBase):
-    """Renderer for SVG documents.
-
-    Top-down: render_node returns a RenderNode for containers
-    or a plain string for leaves. Reads from node.runtime_attrs.
-    """
-
-    def render_node(
-        self, node: BagNode,
-        parent: list | None = None, **kwargs: Any,
-    ) -> str | RenderNode | None:
-        """Render a single node as SVG markup."""
-        tag = node.node_tag or node.label
-        attrs = node.runtime_attrs
-        attrs_str_parts = [
-            _render_attr(k, v)
-            for k, v in attrs.items()
-            if not k.startswith("_")
-        ]
-        attrs_str = f" {' '.join(attrs_str_parts)}" if attrs_str_parts else ""
-
-        value = node.runtime_value
-        node_value = "" if value is None or isinstance(value, Bag) else str(value)
-        has_children = isinstance(node.get_value(static=True), Bag)
-
-        if has_children:
-            return RenderNode(
-                before=f"<{tag}{attrs_str}>",
-                after=f"</{tag}>",
-                value=node_value,
-                indent="  ",
-            )
-
-        if tag in _VOID_TAGS and not node_value:
-            return f"<{tag}{attrs_str} />"
-        content = node_value or ""
-        return f"<{tag}{attrs_str}>{content}</{tag}>"
+_TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
+_ATTR_ESCAPE = str.maketrans(
+    {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"},
+)
 
 
 class SvgBuilder(BagBuilderBase, SvgElements):
-    """Builder for SVG documents."""
+    """SVG dialect builder. Renders the built bag as linear SVG markup."""
 
-    _renderers = {"svg": SvgRenderer}
+    _default_render_mode = "svg"
+
+    def render_svg(self, built: Bag, render_target: Any = None) -> str | None:
+        """Serialize ``built`` as SVG markup.
+
+        Returns the rendered string when ``render_target`` is ``None``;
+        otherwise writes/calls into the target and returns ``None``.
+        """
+        chunks: list[str] = []
+        for node in built:
+            self._render_node(node, chunks.append)
+        text = "".join(chunks)
+        if render_target is None:
+            return text
+        write = getattr(render_target, "write", None)
+        if callable(write):
+            write(text)
+            return None
+        if callable(render_target):
+            render_target(text)
+            return None
+        raise TypeError(
+            f"render_target {render_target!r} is neither writable "
+            "(.write) nor callable",
+        )
+
+    def _render_node(self, node: Any, emit: Any) -> None:
+        tag = node.node_tag or node.label
+        attrs = self._format_attrs(node.attr)
+        if tag in _VOID_TAGS:
+            emit(f"<{tag}{attrs} />")
+            return
+        emit(f"<{tag}{attrs}>")
+        value = node.value
+        if isinstance(value, Bag):
+            for child in value:
+                self._render_node(child, emit)
+        elif value is not None:
+            emit(str(value).translate(_TEXT_ESCAPE))
+        emit(f"</{tag}>")
+
+    def _format_attrs(self, attrs: dict[str, Any]) -> str:
+        parts: list[str] = []
+        for raw_name, value in attrs.items():
+            if raw_name.startswith("_") and raw_name not in _ATTR_MAP:
+                continue
+            if raw_name in _ATTR_MAP:
+                name = _ATTR_MAP[raw_name]
+            elif raw_name in _KEBAB_ATTRS:
+                name = raw_name.replace("_", "-")
+            else:
+                name = raw_name
+            if value is True:
+                rendered = "true"
+            elif value is False:
+                rendered = "false"
+            elif value is None:
+                rendered = "null"
+            else:
+                rendered = str(value).translate(_ATTR_ESCAPE)
+            parts.append(f' {name}="{rendered}"')
+        return "".join(parts)
