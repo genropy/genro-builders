@@ -53,10 +53,16 @@ class BuilderHandler:
         """Materialize ``self.source`` into ``self.built`` via the builder."""
         self.builder.build(self.source, self.built)
 
-    def render(self, mode: str | None = None) -> Any:
-        """Serialize ``self.built`` via the builder, honoring render_target."""
+    def render(self, mode: str | None = None, **kwargs: Any) -> Any:
+        """Serialize ``self.built`` via the builder, honoring render_target.
+
+        Extra ``**kwargs`` are mode-specific options propagated to the
+        builder's ``render`` (and from there filtered against the
+        target ``render_<mode>`` signature). See decision 6.
+        """
         return self.builder.render(
             self.built, mode=mode, render_target=self._render_target,
+            **kwargs,
         )
 
     # ------------------------------------------------------------------

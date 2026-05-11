@@ -187,13 +187,20 @@ distinte.
 
 **Sul builder**: ha più metodi di render, uno per modalità del
 dialetto (`render_html`, `render_xml`, `render_pretty`, ecc.). Il
-metodo `render(mode=None, render_target=None)` instrada alla
-modalità richiesta; se `mode` è `None`, usa il modo primario del
-dialetto (es. per `HtmlBuilder` è `render_html`).
+metodo `render(mode=None, render_target=None, **kwargs)` instrada
+alla modalità richiesta; se `mode` è `None`, usa il modo primario
+del dialetto (es. per `HtmlBuilder` è `render_html`).
+
+I `**kwargs` opzionali sono parametri specifici del modo (es.
+`xml=True/False` per `render_html`, `pretty=True` per
+`render_pretty`). Il dispatch li filtra in base alla firma del
+`render_<mode>` dispatch-ato: i kwarg che il metodo non dichiara
+vengono silenziosamente ignorati. Non sono errori — un kwarg di un
+modo (es. `xml`) può non avere senso per un altro (es. Markdown).
 
 **Sull'handler**: espone una property `render_target` (con storage
 interno `_render_target`, default `None`) che l'utente può
-valorizzare. `handler.render(mode=None)` delega:
+valorizzare. `handler.render(mode=None, **kwargs)` delega:
 
 ```python
 class BuilderHandler:
@@ -207,8 +214,10 @@ class BuilderHandler:
     def render_target(self, value):
         self._render_target = value
 
-    def render(self, mode=None):
-        return self.builder.render(mode, render_target=self.render_target)
+    def render(self, mode=None, **kwargs):
+        return self.builder.render(
+            mode, render_target=self.render_target, **kwargs,
+        )
 ```
 
 Il **render target** decide **dove** va l'output:

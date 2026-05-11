@@ -13,6 +13,7 @@ Exports:
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC
 from pathlib import Path
 from typing import Any
@@ -149,6 +150,7 @@ class BagBuilderBase(
         built: Bag,
         mode: str | None = None,
         render_target: Any = None,
+        **kwargs: Any,
     ) -> Any:
         """Dispatch to the requested render mode.
 
@@ -158,6 +160,12 @@ class BagBuilderBase(
         ``render_target is None`` -> the rendered output is returned
         as a string. Otherwise the concrete ``render_<mode>`` method
         writes into the target and may return ``None``.
+
+        ``**kwargs`` are mode-specific options (e.g. ``xml=True`` for
+        ``render_html``). The dispatch filters them against the
+        target method's signature: kwargs the method does not declare
+        are silently ignored — a kwarg meaningful in one mode (e.g.
+        ``xml``) is not an error for another mode (e.g. Markdown).
         """
         effective_mode = mode if mode is not None else self._default_render_mode
         method_name = f"render_{effective_mode}"
@@ -174,7 +182,12 @@ class BagBuilderBase(
                 f"{type(self).__name__} does not support render mode "
                 f"'{effective_mode}' (no method '{method_name}')",
             )
-        return method(self, built, render_target=render_target)
+        accepted = {
+            p for p in inspect.signature(method).parameters
+            if p not in {"self", "built", "render_target"}
+        }
+        filtered = {k: v for k, v in kwargs.items() if k in accepted}
+        return method(self, built, render_target=render_target, **filtered)
 
     def render_xml(self, built: Bag, render_target: Any = None) -> str | None:
         """Default XML render: serialize the built bag with ``to_xml()``.

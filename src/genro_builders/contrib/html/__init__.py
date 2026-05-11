@@ -1,15 +1,33 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""HTML contrib — under reconstruction (2026-05 restart).
+"""HTML contrib — HtmlBuilder + HtmlBuilderHandler.
 
-The HTML builder will be rewritten in fase 2 of the 2026-05 restart
-to honor the new BuilderHandler contract (decisions 4-6, 9). During
-fase 1 the public entry point is intentionally rejected so that no
-code accidentally depends on the legacy HtmlManager / HtmlRenderer
-shape that fase 2 will replace.
+Public entry point for HTML output. Users subclass
+``HtmlBuilderHandler`` and implement ``main(self, root)``.
+
+Example::
+
+    from genro_builders.contrib.html import HtmlBuilderHandler
+
+    class MyPage(HtmlBuilderHandler):
+        def main(self, root):
+            root.div("hello")
+
+    page = MyPage()
+    page.create()
+    page.build()
+    print(page.render())  # '<div>hello</div>'
 """
 
-raise ImportError(
-    "genro_builders.contrib.html is under reconstruction during fase 1 "
-    "of the 2026-05 restart. The new HtmlBuilderHandler will be "
-    "introduced in fase 2."
-)
+from __future__ import annotations
+
+from ...builder_handler import BuilderHandler
+from .html_builder import HtmlBuilder
+
+
+class HtmlBuilderHandler(BuilderHandler):
+    """Preset handler bound to ``HtmlBuilder`` (decision 9)."""
+
+    builder_class = HtmlBuilder
+
+
+__all__ = ["HtmlBuilder", "HtmlBuilderHandler"]
