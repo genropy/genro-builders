@@ -112,12 +112,10 @@ def test_render_target_invalid_object_raises_type_error():
         h.render()
 
 
-class _DialectWithCustomDefault(BagBuilderBase):
+from genro_builders.renderer import RendererBase
 
-    _default_render_mode = "custom"
 
-    @element()
-    def root(self): ...
+class _CustomRenderer(RendererBase):
 
     def render_custom(self, built, render_target=None):
         text = "[custom render]"
@@ -125,6 +123,15 @@ class _DialectWithCustomDefault(BagBuilderBase):
             return text
         render_target.write(text)
         return None
+
+
+class _DialectWithCustomDefault(BagBuilderBase):
+
+    _default_render_mode = "custom"
+    _renderer_class = _CustomRenderer
+
+    @element()
+    def root(self): ...
 
 
 class _CustomHandler(BuilderHandler):

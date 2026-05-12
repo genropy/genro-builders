@@ -284,7 +284,7 @@ Conseguenze:
 - Il meccanismo concreto (proxy, resolver, walk) è dettaglio
   implementativo dello step di build, e resta interno al builder.
 
-## 8. Builder = grammar pura, separata dall'engine
+## 8. Builder = grammar pura; rendering e compilation in classi dedicate
 
 Il `Builder` (es. `HtmlBuilder`, `SvgBuilder`) contiene **solo** la
 grammar:
@@ -294,17 +294,47 @@ grammar:
 - Validazione di scrittura nei nodi.
 - Regole di **build** di un nodo (come materializzarlo dalla source
   alla built).
-- Regole di **render** nel proprio dialetto, in una o più modalità
-  (vedi decisione 6: `render_html`, `render_xml`, ecc.).
+- Bindings al renderer e al compiler del dialetto:
+  `_renderer_class = HtmlRenderer`, `_compiler_class = HtmlCompiler`
+  (con default `RendererBase` / `CompilerBase` sul base).
+- `_default_render_mode` che selezione la modalità di default per
+  `render(mode=None)`.
+
+**Il rendering vive in `RendererBase` e nei suoi concreti**
+(`HtmlRenderer`, `SvgRenderer`, ...). Un renderer espone uno o più
+metodi `render_<mode>`. Il dispatch (`renderer.render(mode, ...)`)
+trova il metodo via MRO e filtra i `**kwargs` opzionali in base alla
+sua signature (decisione 6).
+
+**La compilation vive in `CompilerBase` e nei suoi concreti**
+(`HtmlCompiler`, ...). Il compiler produce oggetti live (widget,
+runtime, ASGI handler). Le implementazioni concrete sono
+posticipate; oggi il base alza `NotImplementedError`.
 
 Le responsabilità di engine — `source`, `built`, le tre fasi
 `create`/`build`/`render` (decisione 5), gestione del `render_target`
 (decisione 6), mappa `node_id` (decisione 11) — vivono sul
-`BuilderHandler`.
+`BuilderHandler`, che istanzia il renderer e il compiler in lazy mode
+e li espone come property (`handler.renderer`, `handler.compiler`).
+`handler.render(...)` e `handler.compile(...)` sono shortcut che
+delegano alle istanze.
 
-Conseguenza: il builder è testabile in isolamento (lo schema esiste
-indipendentemente da una macchina), e può essere riusato in contesti
-diversi (test, documentazione, sub-builder).
+Conseguenze:
+
+- Il builder è testabile in isolamento (lo schema esiste
+  indipendentemente da una macchina), e può essere riusato in
+  contesti diversi (test, documentazione, sub-builder).
+- I renderer condividono `RendererBase` per la logica trasversale
+  (gestione `render_target`, escape XML, render XML di default).
+- Aggiungere un nuovo modo di render a un dialetto significa
+  aggiungere un metodo `render_<mode>` al suo renderer, non
+  modificare il builder.
+
+> **Nota di rinegoziazione (2026-05-12)**: la formulazione originale
+> diceva "il builder contiene anche le regole di render". La
+> separazione completa rendering/grammar è stata adottata per
+> ridurre il volume del builder, eliminare la duplicazione fra
+> dialetti, e preparare lo strato parallelo del compiler.
 
 ## 9. BuilderHandler = engine; preset per dominio
 

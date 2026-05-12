@@ -13,13 +13,14 @@ Exports:
 
 from __future__ import annotations
 
-import inspect
 from abc import ABC
 from pathlib import Path
 from typing import Any
 
 from genro_bag import Bag
 
+from ..compiler import CompilerBase
+from ..renderer import RendererBase
 from ._build import _BuildMixin
 from ._component import _ComponentMixin
 from ._grammar import _GrammarMixin
@@ -138,86 +139,20 @@ class BagBuilderBase(
         self._schema_tag_names = type(self)._schema_tag_names
 
     # -----------------------------------------------------------------------
-    # Render (decision 6)
+    # Render & compile (decision 8, renegotiated 2026-05-12)
     # -----------------------------------------------------------------------
 
     #: Default rendering mode used when ``render(mode=None)`` is called.
     #: Concrete dialects override this (e.g. ``"html"`` for HtmlBuilder).
     _default_render_mode: str = "xml"
 
-    def render(
-        self,
-        built: Bag,
-        mode: str | None = None,
-        render_target: Any = None,
-        **kwargs: Any,
-    ) -> Any:
-        """Dispatch to the requested render mode.
+    #: Dialect renderer class. Subclasses bind their own renderer
+    #: (e.g. ``HtmlRenderer`` for ``HtmlBuilder``). Defaults to the
+    #: bare ``RendererBase`` which provides only ``render_xml`` —
+    #: enough for plain XML dialects and for sanity tests.
+    _renderer_class: type = RendererBase
 
-        ``mode is None`` -> the dialect's default mode (class attribute
-        ``_default_render_mode``).
-
-        ``render_target is None`` -> the rendered output is returned
-        as a string. Otherwise the concrete ``render_<mode>`` method
-        writes into the target and may return ``None``.
-
-        ``**kwargs`` are mode-specific options (e.g. ``xml=True`` for
-        ``render_html``). The dispatch filters them against the
-        target method's signature: kwargs the method does not declare
-        are silently ignored — a kwarg meaningful in one mode (e.g.
-        ``xml``) is not an error for another mode (e.g. Markdown).
-        """
-        effective_mode = mode if mode is not None else self._default_render_mode
-        method_name = f"render_{effective_mode}"
-        # Walk the class MRO directly: ``getattr(self, ...)`` would hit
-        # ``_GrammarMixin.__getattr__`` and pretend any name resolves
-        # to a schema-tag wrapper.
-        method = None
-        for klass in type(self).__mro__:
-            if method_name in klass.__dict__:
-                method = klass.__dict__[method_name]
-                break
-        if method is None:
-            raise ValueError(
-                f"{type(self).__name__} does not support render mode "
-                f"'{effective_mode}' (no method '{method_name}')",
-            )
-        accepted = {
-            p for p in inspect.signature(method).parameters
-            if p not in {"self", "built", "render_target"}
-        }
-        filtered = {k: v for k, v in kwargs.items() if k in accepted}
-        return method(self, built, render_target=render_target, **filtered)
-
-    def render_xml(
-        self,
-        built: Bag,
-        render_target: Any = None,
-        *,
-        pretty: bool = False,
-    ) -> str | None:
-        """Default XML render: serialize the built bag with ``to_xml()``.
-
-        ``pretty=True`` emits multi-line indented XML (delegated to
-        ``Bag.to_xml(pretty=True)``). Default is the single-line form.
-
-        Concrete dialects can override to produce a richer XML (e.g.
-        HTML-conforming auto-closing of void tags). When
-        ``render_target`` is None the serialized string is returned;
-        otherwise it is written to the target's ``write`` method (if
-        any) or fed to the target as a callable.
-        """
-        text = built.to_xml(pretty=pretty)
-        if render_target is None:
-            return text
-        write = getattr(render_target, "write", None)
-        if callable(write):
-            write(text)
-            return None
-        if callable(render_target):
-            render_target(text)
-            return None
-        raise TypeError(
-            f"render_target {render_target!r} is neither writable "
-            "(.write) nor callable",
-        )
+    #: Dialect compiler class. Subclasses bind their own compiler
+    #: (e.g. ``HtmlCompiler``). Defaults to the bare ``CompilerBase``
+    #: stub whose ``compile`` raises ``NotImplementedError``.
+    _compiler_class: type = CompilerBase

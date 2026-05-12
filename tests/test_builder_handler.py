@@ -20,22 +20,31 @@ from genro_builders import BuilderBuiltBag, BuilderSourceBag
 from genro_builders.builder_handler import BuilderHandler
 
 
+class _RecordingRenderer:
+    """Stand-in renderer that records render() calls. Only used in tests."""
+
+    def __init__(self, handler):
+        self.handler = handler
+        self.calls: list[tuple[Any, Any, Any]] = []
+
+    def render(self, built, mode=None, render_target=None, **kwargs) -> str:
+        self.calls.append((built, mode, render_target))
+        return f"rendered(mode={mode!r}, target={render_target!r})"
+
+
 class _RecordingBuilder:
-    """Stand-in builder that records calls. Only used in tests."""
+    """Stand-in builder that records build() calls. Only used in tests."""
 
     _schema_tag_names = frozenset()
     _schema = ()
+    _default_render_mode = "stub"
+    _renderer_class = _RecordingRenderer
 
     def __init__(self) -> None:
         self.build_calls: list[tuple[Any, Any]] = []
-        self.render_calls: list[tuple[Any, Any, Any]] = []
 
     def build(self, source, built) -> None:
         self.build_calls.append((source, built))
-
-    def render(self, built, mode=None, render_target=None) -> str:
-        self.render_calls.append((built, mode, render_target))
-        return f"rendered(mode={mode!r}, target={render_target!r})"
 
 
 class _StubHandler(BuilderHandler):
@@ -98,13 +107,14 @@ def test_build_delegates_to_builder_with_source_and_built():
     assert h.builder.build_calls == [(h.source, h.built)]
 
 
-def test_render_delegates_to_builder_with_mode_and_target():
-    """Decision 6: render() forwards built, mode and render_target."""
+def test_render_delegates_to_renderer_with_mode_and_target():
+    """Decisions 6 + 8 (renegotiated 2026-05-12): handler.render()
+    forwards built, mode and render_target to the dialect renderer."""
     h = _StubHandler()
     h.render_target = "<file-stub>"
     out = h.render("html")
-    assert len(h.builder.render_calls) == 1
-    built_arg, mode_arg, target_arg = h.builder.render_calls[0]
+    assert len(h.renderer.calls) == 1
+    built_arg, mode_arg, target_arg = h.renderer.calls[0]
     assert built_arg is h.built
     assert mode_arg == "html"
     assert target_arg == "<file-stub>"

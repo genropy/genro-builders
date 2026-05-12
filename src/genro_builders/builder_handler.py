@@ -40,6 +40,8 @@ class BuilderHandler:
         self.built = BuilderBuiltBag(builder=self.builder, handler=self)
         self._node_index: dict[str, str] = {}
         self._render_target: Any = None
+        self._renderer: Any = None
+        self._compiler: Any = None
 
     # ------------------------------------------------------------------
     # Lifecycle (decision 5)
@@ -54,16 +56,52 @@ class BuilderHandler:
         self.builder.build(self.source, self.built)
 
     def render(self, mode: str | None = None, **kwargs: Any) -> Any:
-        """Serialize ``self.built`` via the builder, honoring render_target.
+        """Shortcut to ``self.renderer.render(...)``.
 
-        Extra ``**kwargs`` are mode-specific options propagated to the
-        builder's ``render`` (and from there filtered against the
-        target ``render_<mode>`` signature). See decision 6.
+        Forwards to the dialect's renderer (lazy property, see
+        ``self.renderer``) with ``render_target`` already populated
+        from ``self._render_target``. Extra ``**kwargs`` are
+        mode-specific options filtered downstream against the target
+        ``render_<mode>`` signature. See decision 6 (renegotiated
+        2026-05-12) and decision 8.
         """
-        return self.builder.render(
+        return self.renderer.render(
             self.built, mode=mode, render_target=self._render_target,
             **kwargs,
         )
+
+    def compile(self, **kwargs: Any) -> Any:
+        """Shortcut to ``self.compiler.compile(...)``.
+
+        Forwards to the dialect's compiler. Concrete compilers are
+        deferred; this raises ``NotImplementedError`` until a dialect
+        ships its own implementation.
+        """
+        return self.compiler.compile(**kwargs)
+
+    # ------------------------------------------------------------------
+    # Renderer & compiler (decision 8, renegotiated 2026-05-12)
+    # ------------------------------------------------------------------
+
+    @property
+    def renderer(self) -> Any:
+        """Lazy, cached dialect renderer.
+
+        Instantiated from ``builder._renderer_class`` on first access.
+        Available for inspection (``handler.renderer._STYLE_ROOTS``,
+        etc.) or for explicit calls when the shortcut
+        ``handler.render(...)`` is too narrow.
+        """
+        if self._renderer is None:
+            self._renderer = self.builder._renderer_class(self)
+        return self._renderer
+
+    @property
+    def compiler(self) -> Any:
+        """Lazy, cached dialect compiler. Symmetric to ``renderer``."""
+        if self._compiler is None:
+            self._compiler = self.builder._compiler_class(self)
+        return self._compiler
 
     # ------------------------------------------------------------------
     # Render target (decision 6)

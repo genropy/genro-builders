@@ -242,3 +242,131 @@ def test_html_render_target_invalid_object_raises_type_error():
     page.render_target = 42  # neither writable nor callable
     with pytest.raises(TypeError):
         page.render()
+
+
+# ----------------------------------------------------------------------
+# Decision 8 renegotiated 2026-05-12: renderer / compiler properties.
+# ----------------------------------------------------------------------
+
+
+def test_handler_renderer_is_html_renderer_instance():
+    from genro_builders.contrib.html.html_renderer import HtmlRenderer
+
+    class _Page(HtmlBuilderHandler):
+        def main(self, root):
+            pass
+
+    page = _Page()
+    assert isinstance(page.renderer, HtmlRenderer)
+
+
+def test_handler_renderer_is_cached():
+    class _Page(HtmlBuilderHandler):
+        def main(self, root):
+            pass
+
+    page = _Page()
+    assert page.renderer is page.renderer
+
+
+def test_handler_compiler_is_html_compiler_instance():
+    from genro_builders.contrib.html.html_compiler import HtmlCompiler
+
+    class _Page(HtmlBuilderHandler):
+        def main(self, root):
+            pass
+
+    page = _Page()
+    assert isinstance(page.compiler, HtmlCompiler)
+
+
+def test_handler_compile_raises_not_implemented():
+    class _Page(HtmlBuilderHandler):
+        def main(self, root):
+            pass
+
+    page = _Page()
+    with pytest.raises(NotImplementedError):
+        page.compile()
+
+
+# ----------------------------------------------------------------------
+# CSS kwarg feature on HtmlRenderer.
+# ----------------------------------------------------------------------
+
+
+def test_css_kwarg_root_emits_style():
+    """A root-name kwarg (``color``) becomes a CSS property."""
+    _, out = _render(lambda root: root.div("x", color="red"))
+    assert out == '<div style="color: red">x</div>'
+
+
+def test_css_kwarg_root_underscore_kebabifies():
+    """``font_size`` matches root ``font`` → ``font-size``."""
+    _, out = _render(lambda root: root.div("x", font_size="14px"))
+    assert out == '<div style="font-size: 14px">x</div>'
+
+
+def test_css_kwarg_subroot_padding_top():
+    """``padding_top`` matches root ``padding`` → ``padding-top``."""
+    _, out = _render(lambda root: root.div("x", padding_top="10px"))
+    assert out == '<div style="padding-top: 10px">x</div>'
+
+
+def test_css_kwarg_explicit_style_merged_kwargs_win():
+    """``style="color: blue"`` + ``color="red"`` → ``color: red`` wins."""
+    _, out = _render(lambda root: root.div("x", style="color: blue", color="red"))
+    assert 'color: red' in out
+    assert 'color: blue' not in out
+
+
+def test_css_kwarg_style_escape_prefix():
+    """``style_aspect_ratio="16 / 9"`` → ``style="aspect-ratio: 16 / 9"``."""
+    _, out = _render(lambda root: root.div("x", style_aspect_ratio="16 / 9"))
+    assert out == '<div style="aspect-ratio: 16 / 9">x</div>'
+
+
+def test_css_kwarg_html_attr_still_html_attr():
+    """``id="main"`` is a real HTML attribute, must NOT go into style."""
+    _, out = _render(lambda root: root.div("x", id="main", color="red"))
+    assert 'id="main"' in out
+    assert 'style="color: red"' in out
+
+
+def test_macro_rounded_top_level():
+    """``rounded=10`` → all four corners radius."""
+    _, out = _render(lambda root: root.div("x", rounded=10))
+    assert "border-top-left-radius: 10px" in out
+    assert "border-top-right-radius: 10px" in out
+    assert "border-bottom-left-radius: 10px" in out
+    assert "border-bottom-right-radius: 10px" in out
+
+
+def test_macro_rounded_subkwargs_override():
+    """``rounded_top=5`` sets only the two top corners."""
+    _, out = _render(
+        lambda root: root.div("x", rounded=10, rounded_top=5),
+    )
+    assert "border-top-left-radius: 5px" in out
+    assert "border-top-right-radius: 5px" in out
+    assert "border-bottom-left-radius: 10px" in out
+
+
+def test_macro_transform_subkwargs_compose():
+    """``transform_rotate=45, transform_scale=2`` composes both functions."""
+    _, out = _render(
+        lambda root: root.div("x", transform_rotate=45, transform_scale=2),
+    )
+    assert 'transform:' in out
+    assert 'rotate(45deg)' in out
+    assert 'scale(2)' in out
+
+
+def test_macro_filter_subkwargs_compose():
+    """``filter_blur=10, filter_contrast=80`` composes the chain."""
+    _, out = _render(
+        lambda root: root.div("x", filter_blur=10, filter_contrast=80),
+    )
+    assert "filter:" in out
+    assert "blur(10px)" in out
+    assert "contrast(80)" in out
