@@ -48,6 +48,22 @@ class BagBuilderBase(
     _schema_path: str | Path | None = None  # Default schema path (class attribute)
 
     # -----------------------------------------------------------------------
+    # Builder registry (class-level, shared across all dialects)
+    # -----------------------------------------------------------------------
+
+    #: Canonical name of this dialect (e.g. ``"html"``, ``"svg"``).
+    #: Concrete dialects MUST declare ``_name`` as a class attribute to
+    #: appear in :attr:`register`. Builders that leave ``_name = None``
+    #: (the default) are not registered — useful for internal-only
+    #: classes like ``SchemaBuilder``.
+    _name: str | None = None
+
+    #: Class-level dict mapping ``_name`` to the Builder class. Populated
+    #: automatically in :meth:`__init_subclass__` whenever a subclass
+    #: declares ``_name``. Lookup via :meth:`get_builder_class`.
+    register: dict[str, type] = {}
+
+    # -----------------------------------------------------------------------
     # Initialization
     # -----------------------------------------------------------------------
 
@@ -132,6 +148,32 @@ class BagBuilderBase(
             node.label for node in cls._class_schema.nodes
             if not node.label.startswith("@")
         )
+
+        name = cls.__dict__.get("_name")
+        if name is not None:
+            if not isinstance(name, str):
+                raise TypeError(
+                    f"{cls.__name__}._name must be str, got {type(name).__name__}"
+                )
+            existing = BagBuilderBase.register.get(name)
+            if existing is not None and existing is not cls:
+                raise ValueError(
+                    f"Builder name {name!r} already registered to "
+                    f"{existing.__name__}; cannot register {cls.__name__}"
+                )
+            BagBuilderBase.register[name] = cls
+
+    @classmethod
+    def get_builder_class(cls, name: str) -> type:
+        """Look up a registered Builder class by its canonical ``_name``.
+
+        Raises:
+            LookupError: if no builder is registered under ``name``.
+        """
+        try:
+            return BagBuilderBase.register[name]
+        except KeyError:
+            raise LookupError(f"No builder registered with name {name!r}") from None
 
     def __init__(self) -> None:
         """Initialize the builder. Grammar-only state (decisions 1, 8)."""

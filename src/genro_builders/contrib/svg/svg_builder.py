@@ -19,6 +19,7 @@ class SvgBuilder(BagBuilderBase, SvgElements):
     """SVG dialect builder. Grammar only — rendering is on
     ``SvgRenderer``, compilation (future) on ``SvgCompiler``."""
 
+    _name = "svg"
     _default_render_mode = "svg"
     _renderer_class = SvgRenderer
     _compiler_class = SvgCompiler

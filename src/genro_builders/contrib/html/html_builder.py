@@ -19,6 +19,7 @@ class HtmlBuilder(BagBuilderBase, Html5Elements):
     """HTML5 dialect builder. Grammar only — rendering is on
     ``HtmlRenderer``, compilation (future) on ``HtmlCompiler``."""
 
+    _name = "html"
     _default_render_mode = "html"
     _renderer_class = HtmlRenderer
     _compiler_class = HtmlCompiler

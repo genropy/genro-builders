@@ -37,6 +37,8 @@ class DataBuilder(BagBuilderBase):
     groups. No renderers or compilers — pure schema definition.
     """
 
+    _name = "data"
+
     @element()
     def field(
         self,

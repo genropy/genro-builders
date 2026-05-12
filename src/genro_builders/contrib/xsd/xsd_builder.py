@@ -41,6 +41,8 @@ class XsdBuilder(BagBuilderBase):
     at compile time using xmlschema library.
     """
 
+    _name = "xsd"
+
     def __init__(self, bag: Bag, xsd_source: str | Path):
         """Initialize builder from XSD file path or URL.
 

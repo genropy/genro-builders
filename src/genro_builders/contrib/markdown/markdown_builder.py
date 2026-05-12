@@ -39,6 +39,8 @@ from ...renderer import BagRendererBase, renderer
 class MarkdownBuilder(BagBuilderBase):
     """Builder for Markdown documents."""
 
+    _name = "markdown"
+
     # -------------------------------------------------------------------------
     # Headings
     # -------------------------------------------------------------------------
