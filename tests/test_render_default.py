@@ -58,6 +58,19 @@ def test_render_explicit_xml_mode_matches_default():
     assert h.render("xml") == h.render()
 
 
+def test_render_xml_pretty_produces_multiline_output():
+    """pretty=True delegates to Bag.to_xml(pretty=True), producing
+    a multi-line indented XML string distinct from the linear form."""
+    h = _TinyHandler()
+    h.create()
+    h.build()
+    pretty = h.render(pretty=True)
+    linear = h.render()
+    assert pretty != linear
+    assert "\n" in pretty
+    assert "\n" not in linear
+
+
 def test_render_unknown_mode_raises_value_error():
     h = _TinyHandler()
     h.create()

@@ -189,8 +189,17 @@ class BagBuilderBase(
         filtered = {k: v for k, v in kwargs.items() if k in accepted}
         return method(self, built, render_target=render_target, **filtered)
 
-    def render_xml(self, built: Bag, render_target: Any = None) -> str | None:
+    def render_xml(
+        self,
+        built: Bag,
+        render_target: Any = None,
+        *,
+        pretty: bool = False,
+    ) -> str | None:
         """Default XML render: serialize the built bag with ``to_xml()``.
+
+        ``pretty=True`` emits multi-line indented XML (delegated to
+        ``Bag.to_xml(pretty=True)``). Default is the single-line form.
 
         Concrete dialects can override to produce a richer XML (e.g.
         HTML-conforming auto-closing of void tags). When
@@ -198,7 +207,7 @@ class BagBuilderBase(
         otherwise it is written to the target's ``write`` method (if
         any) or fed to the target as a callable.
         """
-        text = built.to_xml()
+        text = built.to_xml(pretty=pretty)
         if render_target is None:
             return text
         write = getattr(render_target, "write", None)
