@@ -157,24 +157,27 @@ class _GrammarMixin:
         child_info = self._get_schema_info(node_tag)
 
         # ----------------------------------------------------------------
-        # Decision 2 (rinegoziata 2026-05-08): @subbuilder declares a
-        # subtree where the active builder switches. Pending implementation:
-        # at attach time the new node's _builder slot must become an
-        # instance of `subbuilder_class`, and from there on grammar
-        # dispatch (sub_tags validation, render, etc.) follows that
-        # builder. The host builder only owns the parent_tags rule that
-        # placed this node; the subtree's grammar belongs to the
-        # sub-builder. To implement: instantiate `subbuilder_class`,
-        # assign to `child_node._builder` (and `_handler` from the host),
-        # and let _accept_child / _validate_sub_tags use that schema for
-        # children. Until then this raise keeps the contract honest.
+        # Decision 2 (rinegoziata 2026-05-08, decoratore stringa-only
+        # 2026-05-12): @subbuilder declares a subtree where the active
+        # builder switches. Pending implementation: at attach time the
+        # new node's _builder slot must become an instance of the dialect
+        # registered under ``subbuilder_name`` (looked up via
+        # ``BagBuilderBase.get_builder_class(name)``), and from there on
+        # grammar dispatch (sub_tags validation, render, etc.) follows
+        # that builder. The host builder only owns the parent_tags rule
+        # that placed this node; the subtree's grammar belongs to the
+        # sub-builder. To implement: resolve the sub-builder class,
+        # instantiate it, assign to ``child_node._builder`` (and
+        # ``_handler`` from the host), and let ``_accept_child`` /
+        # ``_validate_sub_tags`` use that schema for children. Until
+        # then this raise keeps the contract honest.
         # ----------------------------------------------------------------
         if child_info.get("is_subbuilder"):
             raise NotImplementedError(
                 f"@subbuilder switching is not implemented yet "
                 f"(decision 2, 2026-05-03 decisions, rinegoziata 2026-05-08). "
                 f"Element '{node_tag}' declared subbuilder="
-                f"{child_info.get('subbuilder_class')!r}; the framework "
+                f"{child_info.get('subbuilder_name')!r}; the framework "
                 f"does not yet swap the active _builder for the subtree.",
             )
 

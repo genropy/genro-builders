@@ -14,7 +14,6 @@ import warnings
 
 from genro_builders.builder import abstract, element, subbuilder
 from genro_builders.builder._decorators import _DeclarativeMarker
-from genro_builders.contrib.html import HtmlBuilder
 
 
 def test_element_returns_declarative_marker():
@@ -59,12 +58,21 @@ def test_abstract_returns_declarative_marker():
 
 
 def test_subbuilder_returns_declarative_marker():
-    @subbuilder(HtmlBuilder)
+    @subbuilder("html")
     def switch(self): ...
 
     assert isinstance(switch, _DeclarativeMarker)
     assert switch._decorator["subbuilder"] is True
-    assert switch._decorator["subbuilder_class"] is HtmlBuilder
+    assert switch._decorator["subbuilder_name"] == "html"
+
+
+def test_subbuilder_rejects_non_string_target():
+    """Passing a class (or anything non-str) raises TypeError."""
+    import pytest
+
+    with pytest.raises(TypeError):
+        @subbuilder(object)  # type: ignore[arg-type]
+        def switch(self): ...
 
 
 def test_element_warns_when_body_is_clearly_non_empty():

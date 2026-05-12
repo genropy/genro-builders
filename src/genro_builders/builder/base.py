@@ -97,7 +97,7 @@ class BagBuilderBase(
             based_on = decorator_info.get("based_on")
             component_slots = decorator_info.get("slots")
             main_tag = decorator_info.get("main_tag")
-            subbuilder_class = decorator_info.get("subbuilder_class")
+            subbuilder_name = decorator_info.get("subbuilder_name")
             documentation = obj.__doc__
             call_args_validations = _extract_validators_from_signature(obj)
 
@@ -128,7 +128,7 @@ class BagBuilderBase(
                     cls._class_schema.set_item(
                         tag, None,
                         is_subbuilder=True,
-                        subbuilder_class=subbuilder_class,
+                        subbuilder_name=subbuilder_name,
                         parent_tags=parent_tags,
                         _meta=meta,
                         documentation=documentation,

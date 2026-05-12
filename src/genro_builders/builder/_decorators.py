@@ -325,7 +325,7 @@ def component(
 # ---------------------------------------------------------------------------
 
 def subbuilder(
-    builder_class: type,
+    builder_name: str,
     tags: str | tuple[str, ...] | None = None,
     parent_tags: str | None = None,
     _meta: dict[str, Any] | None = None,
@@ -333,10 +333,17 @@ def subbuilder(
     """Decorator declaring a tag that opens a sub-builder (decision 2).
 
     The tag is part of the host dialect (e.g. ``<svg>`` inside HTML5),
-    but from this node down the active builder is ``builder_class``,
-    not the host. The sub-builder governs its own ``sub_tags``; the
-    host only declares ``parent_tags`` (where the sub-builder may be
-    embedded).
+    but from this node down the active builder is the dialect
+    registered under ``builder_name``, not the host. The sub-builder
+    governs its own ``sub_tags``; the host only declares
+    ``parent_tags`` (where the sub-builder may be embedded).
+
+    The target builder is identified by its canonical ``_name`` (see
+    :attr:`BagBuilderBase.register`). Resolution is lazy: the framework
+    looks the class up via :meth:`BagBuilderBase.get_builder_class`
+    when the sub-builder is actually attached, not at decoration time.
+    This removes import-circularity barriers between mutually-referencing
+    dialect modules (HTML <-> SVG, etc.).
 
     Like ``@element`` and ``@abstract`` it is purely declarative: any
     function body the user writes is dropped, with a best-effort
@@ -347,16 +354,23 @@ def subbuilder(
     pending implementation — see ``_GrammarMixin._child``).
 
     Args:
-        builder_class: The Builder class active inside the subtree.
+        builder_name: Canonical ``_name`` of the Builder dialect active
+            inside the subtree (e.g. ``"svg"``, ``"html"``).
         tags: Tag names this method handles. If None, uses method name.
         parent_tags: Valid parent tags in the host dialect.
         _meta: Dict of metadata for renderers/compilers.
     """
+    if not isinstance(builder_name, str):
+        raise TypeError(
+            f"@subbuilder expects a builder name (str), got "
+            f"{type(builder_name).__name__}: {builder_name!r}"
+        )
+
     def decorator(func: Callable) -> _DeclarativeMarker:
         _warn_if_body_present(func, "subbuilder")
         info: dict[str, Any] = {
             "subbuilder": True,
-            "subbuilder_class": builder_class,
+            "subbuilder_name": builder_name,
             "tags": tags,
         }
         if parent_tags is not None:
