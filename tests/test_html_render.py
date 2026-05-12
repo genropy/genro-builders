@@ -23,6 +23,19 @@ def _render(main_fn):
     return page, page.render()
 
 
+def _render_pretty(main_fn):
+    """Same as ``_render`` but with ``pretty=True``."""
+
+    class _Page(HtmlBuilderHandler):
+        def main(self, root):
+            main_fn(root)
+
+    page = _Page()
+    page.create()
+    page.build()
+    return page, page.render(pretty=True)
+
+
 def test_html_render_default_mode_is_html():
     assert HtmlBuilder._default_render_mode == "html"
 
@@ -75,8 +88,8 @@ def test_html_render_unknown_kwarg_is_silently_ignored():
     page = _Page()
     page.create()
     page.build()
-    # ``pretty`` is not a render_html parameter — must be ignored.
-    assert page.render(pretty=True) == "<div>x</div>"
+    # ``no_such_option`` is not a render_html parameter — must be ignored.
+    assert page.render(no_such_option=True) == "<div>x</div>"
 
 
 def test_html_render_attributes_keyword_collision():
@@ -132,6 +145,70 @@ def test_html_render_nested():
 
     _, out = _render(build)
     assert out == '<div class="x"><span>y</span></div>'
+
+
+def test_html_render_pretty_text_only_stays_inline():
+    """An element whose only child is text stays on one line."""
+    _, out = _render_pretty(lambda root: root.div("Hello"))
+    assert out == "<div>Hello</div>\n"
+
+
+def test_html_render_pretty_nested_elements_indent_two_spaces():
+    """Element children move to their own line with 2-space indent."""
+    def build(root):
+        body = root.body()
+        body.h1("Hello")
+        body.p("Paragraph.")
+
+    _, out = _render_pretty(build)
+    assert out == (
+        "<body>\n"
+        "  <h1>Hello</h1>\n"
+        "  <p>Paragraph.</p>\n"
+        "</body>\n"
+    )
+
+
+def test_html_render_pretty_void_tags_on_their_own_line():
+    def build(root):
+        body = root.body()
+        body.img(src="logo.png")
+        body.br()
+        body.p("text")
+
+    _, out = _render_pretty(build)
+    assert out == (
+        "<body>\n"
+        '  <img src="logo.png"/>\n'
+        "  <br/>\n"
+        "  <p>text</p>\n"
+        "</body>\n"
+    )
+
+
+def test_html_render_pretty_deep_nesting_indents_per_level():
+    def build(root):
+        body = root.body()
+        div = body.div(_class="outer")
+        inner = div.div(_class="inner")
+        inner.span("deep")
+
+    _, out = _render_pretty(build)
+    assert out == (
+        "<body>\n"
+        '  <div class="outer">\n'
+        '    <div class="inner">\n'
+        "      <span>deep</span>\n"
+        "    </div>\n"
+        "  </div>\n"
+        "</body>\n"
+    )
+
+
+def test_html_render_default_is_not_pretty():
+    """pretty=False is the default; output stays linear."""
+    _, out = _render(lambda root: root.body().h1("Hi"))
+    assert "\n" not in out
 
 
 def test_html_render_returns_string_when_target_is_none():
