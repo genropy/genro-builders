@@ -8,9 +8,8 @@ machinery added on top must not break it.
 """
 from __future__ import annotations
 
-from genro_builders import BagBuilderBase, BuilderSourceBag
-from genro_builders.builder import element
-from genro_builders.builder_handler import BuilderHandler
+from genro_builders import BuilderSourceBag
+from genro_builders.contrib.html import HtmlBuilderHandler
 
 
 def test_empty_source_bag_serializes_to_xml():
@@ -40,20 +39,11 @@ def test_nested_source_bag_to_xml():
 def test_source_after_grammar_dispatch_serializes_to_xml():
     """The source produced by handler.create() must still serialize."""
 
-    class TinyDialect(BagBuilderBase):
-        @element()
-        def root(self): ...
-
-        @element()
-        def div(self): ...
-
-    class TinyHandler(BuilderHandler):
-        builder_class = TinyDialect
-
+    class _Page(HtmlBuilderHandler):
         def main(self, root):
             root.div("aaa", _class="greeting")
 
-    h = TinyHandler()
+    h = _Page()
     h.create()
     out = h.source.to_xml()
     assert isinstance(out, str)

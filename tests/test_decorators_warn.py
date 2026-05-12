@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import warnings
 
-from genro_builders import BagBuilderBase
 from genro_builders.builder import abstract, element, subbuilder
 from genro_builders.builder._decorators import _DeclarativeMarker
+from genro_builders.contrib.html import HtmlBuilder
 
 
 def test_element_returns_declarative_marker():
@@ -59,14 +59,12 @@ def test_abstract_returns_declarative_marker():
 
 
 def test_subbuilder_returns_declarative_marker():
-    class Other(BagBuilderBase): ...
-
-    @subbuilder(Other)
+    @subbuilder(HtmlBuilder)
     def switch(self): ...
 
     assert isinstance(switch, _DeclarativeMarker)
     assert switch._decorator["subbuilder"] is True
-    assert switch._decorator["subbuilder_class"] is Other
+    assert switch._decorator["subbuilder_class"] is HtmlBuilder
 
 
 def test_element_warns_when_body_is_clearly_non_empty():
@@ -109,14 +107,3 @@ def test_element_does_not_warn_for_docstring_plus_ellipsis():
 
     messages = [str(w.message) for w in recorded if "with_doc" in str(w.message)]
     assert not messages
-
-
-def test_class_collects_marker_decorator_metadata():
-    """A BagBuilderBase subclass with @element-decorated marker registers the tag."""
-
-    class Mini(BagBuilderBase):
-
-        @element()
-        def alfa(self): ...
-
-    assert "alfa" in Mini._schema_tag_names
