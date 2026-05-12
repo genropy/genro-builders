@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""01 — Hello World: the simplest possible image with SvgBuilderHandler.
+"""01 — Introduction: the simplest possible image with SvgBuilderHandler.
 
 What you learn:
     - Subclass `SvgBuilderHandler` and bind the SVG dialect to the handler.
@@ -9,7 +9,7 @@ What you learn:
 Prerequisites: None. This is the SVG starting point.
 
 Usage:
-    python 01_hello_world.py
+    python 01_introduction.py
 """
 from __future__ import annotations
 

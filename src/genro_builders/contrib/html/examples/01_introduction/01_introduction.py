@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""01 — Hello World: the simplest possible page with HtmlBuilderHandler.
+"""01 — Introduction: the simplest possible page with HtmlBuilderHandler.
 
 What you learn:
     - Subclass `HtmlBuilderHandler` and bind a dialect to the handler.
@@ -9,7 +9,7 @@ What you learn:
 Prerequisites: None. This is the starting point.
 
 Usage:
-    python 01_hello_world.py
+    python 01_introduction.py
 """
 from __future__ import annotations
 
@@ -31,9 +31,9 @@ if __name__ == "__main__":
     page = HelloPage()
     page.create()
     page.build()
-    rendered = page.render()
+    rendered = page.render(pretty=True)
 
     output = Path(__file__).with_suffix(".html")
     output.write_text(rendered)
     print(rendered)
-    print(f"\nSaved to {output}")
+    print(f"Saved to {output}")
