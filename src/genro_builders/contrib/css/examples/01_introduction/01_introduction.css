@@ -1,0 +1,22 @@
+:root {
+  --primary-color: #3498db; /* Brand color, used for primary CTAs */
+  --spacing: 8px;
+}
+button.primary {
+  background-color: var(--primary-color);
+  color: white;
+  padding: var(--spacing);
+}
+.card, .panel, .dialog {
+  font-family: sans-serif;
+}
+.card > .icon:hover {
+  opacity: 0.6;
+}
+.alert {
+  color: red; /* warning state */
+}
+/* Grid layout for the dashboard summary cards; the auto-fit + minmax pattern lets cards reflow without media queries */
+.dashboard {
+  display: grid;
+}
