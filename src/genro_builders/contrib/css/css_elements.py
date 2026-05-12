@@ -25,6 +25,20 @@ Property naming on ``rule``: kebab-case CSS properties
 (``font-size``, ``background-color``) are passed as kwargs with
 underscores (``font_size``, ``background_color``). The renderer
 converts the underscores back to hyphens at emit time.
+
+Fluent chaining with ``._``: a leaf element call (``selector(...)``
+or ``cssvar(...)``) returns the leaf node, which carries the
+genro-bag ``._`` property pointing back at the containing bag.
+That lets the rule body be expressed as a single chain::
+
+    root.rule(color="red", font_size="14px") \\
+        .selector(_class="card")._ \\
+        .selector(_class="panel")._ \\
+        .cssvar("primary", value="#3498db")
+
+The equivalent non-chained form (assign the rule to a variable
+and call methods on it) stays valid; choose whichever reads
+better in context.
 """
 
 from __future__ import annotations
