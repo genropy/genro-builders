@@ -96,3 +96,39 @@ def test_render_target_invalid_object_raises_type_error():
     h.render_target = object()  # not writable, not callable
     with pytest.raises(TypeError):
         h.render()
+
+
+def test_render_target_writes_to_str_path(tmp_path):
+    h = _Page()
+    h.create()
+    h.build()
+    out = tmp_path / "page.html"
+    h.render_target = str(out)
+    result = h.render()
+    assert result is None
+    text = out.read_text(encoding="utf-8")
+    assert "div" in text
+    assert "hello" in text
+
+
+def test_render_target_writes_to_pathlib_path(tmp_path):
+    h = _Page()
+    h.create()
+    h.build()
+    out = tmp_path / "page.html"
+    h.render_target = out
+    result = h.render()
+    assert result is None
+    assert "div" in out.read_text(encoding="utf-8")
+
+
+def test_render_target_path_creates_missing_parent_dirs(tmp_path):
+    h = _Page()
+    h.create()
+    h.build()
+    out = tmp_path / "deep" / "nested" / "page.html"
+    assert not out.parent.exists()
+    h.render_target = out
+    h.render()
+    assert out.exists()
+    assert "div" in out.read_text(encoding="utf-8")

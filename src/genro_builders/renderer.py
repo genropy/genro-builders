@@ -20,10 +20,10 @@ declares grammar.
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 from typing import Any
 
 from genro_bag import Bag
-
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
 _ATTR_ESCAPE = str.maketrans(
@@ -173,9 +173,23 @@ class RendererBase:
         return self._write_or_return(text, render_target)
 
     def _write_or_return(self, text: str | None, render_target: Any) -> str | None:
-        """Common pattern: return string, write to file-like, or invoke callable."""
+        """Common pattern: return string, write to filesystem path, file-like, or invoke callable.
+
+        Accepted ``render_target`` shapes:
+
+        - ``None`` → return the text;
+        - ``str`` or ``pathlib.Path`` → treat as filesystem path, create parent
+          directories if missing, write text with UTF-8 encoding;
+        - object with ``.write`` callable → write to file-like;
+        - plain callable → invoke with the text.
+        """
         if render_target is None:
             return text
+        if isinstance(render_target, (str, Path)):
+            path = Path(render_target)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text or "", encoding="utf-8")
+            return None
         write = getattr(render_target, "write", None)
         if callable(write):
             write(text)
@@ -184,8 +198,8 @@ class RendererBase:
             render_target(text)
             return None
         raise TypeError(
-            f"render_target {render_target!r} is neither writable "
-            "(.write) nor callable",
+            f"render_target {render_target!r} is neither a path "
+            "(str/Path), writable (.write), nor callable",
         )
 
     def _escape_text(self, value: Any) -> str:
