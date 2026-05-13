@@ -186,6 +186,26 @@ def test_render_svg_html_wraps_in_foreignobject_with_xmlns():
     assert "<html>" not in out
 
 
+def test_render_wrap_tag_carries_user_attributes_from_source():
+    """``svg.html(x=10, y=20, ...)``: user attributes belong on the wrap
+    tag (foreignObject), since the source ``html`` node is replaced by
+    it at render time. Without this, foreignObject would be unpositioned
+    inside the SVG canvas."""
+
+    class _Page(SvgBuilderHandler):
+        def main(self, root):
+            root.svg().html(x=10, y=20, width=200, height=100).div("ok")
+
+    page = _Page()
+    page.create()
+    page.build()
+    out = page.render()
+    assert 'x="10"' in out
+    assert 'y="20"' in out
+    assert 'width="200"' in out
+    assert 'height="100"' in out
+
+
 def test_subbuilder_without_wrap_tag_renders_host_tag_verbatim():
     """When ``wrap_tag`` is not declared on the host subbuilder schema
     entry (the HTML→SVG case), the bare host tag (``<svg>``) is emitted

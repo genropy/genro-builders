@@ -130,8 +130,15 @@ class RendererBase:
         if not wrap_tag:
             sub_renderer._render_subtree(node, emit)
             return
+        # The wrap tag stands in for the subbuilder node, so the user
+        # attributes on that node (e.g. ``x=10, y=20`` for
+        # ``svg.html(x=10, y=20)``) belong on the wrap tag. We format
+        # them with the host renderer (the wrap tag is part of the host
+        # dialect) and prepend the framework-emitted wrap attributes
+        # (e.g. xmlns) so well-formedness is guaranteed.
+        user_attrs = self._format_attrs(node.attr)  # type: ignore[attr-defined]
         wrap_attrs = self._wrap_attrs_for(node_builder)
-        emit(f"<{wrap_tag}{wrap_attrs}>")
+        emit(f"<{wrap_tag}{wrap_attrs}{user_attrs}>")
         value = node.value
         if isinstance(value, Bag):
             for child in value:
