@@ -318,3 +318,96 @@ print(theme.render())
 
 See [examples/](examples/) for a guided tour as both a script and
 a Jupyter notebook.
+
+## Reverse: from CSS to Python
+
+`CssBuilder` ships a **reverse** facility that parses an existing
+CSS source and emits an equivalent `CssBuilderHandler` subclass. It
+is meant for migrating legacy CSS into the builder model, or as a
+learning aid to see how a hand-written CSS file maps onto the
+grammar.
+
+The reverse depends on `tree-sitter` and `tree-sitter-css`. Install
+the optional extra:
+
+```bash
+pip install 'genro-builders[reverse]'
+```
+
+### Entry points
+
+Two classmethods on the builder (a conscious exception to the
+project-wide *no-classmethod* rule, since the reverse runs before
+any instance exists):
+
+```python
+from genro_builders.contrib.css import CssBuilder
+
+# 1. From a string
+code = CssBuilder.from_css(css_source)                     # returns str
+CssBuilder.from_css(css_source, "out/generated.py")        # writes to file
+CssBuilder.from_css(css_source, my_file_like_buffer)       # .write()
+CssBuilder.from_css(css_source, my_callable)               # invoked with text
+
+# 2. From a file
+code = CssBuilder.from_css_file("theme.css")               # class_name defaults to "Theme"
+CssBuilder.from_css_file("theme.css", "out/theme.py")
+CssBuilder.from_css_file("theme.css", class_name="Branded")
+```
+
+The `dest` parameter follows the same contract as the renderer's
+`render_target` (`None` → return string, `str`/`Path` → write to
+filesystem creating parent dirs, file-like with `.write` → write,
+callable → invoke).
+
+### What is emitted
+
+```python
+from genro_builders.contrib.css import CssBuilderHandler
+
+
+class ReversedCss(CssBuilderHandler):
+
+    def main(self, root):
+        sheet = root.stylesheet()
+        sheet.importcss(url='reset.css')
+        s_1 = sheet.selector(_class='card')
+        s_1.rule(color='red', padding='8px')
+```
+
+The output **always** opens a `sheet = root.stylesheet()` as its
+first statement: the reverse targets whole CSS documents, never
+fragments, and `@import` directives require a stylesheet container
+by grammar.
+
+### Coverage
+
+| CSS construct                         | Reverse output                                  |
+| ------------------------------------- | ----------------------------------------------- |
+| `.foo { color: red }`                 | `selector(_class='foo').rule(...)`              |
+| `.a, .b { ... }`                      | `selector_list().selector().selector().rule()`  |
+| `#main`, `button`                     | `selector(id=...)`, `selector(tag=...)`         |
+| `input[type="text"]`                  | `selector(attr={'type': 'text'})`               |
+| `.btn:hover`                          | `selector(_class='btn:hover')`                  |
+| `.parent .child`, `:not(.x)`          | `selector(raw=...)` (fallback)                  |
+| `--brand: #3498db`                    | `cssvar('brand', value='#3498db')`              |
+| `@media (max-width: 600px) { ... }`   | `rule(media='(max-width: 600px)', ...)`         |
+| `@supports (display: grid) { ... }`   | `rule(supports='(display: grid)', ...)`         |
+| `.card { .title { ... } }`            | nested `selector()` (CSS Nesting)               |
+| `@import url("foo")`                  | `importcss(url='foo')`                          |
+| `@import url("foo") screen ...`       | `importcss(url='foo', media='screen ...')`      |
+
+### Limitations
+
+- **Comments** in the source CSS are dropped (`# D6`). Re-add them
+  manually as `comment=...` kwargs if needed.
+- **At-rules** beyond `@media` / `@supports` / `@import`
+  (`@keyframes`, `@font-face`, `@property`, `@layer` block-form,
+  `@scope`, ...) are not in the level-1 grammar; the reverse emits
+  a `"# unsupported: ..."` Python comment-string and skips them.
+- **`@import` modifiers** `layer(...)` and `supports(...)` are not
+  recognised by `tree-sitter-css` 0.25; when present the reverse
+  emits a `"# layer/supports modifier not parsed, see source: ..."`
+  hint so the user can patch the call by hand.
+- **Vendor prefixes** are correctly recognised: `-webkit-foo` →
+  `_webkit_foo` kwarg → re-rendered as `-webkit-foo`.

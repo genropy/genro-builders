@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import ast
+import io
+from pathlib import Path
 
 import pytest
 
 pytest.importorskip("tree_sitter_css")
 
+from genro_builders.contrib.css import CssBuilder  # noqa: E402
 from genro_builders.contrib.css._reverse import CssReverser, _parse_css  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -291,3 +294,135 @@ def test_imports_appear_before_selectors_in_round_trip():
     import_pos = out.index('@import')
     card_pos = out.index('.card')
     assert import_pos < card_pos
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: CssBuilder.from_css / from_css_file classmethods
+# ---------------------------------------------------------------------------
+
+CSS_FIXTURE = ".card { color: red; padding: 8px; }"
+
+
+def test_from_css_returns_python_string_when_dest_none():
+    out = CssBuilder.from_css(CSS_FIXTURE)
+    assert isinstance(out, str)
+    assert "class ReversedCss(CssBuilderHandler):" in out
+    assert "sheet = root.stylesheet()" in out
+    assert "_class='card'" in out
+
+
+def test_from_css_writes_to_str_path(tmp_path):
+    out = tmp_path / "generated.py"
+    ret = CssBuilder.from_css(CSS_FIXTURE, str(out))
+    assert ret is None
+    text = out.read_text(encoding="utf-8")
+    assert "class ReversedCss" in text
+
+
+def test_from_css_writes_to_pathlib_path(tmp_path):
+    out = tmp_path / "generated.py"
+    ret = CssBuilder.from_css(CSS_FIXTURE, out)
+    assert ret is None
+    assert "class ReversedCss" in out.read_text(encoding="utf-8")
+
+
+def test_from_css_creates_missing_parent_dirs(tmp_path):
+    out = tmp_path / "deep" / "nested" / "g.py"
+    assert not out.parent.exists()
+    CssBuilder.from_css(CSS_FIXTURE, out)
+    assert out.exists()
+
+
+def test_from_css_writes_to_file_like_buffer():
+    buf = io.StringIO()
+    ret = CssBuilder.from_css(CSS_FIXTURE, buf)
+    assert ret is None
+    assert "class ReversedCss" in buf.getvalue()
+
+
+def test_from_css_invokes_callable_target():
+    captured: list[str] = []
+    ret = CssBuilder.from_css(CSS_FIXTURE, captured.append)
+    assert ret is None
+    assert len(captured) == 1
+    assert "class ReversedCss" in captured[0]
+
+
+def test_from_css_rejects_unsupported_dest():
+    with pytest.raises(TypeError):
+        CssBuilder.from_css(CSS_FIXTURE, object())
+
+
+def test_from_css_custom_class_name():
+    out = CssBuilder.from_css(CSS_FIXTURE, class_name="MyTheme")
+    assert out is not None
+    assert "class MyTheme(CssBuilderHandler):" in out
+
+
+def test_from_css_file_reads_from_path(tmp_path):
+    src = tmp_path / "in.css"
+    src.write_text(CSS_FIXTURE, encoding="utf-8")
+    out = CssBuilder.from_css_file(src)
+    assert isinstance(out, str)
+    assert "class In(CssBuilderHandler):" in out
+
+
+def test_from_css_file_derives_class_name_from_stem(tmp_path):
+    src = tmp_path / "theme.css"
+    src.write_text(CSS_FIXTURE, encoding="utf-8")
+    out = CssBuilder.from_css_file(src)
+    assert out is not None
+    assert "class Theme(CssBuilderHandler):" in out
+
+
+def test_from_css_file_class_name_override(tmp_path):
+    src = tmp_path / "theme.css"
+    src.write_text(CSS_FIXTURE, encoding="utf-8")
+    out = CssBuilder.from_css_file(src, class_name="Branded")
+    assert out is not None
+    assert "class Branded(CssBuilderHandler):" in out
+
+
+def test_from_css_file_writes_dest(tmp_path):
+    src = tmp_path / "theme.css"
+    src.write_text(CSS_FIXTURE, encoding="utf-8")
+    out = tmp_path / "theme.py"
+    ret = CssBuilder.from_css_file(src, out)
+    assert ret is None
+    assert "class Theme" in out.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: round-trip on a real-world CSS file (gnrbase_css)
+# ---------------------------------------------------------------------------
+
+
+_GNR_RESETS = Path(
+    "/Users/gporcari/Sviluppo/Genropy/genropy/gnrjs/gnr_d11/css/"
+    "gnrbase_css/00_gnr_resets.css",
+)
+
+
+@pytest.mark.skipif(
+    not _GNR_RESETS.exists(),
+    reason="local GenroPy CSS fixture not available",
+)
+def test_real_world_gnr_resets_roundtrip_executes_and_renders():
+    """Smoke-level round-trip on a real GenroPy CSS file:
+    reverse → exec → render produces a non-empty CSS that includes the
+    expected @import directives and at least the .card-like selectors."""
+    source = _GNR_RESETS.read_text(encoding="utf-8")
+    code = CssBuilder.from_css(source)
+    assert code is not None
+    namespace: dict = {}
+    exec(code, namespace)
+    handler = namespace["ReversedCss"]()
+    handler.create()
+    handler.build()
+    out = handler.render()
+    assert isinstance(out, str)
+    assert "@import" in out
+    assert "fonts.googleapis.com" in out
+    # any of these touchstones from the original file should survive
+    assert "outline: none" in out
+    assert ":focus" in out

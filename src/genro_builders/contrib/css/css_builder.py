@@ -1,19 +1,29 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """CssBuilder — CSS dialect for genro-builders (level 1).
 
-Level 1 grammar covers ``rule`` (selector + property declarations)
-and ``cssvar`` (CSS custom property declarations) plus an optional
-top-level ``stylesheet`` container. At-rules (``@media``,
-``@keyframes``, ``@supports``, ...) and rule nesting are out of
+Level 1 grammar covers ``stylesheet``, ``selector``, ``selector_list``,
+``rule`` (property declarations with optional ``media`` / ``supports``
+kwargs), ``cssvar`` (CSS custom property declarations) and
+``importcss`` (``@import`` directives). At-rules beyond ``@media`` /
+``@supports`` / ``@import`` (``@keyframes``, ``@font-face``,
+``@property``, ``@layer`` block-form, ``@scope``, ...) are out of
 scope and will be handled by a dedicated future subtask.
 
 The grammar lives in ``CssElements``. Rendering lives on
 ``CssRenderer`` (``render_css`` method). Compilation (future) lives
 on ``CssCompiler``. The builder only wires them together
 (decision 8, renegotiated 2026-05-12).
+
+The class also exposes the two reverse classmethods ``from_css`` and
+``from_css_file``: see their docstrings for the documented exception
+to the "no classmethod" rule of the project.
 """
 
 from __future__ import annotations
+
+import ast
+from pathlib import Path
+from typing import Any
 
 from ...builder import BagBuilderBase
 from .css_compiler import CssCompiler
@@ -29,3 +39,114 @@ class CssBuilder(BagBuilderBase, CssElements):
     _default_render_mode = "css"
     _renderer_class = CssRenderer
     _compiler_class = CssCompiler
+
+    # ------------------------------------------------------------------
+    # Reverse: from CSS source to CssBuilderHandler Python source
+    # ------------------------------------------------------------------
+    #
+    # The two reverse entry points are declared as classmethods on the
+    # builder, in a conscious exception to the project-wide "no
+    # classmethod" rule. The rationale is API ergonomics: the reverse
+    # is invoked before any builder instance exists (it produces the
+    # code that will *later* be used to build the bag), so the natural
+    # call site is ``CssBuilder.from_css(...)`` / ``from_css_file(...)``
+    # rather than ``CssBuilder().from_css(...)`` which would suggest an
+    # instance-bound operation that does not exist.
+    #
+    # The ``dest`` parameter mirrors the renderer convention
+    # implemented in ``RendererBase._write_or_return``: ``None`` returns
+    # the string, ``str``/``Path`` writes to filesystem (parent dirs
+    # created if missing), file-like with ``.write`` is written to,
+    # callable is invoked with the text. The forwarding is direct: we
+    # build an ephemeral renderer instance just to reuse that helper.
+
+    @classmethod
+    def from_css(
+        cls,
+        source: str,
+        dest: Any = None,
+        *,
+        class_name: str = "ReversedCss",
+    ) -> str | None:
+        """Parse a CSS string and emit equivalent CssBuilder Python.
+
+        The output is a complete Python module containing an
+        ``import`` line for ``CssBuilderHandler`` and a subclass
+        named ``class_name`` whose ``main(self, root)`` rebuilds the
+        input CSS via the builder API. The emitted ``main`` always
+        opens a ``root.stylesheet()`` as its first statement.
+
+        :param source: CSS source text.
+        :param dest: destination for the generated Python source. See
+            ``RendererBase._write_or_return`` for accepted shapes:
+            ``None`` returns the string, ``str``/``Path`` writes to a
+            file, file-like or callable consume the text. When ``dest``
+            is provided this method returns ``None``.
+        :param class_name: name of the generated subclass. Defaults to
+            ``"ReversedCss"``.
+        :returns: the Python source as a string when ``dest is None``,
+            otherwise ``None`` (the text has been written to ``dest``).
+        :raises ImportError: the optional ``[reverse]`` extra is not
+            installed (``tree-sitter-css`` missing).
+
+        Requires the optional ``reverse`` extra::
+
+            pip install 'genro-builders[reverse]'
+        """
+        from ._reverse import CssReverser
+
+        module = CssReverser(class_name=class_name).reverse(source)
+        text = ast.unparse(module)
+        return _emit(text, dest)
+
+    @classmethod
+    def from_css_file(
+        cls,
+        path: str | Path,
+        dest: Any = None,
+        *,
+        class_name: str | None = None,
+    ) -> str | None:
+        """Read a CSS file and emit equivalent CssBuilder Python.
+
+        Convenience wrapper around ``from_css``: reads ``path`` as
+        UTF-8 text and delegates. When ``class_name`` is ``None`` it
+        defaults to the file stem capitalised (e.g. ``theme.css`` →
+        ``Theme``).
+
+        :param path: filesystem path to the input CSS.
+        :param dest: see ``from_css``.
+        :param class_name: optional override; default is
+            ``Path(path).stem.capitalize()``.
+        :returns: same contract as ``from_css``.
+        :raises ImportError: the optional ``[reverse]`` extra is not
+            installed.
+        """
+        p = Path(path)
+        source = p.read_text(encoding="utf-8")
+        name = class_name if class_name is not None else p.stem.capitalize()
+        return cls.from_css(source, dest, class_name=name)
+
+
+def _emit(text: str, dest: Any) -> str | None:
+    """Apply the ``_write_or_return`` contract without needing a
+    full renderer instance. Mirrors ``RendererBase._write_or_return``.
+    """
+    if dest is None:
+        return text
+    if isinstance(dest, (str, Path)):
+        target = Path(dest)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        return None
+    write = getattr(dest, "write", None)
+    if callable(write):
+        write(text)
+        return None
+    if callable(dest):
+        dest(text)
+        return None
+    raise TypeError(
+        f"dest {dest!r} is neither a path (str/Path), writable "
+        "(.write), nor callable",
+    )
