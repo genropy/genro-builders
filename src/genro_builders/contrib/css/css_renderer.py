@@ -83,14 +83,31 @@ class CssRenderer(RendererBase):
         pretty: bool,
         indent: str,
         depth: int,
+        in_stylesheet: bool = False,
     ) -> None:
         """Render a sequence of top-level nodes.
 
-        Top-level ``cssvar`` children (direct children of the bag root
-        or of a ``stylesheet``) are gathered into a single implicit
-        ``:root { ... }`` block. Consecutive cssvars share the same
-        block; a non-cssvar node flushes the buffer first.
+        When ``in_stylesheet`` is True, the sequence is the body of a
+        ``stylesheet`` element and the renderer enforces the CSS
+        ordering rule: all ``importcss`` directives are emitted first
+        (insertion order), then ``cssvar`` blocks and selectors in
+        their natural position.
+
+        Top-level ``cssvar`` children (direct children of the bag
+        root or of a ``stylesheet``) are gathered into a single
+        implicit ``:root { ... }`` block; consecutive cssvars share
+        the same block and any non-cssvar node flushes the buffer.
+
+        Encountering ``importcss`` outside a stylesheet raises
+        ``ValueError`` (the grammar forbids ``@import`` at bag-root).
         """
+        if in_stylesheet:
+            imports = [n for n in nodes if (n.node_tag or n.label) == "importcss"]
+            others = [n for n in nodes if (n.node_tag or n.label) != "importcss"]
+            for imp in imports:
+                self._emit_import(imp, lines, pretty=pretty, indent=indent, depth=depth)
+            nodes = others
+
         cssvar_buffer: list[Any] = []
 
         def flush() -> None:
@@ -106,6 +123,11 @@ class CssRenderer(RendererBase):
             if tag == "cssvar":
                 cssvar_buffer.append(node)
                 continue
+            if tag == "importcss" and not in_stylesheet:
+                raise ValueError(
+                    "importcss must be a child of stylesheet; open one first "
+                    "(root.stylesheet().importcss(...)).",
+                )
             flush()
             self._render_top_node(node, lines, pretty=pretty, indent=indent, depth=depth)
         flush()
@@ -124,7 +146,9 @@ class CssRenderer(RendererBase):
             value = node.value
             if isinstance(value, Bag):
                 self._render_top_sequence(
-                    list(value), lines, pretty=pretty, indent=indent, depth=depth,
+                    list(value), lines,
+                    pretty=pretty, indent=indent, depth=depth,
+                    in_stylesheet=True,
                 )
             return
         if tag == "selector":
@@ -162,6 +186,52 @@ class CssRenderer(RendererBase):
             lines.append(f"{outer}}}")
         else:
             lines.append(":root { " + " ".join(body) + " }")
+
+    def _emit_import(
+        self,
+        node: Any,
+        lines: list[str],
+        *,
+        pretty: bool,
+        indent: str,
+        depth: int,
+    ) -> None:
+        """Emit a single ``@import`` directive from an ``importcss`` node.
+
+        Spec order is ``@import <url> <layer>? <supports>? <media-query-list>?;``.
+        Missing kwargs are omitted.
+        """
+        attrs = dict(node.attr)
+        comment = attrs.pop("comment", None)
+        url = attrs.pop("url", None)
+        if url is None:
+            raise ValueError("importcss: missing required kwarg 'url'")
+        layer = attrs.pop("layer", None)
+        supports = attrs.pop("supports", None)
+        media = attrs.pop("media", None)
+
+        parts: list[str] = [f'@import url("{url}")']
+        if layer is not None:
+            parts.append(f"layer({layer})" if layer != "" else "layer")
+        if supports is not None:
+            # ``supports`` is passed verbatim including its outer
+            # parentheses, mirroring ``rule(supports="(...)")``. The
+            # spec syntax is ``supports(<condition>)`` where
+            # ``<condition>`` already carries its own parens, so we
+            # only need to prepend the ``supports`` keyword.
+            parts.append(f"supports{supports}")
+        if media is not None:
+            parts.append(str(media))
+        directive = " ".join(parts) + ";"
+
+        outer = indent * depth if pretty else ""
+        if comment is not None:
+            text = str(comment)
+            if len(text) <= COMMENT_INLINE_MAX_LEN:
+                lines.append(f"{outer}{directive} /* {text} */")
+                return
+            lines.append(f"{outer}/* {text} */")
+        lines.append(f"{outer}{directive}")
 
     def _render_selector_list(
         self,

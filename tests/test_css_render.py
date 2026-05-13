@@ -615,3 +615,102 @@ def test_top_level_cssvar_minified():
     out = _render(build, pretty=False)
     assert ":root { --brand: #3498db; }" in out
     assert ".card { color: var(--brand); }" in out
+
+
+# ---------------------------------------------------------------------------
+# @import (importcss element)
+# ---------------------------------------------------------------------------
+
+
+def test_importcss_url_only():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.importcss(url="reset.css")
+
+    out = _render(build)
+    assert '@import url("reset.css");' in out
+
+
+def test_importcss_with_media():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.importcss(url="print.css", media="print")
+
+    out = _render(build)
+    assert '@import url("print.css") print;' in out
+
+
+def test_importcss_with_complex_media_query():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.importcss(url="phone.css", media="screen and (max-width: 600px)")
+
+    out = _render(build)
+    assert '@import url("phone.css") screen and (max-width: 600px);' in out
+
+
+def test_importcss_with_supports():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.importcss(url="grid.css", supports="(display: grid)")
+
+    out = _render(build)
+    assert '@import url("grid.css") supports(display: grid);' in out
+
+
+def test_importcss_with_named_layer():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.importcss(url="base.css", layer="reset")
+
+    out = _render(build)
+    assert '@import url("base.css") layer(reset);' in out
+
+
+def test_importcss_with_anonymous_layer():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.importcss(url="base.css", layer="")
+
+    out = _render(build)
+    assert '@import url("base.css") layer;' in out
+
+
+def test_importcss_with_layer_supports_media_all_combined():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.importcss(
+            url="full.css",
+            layer="theme",
+            supports="(display: grid)",
+            media="screen and (max-width: 600px)",
+        )
+
+    out = _render(build)
+    assert (
+        '@import url("full.css") layer(theme) supports(display: grid) '
+        'screen and (max-width: 600px);'
+    ) in out
+
+
+def test_importcss_rendered_before_other_content():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.cssvar("brand", value="#3498db")
+        s = sheet.selector(_class="card")
+        s.rule(color="var(--brand)")
+        sheet.importcss(url="reset.css")  # inserted last on purpose
+
+    out = _render(build)
+    import_pos = out.index('@import')
+    root_pos = out.index(':root')
+    card_pos = out.index('.card')
+    assert import_pos < root_pos < card_pos
+
+
+def test_importcss_at_bag_root_raises():
+    def build(root):
+        root.importcss(url="reset.css")
+
+    with pytest.raises(ValueError, match="must be a child of stylesheet"):
+        _render(build)
