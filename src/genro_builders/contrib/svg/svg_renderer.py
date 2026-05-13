@@ -66,13 +66,14 @@ class SvgRenderer(RendererBase):
         return self._write_or_return(text, render_target)
 
     def _render_node(self, node: Any, emit: Any) -> None:
-        # @subbuilder polymorphism (decision 2, P5): delegate any
-        # foreign-dialect subtree (e.g. HTML re-entry via
-        # <foreignObject>) to the appropriate renderer.
+        # @subbuilder polymorphism (decision 2, P5/P6): delegate any
+        # foreign-dialect subtree to the appropriate renderer. If the
+        # host schema declares a wrap_tag (e.g. SVG html-subbuilder
+        # wrapped in foreignObject) the host emits the envelope while
+        # the sub-renderer fills the body.
         node_builder = getattr(node, "_builder", None)
         if node_builder is not None and node_builder is not self.builder:
-            sub_renderer = self.handler.renderer_for(node_builder)
-            sub_renderer._render_subtree(node, emit)
+            self._render_subbuilder(node, emit, node_builder)
             return
         tag = node.node_tag or node.label
         attrs = self._format_attrs(node.attr)

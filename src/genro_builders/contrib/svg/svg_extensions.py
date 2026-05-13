@@ -2,13 +2,17 @@
 """Genro extensions to the SVG grammar.
 
 This mixin sits on top of ``SvgElements`` in ``SvgBuilder`` MRO.
-It declares Genro-specific overrides — currently:
+It declares Genro-specific additions:
 
-- ``foreignObject`` as a sub-builder entry point that re-enters the
-  HTML dialect. The native SVG entry (in ``SvgElements``) treats it
-  as a container element; the Extensions override turns it into a
-  proper ``@subbuilder("html")`` so HTML content can be authored
-  with HTML grammar inside an SVG document.
+- ``html`` as a user-facing entry point that re-enters the HTML
+  dialect. At render time the framework wraps the HTML subtree in
+  ``<foreignObject xmlns="http://www.w3.org/1999/xhtml">`` so the
+  output satisfies the SVG embedding rule, while the source bag
+  keeps the natural name ``html``.
+
+The W3C ``foreignObject`` element is left as a plain ``@element``
+on ``SvgElements`` for users who want to author the envelope by
+hand; in practice the ``html`` subbuilder is the recommended path.
 """
 
 from __future__ import annotations
@@ -19,5 +23,5 @@ from genro_builders.builder import subbuilder
 class SvgExtensions:
     """Mixin layering Genro-specific decorators above the SVG grammar."""
 
-    @subbuilder("html")
-    def foreignObject(self): ...
+    @subbuilder("html", wrap_tag="foreignObject")
+    def html(self): ...

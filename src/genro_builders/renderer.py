@@ -99,6 +99,60 @@ class RendererBase:
         """
         self._render_node(node, emit)  # type: ignore[attr-defined]
 
+    def _render_subbuilder(
+        self,
+        node: Any,
+        emit: Any,
+        node_builder: Any,
+        **walk_kwargs: Any,
+    ) -> None:
+        """Delegate a sub-builder subtree, optionally wrapping the
+        sub-renderer output in a host-dialect tag.
+
+        The wrap tag (and any framework-emitted attribute on it) is
+        declared on the host schema by the ``@subbuilder(..., wrap_tag=...)``
+        decorator. The standard example is the SVG ``html`` subbuilder
+        wrapped in ``<foreignObject xmlns="http://www.w3.org/1999/xhtml">``:
+        the user only writes ``svg.html().div(...)`` while the runtime
+        emits the foreignObject envelope that replaces the bare ``html``
+        node so the markup satisfies the SVG embedding rule.
+
+        When ``wrap_tag`` is set the subbuilder node itself is invisible
+        in the output: the wrap tag stands in for it and the
+        sub-renderer is asked to render only the children. Without a
+        wrap tag the sub-renderer renders the subbuilder node verbatim
+        (HTML hosting SVG: the ``<svg>`` tag is part of HTML5 and must
+        be emitted).
+        """
+        sub_renderer = self.handler.renderer_for(node_builder)
+        host_info = self.builder._get_schema_info(node.node_tag)
+        wrap_tag = host_info.get("wrap_tag") if host_info else None
+        if not wrap_tag:
+            sub_renderer._render_subtree(node, emit)
+            return
+        wrap_attrs = self._wrap_attrs_for(node_builder)
+        emit(f"<{wrap_tag}{wrap_attrs}>")
+        value = node.value
+        if isinstance(value, Bag):
+            for child in value:
+                sub_renderer._render_subtree(child, emit)
+        elif value is not None:
+            emit(sub_renderer._escape_text(value))
+        emit(f"</{wrap_tag}>")
+
+    def _wrap_attrs_for(self, node_builder: Any) -> str:
+        """Hook returning the attributes emitted on the wrap tag.
+
+        For the HTML re-entry inside SVG the XML spec calls for
+        ``xmlns="http://www.w3.org/1999/xhtml"`` on the first HTML
+        node; the framework places it on the wrap tag
+        (``<foreignObject>``) so the result is XML well-formed. Hosts
+        whose embedding rule is different can override this hook.
+        """
+        if getattr(node_builder, "_name", None) == "html":
+            return ' xmlns="http://www.w3.org/1999/xhtml"'
+        return ""
+
     def render_xml(
         self,
         built: Bag,

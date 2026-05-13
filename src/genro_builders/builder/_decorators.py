@@ -328,6 +328,7 @@ def subbuilder(
     builder_name: str,
     tags: str | tuple[str, ...] | None = None,
     parent_tags: str | None = None,
+    wrap_tag: str | None = None,
     _meta: dict[str, Any] | None = None,
 ) -> Callable:
     """Decorator declaring a tag that opens a sub-builder (decision 2).
@@ -358,6 +359,10 @@ def subbuilder(
             inside the subtree (e.g. ``"svg"``, ``"html"``).
         tags: Tag names this method handles. If None, uses method name.
         parent_tags: Valid parent tags in the host dialect.
+        wrap_tag: Optional tag name that the render walker wraps around
+            the sub-renderer's output (e.g. the SVG ``html`` subbuilder
+            uses ``wrap_tag="foreignObject"`` so the runtime markup
+            satisfies the SVG embedding rule). Skipped if ``None``.
         _meta: Dict of metadata for renderers/compilers.
     """
     if not isinstance(builder_name, str):
@@ -378,6 +383,8 @@ def subbuilder(
         }
         if parent_tags is not None:
             info["parent_tags"] = parent_tags
+        if wrap_tag is not None:
+            info["wrap_tag"] = wrap_tag
         if _meta:
             info["_meta"] = _meta
         func._decorator = info  # type: ignore[attr-defined]

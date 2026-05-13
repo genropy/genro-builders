@@ -33,10 +33,14 @@ def test_html_schema_declares_svg_as_subbuilder():
     assert info.get("subbuilder_name") == "svg"
 
 
-def test_svg_schema_declares_foreignobject_as_subbuilder():
-    info = SvgBuilder()._get_schema_info("foreignObject")
+def test_svg_schema_declares_html_as_subbuilder_with_wrap_tag():
+    """SVG's user-facing entry into HTML is the ``html`` tag; the
+    framework wraps the rendered HTML in ``<foreignObject>`` at render
+    time so the source stays readable while the markup is correct."""
+    info = SvgBuilder()._get_schema_info("html")
     assert info.get("is_subbuilder") is True
     assert info.get("subbuilder_name") == "html"
+    assert info.get("wrap_tag") == "foreignObject"
 
 
 # ---------------------------------------------------------------------------
@@ -96,31 +100,33 @@ def test_html_rect_at_root_still_fails():
 
 
 # ---------------------------------------------------------------------------
-# Symmetric: SvgBuilder -> HtmlBuilder via <foreignObject>
+# Symmetric: SvgBuilder -> HtmlBuilder via the ``html`` subbuilder
+# (rendered inside ``<foreignObject>`` thanks to wrap_tag)
 # ---------------------------------------------------------------------------
 
 
 class _SvgWithForeignHtml(SvgBuilderHandler):
     def main(self, root):
         s = root.svg()
-        fo = s.foreignObject()
-        fo.div("hello")
+        h = s.html()
+        h.div("hello")
 
 
-def test_svg_foreignobject_node_has_html_builder():
+def test_svg_html_node_has_html_builder():
     page = _SvgWithForeignHtml()
     page.create()
     svg_node = next(iter(page.source))
-    fo_node = next(iter(svg_node.value))
-    assert isinstance(fo_node._builder, HtmlBuilder)
+    h_node = next(iter(svg_node.value))
+    assert h_node.node_tag == "html"
+    assert isinstance(h_node._builder, HtmlBuilder)
 
 
-def test_svg_foreignobject_div_validated_by_html_grammar():
+def test_svg_html_div_validated_by_html_grammar():
     page = _SvgWithForeignHtml()
     page.create()
     svg_node = next(iter(page.source))
-    fo_node = next(iter(svg_node.value))
-    div_node = next(iter(fo_node.value))
+    h_node = next(iter(svg_node.value))
+    div_node = next(iter(h_node.value))
     assert div_node.node_tag == "div"
     assert div_node.value == "hello"
 
@@ -163,27 +169,47 @@ def test_render_html_with_svg_uses_svg_dialect():
     assert '<rect x="10" y="20" />' in out
 
 
-def test_render_svg_with_foreignobject_uses_html_dialect():
-    """SVG host delegates foreignObject subtree to ``HtmlRenderer``."""
+def test_render_svg_html_wraps_in_foreignobject_with_xmlns():
+    """SVG host wraps the HTML subtree in <foreignObject> with the
+    xhtml namespace. The bare ``html`` source tag is replaced by the
+    wrap tag — it does not appear in the markup."""
     page = _SvgWithForeignHtml()
     page.create()
     page.build()
     out = page.render()
-    assert out.startswith("<svg><foreignObject>")
+    assert out.startswith(
+        '<svg><foreignObject xmlns="http://www.w3.org/1999/xhtml">',
+    )
     assert "<div>hello</div>" in out
     assert out.endswith("</foreignObject></svg>")
+    # The user-facing source tag ``html`` does not surface in the output.
+    assert "<html>" not in out
+
+
+def test_subbuilder_without_wrap_tag_renders_host_tag_verbatim():
+    """When ``wrap_tag`` is not declared on the host subbuilder schema
+    entry (the HTML→SVG case), the bare host tag (``<svg>``) is emitted
+    verbatim around the sub-renderer output. No envelope inserted."""
+    page = _HtmlWithSvg()
+    page.create()
+    page.build()
+    out = page.render()
+    # No xmlns inserted: the host tag is HTML5's native <svg>.
+    assert "xmlns" not in out
+    assert "<body><svg><rect" in out
 
 
 def test_render_alternates_dialects_across_three_switches():
-    """HTML -> SVG -> HTML -> HTML resumes at each boundary."""
+    """HTML -> SVG -> HTML -> resumes HTML at each boundary, using the
+    user-facing ``svg.html()`` re-entry (wrap-tag mechanism)."""
 
     class _Mixed(HtmlBuilderHandler):
         def main(self, root):
             body = root.body()
             s = body.svg()
             s.rect(x=1, y=2)
-            fo = s.foreignObject()
-            fo.div("inside-svg")
+            h = s.html()
+            h.div("inside-svg")
             body.p("back-to-html")
 
     page = _Mixed()
@@ -194,7 +220,11 @@ def test_render_alternates_dialects_across_three_switches():
     assert out.startswith("<body><svg>")
     # Rect in SVG style.
     assert '<rect x="1" y="2" />' in out
-    # Re-entry to HTML inside foreignObject keeps HTML void-tag style.
-    assert "<foreignObject><div>inside-svg</div></foreignObject>" in out
+    # Re-entry to HTML wraps as <foreignObject xmlns="..."> automatically.
+    assert (
+        '<foreignObject xmlns="http://www.w3.org/1999/xhtml">'
+        "<div>inside-svg</div>"
+        "</foreignObject>"
+    ) in out
     # Sibling after </svg> resumes HTML.
     assert "</svg><p>back-to-html</p></body>" in out

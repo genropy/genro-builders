@@ -117,13 +117,10 @@ class HtmlRenderer(RendererBase):
     ) -> None:
         # @subbuilder polymorphism (decision 2, P5): if the node carries
         # a foreign dialect on its _builder slot, hand the whole subtree
-        # off to that dialect's renderer. The host (HtmlRenderer) does
-        # not emit anything for this node — the sub-renderer is fully
-        # responsible for opening, body and closing.
+        # off to that dialect's renderer.
         node_builder = getattr(node, "_builder", None)
         if node_builder is not None and node_builder is not self.builder:
-            sub_renderer = self.handler.renderer_for(node_builder)
-            sub_renderer._render_subtree(node, emit)
+            self._render_subbuilder(node, emit, node_builder, pretty=pretty, depth=depth)
             return
         tag = node.node_tag or node.label
         attrs = self._format_attrs(node.attr)
