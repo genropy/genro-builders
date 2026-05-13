@@ -62,8 +62,12 @@ jupyter = [
     "jupyter>=1.0",
     "watchfiles>=0.21",
 ]
+reverse = [
+    "tree-sitter>=0.25",
+    "tree-sitter-css>=0.25",
+]
 all = [
-    "genro-builders[dev,docs,xsd-validate,jupyter]",
+    "genro-builders[dev,docs,xsd-validate,jupyter,reverse]",
 ]
 
 [project.scripts]
