@@ -89,6 +89,17 @@ def test_pseudo_class_functional_falls_back_to_raw():
     assert "raw=" in code
 
 
+def test_class_with_pseudo_plus_functional_falls_back_to_raw():
+    """A plain pseudo (``:active``) attached to a class is normally
+    folded into ``_class``, but as soon as a functional pseudo
+    (``:not(...)``) joins the chain the whole selector must go to
+    ``raw=`` — the strict ``_class`` regex on the renderer rejects
+    parentheses, dots and commas inside the class string."""
+    code = _reverse(".multibutton:active:not(.multibutton_selected) { color: red; }")
+    assert "raw=" in code
+    assert "_class=" not in code
+
+
 def test_kebab_property_becomes_underscore_kwarg():
     code = _reverse(".a { background-color: red; font-size: 12px; }")
     assert "background_color='red'" in code

@@ -84,9 +84,10 @@ def _selector_kwargs(selector_node: Any) -> dict[str, object]:
     sel_id: str | None = None
     attrs: dict[str, str | None] = {}
     pseudo_parts: list[str] = []
+    functional_pseudo = False  # set when a :pseudo(args) is encountered
 
     def collect(n: Any) -> None:
-        nonlocal tag, sel_id
+        nonlocal tag, sel_id, functional_pseudo
         kind = n.type
         if kind == "class_selector":
             for c in n.named_children:
@@ -136,6 +137,7 @@ def _selector_kwargs(selector_node: Any) -> dict[str, object]:
                     pseudo_name = c.text.decode()
                 elif c.type in {"arguments", "pseudo_class_arguments"}:
                     pseudo_name = (pseudo_name or "") + c.text.decode()
+                    functional_pseudo = True
                 else:
                     inner = c
             if inner is not None:
@@ -164,7 +166,15 @@ def _selector_kwargs(selector_node: Any) -> dict[str, object]:
 
     collect(selector_node)
 
-    # Functional pseudos / multi-class + pseudo + structural → raw to be safe.
+    # Functional pseudos (:not, :nth-child, :has, ...) can carry
+    # commas, parens and nested selectors that cannot survive the
+    # structured _class concatenation — emit the entire selector as
+    # raw so the renderer's strict _class regex doesn't reject it.
+    if functional_pseudo:
+        return {"raw": text}
+
+    # Plain pseudo combined with tag/id/attr is also unsafe to
+    # express structurally → raw.
     if pseudo_parts and (tag is not None or sel_id is not None or attrs):
         return {"raw": text}
 
