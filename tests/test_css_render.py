@@ -287,6 +287,146 @@ def test_rule_block_comment_when_long():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Rule nesting
+# ---------------------------------------------------------------------------
+
+
+def test_nested_rule_renders_inside_parent_block():
+    def build(root):
+        card = root.rule(padding="8px")
+        card.selector(_class="card")
+        title = card.rule(font_size="18px")
+        title.selector(_class="title")
+
+    out = _render(build)
+    assert out == (
+        ".card {\n"
+        "  padding: 8px;\n"
+        "  .title {\n"
+        "    font-size: 18px;\n"
+        "  }\n"
+        "}\n"
+    )
+
+
+def test_nested_rule_with_ampersand_passes_through():
+    def build(root):
+        card = root.rule(padding="8px")
+        card.selector(_class="card")
+        hover = card.rule(background_color="#eef")
+        hover.selector(raw="&:hover")
+
+    out = _render(build)
+    assert "&:hover {" in out
+    assert "background-color: #eef" in out
+
+
+def test_nested_rule_with_combinator_via_raw():
+    def build(root):
+        card = root.rule(padding="8px")
+        card.selector(_class="card")
+        icon = card.rule(width="16px")
+        icon.selector(raw="& > .icon")
+
+    out = _render(build)
+    assert "& > .icon {" in out
+
+
+def test_deeply_nested_rules():
+    def build(root):
+        a = root.rule(padding="8px")
+        a.selector(_class="a")
+        b = a.rule(font_size="14px")
+        b.selector(_class="b")
+        c = b.rule(color="red")
+        c.selector(raw="&:hover")
+
+    out = _render(build)
+    assert out == (
+        ".a {\n"
+        "  padding: 8px;\n"
+        "  .b {\n"
+        "    font-size: 14px;\n"
+        "    &:hover {\n"
+        "      color: red;\n"
+        "    }\n"
+        "  }\n"
+        "}\n"
+    )
+
+
+def test_nested_rule_after_cssvar_keeps_order():
+    def build(root):
+        rt = root.rule()
+        rt.selector(raw=":root")
+        rt.cssvar("brand", value="#3498db")
+        inner = rt.rule(color="var(--brand)")
+        inner.selector(_class="branded")
+
+    out = _render(build)
+    assert out == (
+        ":root {\n"
+        "  --brand: #3498db;\n"
+        "  .branded {\n"
+        "    color: var(--brand);\n"
+        "  }\n"
+        "}\n"
+    )
+
+
+def test_nested_rule_inside_stylesheet():
+    def build(root):
+        sheet = root.stylesheet()
+        card = sheet.rule(padding="8px")
+        card.selector(_class="card")
+        title = card.rule(font_size="18px")
+        title.selector(_class="title")
+
+    out = _render(build)
+    assert ".card {" in out
+    assert "  .title {" in out
+    assert "    font-size: 18px;" in out
+
+
+def test_nested_rule_multi_selector_parent():
+    def build(root):
+        outer = root.rule(color="red")
+        outer.selector(_class="a")
+        outer.selector(_class="b")
+        inner = outer.rule(font_size="14px")
+        inner.selector(_class="x")
+
+    out = _render(build)
+    assert out.startswith(".a, .b {")
+    assert "  .x {" in out
+
+
+def test_nested_rule_indent_kwarg():
+    def build(root):
+        card = root.rule(padding="8px")
+        card.selector(_class="card")
+        title = card.rule(font_size="18px")
+        title.selector(_class="title")
+
+    class _Page(CssBuilderHandler):
+        def main(self, root):
+            build(root)
+
+    page = _Page()
+    page.create()
+    page.build()
+    out = page.render(indent="    ")
+    assert "    padding: 8px;" in out
+    assert "    .title {" in out
+    assert "        font-size: 18px;" in out
+
+
+# ---------------------------------------------------------------------------
+# Pretty vs minified
+# ---------------------------------------------------------------------------
+
+
 def test_render_pretty_false_produces_single_line():
     def build(root):
         r = root.rule(color="red", font_size="14px")

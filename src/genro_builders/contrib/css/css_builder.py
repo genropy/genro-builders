@@ -11,12 +11,6 @@ The grammar lives in ``CssElements``. Rendering lives on
 ``CssRenderer`` (``render_css`` method). Compilation (future) lives
 on ``CssCompiler``. The builder only wires them together
 (decision 8, renegotiated 2026-05-12).
-
-The class-level ``_name`` attribute marks the dialect for the
-forthcoming builder registry (see
-``temp/subtask/subbuilder/builder_registration_guide.md``). The
-attribute is ignored by the current ``BagBuilderBase.__init_subclass__``
-in develop; it becomes active once the registry lands.
 """
 
 from __future__ import annotations

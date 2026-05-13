@@ -67,7 +67,7 @@ class CssRenderer(RendererBase):
         """Serialize ``built`` as CSS source. See module docstring."""
         lines: list[str] = []
         for node in built:
-            self._render_top_node(node, lines, pretty=pretty, indent=indent)
+            self._render_top_node(node, lines, pretty=pretty, indent=indent, depth=0)
         text = "\n".join(lines) + ("\n" if lines else "") if pretty else "".join(lines)
         return self._write_or_return(text, render_target)
 
@@ -82,16 +82,17 @@ class CssRenderer(RendererBase):
         *,
         pretty: bool,
         indent: str,
+        depth: int,
     ) -> None:
         tag = node.node_tag or node.label
         if tag == "stylesheet":
             value = node.value
             if isinstance(value, Bag):
                 for child in value:
-                    self._render_top_node(child, lines, pretty=pretty, indent=indent)
+                    self._render_top_node(child, lines, pretty=pretty, indent=indent, depth=depth)
             return
         if tag == "rule":
-            self._render_rule(node, lines, pretty=pretty, indent=indent)
+            self._render_rule(node, lines, pretty=pretty, indent=indent, depth=depth)
 
     # ------------------------------------------------------------------
     # Rules
@@ -104,6 +105,7 @@ class CssRenderer(RendererBase):
         *,
         pretty: bool,
         indent: str,
+        depth: int,
     ) -> None:
         attrs = dict(node.attr)
         comment = attrs.pop("comment", None)
@@ -112,29 +114,58 @@ class CssRenderer(RendererBase):
             raise ValueError("rule has no selector children; add at least one .selector(...)")
         selector_list = ", ".join(selectors)
 
+        outer = indent * depth if pretty else ""
+        inner = indent * (depth + 1) if pretty else ""
+
         if comment is not None and len(str(comment)) > COMMENT_INLINE_MAX_LEN:
-            lines.append(f"/* {comment} */")
+            lines.append(f"{outer}/* {comment} */")
             inline_comment: str | None = None
         else:
             inline_comment = str(comment) if comment is not None else None
 
         property_lines = self._format_properties(attrs)
         cssvar_lines = self._format_cssvars(node)
+        nested_blocks = self._collect_nested_rules(node)
 
         body = property_lines + cssvar_lines
         if inline_comment is not None and body:
             body[-1] = f"{body[-1]} /* {inline_comment} */"
-        elif inline_comment is not None and not body:
+        elif inline_comment is not None and not body and not nested_blocks:
             body = [f"/* {inline_comment} */"]
 
         if pretty:
-            lines.append(f"{selector_list} {{")
+            lines.append(f"{outer}{selector_list} {{")
             for entry in body:
-                lines.append(f"{indent}{entry}")
-            lines.append("}")
+                lines.append(f"{inner}{entry}")
+            for nested in nested_blocks:
+                self._render_rule(
+                    nested, lines, pretty=pretty, indent=indent, depth=depth + 1,
+                )
+            lines.append(f"{outer}}}")
         else:
             body_text = " ".join(body)
-            lines.append(f"{selector_list} {{ {body_text} }}")
+            if nested_blocks:
+                nested_lines: list[str] = []
+                for nested in nested_blocks:
+                    self._render_rule(
+                        nested, nested_lines, pretty=False, indent=indent, depth=0,
+                    )
+                nested_text = " ".join(nested_lines)
+                combined = " ".join(part for part in (body_text, nested_text) if part)
+                lines.append(f"{selector_list} {{ {combined} }}")
+            else:
+                lines.append(f"{selector_list} {{ {body_text} }}")
+
+    def _collect_nested_rules(self, rule_node: Any) -> list[Any]:
+        """Return the child ``rule`` nodes of ``rule_node`` in document order."""
+        result: list[Any] = []
+        value = rule_node.value
+        if not isinstance(value, Bag):
+            return result
+        for child in value:
+            if (child.node_tag or child.label) == "rule":
+                result.append(child)
+        return result
 
     def _format_properties(self, attrs: dict[str, Any]) -> list[str]:
         """One CSS declaration per property kwarg."""

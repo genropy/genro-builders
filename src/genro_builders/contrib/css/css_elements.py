@@ -54,10 +54,12 @@ class CssElements:
         """Top-level container for a list of CSS rules."""
         ...
 
-    @element(sub_tags="selector,cssvar")
+    @element(sub_tags="selector,cssvar,rule")
     def rule(self):
         """A CSS rule: selector-list (via ``selector`` children) plus
-        property declarations (via kwargs)."""
+        property declarations (via kwargs). Rules can be nested:
+        adding a child ``rule`` produces native CSS nesting in the
+        rendered output."""
         ...
 
     @element(sub_tags="")
