@@ -35,12 +35,19 @@ class RendererBase:
     """Base renderer. Concrete dialects subclass it and add
     ``render_<mode>`` methods."""
 
-    def __init__(self, handler: Any) -> None:
+    def __init__(self, handler: Any, builder: Any = None) -> None:
         self.handler = handler
+        # When ``builder`` is None (default) the renderer is bound to
+        # the handler's primary dialect — used by ``handler.renderer``.
+        # When a sub-renderer is instantiated via
+        # ``handler.renderer_for(sub_builder)`` the explicit ``builder``
+        # locks the renderer to that dialect, so polymorphic dispatch
+        # via ``node._builder`` can compare against it without looping.
+        self._builder = builder
 
     @property
     def builder(self) -> Any:
-        return self.handler.builder
+        return self._builder if self._builder is not None else self.handler.builder
 
     def render(
         self,
@@ -76,6 +83,21 @@ class RendererBase:
         }
         filtered = {k: v for k, v in kwargs.items() if k in accepted}
         return method(self, built, render_target=render_target, **filtered)
+
+    def _render_subtree(self, node: Any, emit: Any) -> None:
+        """Render a single node-and-descendants into ``emit``.
+
+        Default entry point invoked by a host renderer when it delegates
+        a sub-builder subtree (decision 2, P5). Subclasses with extra
+        per-walk parameters (HTML's ``xml``/``pretty``/``depth``, etc.)
+        override this to forward sensible defaults to their own
+        ``_render_node`` signature.
+
+        Default implementation assumes ``_render_node(node, emit)`` has
+        no extra kwargs (matches the bare ``RendererBase``, ``SvgRenderer``,
+        ``CssRenderer`` shapes).
+        """
+        self._render_node(node, emit)  # type: ignore[attr-defined]
 
     def render_xml(
         self,

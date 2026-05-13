@@ -66,6 +66,14 @@ class SvgRenderer(RendererBase):
         return self._write_or_return(text, render_target)
 
     def _render_node(self, node: Any, emit: Any) -> None:
+        # @subbuilder polymorphism (decision 2, P5): delegate any
+        # foreign-dialect subtree (e.g. HTML re-entry via
+        # <foreignObject>) to the appropriate renderer.
+        node_builder = getattr(node, "_builder", None)
+        if node_builder is not None and node_builder is not self.builder:
+            sub_renderer = self.handler.renderer_for(node_builder)
+            sub_renderer._render_subtree(node, emit)
+            return
         tag = node.node_tag or node.label
         attrs = self._format_attrs(node.attr)
         if tag in _VOID_TAGS:

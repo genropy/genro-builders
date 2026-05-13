@@ -142,3 +142,59 @@ def test_build_propagates_subbuilder_through_subtree():
     assert rect_node.node_tag == "rect"
     assert rect_node.attr.get("x") == 10
     assert isinstance(svg_node._builder, SvgBuilder)
+
+
+# ---------------------------------------------------------------------------
+# Render polymorphism (P5)
+# ---------------------------------------------------------------------------
+
+
+def test_render_html_with_svg_uses_svg_dialect():
+    """Host (HTML) delegates the SVG subtree to ``SvgRenderer``; the
+    output mixes HTML void-tag style with SVG's space-before-slash."""
+    page = _HtmlWithSvg()
+    page.create()
+    page.build()
+    out = page.render()
+    # HTML body wraps the SVG host tag and content.
+    assert out.startswith("<body><svg>")
+    assert out.endswith("</svg></body>")
+    # SvgRenderer renders <rect/> with a space (SVG convention).
+    assert '<rect x="10" y="20" />' in out
+
+
+def test_render_svg_with_foreignobject_uses_html_dialect():
+    """SVG host delegates foreignObject subtree to ``HtmlRenderer``."""
+    page = _SvgWithForeignHtml()
+    page.create()
+    page.build()
+    out = page.render()
+    assert out.startswith("<svg><foreignObject>")
+    assert "<div>hello</div>" in out
+    assert out.endswith("</foreignObject></svg>")
+
+
+def test_render_alternates_dialects_across_three_switches():
+    """HTML -> SVG -> HTML -> HTML resumes at each boundary."""
+
+    class _Mixed(HtmlBuilderHandler):
+        def main(self, root):
+            body = root.body()
+            s = body.svg()
+            s.rect(x=1, y=2)
+            fo = s.foreignObject()
+            fo.div("inside-svg")
+            body.p("back-to-html")
+
+    page = _Mixed()
+    page.create()
+    page.build()
+    out = page.render()
+    # Outer HTML body wraps everything.
+    assert out.startswith("<body><svg>")
+    # Rect in SVG style.
+    assert '<rect x="1" y="2" />' in out
+    # Re-entry to HTML inside foreignObject keeps HTML void-tag style.
+    assert "<foreignObject><div>inside-svg</div></foreignObject>" in out
+    # Sibling after </svg> resumes HTML.
+    assert "</svg><p>back-to-html</p></body>" in out

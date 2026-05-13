@@ -99,6 +99,13 @@ class HtmlRenderer(RendererBase):
         text = "".join(chunks)
         return self._write_or_return(text, render_target)
 
+    def _render_subtree(self, node: Any, emit: Any) -> None:
+        """Entry point used by host renderers when they delegate a
+        subtree to this renderer (P5). Forwards to ``_render_node`` with
+        HTML defaults so the caller does not need to know HTML-specific
+        walk parameters."""
+        self._render_node(node, emit, xml=True, pretty=False, depth=0)
+
     def _render_node(
         self,
         node: Any,
@@ -108,6 +115,16 @@ class HtmlRenderer(RendererBase):
         pretty: bool,
         depth: int,
     ) -> None:
+        # @subbuilder polymorphism (decision 2, P5): if the node carries
+        # a foreign dialect on its _builder slot, hand the whole subtree
+        # off to that dialect's renderer. The host (HtmlRenderer) does
+        # not emit anything for this node — the sub-renderer is fully
+        # responsible for opening, body and closing.
+        node_builder = getattr(node, "_builder", None)
+        if node_builder is not None and node_builder is not self.builder:
+            sub_renderer = self.handler.renderer_for(node_builder)
+            sub_renderer._render_subtree(node, emit)
+            return
         tag = node.node_tag or node.label
         attrs = self._format_attrs(node.attr)
         indent = "  " * depth if pretty else ""

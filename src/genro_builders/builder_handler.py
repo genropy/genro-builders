@@ -44,6 +44,7 @@ class BuilderHandler:
         self._renderer: Any = None
         self._compiler: Any = None
         self._subbuilder_cache: dict[str, Any] = {}
+        self._sub_renderer_cache: dict[int, Any] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle (decision 5)
@@ -122,6 +123,23 @@ class BuilderHandler:
             cls = BagBuilderBase.get_builder_class(name)
             self._subbuilder_cache[name] = cls()
         return self._subbuilder_cache[name]
+
+    def renderer_for(self, builder: Any) -> Any:
+        """Return the (cached) renderer instance bound to ``builder``.
+
+        For the primary builder this is just ``self.renderer``. For a
+        sub-builder (a different dialect attached to a subtree), the
+        renderer class is read from the sub-builder's ``_renderer_class``
+        and instantiated once per handler. The sub-renderer carries
+        an explicit ``builder`` reference so polymorphic dispatch via
+        ``node._builder`` can identify it correctly.
+        """
+        if builder is self.builder:
+            return self.renderer
+        key = id(builder)
+        if key not in self._sub_renderer_cache:
+            self._sub_renderer_cache[key] = builder._renderer_class(self, builder)
+        return self._sub_renderer_cache[key]
 
     # ------------------------------------------------------------------
     # Render target (decision 6)
