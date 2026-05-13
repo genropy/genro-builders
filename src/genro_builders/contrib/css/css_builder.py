@@ -110,22 +110,54 @@ class CssBuilder(BagBuilderBase, CssElements):
         """Read a CSS file and emit equivalent CssBuilder Python.
 
         Convenience wrapper around ``from_css``: reads ``path`` as
-        UTF-8 text and delegates. When ``class_name`` is ``None`` it
-        defaults to the file stem capitalised (e.g. ``theme.css`` →
-        ``Theme``).
+        UTF-8 text and delegates. When ``class_name`` is ``None`` the
+        name is derived from the file stem via
+        :func:`_class_name_from_stem`: if the stem starts with a digit
+        the leading numeric segment is dropped (split on ``_``), the
+        remaining segments are CamelCased, and the suffix ``Style`` is
+        appended. Examples::
+
+            theme.css            -> ThemeStyle
+            00_gnr_resets.css    -> GnrResetsStyle
+            02b_gnr_icons_svg    -> GnrIconsSvgStyle
+
+        If the derived name would be empty (the stem is a single
+        digit-only segment or is empty), the fallback is ``Style``.
 
         :param path: filesystem path to the input CSS.
         :param dest: see ``from_css``.
-        :param class_name: optional override; default is
-            ``Path(path).stem.capitalize()``.
+        :param class_name: optional override; default is the value
+            returned by :func:`_class_name_from_stem`.
         :returns: same contract as ``from_css``.
         :raises ImportError: the optional ``[reverse]`` extra is not
             installed.
         """
         p = Path(path)
         source = p.read_text(encoding="utf-8")
-        name = class_name if class_name is not None else p.stem.capitalize()
+        name = class_name if class_name is not None else _class_name_from_stem(p.stem)
         return cls.from_css(source, dest, class_name=name)
+
+
+def _class_name_from_stem(stem: str) -> str:
+    """Derive a Python-identifier class name from a file stem.
+
+    Rules (see ``CssBuilder.from_css_file`` docstring for examples):
+
+    - if ``stem`` starts with a digit, split on ``_`` and drop the
+      first (leading-digit) segment;
+    - CamelCase every remaining segment;
+    - append the suffix ``Style``;
+    - fall back to ``Style`` if nothing usable is left.
+    """
+    if not stem:
+        return "Style"
+    parts = stem.split("_")
+    if stem[0].isdigit():
+        parts = parts[1:]
+    parts = [p for p in parts if p]
+    if not parts:
+        return "Style"
+    return "".join(p[0].upper() + p[1:] for p in parts) + "Style"
 
 
 def _emit(text: str, dest: Any) -> str | None:

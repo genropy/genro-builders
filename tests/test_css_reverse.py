@@ -360,19 +360,32 @@ def test_from_css_custom_class_name():
 
 
 def test_from_css_file_reads_from_path(tmp_path):
-    src = tmp_path / "in.css"
-    src.write_text(CSS_FIXTURE, encoding="utf-8")
-    out = CssBuilder.from_css_file(src)
-    assert isinstance(out, str)
-    assert "class In(CssBuilderHandler):" in out
-
-
-def test_from_css_file_derives_class_name_from_stem(tmp_path):
     src = tmp_path / "theme.css"
     src.write_text(CSS_FIXTURE, encoding="utf-8")
     out = CssBuilder.from_css_file(src)
+    assert isinstance(out, str)
+    assert "class ThemeStyle(CssBuilderHandler):" in out
+
+
+def test_from_css_file_derives_class_name_from_stem(tmp_path):
+    src = tmp_path / "dark_mode.css"
+    src.write_text(CSS_FIXTURE, encoding="utf-8")
+    out = CssBuilder.from_css_file(src)
     assert out is not None
-    assert "class Theme(CssBuilderHandler):" in out
+    assert "class DarkModeStyle(CssBuilderHandler):" in out
+
+
+def test_from_css_file_skips_leading_numeric_segment(tmp_path):
+    """Filenames starting with a digit drop the first '_'-separated
+    segment so the resulting class name is a valid Python identifier
+    (e.g. ``00_gnr_resets.css`` -> ``class GnrResetsStyle``)."""
+    src = tmp_path / "00_gnr_resets.css"
+    src.write_text(CSS_FIXTURE, encoding="utf-8")
+    out = CssBuilder.from_css_file(src)
+    assert out is not None
+    assert "class GnrResetsStyle(CssBuilderHandler):" in out
+    # the generated code must be valid Python
+    compile(out, "<test>", "exec")
 
 
 def test_from_css_file_class_name_override(tmp_path):
@@ -389,7 +402,7 @@ def test_from_css_file_writes_dest(tmp_path):
     out = tmp_path / "theme.py"
     ret = CssBuilder.from_css_file(src, out)
     assert ret is None
-    assert "class Theme" in out.read_text(encoding="utf-8")
+    assert "class ThemeStyle" in out.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
