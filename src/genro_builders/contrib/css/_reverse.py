@@ -283,13 +283,25 @@ class CssReverser:
         return f"{base}_{self._counter}"
 
     def reverse(self, css: str) -> ast.Module:
-        """Parse ``css`` and return an ``ast.Module`` Python source AST."""
+        """Parse ``css`` and return an ``ast.Module`` Python source AST.
+
+        The emitted ``main(self, root)`` always opens a ``stylesheet``
+        container as its first statement (``sheet = root.stylesheet()``)
+        and uses it as the parent for all top-level constructs. This
+        is uniform regardless of whether the source CSS contains
+        ``@import`` directives — the assumption is that the reverse
+        targets whole stylesheets, not isolated fragments.
+        """
         self._counter = 0
         root = _parse_css(css)
-        body: list[ast.stmt] = []
+        sheet_stmt = _assign_call(
+            target="sheet", obj="root",
+            method="stylesheet", kwargs={},
+        )
+        body: list[ast.stmt] = [sheet_stmt]
         for child in root.children:
             body.extend(self._stylesheet_child(
-                child, parent_var="root", media=None, supports=None,
+                child, parent_var="sheet", media=None, supports=None,
             ))
         main_func = ast.FunctionDef(
             name="main",
@@ -337,12 +349,75 @@ class CssReverser:
             return self._supports_statement(
                 node, parent_var=parent_var, outer_media=media,
             )
+        if node.type == "import_statement":
+            return [self._import_statement(node, parent_var=parent_var)]
         if node.type in {"comment", "{", "}"}:
             return []
         text = node.text.decode().strip()
         if not text:
             return []
         return [_comment_stmt(f"unsupported: {node.type}: {text[:60]}")]
+
+    def _import_statement(self, node: Any, *, parent_var: str) -> ast.stmt:
+        """Emit ``parent.importcss(url=..., media=..., supports=..., layer=...)``.
+
+        tree-sitter-css (0.25) recognises the ``url(...)`` / bare-string
+        form and a trailing media-query. The ``layer(...)`` and
+        ``supports(...)`` modifiers are not in the grammar yet and
+        appear as ``ERROR`` nodes; when present we fall back to a
+        ``raw=`` kwarg carrying the full at-rule text minus the
+        leading ``@import`` so the user can hand-clean it.
+        """
+        url: str | None = None
+        media: str | None = None
+        has_error = False
+        for child in node.named_children:
+            if child.type == "call_expression":
+                for c in child.named_children:
+                    if c.type == "arguments":
+                        for arg in c.named_children:
+                            if arg.type == "string_value":
+                                url = self._unquote(arg.text.decode())
+                            elif arg.type == "plain_value":
+                                url = arg.text.decode()
+            elif child.type == "string_value" and url is None:
+                url = self._unquote(child.text.decode())
+            elif child.type in {
+                "feature_query", "binary_query", "selector_query",
+                "keyword_query", "parenthesized_query",
+            }:
+                media_text = (
+                    (media + " " + child.text.decode())
+                    if media is not None
+                    else child.text.decode()
+                )
+                media = media_text.strip()
+            elif child.type == "ERROR":
+                has_error = True
+
+        if url is None:
+            return _comment_stmt(
+                f"unsupported import_statement: {node.text.decode()[:80]}",
+            )
+        if has_error:
+            # layer(...) / supports(...) modifiers are still ERROR
+            # nodes in tree-sitter-css 0.25; emit a comment so the
+            # user knows the at-rule was dropped and can patch it
+            # by hand instead of producing a half-true call.
+            full_text = node.text.decode().rstrip(";").strip()
+            return _comment_stmt(
+                f"layer/supports modifier not parsed, see source: {full_text[:80]}",
+            )
+        kwargs: dict[str, object] = {"url": url}
+        if media is not None:
+            kwargs["media"] = media
+        return _call_stmt(obj=parent_var, method="importcss", kwargs=kwargs)
+
+    def _unquote(self, text: str) -> str:
+        """Strip matching wrapping quotes from a string literal."""
+        if len(text) >= 2 and text[0] in "\"'" and text[-1] == text[0]:
+            return text[1:-1]
+        return text
 
     def _rule_set(
         self, node: Any, *, parent_var: str,

@@ -109,11 +109,13 @@ def test_descendant_combinator_falls_back_to_raw():
     assert "raw=" in code
 
 
-def test_empty_source_emits_empty_main():
+def test_empty_source_emits_stylesheet_only_main():
+    """Empty input still opens a stylesheet — the reverse always
+    targets a whole CSS document, never a fragment."""
     code = _reverse("")
     assert "class ReversedCss(CssBuilderHandler):" in code
     assert "def main(self, root):" in code
-    assert "pass" in code
+    assert "sheet = root.stylesheet()" in code
 
 
 def test_custom_class_name():
@@ -226,3 +228,66 @@ def test_roundtrip_css_nesting():
     assert ".title" in out
     assert "padding: 8px" in out
     assert "font-size: 18px" in out
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: @import (import_statement) + stylesheet wrapping
+# ---------------------------------------------------------------------------
+
+def test_reverse_always_opens_stylesheet():
+    """Even minimal CSS produces a stylesheet wrapper — the reverse
+    targets whole documents, not fragments."""
+    code = _reverse(".card { color: red; }")
+    assert "sheet = root.stylesheet()" in code
+    # selector calls go through sheet, not root
+    assert "sheet.selector" in code
+    assert "root.selector" not in code
+
+
+def test_import_url_form():
+    code = _reverse('@import url("reset.css");')
+    assert "sheet.importcss(url='reset.css')" in code
+
+
+def test_import_bare_string_form():
+    code = _reverse('@import "foo.css";')
+    assert "sheet.importcss(url='foo.css')" in code
+
+
+def test_import_with_media_query():
+    code = _reverse('@import url("phone.css") screen and (max-width: 600px);')
+    assert "sheet.importcss(url='phone.css', media='screen and (max-width: 600px)')" in code
+
+
+def test_import_with_layer_modifier_falls_back_to_comment():
+    """tree-sitter-css 0.25 cannot parse layer(...); the reverse
+    leaves a Python comment-string so the user knows to patch it."""
+    code = _reverse('@import url("layered.css") layer(reset);')
+    assert "importcss" not in code  # no half-true call emitted
+    assert "layer/supports modifier not parsed" in code
+
+
+def test_import_with_supports_modifier_falls_back_to_comment():
+    code = _reverse('@import url("g.css") supports(display: grid);')
+    assert "importcss" not in code
+    assert "layer/supports modifier not parsed" in code
+
+
+def test_roundtrip_simple_import():
+    css = '@import url("reset.css");'
+    out = _roundtrip(css)
+    assert '@import url("reset.css")' in out
+
+
+def test_roundtrip_import_with_media():
+    css = '@import url("print.css") print;'
+    out = _roundtrip(css)
+    assert '@import url("print.css") print' in out
+
+
+def test_imports_appear_before_selectors_in_round_trip():
+    css = '@import url("reset.css"); .card { color: red; }'
+    out = _roundtrip(css)
+    import_pos = out.index('@import')
+    card_pos = out.index('.card')
+    assert import_pos < card_pos
