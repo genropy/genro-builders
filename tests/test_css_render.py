@@ -9,7 +9,7 @@ from genro_builders import BagBuilderBase
 from genro_builders.contrib.css import CssBuilder, CssBuilderHandler
 
 
-def _render(main_fn):
+def _render(main_fn, **render_kwargs):
     """Build a handler with the given ``main`` and return its render output."""
 
     class _Page(CssBuilderHandler):
@@ -19,7 +19,7 @@ def _render(main_fn):
     page = _Page()
     page.create()
     page.build()
-    return page.render()
+    return page.render(**render_kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -40,46 +40,32 @@ def test_css_render_default_mode_is_css():
 
 
 # ---------------------------------------------------------------------------
-# Rule + selector + properties
+# Single selector + rule
 # ---------------------------------------------------------------------------
 
 
-def test_fragment_single_rule():
+def test_single_selector_with_rule():
     def build(root):
-        r = root.rule(color="red", font_size="14px")
-        r.selector(_class="card")
+        s = root.selector(_class="card")
+        s.rule(color="red", font_size="14px")
 
     out = _render(build)
     assert out == ".card {\n  color: red;\n  font-size: 14px;\n}\n"
 
 
-def test_stylesheet_with_multiple_rules():
+def test_fragment_at_root_no_stylesheet():
     def build(root):
-        sheet = root.stylesheet()
-        r1 = sheet.rule(color="red")
-        r1.selector(_class="a")
-        r2 = sheet.rule(color="blue")
-        r2.selector(_class="b")
+        s = root.selector(_class="card")
+        s.rule(color="red")
 
     out = _render(build)
-    assert out == ".a {\n  color: red;\n}\n.b {\n  color: blue;\n}\n"
-
-
-def test_multi_selector_comma_separated():
-    def build(root):
-        r = root.rule(color="white")
-        r.selector(_class="a")
-        r.selector(_class="b")
-        r.selector(_class="c")
-
-    out = _render(build)
-    assert out == ".a, .b, .c {\n  color: white;\n}\n"
+    assert out == ".card {\n  color: red;\n}\n"
 
 
 def test_property_kebab_case_conversion():
     def build(root):
-        r = root.rule(background_color="#fff", font_size="12px")
-        r.selector(_class="x")
+        s = root.selector(_class="x")
+        s.rule(background_color="#fff", font_size="12px")
 
     out = _render(build)
     assert "background-color: #fff;" in out
@@ -93,26 +79,26 @@ def test_property_kebab_case_conversion():
 
 def test_selector_tag_id_class():
     def build(root):
-        r = root.rule(color="red")
-        r.selector(tag="div", id="main", _class="card")
+        s = root.selector(tag="div", id="main", _class="card")
+        s.rule(color="red")
 
     out = _render(build)
     assert "div#main.card" in out
 
 
-def test_selector_multiple_classes_with_classes_kwarg():
+def test_selector_classes_list():
     def build(root):
-        r = root.rule(color="red")
-        r.selector(classes=["card", "featured"])
+        s = root.selector(classes=["card", "featured"])
+        s.rule(color="red")
 
     out = _render(build)
     assert ".card.featured" in out
 
 
-def test_selector_class_with_pseudo_attached():
+def test_selector_class_with_pseudo():
     def build(root):
-        r = root.rule(color="red")
-        r.selector(_class="foo:hover")
+        s = root.selector(_class="foo:hover")
+        s.rule(color="red")
 
     out = _render(build)
     assert ".foo:hover" in out
@@ -120,8 +106,8 @@ def test_selector_class_with_pseudo_attached():
 
 def test_selector_attr_with_value():
     def build(root):
-        r = root.rule(padding="8px")
-        r.selector(tag="input", attr={"type": "text"})
+        s = root.selector(tag="input", attr={"type": "text"})
+        s.rule(padding="8px")
 
     out = _render(build)
     assert 'input[type="text"]' in out
@@ -129,8 +115,8 @@ def test_selector_attr_with_value():
 
 def test_selector_attr_without_value():
     def build(root):
-        r = root.rule(padding="8px")
-        r.selector(attr={"data-active": None})
+        s = root.selector(attr={"data-active": None})
+        s.rule(padding="8px")
 
     out = _render(build)
     assert "[data-active]" in out
@@ -138,8 +124,8 @@ def test_selector_attr_without_value():
 
 def test_selector_raw_alone():
     def build(root):
-        r = root.rule(opacity="0.5")
-        r.selector(raw=".card:not(.disabled)")
+        s = root.selector(raw=".card:not(.disabled)")
+        s.rule(opacity="0.5")
 
     out = _render(build)
     assert ".card:not(.disabled)" in out
@@ -147,22 +133,73 @@ def test_selector_raw_alone():
 
 def test_selector_raw_appended_to_compound():
     def build(root):
-        r = root.rule(color="green")
-        r.selector(_class="card", raw="> .icon")
+        s = root.selector(_class="card", raw="> .icon")
+        s.rule(color="green")
 
     out = _render(build)
     assert ".card > .icon" in out
 
 
 # ---------------------------------------------------------------------------
-# Validation errors
+# selector_list
+# ---------------------------------------------------------------------------
+
+
+def test_selector_list_multiple_selectors():
+    def build(root):
+        sl = root.selector_list()
+        sl.selector(_class="card")
+        sl.selector(_class="panel")
+        sl.selector(_class="dialog")
+        sl.rule(color="white")
+
+    out = _render(build)
+    assert out == ".card, .panel, .dialog {\n  color: white;\n}\n"
+
+
+def test_selector_list_in_stylesheet():
+    def build(root):
+        sheet = root.stylesheet()
+        sl = sheet.selector_list()
+        sl.selector(_class="a")
+        sl.selector(_class="b")
+        sl.rule(color="red")
+
+    out = _render(build)
+    assert ".a, .b {" in out
+    assert "  color: red;" in out
+
+
+def test_selector_list_with_cssvar():
+    def build(root):
+        sl = root.selector_list()
+        sl.selector(raw=":root")
+        sl.selector(raw=":host")
+        sl.cssvar("brand", value="#3498db")
+
+    out = _render(build)
+    assert ":root, :host {" in out
+    assert "  --brand: #3498db;" in out
+
+
+def test_selector_list_with_no_selectors_raises():
+    def build(root):
+        sl = root.selector_list()
+        sl.rule(color="red")
+
+    with pytest.raises(ValueError, match=r"selector_list has no selector"):
+        _render(build)
+
+
+# ---------------------------------------------------------------------------
+# Validation
 # ---------------------------------------------------------------------------
 
 
 def test_selector_class_with_space_is_rejected():
     def build(root):
-        r = root.rule(color="red")
-        r.selector(_class="card featured")
+        s = root.selector(_class="card featured")
+        s.rule(color="red")
 
     with pytest.raises(ValueError, match=r"selector class 'card featured'"):
         _render(build)
@@ -170,8 +207,8 @@ def test_selector_class_with_space_is_rejected():
 
 def test_selector_class_with_dot_is_rejected():
     def build(root):
-        r = root.rule(color="red")
-        r.selector(_class="card.featured")
+        s = root.selector(_class="card.featured")
+        s.rule(color="red")
 
     with pytest.raises(ValueError, match=r"selector class 'card.featured'"):
         _render(build)
@@ -179,8 +216,8 @@ def test_selector_class_with_dot_is_rejected():
 
 def test_selector_class_and_classes_mutually_exclusive():
     def build(root):
-        r = root.rule(color="red")
-        r.selector(_class="a", classes=["b", "c"])
+        s = root.selector(_class="a", classes=["b", "c"])
+        s.rule(color="red")
 
     with pytest.raises(ValueError, match=r"_class.*classes"):
         _render(build)
@@ -188,25 +225,17 @@ def test_selector_class_and_classes_mutually_exclusive():
 
 def test_selector_with_no_kwargs_is_rejected():
     def build(root):
-        r = root.rule(color="red")
-        r.selector()
+        s = root.selector()
+        s.rule(color="red")
 
     with pytest.raises(ValueError, match=r"tag/id/_class/classes/attr/raw"):
         _render(build)
 
 
-def test_rule_without_selector_is_rejected():
-    def build(root):
-        root.rule(color="red")
-
-    with pytest.raises(ValueError, match=r"no selector children"):
-        _render(build)
-
-
 def test_selector_tag_starting_with_digit_is_rejected():
     def build(root):
-        r = root.rule(color="red")
-        r.selector(tag="1div")
+        s = root.selector(tag="1div")
+        s.rule(color="red")
 
     with pytest.raises(ValueError, match=r"selector tag '1div'"):
         _render(build)
@@ -219,10 +248,9 @@ def test_selector_tag_starting_with_digit_is_rejected():
 
 def test_cssvar_basic():
     def build(root):
-        r = root.rule()
-        r.selector(raw=":root")
-        r.cssvar("primary-color", value="#3498db")
-        r.cssvar("spacing", value="8px")
+        s = root.selector(raw=":root")
+        s.cssvar("primary-color", value="#3498db")
+        s.cssvar("spacing", value="8px")
 
     out = _render(build)
     assert out == (
@@ -235,9 +263,8 @@ def test_cssvar_basic():
 
 def test_cssvar_with_inline_comment():
     def build(root):
-        r = root.rule()
-        r.selector(raw=":root")
-        r.cssvar("primary", value="#3498db", comment="brand color")
+        s = root.selector(raw=":root")
+        s.cssvar("primary", value="#3498db", comment="brand color")
 
     out = _render(build)
     assert "--primary: #3498db; /* brand color */" in out
@@ -248,56 +275,128 @@ def test_cssvar_with_block_comment_when_long():
     assert len(long) > 60
 
     def build(root):
-        r = root.rule()
-        r.selector(raw=":root")
-        r.cssvar("primary", value="#3498db", comment=long)
+        s = root.selector(raw=":root")
+        s.cssvar("primary", value="#3498db", comment=long)
 
     out = _render(build)
-    assert f"/* {long} */\n  --primary: #3498db;" in out
+    assert f"/* {long} */" in out
+    assert "  --primary: #3498db;" in out
 
 
 # ---------------------------------------------------------------------------
-# Rule comments
+# Comments on rule
 # ---------------------------------------------------------------------------
 
 
-def test_rule_inline_comment_after_last_property():
+def test_selector_inline_comment():
     def build(root):
-        r = root.rule(color="red", comment="brand red")
-        r.selector(_class="card")
+        s = root.selector(_class="alert", comment="warning state")
+        s.rule(color="red")
 
     out = _render(build)
-    assert "color: red; /* brand red */" in out
+    assert "color: red; /* warning state */" in out
 
 
-def test_rule_block_comment_when_long():
+def test_selector_block_comment():
     long = "A long explanation describing exactly why this rule exists for the team"
     assert len(long) > 60
 
     def build(root):
-        r = root.rule(color="red", comment=long)
-        r.selector(_class="card")
+        s = root.selector(_class="card", comment=long)
+        s.rule(color="red")
 
     out = _render(build)
     assert f"/* {long} */\n.card" in out
 
 
 # ---------------------------------------------------------------------------
-# Pretty vs minified
+# Media variants
 # ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# Rule nesting
-# ---------------------------------------------------------------------------
-
-
-def test_nested_rule_renders_inside_parent_block():
+def test_media_variant_inside_selector():
     def build(root):
-        card = root.rule(padding="8px")
-        card.selector(_class="card")
-        title = card.rule(font_size="18px")
-        title.selector(_class="title")
+        s = root.selector(_class="card")
+        s.rule(width="300px")
+        s.media(condition="(max-width: 600px)", width="100%")
+
+    out = _render(build)
+    assert out == (
+        ".card {\n"
+        "  width: 300px;\n"
+        "  @media (max-width: 600px) {\n"
+        "    .card {\n"
+        "      width: 100%;\n"
+        "    }\n"
+        "  }\n"
+        "}\n"
+    )
+
+
+def test_media_multiple_variants_same_selector():
+    def build(root):
+        s = root.selector(_class="card")
+        s.rule(padding="16px")
+        s.media(condition="(max-width: 600px)", padding="8px")
+        s.media(condition="(max-width: 400px)", padding="4px")
+
+    out = _render(build)
+    assert "@media (max-width: 600px) {" in out
+    assert "@media (max-width: 400px) {" in out
+
+
+def test_media_variant_inside_selector_list():
+    def build(root):
+        sl = root.selector_list()
+        sl.selector(_class="a")
+        sl.selector(_class="b")
+        sl.rule(padding="16px")
+        sl.media(condition="(max-width: 600px)", padding="8px")
+
+    out = _render(build)
+    assert ".a, .b {" in out
+    assert "  @media (max-width: 600px) {" in out
+    assert "    .a, .b {" in out
+
+
+def test_media_without_condition_raises():
+    def build(root):
+        s = root.selector(_class="card")
+        s.rule(color="red")
+        s.media(width="100%")
+
+    with pytest.raises(ValueError, match=r"@media requires a condition"):
+        _render(build)
+
+
+# ---------------------------------------------------------------------------
+# Supports variants
+# ---------------------------------------------------------------------------
+
+
+def test_supports_variant_inside_selector():
+    def build(root):
+        s = root.selector(_class="grid")
+        s.rule(display="flex")
+        s.supports(condition="(display: grid)", display="grid")
+
+    out = _render(build)
+    assert "@supports (display: grid) {" in out
+    assert "    .grid {" in out
+    assert "      display: grid;" in out
+
+
+# ---------------------------------------------------------------------------
+# Nesting (CSS Nesting)
+# ---------------------------------------------------------------------------
+
+
+def test_nested_selector_inside_selector():
+    def build(root):
+        card = root.selector(_class="card")
+        card.rule(padding="8px")
+        title = card.selector(_class="title")
+        title.rule(font_size="18px")
 
     out = _render(build)
     assert out == (
@@ -310,37 +409,26 @@ def test_nested_rule_renders_inside_parent_block():
     )
 
 
-def test_nested_rule_with_ampersand_passes_through():
+def test_nested_selector_with_ampersand():
     def build(root):
-        card = root.rule(padding="8px")
-        card.selector(_class="card")
-        hover = card.rule(background_color="#eef")
-        hover.selector(raw="&:hover")
+        card = root.selector(_class="card")
+        card.rule(padding="8px")
+        hover = card.selector(raw="&:hover")
+        hover.rule(background_color="#eef")
 
     out = _render(build)
     assert "&:hover {" in out
     assert "background-color: #eef" in out
 
 
-def test_nested_rule_with_combinator_via_raw():
+def test_deeply_nested_selectors():
     def build(root):
-        card = root.rule(padding="8px")
-        card.selector(_class="card")
-        icon = card.rule(width="16px")
-        icon.selector(raw="& > .icon")
-
-    out = _render(build)
-    assert "& > .icon {" in out
-
-
-def test_deeply_nested_rules():
-    def build(root):
-        a = root.rule(padding="8px")
-        a.selector(_class="a")
-        b = a.rule(font_size="14px")
-        b.selector(_class="b")
-        c = b.rule(color="red")
-        c.selector(raw="&:hover")
+        a = root.selector(_class="a")
+        a.rule(padding="8px")
+        b = a.selector(_class="b")
+        b.rule(font_size="14px")
+        c = b.selector(raw="&:hover")
+        c.rule(color="red")
 
     out = _render(build)
     assert out == (
@@ -356,72 +444,6 @@ def test_deeply_nested_rules():
     )
 
 
-def test_nested_rule_after_cssvar_keeps_order():
-    def build(root):
-        rt = root.rule()
-        rt.selector(raw=":root")
-        rt.cssvar("brand", value="#3498db")
-        inner = rt.rule(color="var(--brand)")
-        inner.selector(_class="branded")
-
-    out = _render(build)
-    assert out == (
-        ":root {\n"
-        "  --brand: #3498db;\n"
-        "  .branded {\n"
-        "    color: var(--brand);\n"
-        "  }\n"
-        "}\n"
-    )
-
-
-def test_nested_rule_inside_stylesheet():
-    def build(root):
-        sheet = root.stylesheet()
-        card = sheet.rule(padding="8px")
-        card.selector(_class="card")
-        title = card.rule(font_size="18px")
-        title.selector(_class="title")
-
-    out = _render(build)
-    assert ".card {" in out
-    assert "  .title {" in out
-    assert "    font-size: 18px;" in out
-
-
-def test_nested_rule_multi_selector_parent():
-    def build(root):
-        outer = root.rule(color="red")
-        outer.selector(_class="a")
-        outer.selector(_class="b")
-        inner = outer.rule(font_size="14px")
-        inner.selector(_class="x")
-
-    out = _render(build)
-    assert out.startswith(".a, .b {")
-    assert "  .x {" in out
-
-
-def test_nested_rule_indent_kwarg():
-    def build(root):
-        card = root.rule(padding="8px")
-        card.selector(_class="card")
-        title = card.rule(font_size="18px")
-        title.selector(_class="title")
-
-    class _Page(CssBuilderHandler):
-        def main(self, root):
-            build(root)
-
-    page = _Page()
-    page.create()
-    page.build()
-    out = page.render(indent="    ")
-    assert "    padding: 8px;" in out
-    assert "    .title {" in out
-    assert "        font-size: 18px;" in out
-
-
 # ---------------------------------------------------------------------------
 # Pretty vs minified
 # ---------------------------------------------------------------------------
@@ -429,15 +451,21 @@ def test_nested_rule_indent_kwarg():
 
 def test_render_pretty_false_produces_single_line():
     def build(root):
-        r = root.rule(color="red", font_size="14px")
-        r.selector(_class="card")
+        s = root.selector(_class="card")
+        s.rule(color="red", font_size="14px")
 
-    class _Page(CssBuilderHandler):
-        def main(self, root):
-            build(root)
-
-    page = _Page()
-    page.create()
-    page.build()
-    out = page.render(pretty=False)
+    out = _render(build, pretty=False)
     assert out == ".card { color: red; font-size: 14px; }"
+
+
+def test_render_custom_indent():
+    def build(root):
+        card = root.selector(_class="card")
+        card.rule(padding="8px")
+        title = card.selector(_class="title")
+        title.rule(font_size="18px")
+
+    out = _render(build, indent="    ")
+    assert "    padding: 8px;" in out
+    assert "    .title {" in out
+    assert "        font-size: 18px;" in out

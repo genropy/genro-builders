@@ -4,15 +4,16 @@
 What you learn:
     - Subclass `CssBuilderHandler` and populate the source bag in
       `main(self, root)`.
-    - Build rules with property kwargs (kebab-case via underscores).
-    - Declare selectors as children of a rule, one ``selector`` call
-      per selector-list entry; multiple selectors become a comma list.
-    - Use structured kwargs (``tag``, ``id``, ``_class``, ``classes``,
-      ``attr``) for compound selectors, ``raw`` for combinators and
-      anything not covered.
+    - Declare a `selector` at the top, attach a `rule` for the
+      property block.
+    - Use `selector_list` when multiple selectors share the same
+      rule and variants.
+    - Declare `@media` and `@supports` variants of the selector
+      inline, with property kwargs applied to the parent.
+    - Use CSS Nesting by attaching child selectors inside a
+      selector.
     - Declare CSS custom properties with ``cssvar(name, value=...)``.
-    - Attach comments via ``comment="..."`` on any element (short
-      inline, long block).
+    - Attach comments via ``comment="..."`` on any element.
 
 Usage:
     python 01_introduction.py
@@ -31,44 +32,54 @@ class HelloCss(CssBuilderHandler):
         sheet = root.stylesheet()
 
         # 1. :root with CSS custom properties (variables).
-        rt = sheet.rule()
-        rt.selector(raw=":root")
+        rt = sheet.selector(raw=":root")
         rt.cssvar("primary-color", value="#3498db",
                   comment="Brand color, used for primary CTAs")
         rt.cssvar("spacing", value="8px")
 
-        # 2. A compound selector built from structured kwargs.
-        r2 = sheet.rule(
+        # 2. Single selector built from structured kwargs.
+        btn = sheet.selector(tag="button", _class="primary")
+        btn.rule(
             background_color="var(--primary-color)",
             color="white",
             padding="var(--spacing)",
         )
-        r2.selector(tag="button", _class="primary")
 
-        # 3. Multiple selectors share one declaration block.
-        r3 = sheet.rule(font_family="sans-serif")
-        r3.selector(_class="card")
-        r3.selector(_class="panel")
-        r3.selector(_class="dialog")
+        # 3. Selector list — multiple selectors share one block.
+        cards = sheet.selector_list()
+        cards.selector(_class="card")
+        cards.selector(_class="panel")
+        cards.selector(_class="dialog")
+        cards.rule(font_family="sans-serif")
 
-        # 4. A selector with combinator and pseudo-class via raw.
-        r4 = sheet.rule(opacity="0.6")
-        r4.selector(_class="card", raw="> .icon:hover")
+        # 4. Media variant — properties inherit the parent selector.
+        responsive = sheet.selector(_class="card2")
+        responsive.rule(width="300px", padding="16px")
+        responsive.media(condition="(max-width: 600px)",
+                         width="100%", padding="8px")
 
-        # 5. A rule with a short inline comment.
-        r5 = sheet.rule(color="red", comment="warning state")
-        r5.selector(_class="alert")
+        # 5. Nesting (CSS Nesting moderno).
+        card = sheet.selector(_class="card3")
+        card.rule(padding="8px", background_color="#fafafa")
+        title = card.selector(_class="title")
+        title.rule(font_size="18px", font_weight="bold")
+        hover = card.selector(raw="&:hover")
+        hover.rule(background_color="#eef")
 
-        # 6. A rule with a long block comment.
-        r6 = sheet.rule(
-            display="grid",
+        # 6. Comment on a selector (short, inline).
+        alert = sheet.selector(_class="alert", comment="warning state")
+        alert.rule(color="red")
+
+        # 7. Comment on a selector (long, block).
+        dashboard = sheet.selector(
+            _class="dashboard",
             comment=(
                 "Grid layout for the dashboard summary cards; the "
                 "auto-fit + minmax pattern lets cards reflow without "
                 "media queries"
             ),
         )
-        r6.selector(_class="dashboard")
+        dashboard.rule(display="grid")
 
 
 if __name__ == "__main__":

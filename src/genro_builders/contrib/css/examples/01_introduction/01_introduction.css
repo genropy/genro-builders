@@ -10,8 +10,26 @@ button.primary {
 .card, .panel, .dialog {
   font-family: sans-serif;
 }
-.card > .icon:hover {
-  opacity: 0.6;
+.card2 {
+  width: 300px;
+  padding: 16px;
+  @media (max-width: 600px) {
+    .card2 {
+      width: 100%;
+      padding: 8px;
+    }
+  }
+}
+.card3 {
+  padding: 8px;
+  background-color: #fafafa;
+  .title {
+    font-size: 18px;
+    font-weight: bold;
+  }
+  &:hover {
+    background-color: #eef;
+  }
 }
 .alert {
   color: red; /* warning state */

@@ -1,44 +1,42 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""CSS element definitions — level 1 grammar.
+"""CSS element definitions — level 1 grammar (selector-first model).
 
-Four elements:
+Selector is the top-level "case" container. Each selector groups a
+rule (properties) and any number of variants (media, supports,
+nested selectors).
 
-- ``stylesheet`` — optional top-level container holding a list of
-  rules.
-- ``rule`` — a CSS rule: a selector-list plus property declarations.
-  Allowed both inside ``stylesheet`` and directly at the bag root,
-  so the builder can produce fragments as well as full stylesheets.
-  Selectors are declared via ``selector`` children (1..N: multiple
-  children become a comma-separated selector-list).
-- ``selector`` — declares a single entry of the rule's selector-list.
-  Built from kwargs (``tag``, ``id``, ``_class``, ``classes``,
-  ``attr``, ``raw``). Validated by the renderer with regexes; ``raw``
-  is the unchecked escape hatch for combinators and anything not
-  covered by the structured kwargs.
-- ``cssvar`` — a CSS custom property declaration
-  (``--name: value;``). Lives inside a rule.
+Five elements:
 
-At-rules (``@media``, ``@keyframes``, ``@supports``, ...) and rule
-nesting are out of scope for level 1.
+- ``stylesheet`` — optional top-level container holding selectors,
+  selector lists, and global cssvars.
+- ``selector`` — a single CSS selector. Holds the rule (properties)
+  and the variants. Can host nested selectors for CSS Nesting.
+- ``selector_list`` — explicit container for a selector-list
+  (comma-separated). Use when more than one selector shares the
+  same rule and variants. Holds N ``selector`` children plus the
+  rule/media/supports/cssvar of the shared block.
+- ``rule`` — the property block of a selector or selector_list.
+  Properties are passed as kwargs (kebab-case via underscores).
+  Holds nothing.
+- ``media`` — a media-query variant. Properties as kwargs apply to
+  the parent selector inside the @media block. Can host nested
+  selectors for sub-selectors inside the media query.
+- ``supports`` — same shape as ``media`` but with a @supports
+  condition.
+- ``cssvar`` — a CSS custom property declaration (``--name:
+  value;``). Lives inside a selector or selector_list.
 
-Property naming on ``rule``: kebab-case CSS properties
-(``font-size``, ``background-color``) are passed as kwargs with
-underscores (``font_size``, ``background_color``). The renderer
-converts the underscores back to hyphens at emit time.
+At-rules other than @media/@supports (``@keyframes``,
+``@font-face``, ``@import``, ``@property``, ...) are out of scope
+for level 1.
 
-Fluent chaining with ``._``: a leaf element call (``selector(...)``
-or ``cssvar(...)``) returns the leaf node, which carries the
-genro-bag ``._`` property pointing back at the containing bag.
-That lets the rule body be expressed as a single chain::
+Property naming on ``rule`` / ``media`` / ``supports``: kebab-case
+CSS properties (``font-size``, ``background-color``) are passed
+as kwargs with underscores. The renderer converts underscores
+back to hyphens at emit time.
 
-    root.rule(color="red", font_size="14px") \\
-        .selector(_class="card")._ \\
-        .selector(_class="panel")._ \\
-        .cssvar("primary", value="#3498db")
-
-The equivalent non-chained form (assign the rule to a variable
-and call methods on it) stays valid; choose whichever reads
-better in context.
+Selector kwargs and the structured-vs-raw distinction are
+documented on ``selector`` itself.
 """
 
 from __future__ import annotations
@@ -49,33 +47,61 @@ from genro_builders.builder import element
 class CssElements:
     """Mixin defining the level-1 CSS grammar for CssBuilder."""
 
-    @element(sub_tags="rule")
+    @element(sub_tags="selector,selector_list,cssvar")
     def stylesheet(self):
-        """Top-level container for a list of CSS rules."""
+        """Top-level container holding selectors and global cssvars."""
         ...
 
-    @element(sub_tags="selector,cssvar,rule")
-    def rule(self):
-        """A CSS rule: selector-list (via ``selector`` children) plus
-        property declarations (via kwargs). Rules can be nested:
-        adding a child ``rule`` produces native CSS nesting in the
-        rendered output."""
+    @element(sub_tags="rule,media,supports,cssvar,selector")
+    def selector(self):
+        """A single CSS selector. The case container.
+
+        Built from structured kwargs (``tag``, ``id``, ``_class``,
+        ``classes``, ``attr``) and/or an opaque ``raw`` suffix.
+        Holds a ``rule`` (properties), ``media`` / ``supports``
+        variants, ``cssvar`` declarations, and nested ``selector``
+        elements (CSS Nesting)."""
+        ...
+
+    @element(sub_tags="selector,rule,media,supports,cssvar")
+    def selector_list(self):
+        """Container for a comma-separated selector-list.
+
+        Use when the same rule/variants apply to more than one
+        selector. Holds N ``selector`` children plus the
+        ``rule``/``media``/``supports``/``cssvar`` of the shared
+        block."""
         ...
 
     @element(sub_tags="")
-    def selector(self):
-        """A single entry of a rule's selector-list. Built from
-        structured kwargs (``tag``, ``id``, ``_class``, ``classes``,
-        ``attr``) and/or an opaque ``raw`` suffix.
+    def rule(self):
+        """The property block of a selector or selector_list.
 
-        Placement is constrained by ``rule.sub_tags``; the framework
-        validates from the parent side, so ``parent_tags`` here would
-        be redundant (and would fail to match the rule's sub-bag's
-        missing ``_parent_node`` slot)."""
+        Properties are passed as kwargs; underscores are converted
+        to hyphens in the output."""
+        ...
+
+    @element(sub_tags="selector,rule")
+    def media(self):
+        """A @media variant of the parent selector.
+
+        Pass the media condition as ``condition="..."`` (e.g.
+        ``condition="(max-width: 600px)"``). Property kwargs apply
+        to the parent selector inside the @media block. Can host
+        nested ``selector`` and ``rule`` for sub-selectors inside
+        the media query."""
+        ...
+
+    @element(sub_tags="selector,rule")
+    def supports(self):
+        """A @supports variant of the parent selector.
+
+        Pass the supports condition as ``condition="..."`` (e.g.
+        ``condition="(display: grid)"``). Property kwargs apply to
+        the parent selector inside the @supports block."""
         ...
 
     @element(sub_tags="")
     def cssvar(self):
-        """A CSS custom property declaration (``--name: value;``).
-        Placement constraint flows from ``rule.sub_tags``."""
+        """A CSS custom property declaration (``--name: value;``)."""
         ...
