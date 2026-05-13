@@ -262,27 +262,39 @@ with open('out.html', 'w') as f:
   dialetto, accetta il render target e ci scrive (oppure accumula
   in stringa).
 
-## 7. Source preserva la ricetta dell'utente: component lazy
+## 7. Build come dispatch per tipo di element (rinegoziata 2026-05-12)
 
-I component dichiarati con `@component` **restano opachi nella
-source**. La source è la ricetta dell'utente e deve essere
-serializzabile senza perdita semantica: se la trasformo in XML deve
-restare identica a quello che l'utente ha scritto in `main`. Quando
-l'utente fa `page.login_form()`, nella source resta un nodo
-`login_form`, non i suoi nodi interni.
+La fase build trasforma la **source** (ricetta dell'utente) in
+**built** (forma espansa pronta per render/compile). La source resta
+serializzabile senza perdita semantica: chi la trasforma in XML
+ottiene esattamente quello che l'utente ha scritto in `main`.
 
-L'espansione dei component è proprietà della **build**, mentre la
-source resta la ricetta. La build prende la source (con i component
-opachi) e produce una `built` in cui i component sono materializzati
-nei loro element interni.
+La build è un walker centrale che, per ogni nodo della source,
+applica un'azione che dipende dal **tipo di element** dichiarato
+dallo schema:
+
+- `@element` puro → **mirror 1:1**: copia il nodo nella built,
+  ricorre sul sub-tree con lo stesso builder attivo.
+- `@component` → **espansione del body** (rinegoziata in fase
+  futura): la built materializza i nodi prodotti dal body del
+  component.
+- `@subbuilder` → **delega al sub-builder** registrato sotto
+  `subbuilder_name`. Il sub-builder esegue il proprio `build()` sul
+  sub-tree source, popolando il sub-tree corrispondente nella built.
+  Il walker del builder ospite **non discende oltre** il nodo
+  subbuilder.
 
 Conseguenze:
 
 - L'espansione avviene solo durante la build, mai al call-time.
 - La source può essere serializzata, salvata, ricaricata: resta
   sempre la ricetta originale.
-- Il meccanismo concreto (proxy, resolver, walk) è dettaglio
-  implementativo dello step di build, e resta interno al builder.
+- I sub-builder sono autonomi nella build: ogni dialetto governa
+  il proprio sub-tree (decisione 5 lo prevedeva già per
+  build/render, decisione 7 ora lo esplicita per la build).
+- Il body opzionale del decoratore `@subbuilder` può override-are
+  la delega di default; un body vuoto (``...``) ricade nel default
+  `sub_builder.build(source_value, dst_value)`.
 
 ## 8. Builder = grammar pura; rendering e compilation in classi dedicate
 

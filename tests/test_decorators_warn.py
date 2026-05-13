@@ -57,11 +57,15 @@ def test_abstract_returns_declarative_marker():
     assert phrasing._decorator["sub_tags"] == "span,a"
 
 
-def test_subbuilder_returns_declarative_marker():
+def test_subbuilder_attaches_decorator_metadata_to_function():
+    """@subbuilder leaves the function alive (the body is invoked at
+    build time, similar to @component) and tags it with the decorator
+    info the framework reads from the schema."""
     @subbuilder("html")
     def switch(self): ...
 
-    assert isinstance(switch, _DeclarativeMarker)
+    assert callable(switch)
+    assert not isinstance(switch, _DeclarativeMarker)
     assert switch._decorator["subbuilder"] is True
     assert switch._decorator["subbuilder_name"] == "html"
 

@@ -366,8 +366,11 @@ def subbuilder(
             f"{type(builder_name).__name__}: {builder_name!r}"
         )
 
-    def decorator(func: Callable) -> _DeclarativeMarker:
-        _warn_if_body_present(func, "subbuilder")
+    def decorator(func: Callable) -> Callable:
+        # The body of an @subbuilder is treated like a @component body:
+        # a hook the build pipeline invokes during expansion. Empty body
+        # (``...``) means "use the default delegation
+        # (sub_builder.build(...))" — detected via ``_is_empty_body``.
         info: dict[str, Any] = {
             "subbuilder": True,
             "subbuilder_name": builder_name,
@@ -377,7 +380,8 @@ def subbuilder(
             info["parent_tags"] = parent_tags
         if _meta:
             info["_meta"] = _meta
-        return _DeclarativeMarker(func.__name__, func.__doc__, info)
+        func._decorator = info  # type: ignore[attr-defined]
+        return func
 
     return decorator
 

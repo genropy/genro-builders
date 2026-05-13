@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .builder import BagBuilderBase
 from .builder_bag import BuilderBagNode
 from .built_bag import BuilderBuiltBag, BuilderSourceBag
 
@@ -42,6 +43,7 @@ class BuilderHandler:
         self._render_target: Any = None
         self._renderer: Any = None
         self._compiler: Any = None
+        self._subbuilder_cache: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle (decision 5)
@@ -102,6 +104,24 @@ class BuilderHandler:
         if self._compiler is None:
             self._compiler = self.builder._compiler_class(self)
         return self._compiler
+
+    # ------------------------------------------------------------------
+    # Sub-builder cache (decision 2)
+    # ------------------------------------------------------------------
+
+    def get_subbuilder(self, name: str) -> Any:
+        """Return a cached sub-builder instance by canonical name.
+
+        Looks up the class in the global registry via
+        :meth:`BagBuilderBase.get_builder_class` and instantiates it
+        once per handler. Subsequent calls with the same name return
+        the same instance (sub-builders are essentially stateless
+        grammars, so one instance per dialect per document is enough).
+        """
+        if name not in self._subbuilder_cache:
+            cls = BagBuilderBase.get_builder_class(name)
+            self._subbuilder_cache[name] = cls()
+        return self._subbuilder_cache[name]
 
     # ------------------------------------------------------------------
     # Render target (decision 6)

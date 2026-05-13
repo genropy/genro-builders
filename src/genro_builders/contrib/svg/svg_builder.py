@@ -12,10 +12,11 @@ from __future__ import annotations
 from ...builder import BagBuilderBase
 from .svg_compiler import SvgCompiler
 from .svg_elements import SvgElements
+from .svg_extensions import SvgExtensions
 from .svg_renderer import SvgRenderer
 
 
-class SvgBuilder(BagBuilderBase, SvgElements):
+class SvgBuilder(BagBuilderBase, SvgExtensions, SvgElements):
     """SVG dialect builder. Grammar only — rendering is on
     ``SvgRenderer``, compilation (future) on ``SvgCompiler``."""
 

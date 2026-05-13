@@ -127,6 +127,7 @@ class BagBuilderBase(
                 elif is_subbuilder:
                     cls._class_schema.set_item(
                         tag, None,
+                        handler_name=method_name,
                         is_subbuilder=True,
                         subbuilder_name=subbuilder_name,
                         parent_tags=parent_tags,
@@ -167,9 +168,22 @@ class BagBuilderBase(
     def get_builder_class(cls, name: str) -> type:
         """Look up a registered Builder class by its canonical ``_name``.
 
+        If ``name`` is not in the registry, attempts a lazy import of
+        ``genro_builders.contrib.<name>`` to give the dialect a chance
+        to register itself via ``__init_subclass__``. This keeps the
+        ``@subbuilder("name")`` declarations decoupled from import
+        order: mutual references (HTML <-> SVG) need not eagerly
+        import each other.
+
         Raises:
-            LookupError: if no builder is registered under ``name``.
+            LookupError: if no builder is registered under ``name``
+                after the auto-import attempt.
         """
+        if name not in BagBuilderBase.register:
+            try:
+                __import__(f"genro_builders.contrib.{name}")
+            except ImportError:
+                pass
         try:
             return BagBuilderBase.register[name]
         except KeyError:

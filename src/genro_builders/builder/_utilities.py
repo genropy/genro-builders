@@ -277,6 +277,16 @@ def _decorated_method_info(
                 tag_list.extend(tags_raw)
         handler_name = f"_comp_{tag_list[0]}"
         return tag_list, handler_name, obj, decorator_info
+    elif decorator_info.get("subbuilder"):
+        tag_list: list[str] = [] if name.startswith("_") else [name]
+        tags_raw = decorator_info.get("tags")
+        if tags_raw:
+            if isinstance(tags_raw, str):
+                tag_list.extend(t.strip() for t in tags_raw.split(",") if t.strip())
+            else:
+                tag_list.extend(tags_raw)
+        handler_name = f"_subb_{tag_list[0]}"
+        return tag_list, handler_name, obj, decorator_info
     else:
         tag_list = [] if name.startswith("_") else [name]
         tags_raw = decorator_info.get("tags")

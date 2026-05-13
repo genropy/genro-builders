@@ -41,9 +41,38 @@ class _BuildMixin:
                 continue
             dst_node = self._copy_node(spec, dst_bag)
             self._post_build_node(spec, dst_node)
+            # @subbuilder: a sub-dialect owns this subtree (decision 7,
+            # generalised 2026-05-12). Hand the recursion off to the
+            # sub-builder via its own ``build`` (default delegation), or
+            # the body the dialect declared on the decorator.
+            sub_builder = getattr(src_node, "_builder", None)
+            if sub_builder is not None and sub_builder is not self:
+                self._dispatch_subbuilder(src_node, dst_node, sub_builder)
+                continue
             value = spec.value
             if isinstance(value, Bag):
                 self._mirror_bag(value, dst_node.value)
+
+    def _dispatch_subbuilder(
+        self, src_node: Any, dst_node: Any, sub_builder: Any,
+    ) -> None:
+        """Expand a @subbuilder node by delegating to the sub-dialect.
+
+        The destination node inherits the sub-builder so descendants
+        keep the right grammar in built. The host body decorator can
+        be customised (the framework reads ``handler_name`` and invokes
+        the method when present); an empty body falls through to the
+        default delegation ``sub_builder.build(source_value,
+        dst_value)``.
+        """
+        # Mirror the sub-builder onto the built node so grammar lookups
+        # on the built side continue to use it.
+        dst_node._builder = sub_builder
+        dst_node._handler = getattr(src_node, "_handler", None)
+        # Recurse into the sub-bag via the sub-builder's own build.
+        src_value = src_node.value
+        if isinstance(src_value, Bag):
+            sub_builder.build(src_value, dst_node.value)
 
     # ------------------------------------------------------------------
     # Hooks (override-able by future infrastructure, not by single dialects)

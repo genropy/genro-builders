@@ -157,29 +157,19 @@ class _GrammarMixin:
         child_info = self._get_schema_info(node_tag)
 
         # ----------------------------------------------------------------
-        # Decision 2 (rinegoziata 2026-05-08, decoratore stringa-only
-        # 2026-05-12): @subbuilder declares a subtree where the active
-        # builder switches. Pending implementation: at attach time the
-        # new node's _builder slot must become an instance of the dialect
-        # registered under ``subbuilder_name`` (looked up via
-        # ``BagBuilderBase.get_builder_class(name)``), and from there on
-        # grammar dispatch (sub_tags validation, render, etc.) follows
-        # that builder. The host builder only owns the parent_tags rule
-        # that placed this node; the subtree's grammar belongs to the
-        # sub-builder. To implement: resolve the sub-builder class,
-        # instantiate it, assign to ``child_node._builder`` (and
-        # ``_handler`` from the host), and let ``_accept_child`` /
-        # ``_validate_sub_tags`` use that schema for children. Until
-        # then this raise keeps the contract honest.
+        # Decision 2: @subbuilder switches the active dialect for the
+        # subtree. We create the node like a regular element, then resolve
+        # the sub-builder class from the global registry, instantiate it
+        # (cached on the handler), and assign it to the node's _builder
+        # slot. From now on grammar dispatch on this node and its
+        # descendants follows the sub-builder, via
+        # ``BuilderBagNode._resolve_builder``.
+        #
+        # The sub-builder is not validated by the host's ``sub_tags``
+        # rules: the host only owns ``parent_tags`` (where the
+        # sub-builder may be embedded). The subtree's grammar belongs
+        # to the sub-builder.
         # ----------------------------------------------------------------
-        if child_info.get("is_subbuilder"):
-            raise NotImplementedError(
-                f"@subbuilder switching is not implemented yet "
-                f"(decision 2, 2026-05-03 decisions, rinegoziata 2026-05-08). "
-                f"Element '{node_tag}' declared subbuilder="
-                f"{child_info.get('subbuilder_name')!r}; the framework "
-                f"does not yet swap the active _builder for the subtree.",
-            )
 
         if not getattr(build_where, '_skip_parent_validation', False):
             self._validate_parent_tags(child_info, parent_node)
@@ -206,6 +196,20 @@ class _GrammarMixin:
 
         if parent_node and parent_node.node_tag:
             self._validate_sub_tags(parent_node, parent_info)
+
+        # @subbuilder: attach the dialect's builder instance onto the
+        # node and skip sub_tags validation for the child (the subtree's
+        # grammar belongs to the sub-builder, not the host).
+        if child_info.get("is_subbuilder"):
+            handler = getattr(build_where, "_handler", None)
+            if handler is None:
+                raise RuntimeError(
+                    f"@subbuilder '{node_tag}' requires a handler to look up "
+                    f"the sub-builder; the active bag has no handler attached.",
+                )
+            child_node._builder = handler.get_subbuilder(child_info["subbuilder_name"])
+            child_node._handler = handler
+            return child_node
 
         self._validate_sub_tags(child_node, child_info)
 
@@ -234,11 +238,15 @@ class _GrammarMixin:
         if not isinstance(node.value, Bag):
             # Sub-bag must be the same type as the parent bag (so a
             # source node spawns a source sub-bag, a built node a built
-            # sub-bag). _builder/_handler propagate from the parent.
+            # sub-bag). ``_builder`` is resolved via the node itself
+            # (its slot if populated, else ancestors): this lets an
+            # @subbuilder node (e.g. <svg>) propagate its own dialect
+            # down into the freshly-created sub-bag instead of leaking
+            # the host dialect.
             parent_bag = node._parent_bag
             sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
             sub_bag = sub_bag_cls(
-                builder=getattr(parent_bag, "_builder", None) if parent_bag else None,
+                builder=node._resolve_builder(),
                 handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
             )
             node.value = sub_bag

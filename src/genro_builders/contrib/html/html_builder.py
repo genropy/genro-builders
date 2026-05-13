@@ -11,11 +11,12 @@ from __future__ import annotations
 
 from ...builder import BagBuilderBase
 from .html5_elements import Html5Elements
+from .html5_extensions import Html5Extensions
 from .html_compiler import HtmlCompiler
 from .html_renderer import HtmlRenderer
 
 
-class HtmlBuilder(BagBuilderBase, Html5Elements):
+class HtmlBuilder(BagBuilderBase, Html5Extensions, Html5Elements):
     """HTML5 dialect builder. Grammar only — rendering is on
     ``HtmlRenderer``, compilation (future) on ``HtmlCompiler``."""
 
