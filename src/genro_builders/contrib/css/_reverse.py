@@ -288,7 +288,9 @@ class CssReverser:
         root = _parse_css(css)
         body: list[ast.stmt] = []
         for child in root.children:
-            body.extend(self._stylesheet_child(child, parent_var="root"))
+            body.extend(self._stylesheet_child(
+                child, parent_var="root", media=None, supports=None,
+            ))
         main_func = ast.FunctionDef(
             name="main",
             args=ast.arguments(
@@ -319,9 +321,22 @@ class CssReverser:
         ast.fix_missing_locations(module)
         return module
 
-    def _stylesheet_child(self, node: Any, *, parent_var: str) -> list[ast.stmt]:
+    def _stylesheet_child(
+        self, node: Any, *, parent_var: str,
+        media: str | None, supports: str | None,
+    ) -> list[ast.stmt]:
         if node.type == "rule_set":
-            return self._rule_set(node, parent_var=parent_var)
+            return self._rule_set(
+                node, parent_var=parent_var, media=media, supports=supports,
+            )
+        if node.type == "media_statement":
+            return self._media_statement(
+                node, parent_var=parent_var, outer_supports=supports,
+            )
+        if node.type == "supports_statement":
+            return self._supports_statement(
+                node, parent_var=parent_var, outer_media=media,
+            )
         if node.type in {"comment", "{", "}"}:
             return []
         text = node.text.decode().strip()
@@ -329,7 +344,10 @@ class CssReverser:
             return []
         return [_comment_stmt(f"unsupported: {node.type}: {text[:60]}")]
 
-    def _rule_set(self, node: Any, *, parent_var: str) -> list[ast.stmt]:
+    def _rule_set(
+        self, node: Any, *, parent_var: str,
+        media: str | None, supports: str | None,
+    ) -> list[ast.stmt]:
         selectors_node = node.child_by_field_name("selector") or _first(node, "selectors")
         if selectors_node is None:
             return []
@@ -344,7 +362,9 @@ class CssReverser:
                     method="selector", kwargs=sel_kwargs,
                 ),
             ]
-            stmts.extend(self._block_into(sel_var, block))
+            stmts.extend(self._block_into(
+                sel_var, block, media=media, supports=supports,
+            ))
             return stmts
         list_var = self._fresh_name("sl")
         stmts = [_assign_call(target=list_var, obj=parent_var, method="selector_list", kwargs={})]
@@ -352,22 +372,112 @@ class CssReverser:
             stmts.append(_call_stmt(
                 obj=list_var, method="selector", kwargs=_selector_kwargs(entry),
             ))
-        stmts.extend(self._block_into(list_var, block))
+        stmts.extend(self._block_into(
+            list_var, block, media=media, supports=supports,
+        ))
         return stmts
 
-    def _block_into(self, parent_var: str, block: Any | None) -> list[ast.stmt]:
+    def _block_into(
+        self, parent_var: str, block: Any | None,
+        *, media: str | None, supports: str | None,
+    ) -> list[ast.stmt]:
         if block is None:
             return []
         property_kwargs: dict[str, object] = {}
         cssvar_calls: list[ast.stmt] = []
+        nested_stmts: list[ast.stmt] = []
         for child in block.named_children:
             if child.type == "declaration":
-                self._absorb_declaration(child, property_kwargs, cssvar_calls, parent_var=parent_var)
+                self._absorb_declaration(
+                    child, property_kwargs, cssvar_calls, parent_var=parent_var,
+                )
+            elif child.type == "rule_set":
+                nested_stmts.extend(self._rule_set(
+                    child, parent_var=parent_var, media=None, supports=None,
+                ))
+            elif child.type == "media_statement":
+                nested_stmts.extend(self._media_statement(
+                    child, parent_var=parent_var, outer_supports=supports,
+                ))
+            elif child.type == "supports_statement":
+                nested_stmts.extend(self._supports_statement(
+                    child, parent_var=parent_var, outer_media=media,
+                ))
         stmts: list[ast.stmt] = []
-        if property_kwargs:
-            stmts.append(_call_stmt(obj=parent_var, method="rule", kwargs=property_kwargs))
+        if property_kwargs or media is not None or supports is not None:
+            rule_kwargs: dict[str, object] = dict(property_kwargs)
+            if media is not None:
+                rule_kwargs["media"] = media
+            if supports is not None:
+                rule_kwargs["supports"] = supports
+            stmts.append(_call_stmt(obj=parent_var, method="rule", kwargs=rule_kwargs))
         stmts.extend(cssvar_calls)
+        stmts.extend(nested_stmts)
         return stmts
+
+    def _media_statement(
+        self, node: Any, *, parent_var: str, outer_supports: str | None,
+    ) -> list[ast.stmt]:
+        cond = self._media_condition(node)
+        block = _first(node, "block")
+        if block is None:
+            return []
+        stmts: list[ast.stmt] = []
+        for child in block.named_children:
+            if child.type == "rule_set":
+                stmts.extend(self._rule_set(
+                    child, parent_var=parent_var,
+                    media=cond, supports=outer_supports,
+                ))
+            elif child.type == "media_statement":
+                stmts.extend(self._media_statement(
+                    child, parent_var=parent_var, outer_supports=outer_supports,
+                ))
+            elif child.type == "supports_statement":
+                stmts.extend(self._supports_statement(
+                    child, parent_var=parent_var, outer_media=cond,
+                ))
+        return stmts
+
+    def _media_condition(self, node: Any) -> str:
+        text = node.text.decode()
+        prefix = "@media"
+        if text.startswith(prefix):
+            text = text[len(prefix):].lstrip()
+        brace_at = text.find("{")
+        return text[:brace_at].strip() if brace_at != -1 else text.strip()
+
+    def _supports_statement(
+        self, node: Any, *, parent_var: str, outer_media: str | None,
+    ) -> list[ast.stmt]:
+        cond = self._supports_condition(node)
+        block = _first(node, "block")
+        if block is None:
+            return []
+        stmts: list[ast.stmt] = []
+        for child in block.named_children:
+            if child.type == "rule_set":
+                stmts.extend(self._rule_set(
+                    child, parent_var=parent_var,
+                    media=outer_media, supports=cond,
+                ))
+            elif child.type == "supports_statement":
+                stmts.extend(self._supports_statement(
+                    child, parent_var=parent_var, outer_media=outer_media,
+                ))
+            elif child.type == "media_statement":
+                stmts.extend(self._media_statement(
+                    child, parent_var=parent_var, outer_supports=cond,
+                ))
+        return stmts
+
+    def _supports_condition(self, node: Any) -> str:
+        text = node.text.decode()
+        prefix = "@supports"
+        if text.startswith(prefix):
+            text = text[len(prefix):].lstrip()
+        brace_at = text.find("{")
+        return text[:brace_at].strip() if brace_at != -1 else text.strip()
 
     def _absorb_declaration(
         self, node: Any,

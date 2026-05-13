@@ -140,3 +140,89 @@ def test_roundtrip_with_cssvar():
     css = ":root { --brand: #3498db; }"
     out = _roundtrip(css)
     assert "--brand: #3498db" in out
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: @media / @supports / CSS Nesting
+# ---------------------------------------------------------------------------
+
+def test_media_block_emits_rule_with_media_kwarg():
+    css = "@media (max-width: 600px) { .a { width: 100%; } }"
+    code = _reverse(css)
+    assert "media='(max-width: 600px)'" in code
+    assert "width='100%'" in code
+
+
+def test_supports_block_emits_rule_with_supports_kwarg():
+    css = "@supports (display: grid) { .a { display: grid; } }"
+    code = _reverse(css)
+    assert "supports='(display: grid)'" in code
+    assert "display='grid'" in code
+
+
+def test_supports_inside_media_combines_both_kwargs():
+    css = (
+        "@media (max-width: 600px) {"
+        "  @supports (display: grid) {"
+        "    .a { display: grid; }"
+        "  }"
+        "}"
+    )
+    code = _reverse(css)
+    assert "media='(max-width: 600px)'" in code
+    assert "supports='(display: grid)'" in code
+
+
+def test_media_inside_supports_combines_both_kwargs():
+    css = (
+        "@supports (display: grid) {"
+        "  @media (max-width: 600px) {"
+        "    .a { display: grid; }"
+        "  }"
+        "}"
+    )
+    code = _reverse(css)
+    assert "media='(max-width: 600px)'" in code
+    assert "supports='(display: grid)'" in code
+
+
+def test_css_nesting_produces_nested_selectors():
+    css = ".card { padding: 8px; .title { font-size: 18px; } }"
+    code = _reverse(css)
+    # Outer selector and inner selector both present, both with own rule()
+    assert code.count(".selector(") >= 2
+    assert "_class='card'" in code
+    assert "_class='title'" in code
+    assert "padding='8px'" in code
+    assert "font_size='18px'" in code
+
+
+def test_nesting_with_ampersand_uses_raw():
+    css = ".card { &:hover { color: red; } }"
+    code = _reverse(css)
+    assert "_class='card'" in code
+    # &:hover not expressible structurally → raw
+    assert "raw=" in code
+
+
+def test_roundtrip_media_block():
+    css = "@media (max-width: 600px) { .a { width: 100%; } }"
+    out = _roundtrip(css)
+    assert "@media (max-width: 600px)" in out
+    assert "width: 100%" in out
+
+
+def test_roundtrip_supports_block():
+    css = "@supports (display: grid) { .a { display: grid; } }"
+    out = _roundtrip(css)
+    assert "@supports (display: grid)" in out
+    assert "display: grid" in out
+
+
+def test_roundtrip_css_nesting():
+    css = ".card { padding: 8px; .title { font-size: 18px; } }"
+    out = _roundtrip(css)
+    assert ".card" in out
+    assert ".title" in out
+    assert "padding: 8px" in out
+    assert "font-size: 18px" in out
