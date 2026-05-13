@@ -65,14 +65,50 @@ class CssRenderer(RendererBase):
     ) -> str | None:
         """Serialize ``built`` as CSS source. See module docstring."""
         lines: list[str] = []
-        for node in built:
-            self._render_top_node(node, lines, pretty=pretty, indent=indent, depth=0)
+        self._render_top_sequence(
+            list(built), lines, pretty=pretty, indent=indent, depth=0,
+        )
         text = "\n".join(lines) + ("\n" if lines else "") if pretty else "".join(lines)
         return self._write_or_return(text, render_target)
 
     # ------------------------------------------------------------------
     # Top-level dispatch
     # ------------------------------------------------------------------
+
+    def _render_top_sequence(
+        self,
+        nodes: list[Any],
+        lines: list[str],
+        *,
+        pretty: bool,
+        indent: str,
+        depth: int,
+    ) -> None:
+        """Render a sequence of top-level nodes.
+
+        Top-level ``cssvar`` children (direct children of the bag root
+        or of a ``stylesheet``) are gathered into a single implicit
+        ``:root { ... }`` block. Consecutive cssvars share the same
+        block; a non-cssvar node flushes the buffer first.
+        """
+        cssvar_buffer: list[Any] = []
+
+        def flush() -> None:
+            if not cssvar_buffer:
+                return
+            self._emit_root_cssvar_block(
+                cssvar_buffer, lines, pretty=pretty, indent=indent, depth=depth,
+            )
+            cssvar_buffer.clear()
+
+        for node in nodes:
+            tag = node.node_tag or node.label
+            if tag == "cssvar":
+                cssvar_buffer.append(node)
+                continue
+            flush()
+            self._render_top_node(node, lines, pretty=pretty, indent=indent, depth=depth)
+        flush()
 
     def _render_top_node(
         self,
@@ -87,10 +123,9 @@ class CssRenderer(RendererBase):
         if tag == "stylesheet":
             value = node.value
             if isinstance(value, Bag):
-                for child in value:
-                    self._render_top_node(
-                        child, lines, pretty=pretty, indent=indent, depth=depth,
-                    )
+                self._render_top_sequence(
+                    list(value), lines, pretty=pretty, indent=indent, depth=depth,
+                )
             return
         if tag == "selector":
             self._render_block(
@@ -102,6 +137,31 @@ class CssRenderer(RendererBase):
             self._render_selector_list(
                 node, lines, pretty=pretty, indent=indent, depth=depth,
             )
+
+    def _emit_root_cssvar_block(
+        self,
+        cssvars: list[Any],
+        lines: list[str],
+        *,
+        pretty: bool,
+        indent: str,
+        depth: int,
+    ) -> None:
+        """Emit a list of ``cssvar`` nodes as a single ``:root { ... }`` block."""
+        body: list[str] = []
+        for var_node in cssvars:
+            body.extend(self._format_cssvar(var_node))
+        if not body:
+            return
+        outer = indent * depth if pretty else ""
+        inner = indent * (depth + 1) if pretty else ""
+        if pretty:
+            lines.append(f"{outer}:root {{")
+            for entry in body:
+                lines.append(f"{inner}{entry}")
+            lines.append(f"{outer}}}")
+        else:
+            lines.append(":root { " + " ".join(body) + " }")
 
     def _render_selector_list(
         self,

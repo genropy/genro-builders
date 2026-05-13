@@ -546,3 +546,72 @@ def test_multiple_vendor_prefixes_all_kept():
     assert "-moz-appearance: none;" in out
     assert "-ms-appearance: none;" in out
     assert "appearance: none;" in out
+
+
+# ---------------------------------------------------------------------------
+# Top-level cssvar (rendered as implicit ``:root { ... }`` block)
+# ---------------------------------------------------------------------------
+
+
+def test_cssvar_direct_on_root_emits_root_block():
+    def build(root):
+        root.cssvar("brand", value="#3498db")
+        s = root.selector(_class="card")
+        s.rule(color="var(--brand)")
+
+    out = _render(build)
+    assert ":root {" in out
+    assert "--brand: #3498db;" in out
+    assert ".card {" in out
+
+
+def test_cssvar_inside_stylesheet_emits_root_block():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.cssvar("brand", value="#3498db")
+        s = sheet.selector(_class="card")
+        s.rule(color="var(--brand)")
+
+    out = _render(build)
+    assert ":root {" in out
+    assert "--brand: #3498db;" in out
+    assert ".card {" in out
+
+
+def test_consecutive_top_level_cssvars_grouped_into_single_root_block():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.cssvar("brand", value="#3498db")
+        sheet.cssvar("spacing", value="8px")
+        sheet.cssvar("radius", value="4px")
+        s = sheet.selector(_class="card")
+        s.rule(color="var(--brand)")
+
+    out = _render(build)
+    assert out.count(":root {") == 1
+    assert "--brand: #3498db;" in out
+    assert "--spacing: 8px;" in out
+    assert "--radius: 4px;" in out
+
+
+def test_cssvar_after_selector_starts_a_new_root_block():
+    def build(root):
+        sheet = root.stylesheet()
+        sheet.cssvar("brand", value="#3498db")
+        s = sheet.selector(_class="card")
+        s.rule(color="var(--brand)")
+        sheet.cssvar("late", value="42px")
+
+    out = _render(build)
+    assert out.count(":root {") == 2
+
+
+def test_top_level_cssvar_minified():
+    def build(root):
+        root.cssvar("brand", value="#3498db")
+        s = root.selector(_class="card")
+        s.rule(color="var(--brand)")
+
+    out = _render(build, pretty=False)
+    assert ":root { --brand: #3498db; }" in out
+    assert ".card { color: var(--brand); }" in out
