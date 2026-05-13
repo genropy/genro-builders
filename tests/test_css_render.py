@@ -314,11 +314,11 @@ def test_selector_block_comment():
 # ---------------------------------------------------------------------------
 
 
-def test_media_variant_inside_selector():
+def test_rule_with_media_kwarg():
     def build(root):
         s = root.selector(_class="card")
         s.rule(width="300px")
-        s.media(condition="(max-width: 600px)", width="100%")
+        s.rule(media="(max-width: 600px)", width="100%")
 
     out = _render(build)
     assert out == (
@@ -333,25 +333,57 @@ def test_media_variant_inside_selector():
     )
 
 
-def test_media_multiple_variants_same_selector():
+def test_rule_media_with_type_in_string():
     def build(root):
         s = root.selector(_class="card")
-        s.rule(padding="16px")
-        s.media(condition="(max-width: 600px)", padding="8px")
-        s.media(condition="(max-width: 400px)", padding="4px")
+        s.rule(color="white")
+        s.rule(media="print", color="black")
+
+    out = _render(build)
+    assert "@media print {" in out
+    assert "color: black;" in out
+
+
+def test_rule_media_type_and_feature_combined():
+    def build(root):
+        s = root.selector(_class="card")
+        s.rule(media="screen and (max-width: 600px)", padding="8px")
+
+    out = _render(build)
+    assert "@media screen and (max-width: 600px) {" in out
+
+
+def test_rules_with_same_media_are_grouped():
+    def build(root):
+        s = root.selector(_class="card")
+        s.rule(media="(max-width: 600px)", width="100%")
+        s.rule(media="(max-width: 600px)", padding="8px")
+
+    out = _render(build)
+    # only one @media block, with both properties merged
+    assert out.count("@media (max-width: 600px)") == 1
+    assert "width: 100%;" in out
+    assert "padding: 8px;" in out
+
+
+def test_rules_with_different_media_are_separate_blocks():
+    def build(root):
+        s = root.selector(_class="card")
+        s.rule(media="(max-width: 600px)", padding="8px")
+        s.rule(media="(max-width: 400px)", padding="4px")
 
     out = _render(build)
     assert "@media (max-width: 600px) {" in out
     assert "@media (max-width: 400px) {" in out
 
 
-def test_media_variant_inside_selector_list():
+def test_rule_media_inside_selector_list():
     def build(root):
         sl = root.selector_list()
         sl.selector(_class="a")
         sl.selector(_class="b")
         sl.rule(padding="16px")
-        sl.media(condition="(max-width: 600px)", padding="8px")
+        sl.rule(media="(max-width: 600px)", padding="8px")
 
     out = _render(build)
     assert ".a, .b {" in out
@@ -359,31 +391,35 @@ def test_media_variant_inside_selector_list():
     assert "    .a, .b {" in out
 
 
-def test_media_without_condition_raises():
-    def build(root):
-        s = root.selector(_class="card")
-        s.rule(color="red")
-        s.media(width="100%")
-
-    with pytest.raises(ValueError, match=r"@media requires a condition"):
-        _render(build)
-
-
 # ---------------------------------------------------------------------------
-# Supports variants
+# Supports variants (kwarg on rule)
 # ---------------------------------------------------------------------------
 
 
-def test_supports_variant_inside_selector():
+def test_rule_with_supports_kwarg():
     def build(root):
         s = root.selector(_class="grid")
         s.rule(display="flex")
-        s.supports(condition="(display: grid)", display="grid")
+        s.rule(supports="(display: grid)", display="grid")
 
     out = _render(build)
     assert "@supports (display: grid) {" in out
-    assert "    .grid {" in out
     assert "      display: grid;" in out
+
+
+def test_rule_with_media_and_supports():
+    def build(root):
+        s = root.selector(_class="grid")
+        s.rule(
+            media="(max-width: 600px)",
+            supports="(display: grid)",
+            grid_template_columns="1fr",
+        )
+
+    out = _render(build)
+    # supports wraps media
+    assert "@supports (display: grid) {" in out
+    assert "  @media (max-width: 600px) {" in out
 
 
 # ---------------------------------------------------------------------------

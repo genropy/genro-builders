@@ -11,24 +11,28 @@ Top-level dispatch:
   iterates their children.
 - ``selector`` nodes (also accepted at the bag root, for fragments):
   the selector's own compound forms a one-entry selector-list; the
-  body comes from the ``rule`` / ``media`` / ``supports`` / ``cssvar``
-  / nested ``selector`` children.
+  body comes from the rule(s), cssvar(s) and nested selector(s)
+  of the node.
 - ``selector_list`` nodes: hold N ``selector`` children whose
   compounds form a comma-separated selector-list; the body comes
   from the same set of child element types.
 
-Selector composition: structured kwargs (``tag``, ``id``, ``_class``,
-``classes``, ``attr``) are validated with strict regexes; the
-``raw`` kwarg is an opaque suffix that the renderer joins to the
-structured part with a leading space (for combinators).
+Rules grouping: a selector may carry multiple ``rule`` children.
+Each rule may declare optional ``media`` and ``supports`` kwargs.
+The renderer groups rules by ``(media, supports)``:
 
-Comment support: any element accepts an optional ``comment="..."``
-kwarg. The renderer extracts it from the attribute set and emits a
-CSS comment ``/* text */``:
+- the group ``(None, None)`` is emitted as the base block;
+- each non-base group is emitted as a nested ``@media`` /
+  ``@supports`` block re-using the parent selector inside.
 
-- ``len(comment) <= COMMENT_INLINE_MAX_LEN`` (60) -> inline, appended
-  to the last property line.
-- otherwise -> block comment on its own line above the element.
+Selector composition: structured kwargs (``tag``, ``id``,
+``_class``, ``classes``, ``attr``) are validated with strict
+regexes; ``raw`` is an opaque suffix joined with a leading space.
+
+Comment support: any element accepts ``comment="..."``. The
+renderer emits ``/* ... */`` inline when the text fits in
+``COMMENT_INLINE_MAX_LEN`` (60), otherwise as a block above the
+element.
 """
 
 from __future__ import annotations
@@ -108,7 +112,7 @@ class CssRenderer(RendererBase):
         indent: str,
         depth: int,
     ) -> None:
-        selectors = []
+        selectors: list[str] = []
         value = node.value
         if isinstance(value, Bag):
             for child in value:
@@ -142,39 +146,36 @@ class CssRenderer(RendererBase):
 
         ``selector_strings`` is the comma-separated selector-list
         (one entry for a plain selector, N for a selector_list).
-        Body comes from ``rule``/``media``/``supports``/``cssvar``/
-        nested ``selector`` children of ``node``.
-
-        When ``consume_selectors_as_list`` is True (selector_list
-        case), ``selector`` children are NOT treated as nested
-        blocks — they have already been used to build the
-        comma-separated list.
+        Body comes from the rule(s), cssvar(s) and nested selector(s)
+        of ``node``. Rules are grouped by ``(media, supports)``;
+        the base group is inlined, the others are emitted as
+        nested ``@media`` / ``@supports`` blocks.
         """
         selector_list = ", ".join(selector_strings)
         outer = indent * depth if pretty else ""
         inner = indent * (depth + 1) if pretty else ""
 
         block_comment = self._block_comment(node)
-
-        rule_node = self._find_child(node, "rule")
-        property_lines = self._format_properties_from_rule(rule_node)
+        rule_groups = self._group_rules(node)
+        base_properties = rule_groups.pop((None, None), [])
         cssvar_lines = self._format_cssvars(node)
         nested_selectors = (
             [] if consume_selectors_as_list
             else self._find_children(node, "selector")
         )
-        media_nodes = self._find_children(node, "media")
-        supports_nodes = self._find_children(node, "supports")
 
-        body = property_lines + cssvar_lines
-
+        body = base_properties + cssvar_lines
         if block_comment.position == "block" and block_comment.text:
             lines.append(f"{outer}/* {block_comment.text} */")
         inline_comment = block_comment.text if block_comment.position == "inline" else None
-
         if inline_comment is not None and body:
             body[-1] = f"{body[-1]} /* {inline_comment} */"
-        elif inline_comment is not None and not body and not nested_selectors and not media_nodes and not supports_nodes:
+        elif (
+            inline_comment is not None
+            and not body
+            and not nested_selectors
+            and not rule_groups
+        ):
             body = [f"/* {inline_comment} */"]
 
         if pretty:
@@ -186,14 +187,9 @@ class CssRenderer(RendererBase):
                     [self._format_selector(nested)], nested, lines,
                     pretty=pretty, indent=indent, depth=depth + 1,
                 )
-            for media in media_nodes:
-                self._render_at_block(
-                    "media", media, selector_strings, lines,
-                    pretty=pretty, indent=indent, depth=depth + 1,
-                )
-            for sup in supports_nodes:
-                self._render_at_block(
-                    "supports", sup, selector_strings, lines,
+            for (media, supports), properties in rule_groups.items():
+                self._emit_at_group(
+                    media, supports, selector_strings, properties, lines,
                     pretty=pretty, indent=indent, depth=depth + 1,
                 )
             lines.append(f"{outer}}}")
@@ -206,17 +202,10 @@ class CssRenderer(RendererBase):
                     pretty=False, indent=indent, depth=0,
                 )
                 extras.append(" ".join(_flat))
-            for media in media_nodes:
+            for (media, supports), properties in rule_groups.items():
                 _flat = []
-                self._render_at_block(
-                    "media", media, selector_strings, _flat,
-                    pretty=False, indent=indent, depth=0,
-                )
-                extras.append(" ".join(_flat))
-            for sup in supports_nodes:
-                _flat = []
-                self._render_at_block(
-                    "supports", sup, selector_strings, _flat,
+                self._emit_at_group(
+                    media, supports, selector_strings, properties, _flat,
                     pretty=False, indent=indent, depth=0,
                 )
                 extras.append(" ".join(_flat))
@@ -225,85 +214,94 @@ class CssRenderer(RendererBase):
             lines.append(f"{selector_list} {{ {combined} }}")
 
     # ------------------------------------------------------------------
-    # @media / @supports
+    # Rule grouping by (media, supports)
     # ------------------------------------------------------------------
 
-    def _render_at_block(
+    def _group_rules(
+        self, node: Any,
+    ) -> dict[tuple[str | None, str | None], list[str]]:
+        """Group rule children by (media, supports). Preserves order.
+
+        The result is a dict keyed by the (media, supports) tuple,
+        with values being the merged list of CSS declaration lines
+        (in the order rules were added). The (None, None) key is
+        the base block.
+        """
+        groups: dict[tuple[str | None, str | None], list[str]] = {}
+        for rule_node in self._find_children(node, "rule"):
+            attrs = dict(rule_node.attr)
+            attrs.pop("comment", None)
+            media = attrs.pop("media", None)
+            supports = attrs.pop("supports", None)
+            key = (media, supports)
+            properties = self._format_properties(attrs)
+            if key not in groups:
+                groups[key] = []
+            groups[key].extend(properties)
+        return groups
+
+    def _emit_at_group(
         self,
-        at_name: str,
-        node: Any,
+        media: str | None,
+        supports: str | None,
         parent_selectors: list[str],
+        properties: list[str],
         lines: list[str],
         *,
         pretty: bool,
         indent: str,
         depth: int,
     ) -> None:
-        """Emit a @media or @supports block inside a selector block.
+        """Emit a @media and/or @supports block re-using the parent selector.
 
-        Property kwargs of the at-block apply to the parent
-        selector-list inside the @at(condition) { ... }.
+        When both ``media`` and ``supports`` are present, the
+        ``@supports`` block wraps the ``@media`` block.
         """
-        attrs = dict(node.attr)
-        condition = attrs.pop("condition", None)
-        if not condition:
-            raise ValueError(f"@{at_name} requires a condition kwarg")
-        attrs.pop("comment", None)
-
-        property_lines = self._format_properties(attrs)
-        nested_selectors = self._find_children(node, "selector")
-
         parent_selector_list = ", ".join(parent_selectors)
-        outer = indent * depth if pretty else ""
-        inner = indent * (depth + 1) if pretty else ""
-        inner2 = indent * (depth + 2) if pretty else ""
 
         if pretty:
-            lines.append(f"{outer}@{at_name} {condition} {{")
-            if property_lines:
-                lines.append(f"{inner}{parent_selector_list} {{")
-                for entry in property_lines:
-                    lines.append(f"{inner2}{entry}")
-                lines.append(f"{inner}}}")
-            for nested in nested_selectors:
-                self._render_block(
-                    [self._format_selector(nested)], nested, lines,
-                    pretty=pretty, indent=indent, depth=depth + 1,
-                )
+            current_depth = depth
+            outer = indent * current_depth
+
+            if supports is not None:
+                lines.append(f"{outer}@supports {supports} {{")
+                current_depth += 1
+                outer = indent * current_depth
+            if media is not None:
+                lines.append(f"{outer}@media {media} {{")
+                current_depth += 1
+                outer = indent * current_depth
+
+            lines.append(f"{outer}{parent_selector_list} {{")
+            inner = indent * (current_depth + 1)
+            for entry in properties:
+                lines.append(f"{inner}{entry}")
             lines.append(f"{outer}}}")
+
+            if media is not None:
+                current_depth -= 1
+                lines.append(f"{indent * current_depth}}}")
+            if supports is not None:
+                current_depth -= 1
+                lines.append(f"{indent * current_depth}}}")
         else:
-            body_parts: list[str] = []
-            if property_lines:
-                inner_props = " ".join(property_lines)
-                body_parts.append(f"{parent_selector_list} {{ {inner_props} }}")
-            for nested in nested_selectors:
-                _flat: list[str] = []
-                self._render_block(
-                    [self._format_selector(nested)], nested, _flat,
-                    pretty=False, indent=indent, depth=0,
-                )
-                body_parts.append(" ".join(_flat))
-            inner_text = " ".join(body_parts)
-            lines.append(f"@{at_name} {condition} {{ {inner_text} }}")
+            inner_props = " ".join(properties)
+            payload = f"{parent_selector_list} {{ {inner_props} }}"
+            if media is not None:
+                payload = f"@media {media} {{ {payload} }}"
+            if supports is not None:
+                payload = f"@supports {supports} {{ {payload} }}"
+            lines.append(payload)
 
     # ------------------------------------------------------------------
     # Properties / cssvars
     # ------------------------------------------------------------------
-
-    def _format_properties_from_rule(self, rule_node: Any) -> list[str]:
-        if rule_node is None:
-            return []
-        attrs = dict(rule_node.attr)
-        attrs.pop("comment", None)
-        return self._format_properties(attrs)
 
     def _format_properties(self, attrs: dict[str, Any]) -> list[str]:
         """One CSS declaration per property kwarg."""
         result: list[str] = []
         for raw_name, value in attrs.items():
             if raw_name.startswith("_"):
-                continue
-            if raw_name == "condition":
                 continue
             css_name = raw_name.replace("_", "-")
             result.append(f"{css_name}: {value};")
@@ -429,15 +427,6 @@ class CssRenderer(RendererBase):
     # ------------------------------------------------------------------
     # Bag helpers
     # ------------------------------------------------------------------
-
-    def _find_child(self, node: Any, tag: str) -> Any:
-        value = node.value
-        if not isinstance(value, Bag):
-            return None
-        for child in value:
-            if (child.node_tag or child.label) == tag:
-                return child
-        return None
 
     def _find_children(self, node: Any, tag: str) -> list[Any]:
         value = node.value

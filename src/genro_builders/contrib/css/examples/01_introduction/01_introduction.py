@@ -52,11 +52,12 @@ class HelloCss(CssBuilderHandler):
         cards.selector(_class="dialog")
         cards.rule(font_family="sans-serif")
 
-        # 4. Media variant — properties inherit the parent selector.
+        # 4. Media variant — extra rule with media kwarg.
         responsive = sheet.selector(_class="card2")
         responsive.rule(width="300px", padding="16px")
-        responsive.media(condition="(max-width: 600px)",
-                         width="100%", padding="8px")
+        responsive.rule(media="(max-width: 600px)",
+                        width="100%", padding="8px")
+        responsive.rule(media="print", color="black")
 
         # 5. Nesting (CSS Nesting moderno).
         card = sheet.selector(_class="card3")

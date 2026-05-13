@@ -19,6 +19,11 @@ button.primary {
       padding: 8px;
     }
   }
+  @media print {
+    .card2 {
+      color: black;
+    }
+  }
 }
 .card3 {
   padding: 8px;

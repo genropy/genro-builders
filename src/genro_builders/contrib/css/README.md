@@ -43,15 +43,13 @@ Output:
 
 ## Grammar
 
-| Element         | Purpose                                       | Children                                                         |
-|-----------------|-----------------------------------------------|------------------------------------------------------------------|
-| `stylesheet`    | Optional top-level container                  | `selector`, `selector_list`, `cssvar`                            |
-| `selector`      | One selector, container of the case           | `rule`, `media`, `supports`, `cssvar`, nested `selector`         |
-| `selector_list` | Comma-separated selector-list sharing a block | `selector` (the entries) + `rule`, `media`, `supports`, `cssvar` |
-| `rule`          | The property block of a selector / list       | none                                                             |
-| `media`         | @media variant of the parent selector         | nested `selector` (optional)                                     |
-| `supports`      | @supports variant of the parent selector      | nested `selector` (optional)                                     |
-| `cssvar`        | A CSS custom property declaration             | none                                                             |
+| Element         | Purpose                                       | Children                                              |
+|-----------------|-----------------------------------------------|-------------------------------------------------------|
+| `stylesheet`    | Optional top-level container                  | `selector`, `selector_list`, `cssvar`                 |
+| `selector`      | One selector, container of the case           | `rule`, `cssvar`, nested `selector`                   |
+| `selector_list` | Comma-separated selector-list sharing a block | `selector` (the entries) + `rule`, `cssvar`           |
+| `rule`          | A property block; optional `media`/`supports` | none                                                  |
+| `cssvar`        | A CSS custom property declaration             | none                                                  |
 
 ### selector
 
@@ -118,34 +116,43 @@ s.rule(background_color="#fff", font_size="12px")
 
 ### media and supports
 
-Variants that inherit the parent selector:
+A rule may carry optional ``media`` and ``supports`` kwargs.
+Each is a free-form string with the full condition (a feature, a
+type, or both combined). At render time the rule is lifted into
+a ``@media`` and/or ``@supports`` block that re-uses the parent
+selector:
 
 ```python
 s = root.selector(_class="card")
 s.rule(width="300px")
-s.media(condition="(max-width: 600px)", width="100%")
-s.supports(condition="(display: grid)", display="grid")
+s.rule(media="(max-width: 600px)", width="100%")
+s.rule(media="screen and (max-width: 600px)", padding="8px")
+s.rule(media="print", color="black")
+s.rule(supports="(display: grid)", display="grid")
 ```
 
 ```css
 .card {
   width: 300px;
   @media (max-width: 600px) {
-    .card {
-      width: 100%;
-    }
+    .card { width: 100%; }
+  }
+  @media screen and (max-width: 600px) {
+    .card { padding: 8px; }
+  }
+  @media print {
+    .card { color: black; }
   }
   @supports (display: grid) {
-    .card {
-      display: grid;
-    }
+    .card { display: grid; }
   }
 }
 ```
 
-`condition` is required; the renderer raises `ValueError` if it
-is missing. Property kwargs of the at-block apply to the parent
-selector (or selector_list) at emit time.
+Multiple rules under the same selector that share the **same**
+``(media, supports)`` pair are merged into a single block.
+When both kwargs are present on the same rule, ``@supports``
+wraps the ``@media`` block.
 
 ### cssvar
 
@@ -292,7 +299,7 @@ class Theme(CssBuilderHandler):
         # Media variant
         responsive = sheet.selector(_class="responsive")
         responsive.rule(width="300px")
-        responsive.media(condition="(max-width: 600px)", width="100%")
+        responsive.rule(media="(max-width: 600px)", width="100%")
 
         # Nesting
         nested = sheet.selector(_class="nested")
