@@ -505,3 +505,44 @@ def test_render_custom_indent():
     assert "    padding: 8px;" in out
     assert "    .title {" in out
     assert "        font-size: 18px;" in out
+
+
+# ---------------------------------------------------------------------------
+# Vendor prefixes (leading underscore translates to leading hyphen)
+# ---------------------------------------------------------------------------
+
+
+def test_vendor_prefix_webkit_keeps_leading_hyphen():
+    def build(root):
+        s = root.selector(tag="div")
+        s.rule(_webkit_user_select="none")
+
+    out = _render(build)
+    assert "-webkit-user-select: none;" in out
+
+
+def test_vendor_prefix_alongside_unprefixed_keeps_both():
+    def build(root):
+        s = root.selector(tag="div")
+        s.rule(_webkit_user_select="none", user_select="none")
+
+    out = _render(build)
+    assert "-webkit-user-select: none;" in out
+    assert "user-select: none;" in out
+
+
+def test_multiple_vendor_prefixes_all_kept():
+    def build(root):
+        s = root.selector(tag="input")
+        s.rule(
+            _webkit_appearance="none",
+            _moz_appearance="none",
+            _ms_appearance="none",
+            appearance="none",
+        )
+
+    out = _render(build)
+    assert "-webkit-appearance: none;" in out
+    assert "-moz-appearance: none;" in out
+    assert "-ms-appearance: none;" in out
+    assert "appearance: none;" in out

@@ -298,11 +298,15 @@ class CssRenderer(RendererBase):
     # ------------------------------------------------------------------
 
     def _format_properties(self, attrs: dict[str, Any]) -> list[str]:
-        """One CSS declaration per property kwarg."""
+        """One CSS declaration per property kwarg.
+
+        Underscores in the Python kwarg name are translated to hyphens
+        in the CSS property name. A leading underscore therefore yields
+        a leading hyphen, which is exactly how vendor prefixes are
+        spelled in CSS (``_webkit_user_select`` → ``-webkit-user-select``).
+        """
         result: list[str] = []
         for raw_name, value in attrs.items():
-            if raw_name.startswith("_"):
-                continue
             css_name = raw_name.replace("_", "-")
             result.append(f"{css_name}: {value};")
         return result
