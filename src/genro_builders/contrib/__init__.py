@@ -4,15 +4,19 @@
 These are shipped with genro-builders but are not part of the core
 framework. They are optional and only loaded when explicitly imported.
 
-In scope during the 2026-05 restart:
+Aligned with the current ``BuilderHandler`` contract (post 2026-05-12
+renegotiation of decision 8):
     - ``genro_builders.contrib.html`` — HtmlBuilder (W3C HTML5)
+    - ``genro_builders.contrib.svg`` — SvgBuilder
+    - ``genro_builders.contrib.css`` — CssBuilder (level 1)
 
-Dormant during the restart (do not import — pending migration to the
-new BuilderHandler contract):
-    - ``genro_builders.contrib.markdown`` — raises ImportError on import
-    - ``genro_builders.contrib.svg`` — raises ImportError on import
-    - ``genro_builders.contrib.xsd`` — imports succeed but objects are
-      not functional under the new contract
-    - ``genro_builders.contrib.data`` — imports succeed but objects are
-      not functional under the new contract
+Not yet aligned (import succeeds but objects are not functional under
+the current contract; candidates for rewrite or archival):
+    - ``genro_builders.contrib.xsd``
+    - ``genro_builders.contrib.data``
+
+Archived (moved to ``archive/contrib/``; will return under a future
+subtask when the framework supports the features they require):
+    - ``markdown`` — relied on pointers/reactive store not yet
+      implemented; archived 2026-05-12.
 """
