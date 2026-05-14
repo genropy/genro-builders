@@ -41,4 +41,4 @@ See [examples/](examples/) for complete working examples:
 
 ## Documentation
 
-Full documentation: [docs/builders/svg-builder.md](../../../../docs/builders/svg-builder.md)
+Full documentation: [docs/grammars/svg.md](../../../../docs/grammars/svg.md)

@@ -45,4 +45,7 @@ See [examples/](examples/) for complete working examples:
 
 ## Documentation
 
-Full documentation: [docs/builders/xsd-builder.md](../../../../docs/builders/xsd-builder.md)
+XSD builder is currently being realigned to the new contract; full
+documentation will return when the realignment lands. See
+[../../../../roadmap/architecture-contract.md](../../../../roadmap/architecture-contract.md)
+for the target architecture.

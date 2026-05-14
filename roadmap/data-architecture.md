@@ -58,7 +58,7 @@ separate document.
 
 The previous data architecture is preserved as historical
 reference in
-[../docs/builders/manager-architecture.md](../docs/builders/manager-architecture.md)
+[../archive/docs/builders/manager-architecture.md](../archive/docs/builders/manager-architecture.md)
 (v0.2.0, blueprint). That version was builder-centric (the data
 lived on the builder). The current model is **handler-centric**:
 the handler owns the data. The reasoning is given in §2.
@@ -369,7 +369,7 @@ covered elsewhere or postponed:
 
 - **13.1 Reactivity** — change propagation from `handler.data` to
   renderer/compiler. Forward reference: blueprint
-  [../docs/builders/manager-architecture.md §11](../docs/builders/manager-architecture.md).
+  [../archive/docs/builders/manager-architecture.md §11](../archive/docs/builders/manager-architecture.md).
 - **13.2 Domain-data vs UI-state separation** — whether to split
   the data store into a domain part and a UI part. Deferred
   2026-04-28. Five options (α–ε) explored, none adopted.

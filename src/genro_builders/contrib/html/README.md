@@ -47,4 +47,4 @@ See [examples/](examples/) for complete working examples:
 
 ## Documentation
 
-Full documentation: [docs/builders/html-builder.md](../../../../docs/builders/html-builder.md)
+Full documentation: [docs/grammars/html.md](../../../../docs/grammars/html.md)

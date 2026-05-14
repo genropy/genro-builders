@@ -153,12 +153,16 @@ builder.resume_output()       # single render with all 3 changes
 
 ## Documentation
 
-See the [docs/](docs/) directory for full documentation:
+User-facing documentation lives in [docs/](docs/):
 
 - [Getting Started](docs/getting-started.md) — Build your first page in 5 minutes
-- [Custom Builders](docs/builders/custom-builders.md) — Define your own grammar
-- [Reactive Data](docs/builders/reactive-data.md) — Data elements, formulas, reactivity
-- [Architecture](docs/builders/architecture.md) — Build pipeline, pointer formali, formula registry
+- [Builders overview](docs/builders/overview.md) — Lifecycle, handler/builder/renderer split
+- [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, `@subbuilder`, `@component`, `@data_element`
+- [Common patterns](docs/builders/patterns.md) — `._` chaining, `node_by_id`, render targets
+- Per-grammar references: [HTML](docs/grammars/html.md), [SVG](docs/grammars/svg.md), [CSS](docs/grammars/css.md)
+
+In-flight design documents (architectural contract, data model
+proposal, roadmap) live in [roadmap/](roadmap/) at the repo root.
 
 ## License
 
