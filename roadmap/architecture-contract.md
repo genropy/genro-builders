@@ -1,8 +1,10 @@
-# Architecture contract
+# Architecture contract — v0.4.0
 
-> **Versione vivente.** Aggiornato al 2026-05-08. Le voci storiche
-> ("rinegoziazione", "decisioni del 2026-05-03") sono mantenute per
-> tracciabilità delle scelte.
+> **In vigore dal 2026-05-15.** Questo documento è il **punto di arrivo**
+> verso cui il codice deve convergere. Non è la fotografia dello stato
+> attuale del codice. La revisione precedente (v0.3) è conservata in
+> `roadmap/outdated_versions/architecture-contract-v0.3.md` insieme alla
+> sintesi dei cambiamenti che hanno portato al superamento.
 
 ## Scopo
 
@@ -14,16 +16,17 @@ senza coerenza strutturale, e stiamo reintroducendo le funzionalità
 una per una, ognuna sotto un contratto esplicito.
 
 Il branch `archive/2026-04-blueprint` conserva il prototipo
-sperimentale (pointer, reattività, `@component`, iterate, controller,
-live, ecc.). È il riferimento funzionale di **cosa** dobbiamo poter
-fare; questo documento dice **come** dobbiamo poterlo fare. Il
-blueprint è prezioso perché ha già esplorato quasi tutto lo spazio
-delle feature; il suo limite era l'architettura.
+sperimentale (pointer, reattività, iterate, controller, live, ecc.).
+È il riferimento funzionale di **cosa** dobbiamo poter fare; questo
+documento dice **come** dobbiamo poterlo fare. Il blueprint è prezioso
+perché ha già esplorato quasi tutto lo spazio delle feature; il suo
+limite era l'architettura.
 
-Le 12 decisioni qui sotto sono il contratto su cui ogni nuova feature
-viene reintrodotta su `develop`. Una rinegoziazione di una decisione
-si fa **esplicitamente**, modificando questo file con una nota
-datata.
+Le 12 decisioni qui sotto, seguite dalla sezione "Discussioni aperte",
+sono il contratto su cui ogni nuova feature viene reintrodotta su
+`develop`. Una rinegoziazione di una decisione si fa **esplicitamente**:
+si bump-a la minor del contratto e si conserva la versione superata in
+`roadmap/outdated_versions/`.
 
 Per consultare il blueprint:
 
@@ -36,30 +39,30 @@ git checkout archive/2026-04-blueprint
 
 - **Builder**: è la grammar pura di un dialetto (`HtmlBuilder`,
   `MarkdownBuilder`, `SvgBuilder`, ecc.). Definisce `@element`,
-  `@abstract`, `@component`, lo schema di validazione, le regole di
-  serializzazione del dialetto. Le responsabilità di engine vivono
-  sul `BuilderHandler`.
+  `@abstract`, `@subbuilder`, `@data_element`, lo schema di
+  validazione, le regole di serializzazione del dialetto. Le
+  responsabilità di engine vivono sul `BuilderHandler`.
 - **BuilderHandler**: è la macchina che consuma un builder. Possiede
-  `source`, `built`, mappa `node_id`, le tre fasi `create`/`build`/
-  `render`, e il `render_target`. Monobuilder per istanza.
+  `source`, mappa `node_id`, le due fasi `create`/`render`, e il
+  dict `mode → target` dei render.
 - **`HtmlBuilderHandler`, `MarkdownBuilderHandler`, ecc.**: preset
   forniti dal pacchetto, sottoclassi di `BuilderHandler` con
   `builder_class` già fissata. L'utente eredita da uno di questi.
 
-## 1. Builder come subclass; component aggiuntivi via mixin
+## 1. Builder come subclass; estensioni della grammatica via mixin
 
 Ogni builder è una subclass del builder base e definisce al proprio
 interno il dialetto (tag, sub_tags, parent_tags, validazione, regole
-di build e di render dei nodi). Il pacchetto fornisce mixin
-opzionali per aggiungere component al builder, mentre il dialetto
-base resta sempre nel builder.
+di render dei nodi). Il pacchetto fornisce mixin opzionali per
+**estendere la grammatica** del builder con tag aggiuntivi (puri W3C
+nei dialetti standard, oppure tag custom dichiarati da terzi), mentre
+il dialetto base resta sempre nel builder.
 
 Il builder è **solo** dichiarazione: tag, validazione
-`sub_tags`/`parent_tags`, regole di build di un nodo, regole di
-render di un nodo nel proprio dialetto (decisione 6). Tutte le
-responsabilità di engine — `source`, `built`, le tre fasi, mappa
-`node_id`, `render_target` — vivono sul `BuilderHandler`
-(decisione 9).
+`sub_tags`/`parent_tags`, registry dei renderer del proprio dialetto
+(decisione 6). Tutte le responsabilità di engine — `source`, le due
+fasi, mappa `node_id`, dict `mode → target` — vivono sul
+`BuilderHandler` (decisione 9).
 
 ## 2. Sub-builder dichiarati da un decoratore dedicato `@subbuilder`
 
@@ -104,63 +107,59 @@ rispettivamente `Bag` con `_BuilderBagMixin` e `BagNode` con
 `_BuilderBagNodeMixin`. La logica builder-aware vive nei mixin; le
 classi base di `genro-bag` restano intatte.
 
-## 4. BuilderHandler autonomo monobuilder, orchestratore opzionale
+## 4. BuilderHandler gestisce il suo builder, orchestratore opzionale
 
-Il `BuilderHandler` è autonomo e monobuilder: possiede un solo
-builder e funziona da solo nei casi normali. L'utente sottoclassa
-il preset specifico al dominio (es. `HtmlBuilderHandler`) e
-implementa `main(self, root)`.
+Ogni `BuilderHandler` gestisce un proprio builder e funziona da solo
+nei casi normali. L'utente sottoclassa il preset specifico al
+dominio (es. `HtmlBuilderHandler`) e implementa `main(self, root)`.
 
 Se servono più handler coordinati (es. una pagina con dati condivisi
 tra widget separati), si introduce un **orchestratore** esplicito
 come strato sopra, separato dall'handler.
 
-In `__init__` l'handler istanzia il builder e i due bag:
+In `__init__` l'handler istanzia il builder e la source:
 
 ```python
 class BuilderHandler:
     builder_class = None  # fissata nelle subclass
 
     def __init__(self):
-        self.builder      = self.builder_class()
-        self.source       = BuilderSourceBag(self)
-        self.built        = BuilderBuiltBag(self)
-        self._node_index  = {}   # node_id → path (vedi decisione 11)
+        self.builder              = self.builder_class()
+        self.source               = BuilderSource(self)
+        self._render_targets      = {}      # mode → target (vedi decisione 6)
+        self._default_render_mode = None
+        self._node_index          = {}      # node_id → path (vedi decisione 11)
 ```
 
-`BuilderSourceBag` e `BuilderBuiltBag` ricevono l'handler già
-istanziato come argomento. La bag conosce il proprio handler dalla
-nascita (e tramite l'handler, anche il builder).
+`BuilderSource` riceve l'handler già istanziato come argomento. La
+source conosce il proprio handler dalla nascita (e tramite l'handler,
+anche il builder).
 
-## 5. Tre fasi esplicite: create, build, render
+## 5. Due fasi esplicite: create, render
 
-Il ciclo di vita di un `BuilderHandler` ha tre fasi separate,
+Il ciclo di vita di un `BuilderHandler` ha due fasi separate,
 chiamate esplicitamente dall'utente:
 
 ```python
 page = CustomerPage()
-page.create()    # main(source) → popola self.source
-page.build()     # source → self.built (espansione component, ecc.)
-print(page.render())  # serializza self.built
+page.create()                                # main(source) → popola self.source
+page.set_render_target('html', 'out.html', default=True)
+page.render()                                # serializza self.source sul target default
 ```
 
 L'handler **orchestra** le fasi delegando al builder le operazioni
 specifiche del dialetto.
 
 - `create()` chiama `self.main(self.source)`.
-- `build()` chiama `self.builder.build(self.source, self.built)`. Il
-  builder è responsabile di produrre la built a partire dalla source.
-- `render()` chiama `self.builder.render(mode, render_target=...)`
-  (vedi decisione 6 per i parametri). Il builder è responsabile della
-  serializzazione del proprio dialetto.
+- `render(target=None, mode=None, **kwargs)` dispatcha al renderer
+  corrispondente al mode (decisione 6) e gli affida la source.
 
 Quando in un sottoalbero c'è un sub-builder (decisione 2), il
 `_builder` settato sui nodi del sottoalbero (decisione 10) determina
-quale builder è attivo localmente, così build/render seguono
+quale builder è attivo localmente, così il render segue
 automaticamente il builder corretto.
 
-Ogni fase è ispezionabile (`page.source` dopo `create`, `page.built`
-dopo `build`).
+La source è ispezionabile dopo `create` (`page.source`).
 
 Esempio minimo end-to-end:
 
@@ -175,63 +174,98 @@ class CustomerPage(HtmlBuilderHandler):
 
 if __name__ == '__main__':
     page = CustomerPage()
+    page.set_render_target('html', 'out.html', default=True)
     page.create()
-    page.build()
-    print(page.render())
+    page.render()
 ```
 
-## 6. Render con `mode` e `render_target`
+## 6. Render con `mode` e `target`, multipli e nominati
 
 `render` esiste sia sul builder che sull'handler, con responsabilità
 distinte.
 
-**Sul builder**: ha più metodi di render, uno per modalità del
-dialetto (`render_html`, `render_xml`, `render_pretty`, ecc.). Il
-metodo `render(mode=None, render_target=None, **kwargs)` instrada
-alla modalità richiesta; se `mode` è `None`, usa il modo primario
-del dialetto (es. per `HtmlBuilder` è `render_html`).
+**Sul builder**: ha un **registry di renderer per-istanza**, popolato
+in `__init__` chiamando `self.register_renderer(name, renderer_class)`.
+Il base (`BagBuilderBase`) registra i mode condivisi (`xml`, in futuro
+`json`); ogni dialetto chiama `super().__init__()` e poi aggiunge i
+suoi (es. `HtmlBuilder` registra `html`, `pretty`, `bind`, ...). Una
+sub-class può fare **override** chiamando di nuovo
+`register_renderer` con lo stesso nome.
 
-I `**kwargs` opzionali sono parametri specifici del modo (es.
-`xml=True/False` per `render_html`, `pretty=True` per
-`render_pretty`). Il dispatch li filtra in base alla firma del
-`render_<mode>` dispatch-ato: i kwarg che il metodo non dichiara
-vengono silenziosamente ignorati. Non sono errori — un kwarg di un
-modo (es. `xml`) può non avere senso per un altro (es. Markdown).
+```python
+class BagBuilderBase:
+    def __init__(self):
+        self._renderers = {}
+        self.register_renderer('xml', XmlRenderer)
 
-**Sull'handler**: espone una property `render_target` (con storage
-interno `_render_target`, default `None`) che l'utente può
-valorizzare. `handler.render(mode=None, **kwargs)` delega:
+    def register_renderer(self, name, renderer_class):
+        self._renderers[name] = renderer_class
+
+class HtmlBuilder(BagBuilderBase):
+    def __init__(self):
+        super().__init__()
+        self.register_renderer('html', HtmlRenderer)
+        self.register_renderer('pretty', HtmlPrettyRenderer)
+        self.register_renderer('bind', HtmlBindRenderer)
+```
+
+Lo storage è **per-istanza**: due `HtmlBuilder` diversi possono avere
+registry diversi (estensione runtime, override per scenario).
+
+I `**kwargs` opzionali su `render(mode, target, **kwargs)` sono
+parametri specifici del renderer (es. `pretty=True`). Il dispatch li
+filtra in base alla firma del `render_<mode>` dispatch-ato: i kwarg
+che il renderer non dichiara vengono silenziosamente ignorati.
+
+**Sull'handler**: tiene un dict `mode → target` valorizzato via
+`set_render_target(mode, target, default=False)`. Più target possono
+coesistere sotto mode diversi; un mode è marcato come **default** per
+le chiamate `render()` senza argomenti.
 
 ```python
 class BuilderHandler:
-    _render_target = None
+    def __init__(self):
+        self._render_targets = {}     # mode → target
+        self._default_render_mode = None
+        # ... resto init
 
-    @property
-    def render_target(self):
-        return self._render_target
+    def set_render_target(self, mode, target, default=False):
+        self._render_targets[mode] = target
+        if default:
+            self._default_render_mode = mode
 
-    @render_target.setter
-    def render_target(self, value):
-        self._render_target = value
-
-    def render(self, mode=None, **kwargs):
-        return self.builder.render(
-            mode, render_target=self.render_target, **kwargs,
+    def render(self, target=None, mode=None, **kwargs):
+        if mode is None:
+            mode = self._default_render_mode
+        if target is False:
+            effective_target = None
+        elif target is not None:
+            effective_target = target
+        else:
+            effective_target = self._render_targets.get(mode)
+        renderer_cls = self.builder._renderers[mode]
+        return renderer_cls(self).render(
+            self.source, target=effective_target, **kwargs,
         )
 ```
 
-Il **render target** decide **dove** va l'output:
+Comportamento dei casi notevoli:
 
-- `render_target is None` → il builder accumula la stringa e la
-  ritorna.
-- `render_target` valorizzato (file, stream, websocket, oggetto DOM,
-  …) → il builder scrive direttamente su quel target durante il walk.
+- `page.render()` → mode = default, target = quello registrato sotto
+  il mode default.
+- `page.render(mode='xml')` → mode = xml, target = quello registrato
+  sotto `'xml'` (o `None` se non registrato → ritorna stringa).
+- `page.render(mode='xml', target='other.xml')` → override locale del
+  target solo per quella chiamata.
+- `page.render(mode='xml', target=False)` → forza ritorno stringa,
+  ignora il target registrato per `xml`.
 
-L'oggetto render target concreto è scelto dall'utente nella sua
-subclass: il pacchetto consente qualunque tipo, purché il builder sia
-in grado di scriverci.
+L'handler espone anche **shortcut auto-generati** `render_<mode>()`
+per ogni mode registrato sul builder. La chiamata
+`page.render_xml('out.xml')` è equivalente a
+`page.render(mode='xml', target='out.xml')`.
 
-Esempio:
+**Esempio**:
 
 ```python
 class CustomerPage(HtmlBuilderHandler):
@@ -240,96 +274,86 @@ class CustomerPage(HtmlBuilderHandler):
 
 
 page = CustomerPage()
+page.set_render_target('xml', 'snapshot.xml')
+page.set_render_target('bind', dom_node, default=True)
 page.create()
-page.build()
 
-# default: ritorna stringa
-print(page.render())
-
-# render in modalità diversa
-print(page.render('xml'))
-
-# render su file
-with open('out.html', 'w') as f:
-    page.render_target = f
-    page.render()
+page.render()                      # usa 'bind' → si aggancia a dom_node
+page.render(mode='xml')            # usa 'xml' → scrive su snapshot.xml
+page.render(mode='xml', target='other.xml')  # override locale
+text = page.render(mode='xml', target=False) # forza stringa
+page.render_xml('snapshot.xml')    # shortcut equivalente
 ```
 
 **Responsabilità divise**:
 
-- L'handler tiene il render target e lo passa al builder.
-- Il builder conosce le modalità, sa serializzare nel proprio
-  dialetto, accetta il render target e ci scrive (oppure accumula
-  in stringa).
+- L'handler tiene il dict `mode → target` e dispatcha al renderer
+  appropriato; gestisce il mode di default.
+- Il builder mantiene il registry dei renderer disponibili per il
+  dialetto (ereditari + locali + eventuali override per istanza).
+- Il renderer concreto sa serializzare il proprio mode, accetta il
+  target e ci scrive (oppure accumula in stringa).
 
-## 7. Build come dispatch per tipo di element (rinegoziata 2026-05-12)
+## 7. Render con switch del builder al confine del sub-builder
 
-La fase build trasforma la **source** (ricetta dell'utente) in
-**built** (forma espansa pronta per render/compile). La source resta
-serializzabile senza perdita semantica: chi la trasforma in XML
-ottiene esattamente quello che l'utente ha scritto in `main`.
+Senza una fase intermedia, la source è la **forma unica** del
+documento. Il render cammina la source nodo per nodo e serializza nel
+dialetto attivo. Non c'è dispatch per tipo di element: i tipi
+grammaticali (`@element`, `@abstract`, `@subbuilder`,
+`@data_element`) determinano la validazione al call-time, non
+un'azione diversa al render-time.
 
-La build è un walker centrale che, per ogni nodo della source,
-applica un'azione che dipende dal **tipo di element** dichiarato
-dallo schema:
+L'unica differenza che il render osserva è il **builder attivo sul
+nodo** (decisione 10). Quando il walker incontra un nodo il cui
+`_builder` è diverso dal builder ospite, **delega** al renderer del
+sub-builder per quel sub-tree:
 
-- `@element` puro → **mirror 1:1**: copia il nodo nella built,
-  ricorre sul sub-tree con lo stesso builder attivo.
-- `@component` → **espansione del body** (rinegoziata in fase
-  futura): la built materializza i nodi prodotti dal body del
-  component.
-- `@subbuilder` → **delega al sub-builder** registrato sotto
-  `subbuilder_name`. Il sub-builder esegue il proprio `build()` sul
-  sub-tree source, popolando il sub-tree corrispondente nella built.
-  Il walker del builder ospite **non discende oltre** il nodo
-  subbuilder.
+- nodo con `_builder` == builder corrente → serializzazione normale
+  nel proprio dialetto;
+- nodo con `_builder` != builder corrente (cioè un `@subbuilder`
+  attivato al call-time) → il renderer ospite chiede al
+  `BuilderHandler.renderer_for(sub_builder)` il renderer del
+  sub-dialetto e gli affida il sub-tree.
 
 Conseguenze:
 
-- L'espansione avviene solo durante la build, mai al call-time.
-- La source può essere serializzata, salvata, ricaricata: resta
-  sempre la ricetta originale.
-- I sub-builder sono autonomi nella build: ogni dialetto governa
-  il proprio sub-tree (decisione 5 lo prevedeva già per
-  build/render, decisione 7 ora lo esplicita per la build).
-- Il body opzionale del decoratore `@subbuilder` può override-are
-  la delega di default; un body vuoto (``...``) ricade nel default
-  `sub_builder.build(source_value, dst_value)`.
+- L'utente costruisce la source con le chiamate `root.div(...)`,
+  `root.svg(...)` ecc. Lo switch di builder avviene al call-time del
+  decoratore `@subbuilder` (decisione 2): il nodo del sub-tree riceve
+  `_builder = sub_builder` immediatamente.
+- La source resta serializzabile senza perdita: chi la trasforma in
+  XML ottiene esattamente quello che l'utente ha scritto in `main`.
+- I sub-builder sono autonomi nel render: ogni dialetto governa il
+  proprio sub-tree.
 
-## 8. Builder = grammar pura; rendering e compilation in classi dedicate
+## 8. Builder = grammar pura; rendering in renderer dedicati
 
 Il `Builder` (es. `HtmlBuilder`, `SvgBuilder`) contiene **solo** la
 grammar:
 
-- `@element`, `@abstract`, `@component` decorati.
+- `@element`, `@abstract`, `@subbuilder`, `@data_element` decorati.
 - Schema di tag/sub_tags/parent_tags raccolto da `__init_subclass__`.
 - Validazione di scrittura nei nodi.
-- Regole di **build** di un nodo (come materializzarlo dalla source
-  alla built).
-- Bindings al renderer e al compiler del dialetto:
-  `_renderer_class = HtmlRenderer`, `_compiler_class = HtmlCompiler`
-  (con default `RendererBase` / `CompilerBase` sul base).
-- `_default_render_mode` che selezione la modalità di default per
-  `render(mode=None)`.
+- **Registry di renderer per-istanza** (decisione 6): popolato in
+  `__init__` chiamando `self.register_renderer(name, renderer_class)`.
 
 **Il rendering vive in `RendererBase` e nei suoi concreti**
-(`HtmlRenderer`, `SvgRenderer`, ...). Un renderer espone uno o più
-metodi `render_<mode>`. Il dispatch (`renderer.render(mode, ...)`)
-trova il metodo via MRO e filtra i `**kwargs` opzionali in base alla
-sua signature (decisione 6).
+(`XmlRenderer`, `HtmlRenderer`, `SvgRenderer`, `HtmlBindRenderer`,
+...). Ogni renderer concreto serve **un singolo mode**; il dispatch
+mode → renderer avviene consultando il registry del builder
+(decisione 6).
 
-**La compilation vive in `CompilerBase` e nei suoi concreti**
-(`HtmlCompiler`, ...). Il compiler produce oggetti live (widget,
-runtime, ASGI handler). Le implementazioni concrete sono
-posticipate; oggi il base alza `NotImplementedError`.
+I mode condivisi (`xml`, in futuro `json`) sono registrati dal base
+in `BagBuilderBase.__init__`; i mode dialect-specific sono aggiunti
+dalle subclass del builder. I mode "vivi" (es. `bind`, che aggancia
+il documento a un oggetto DOM/widget) sono semplici renderer nel
+registry, non un piano separato di "compilation".
 
-Le responsabilità di engine — `source`, `built`, le tre fasi
-`create`/`build`/`render` (decisione 5), gestione del `render_target`
-(decisione 6), mappa `node_id` (decisione 11) — vivono sul
-`BuilderHandler`, che istanzia il renderer e il compiler in lazy mode
-e li espone come property (`handler.renderer`, `handler.compiler`).
-`handler.render(...)` e `handler.compile(...)` sono shortcut che
-delegano alle istanze.
+Le responsabilità di engine — `source`, le due fasi
+`create`/`render` (decisione 5), dict `mode → target` (decisione 6),
+mappa `node_id` (decisione 11) — vivono sul `BuilderHandler`.
+`handler.render(...)` consulta il registry del builder, istanzia il
+renderer del mode richiesto e gli affida la source.
 
 Conseguenze:
 
@@ -337,22 +361,19 @@ Conseguenze:
   indipendentemente da una macchina), e può essere riusato in
   contesti diversi (test, documentazione, sub-builder).
 - I renderer condividono `RendererBase` per la logica trasversale
-  (gestione `render_target`, escape XML, render XML di default).
+  (gestione target, escape XML, ecc.).
 - Aggiungere un nuovo modo di render a un dialetto significa
-  aggiungere un metodo `render_<mode>` al suo renderer, non
-  modificare il builder.
-
-> **Nota di rinegoziazione (2026-05-12)**: la formulazione originale
-> diceva "il builder contiene anche le regole di render". La
-> separazione completa rendering/grammar è stata adottata per
-> ridurre il volume del builder, eliminare la duplicazione fra
-> dialetti, e preparare lo strato parallelo del compiler.
+  registrare un renderer con un nuovo nome via `register_renderer`,
+  non modificare il builder.
+- Estendere un dialetto con un mode aggiuntivo (es. plugin esterno)
+  significa una subclass del builder che chiama
+  `register_renderer` nel proprio `__init__`.
 
 ## 9. BuilderHandler = engine; preset per dominio
 
-`BuilderHandler` è la macchina. Possiede `source`, `built`, mappa
-`node_id` (decisione 11), le tre fasi `create`/`build`/`render`
-(decisione 5), gestione del `render_target` (decisione 6).
+`BuilderHandler` è la macchina. Possiede `source`, mappa
+`node_id` (decisione 11), la fase `create` (decisione 5) seguita
+da `render` (decisione 6), dict `mode → target` (decisione 6).
 
 Il pacchetto fornisce un preset per ogni builder:
 
@@ -415,12 +436,8 @@ associa `node_id` → `path` (stringa).
 - `node_id` è un parametro opzionale alla scrittura del nodo nella
   source.
 - La mappa è univoca entro l'handler.
-- La build mantiene la stessa struttura della source, conservando i
-  path di ogni nodo. Quindi la stessa mappa serve sia per accedere ai
-  nodi della source sia per quelli della built.
-- Lookup: `handler.node_by_id('form_main', stage='source')` o
-  `stage='built'`. Internamente prende il path dalla mappa e lo applica
-  al bag corrispondente.
+- Lookup: `handler.node_by_id('form_main')`. Internamente prende
+  il path dalla mappa e lo applica alla source.
 - Errore esplicito su collisioni di `node_id`.
 
 I sub-builder (decisione 2) condividono la **stessa mappa**
@@ -436,27 +453,105 @@ Le classi bag/nodo del pacchetto sono organizzate su due livelli.
 - `BuilderBag` = `Bag` + `_BuilderBagMixin`
 - `BuilderBagNode` = `BagNode` + `_BuilderBagNodeMixin`
 
-Contengono i meccanismi condivisi tra source e built: slot
+Contengono i meccanismi condivisi tra tutte le specializzazioni: slot
 `_builder`/`_handler` (decisione 10), dispatch grammar via
 `__getattr__`/`__dir__`, accesso ai metadati dell'albero.
 
-**Livello 2 — specializzazione di fase**:
+**Livello 2 — specializzazioni semantiche**:
 
-- `BuilderSourceBag` (sottoclasse di `BuilderBag`) e
-  `BuilderSourceBagNode` (sottoclasse di `BuilderBagNode`).
-- `BuilderBuiltBag` (sottoclasse di `BuilderBag`) e
-  `BuilderBuiltBagNode` (sottoclasse di `BuilderBagNode`).
+- `BuilderSource` (sottoclasse di `BuilderBag`) e
+  `BuilderSourceNode` (sottoclasse di `BuilderBagNode`) — il bag
+  popolato in fase `create` (decisione 5), serializzato in fase
+  `render` (decisione 6).
+- Specializzazioni future (es. `BuilderData` per la builder data bag)
+  ricalcano lo stesso pattern.
 
-La distinzione è di fase: la source è popolata dall'utente (grammar
-attiva), la built è prodotta dal builder durante la fase di build.
-
-Anche quando le sottoclassi del livello 2 sono vuote (o quasi), la
-loro presenza ha tre vantaggi:
+Anche quando una sottoclasse del livello 2 è vuota (o quasi), la sua
+presenza ha tre vantaggi:
 
 - crea il punto di estensione strutturale (override mirato senza
   toccare il livello 1);
-- tipizzazione discriminante: il tipo dice "source" o "built" senza
-  bisogno di flag;
+- tipizzazione discriminante: il tipo dice il ruolo della bag
+  (source, data, ecc.) senza bisogno di flag;
 - predispone il pattern per eventuali mixin di specializzazione
-  (`_BuilderSourceBagMixin`, `_BuilderBuiltBagMixin`, ecc.) quando
-  servisse aggiungere semantica per la fase.
+  (`_BuilderSourceMixin`, `_BuilderDataMixin`, ecc.) quando servisse
+  aggiungere semantica per quel ruolo.
+
+## Discussioni aperte
+
+Le voci sotto sono **piste emerse** in fase di brainstorming ma non
+ancora formalizzate come decisioni. Sono citate qui per dare un
+orizzonte al lettore e per essere riprese nei prossimi step. Ciascuna
+chiude con "da formalizzare in step successivo".
+
+### `@struct_method` sull'handler
+
+Pattern ergonomico per "blocchi riusabili lato Python": un metodo
+decorato sull'handler diventa invocabile come fosse un tag del
+builder (es. `root.miablock(...)` nel `main` della pagina). Il
+dispatch via `__getattr__` del bag, non trovando il nome nello schema
+del builder, cerca sull'handler e invoca il metodo con il bag come
+primo argomento. Il metodo modifica direttamente la source; il
+"blocco" si dissolve nei suoi figli — niente identità persistente
+nel bag, niente espansione differita. Pattern già validato per anni
+nel GenroPy legacy (`struct_method` su `GnrDomSrc`).
+
+Da formalizzare in step successivo.
+
+### Tag custom in mixin separati
+
+I "blocchi riusabili condivisi con JS" sono **tag custom dichiarati
+per nome** (Web Component nativi `<my-widget>`, oppure widget JS
+proprietari). Lato Python sono opachi: solo signature, niente body.
+La materializzazione visiva è responsabilità del runtime di
+destinazione. Vivono in **mixin separati** dal dialetto puro
+(es. `Html5Elements` resta W3C, `MyWidgetsMixin` aggiunge tag
+custom). Decoratore distinto da `@element` per marcare la natura
+diversa (nome candidato non scelto: `@widget`, `@custom_element`,
+ecc.).
+
+Da formalizzare in step successivo.
+
+### `requires` sulla pagina
+
+Analogo del `js_requires` legacy. La pagina (handler) dichiara
+staticamente quali mixin di tag custom le servono, e il framework li
+mescola nel builder dell'istanza. Il momento e il meccanismo
+(arricchimento di `self._schema` per istanza, oppure magia nel
+`__getattr__`) sono entrambi praticabili e da decidere quando si
+implementa.
+
+Da formalizzare in step successivo.
+
+### Manifest dei widget JS
+
+Per evitare la doppia dichiarazione (un mixin Python + un widget
+JS), ogni widget JS può portare un proprio **manifest dichiarativo**
+(nome tag, attributi, vincoli, doc). Python legge il manifest e
+genera al volo il mixin di tag custom; JS lo legge per registrare
+l'implementazione runtime. Fonte di verità condivisa, niente
+duplicazione.
+
+Da formalizzare in step successivo.
+
+### `schema_export` / `from_grammar`
+
+Exporter `.gnrbld.json` della grammatica di un dialetto in forma
+neutra, dichiarativa, indipendente dal linguaggio. Punto di
+stabilità che disaccoppia builder Python da consumer futuri (builder
+JS, transpiler XSD, transpiler JSON Schema, ecc.). Dual `from_grammar`
+per ricostruire un builder dinamico a partire dal file.
+
+Da formalizzare in step successivo.
+
+### Orchestratore / commander multi-handler
+
+La decisione 4 prevede già che, quando servono più handler coordinati,
+si introduca un **orchestratore** esplicito come strato sopra,
+separato dall'handler. La forma concreta (nome candidato:
+`BuilderCommander`, `BuilderOrchestrator`, o altro), il suo contratto
+e la sua API restano da definire quando l'esigenza emerge:
+condivisione dati fra handler, dispatch eventi, render coordinato
+multi-documento, ecc.
+
+Da formalizzare in step successivo.
