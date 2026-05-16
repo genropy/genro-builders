@@ -2,25 +2,25 @@
 """SvgBuilder — SVG dialect for genro-builders.
 
 The grammar comes from ``SvgElements`` (W3C SVG 1.1/2 schema).
-Rendering lives on ``SvgRenderer``; compilation (future) on
-``SvgCompiler``. The builder only wires them together (decision 8,
-renegotiated 2026-05-12).
+Rendering lives on ``SvgRenderer``, registered under the ``"svg"``
+mode in ``__init__`` (decision 6+8 v0.4.0).
 """
 
 from __future__ import annotations
 
 from ...builder import BagBuilderBase
-from .svg_compiler import SvgCompiler
 from .svg_elements import SvgElements
 from .svg_extensions import SvgExtensions
 from .svg_renderer import SvgRenderer
 
 
 class SvgBuilder(BagBuilderBase, SvgExtensions, SvgElements):
-    """SVG dialect builder. Grammar only — rendering is on
-    ``SvgRenderer``, compilation (future) on ``SvgCompiler``."""
+    """SVG dialect builder. Grammar only — rendering on
+    ``SvgRenderer``, registered under the ``"svg"`` mode."""
 
     _name = "svg"
     _default_render_mode = "svg"
-    _renderer_class = SvgRenderer
-    _compiler_class = SvgCompiler
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.register_renderer("svg", SvgRenderer)

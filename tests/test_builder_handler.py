@@ -39,7 +39,7 @@ class _RecordingBuilder:
     _schema_tag_names = frozenset()
     _schema = ()
     _default_render_mode = "stub"
-    _renderer_class = _RecordingRenderer
+    _renderers = {"stub": _RecordingRenderer}
 
 
 class _StubHandler(BuilderHandler):

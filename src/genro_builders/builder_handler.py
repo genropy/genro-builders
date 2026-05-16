@@ -71,15 +71,18 @@ class BuilderHandler:
 
     @property
     def renderer(self) -> Any:
-        """Lazy, cached dialect renderer.
+        """Lazy, cached dialect renderer for the default mode.
 
-        Instantiated from ``builder._renderer_class`` on first access.
+        Instantiated from the builder's renderer registry (the renderer
+        bound to ``self.builder._default_render_mode``) on first access.
         Available for inspection (``handler.renderer._STYLE_ROOTS``,
         etc.) or for explicit calls when the shortcut
         ``handler.render(...)`` is too narrow.
         """
         if self._renderer is None:
-            self._renderer = self.builder._renderer_class(self)
+            mode = self.builder._default_render_mode
+            renderer_cls = self.builder._renderers[mode]
+            self._renderer = renderer_cls(self)
         return self._renderer
 
     # ------------------------------------------------------------------
@@ -105,16 +108,19 @@ class BuilderHandler:
 
         For the primary builder this is just ``self.renderer``. For a
         sub-builder (a different dialect attached to a subtree), the
-        renderer class is read from the sub-builder's ``_renderer_class``
-        and instantiated once per handler. The sub-renderer carries
-        an explicit ``builder`` reference so polymorphic dispatch via
-        ``node._builder`` can identify it correctly.
+        renderer class is read from the sub-builder's renderer registry
+        (default mode) and instantiated once per handler. The
+        sub-renderer carries an explicit ``builder`` reference so
+        polymorphic dispatch via ``node._builder`` can identify it
+        correctly.
         """
         if builder is self.builder:
             return self.renderer
         key = id(builder)
         if key not in self._sub_renderer_cache:
-            self._sub_renderer_cache[key] = builder._renderer_class(self, builder)
+            mode = builder._default_render_mode
+            renderer_cls = builder._renderers[mode]
+            self._sub_renderer_cache[key] = renderer_cls(self, builder)
         return self._sub_renderer_cache[key]
 
     # ------------------------------------------------------------------

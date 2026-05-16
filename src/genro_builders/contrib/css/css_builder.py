@@ -26,19 +26,20 @@ from pathlib import Path
 from typing import Any
 
 from ...builder import BagBuilderBase
-from .css_compiler import CssCompiler
 from .css_elements import CssElements
 from .css_renderer import CssRenderer
 
 
 class CssBuilder(BagBuilderBase, CssElements):
-    """CSS dialect builder. Grammar only — rendering on ``CssRenderer``,
-    compilation (future) on ``CssCompiler``."""
+    """CSS dialect builder. Grammar only — rendering on
+    ``CssRenderer``, registered under the ``"css"`` mode."""
 
     _name = "css"
     _default_render_mode = "css"
-    _renderer_class = CssRenderer
-    _compiler_class = CssCompiler
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.register_renderer("css", CssRenderer)
 
     # ------------------------------------------------------------------
     # Reverse: from CSS source to CssBuilderHandler Python source

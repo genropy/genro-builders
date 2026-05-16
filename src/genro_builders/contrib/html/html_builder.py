@@ -2,9 +2,8 @@
 """HtmlBuilder — HTML5 dialect for genro-builders.
 
 The grammar comes from ``Html5Elements`` (generated from the W3C
-RELAX NG schema). Rendering lives on ``HtmlRenderer``; compilation
-(future) on ``HtmlCompiler``. The builder only wires them together
-(decision 8, renegotiated 2026-05-12).
+RELAX NG schema). Rendering lives on ``HtmlRenderer``, registered
+under the ``"html"`` mode in ``__init__`` (decision 6+8 v0.4.0).
 """
 
 from __future__ import annotations
@@ -12,15 +11,16 @@ from __future__ import annotations
 from ...builder import BagBuilderBase
 from .html5_elements import Html5Elements
 from .html5_extensions import Html5Extensions
-from .html_compiler import HtmlCompiler
 from .html_renderer import HtmlRenderer
 
 
 class HtmlBuilder(BagBuilderBase, Html5Extensions, Html5Elements):
-    """HTML5 dialect builder. Grammar only — rendering is on
-    ``HtmlRenderer``, compilation (future) on ``HtmlCompiler``."""
+    """HTML5 dialect builder. Grammar only — rendering on
+    ``HtmlRenderer``, registered under the ``"html"`` mode."""
 
     _name = "html"
     _default_render_mode = "html"
-    _renderer_class = HtmlRenderer
-    _compiler_class = HtmlCompiler
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.register_renderer("html", HtmlRenderer)

@@ -19,7 +19,6 @@ from typing import Any
 
 from genro_bag import Bag
 
-from ..compiler import CompilerBase
 from ..renderer import RendererBase
 from ._grammar import _GrammarMixin
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
@@ -170,25 +169,28 @@ class BagBuilderBase(
             raise LookupError(f"No builder registered with name {name!r}") from None
 
     def __init__(self) -> None:
-        """Initialize the builder. Grammar-only state (decisions 1, 8)."""
+        """Initialize the builder. Grammar-only state (decisions 1, 8 v0.4.0).
+
+        Each builder instance maintains its own renderer registry
+        (``self._renderers``) populated by ``self.register_renderer``.
+        Sub-classes override ``__init__`` to call ``super().__init__()``
+        and then register their dialect-specific renderers.
+        """
         self._schema = type(self)._class_schema
         self._schema_tag_names = type(self)._schema_tag_names
+        self._renderers: dict[str, type] = {}
+        self.register_renderer("xml", RendererBase)
 
-    # -----------------------------------------------------------------------
-    # Render & compile (decision 8, renegotiated 2026-05-12)
-    # -----------------------------------------------------------------------
+    def register_renderer(self, name: str, renderer_class: type) -> None:
+        """Register a renderer class under ``name`` on this builder.
+
+        Calling ``register_renderer`` again with the same name
+        overrides the previous registration. The registry is
+        per-instance: two builder instances of the same class can
+        diverge.
+        """
+        self._renderers[name] = renderer_class
 
     #: Default rendering mode used when ``render(mode=None)`` is called.
     #: Concrete dialects override this (e.g. ``"html"`` for HtmlBuilder).
     _default_render_mode: str = "xml"
-
-    #: Dialect renderer class. Subclasses bind their own renderer
-    #: (e.g. ``HtmlRenderer`` for ``HtmlBuilder``). Defaults to the
-    #: bare ``RendererBase`` which provides only ``render_xml`` —
-    #: enough for plain XML dialects and for sanity tests.
-    _renderer_class: type = RendererBase
-
-    #: Dialect compiler class. Subclasses bind their own compiler
-    #: (e.g. ``HtmlCompiler``). Defaults to the bare ``CompilerBase``
-    #: stub whose ``compile`` raises ``NotImplementedError``.
-    _compiler_class: type = CompilerBase

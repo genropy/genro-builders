@@ -1,9 +1,10 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """HtmlRenderer — renderer for the HTML5 dialect.
 
-Walks a built bag and produces HTML5 markup. Bound to ``HtmlBuilder``
-via ``HtmlBuilder._renderer_class``. Exposed on the handler as
-``handler.renderer`` (with ``handler.render(...)`` as shortcut).
+Walks the source bag and produces HTML5 markup. Registered on
+``HtmlBuilder`` under the ``"html"`` mode (decision 6+8 v0.4.0).
+Exposed on the handler as ``handler.renderer`` (with
+``handler.render(...)`` as shortcut).
 
 Features:
 
