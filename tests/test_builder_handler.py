@@ -96,22 +96,26 @@ def test_render_delegates_to_renderer_with_source_mode_and_target():
     """Decision 6: handler.render() forwards source, mode and
     render_target to the dialect renderer."""
     h = _StubHandler()
-    h.render_target = "<file-stub>"
-    out = h.render("html")
+    h.set_render_target("stub", "<file-stub>", default=True)
+    out = h.render(mode="stub")
     assert len(h.renderer.calls) == 1
     source_arg, mode_arg, target_arg = h.renderer.calls[0]
     assert source_arg is h.source
-    assert mode_arg == "html"
+    assert mode_arg == "stub"
     assert target_arg == "<file-stub>"
     assert "rendered" in out
 
 
-def test_render_target_property_round_trip():
-    """Decision 6: render_target is settable and readable."""
+def test_set_render_target_round_trip():
+    """Decision 6: set_render_target stores target in the per-mode dict."""
     h = _StubHandler()
-    assert h.render_target is None
-    h.render_target = "x"
-    assert h.render_target == "x"
+    assert h._render_targets == {}
+    h.set_render_target("stub", "x")
+    assert h._render_targets == {"stub": "x"}
+    assert h._default_render_mode is None
+    h.set_render_target("stub", "y", default=True)
+    assert h._render_targets == {"stub": "y"}
+    assert h._default_render_mode == "stub"
 
 
 def test_register_node_id_and_node_by_id_round_trip():

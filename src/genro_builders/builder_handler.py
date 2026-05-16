@@ -5,12 +5,13 @@ The handler owns:
     - one ``builder`` instance (decision 4: handler manages its builder);
     - the ``source`` bag (decisions 4 and 12);
     - the ``_node_index`` mapping ``node_id -> path`` (decision 11);
-    - the ``render_target`` slot (decision 6).
+    - the dict ``mode -> target`` of render targets (decision 6).
 
 Lifecycle (decision 5):
     handler = MyHandler()
     handler.create()    # main(source) -> populate self.source
-    handler.render()    # builder.render(mode, render_target=...)
+    handler.render()    # dispatch to the renderer bound to the
+                        # default mode, using its registered target.
 
 Subclasses (typically ``HtmlBuilderHandler``, etc.) set
 ``builder_class`` and override ``main(self, root)``.
@@ -38,10 +39,18 @@ class BuilderHandler:
         self.builder = self.builder_class()
         self.source = BuilderSource(builder=self.builder, handler=self)
         self._node_index: dict[str, str] = {}
-        self._render_target: Any = None
-        self._renderer: Any = None
+        self._render_targets: dict[str, Any] = {}
+        self._default_render_mode: str | None = None
+        self._renderer_cache: dict[str, Any] = {}
         self._subbuilder_cache: dict[str, Any] = {}
         self._sub_renderer_cache: dict[int, Any] = {}
+
+    def _get_renderer(self, mode: str) -> Any:
+        """Return the (cached) renderer instance for ``mode``."""
+        if mode not in self._renderer_cache:
+            renderer_cls = self.builder._renderers[mode]
+            self._renderer_cache[mode] = renderer_cls(self)
+        return self._renderer_cache[mode]
 
     # ------------------------------------------------------------------
     # Lifecycle (decision 5)
@@ -51,39 +60,99 @@ class BuilderHandler:
         """Populate the source bag by invoking ``main(self.source)``."""
         self.main(self.source)
 
-    def render(self, mode: str | None = None, **kwargs: Any) -> Any:
-        """Shortcut to ``self.renderer.render(...)``.
+    def render(
+        self,
+        target: Any = None,
+        mode: str | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Render the source via the renderer bound to ``mode``.
 
-        Forwards to the dialect's renderer (lazy property, see
-        ``self.renderer``) with ``render_target`` already populated
-        from ``self._render_target``. Extra ``**kwargs`` are
-        mode-specific options filtered downstream against the target
-        ``render_<mode>`` signature. See decision 6 and decision 8.
+        Argument ``target`` semantics (decision 6 v0.4.0):
+
+        - ``False`` → forces return-as-string, ignores any registered
+          target for the chosen mode;
+        - any other falsy value (``None``, ``""``, ``0``) → falls back
+          to the target registered under ``mode`` (see
+          ``set_render_target``);
+        - truthy value → used directly as the target for this call.
+
+        ``mode`` resolution:
+
+        - explicit ``mode`` argument wins;
+        - otherwise the handler's ``_default_render_mode`` (set via
+          ``set_render_target(..., default=True)``);
+        - otherwise the builder's ``_default_render_mode``.
+
+        The renderer corresponding to ``mode`` is looked up in the
+        builder's ``_renderers`` registry and instantiated on the fly.
         """
-        return self.renderer.render(
-            self.source, mode=mode, render_target=self._render_target,
+        effective_mode = (
+            mode
+            or self._default_render_mode
+            or self.builder._default_render_mode
+        )
+        effective_target = (
+            None if target is False
+            else target or self._render_targets.get(effective_mode)
+        )
+        renderer = self._get_renderer(effective_mode)
+        return renderer.render(
+            self.source,
+            mode=effective_mode,
+            render_target=effective_target,
             **kwargs,
         )
 
+    def set_render_target(
+        self,
+        mode: str,
+        target: Any,
+        default: bool = False,
+    ) -> None:
+        """Register a render target for ``mode``.
+
+        Overrides any previous registration under the same mode. When
+        ``default=True`` the mode also becomes the handler's default
+        for plain ``self.render()`` calls.
+        """
+        self._render_targets[mode] = target
+        if default:
+            self._default_render_mode = mode
+
+    def __getattr__(self, name: str) -> Any:
+        """Auto-generated ``render_<mode>`` shortcuts.
+
+        ``handler.render_xml('out.xml')`` is equivalent to
+        ``handler.render(target='out.xml', mode='xml')``. The shortcut
+        is generated only when the mode exists in the builder's
+        renderer registry; otherwise the lookup falls through to the
+        normal ``AttributeError``.
+        """
+        if name.startswith("render_"):
+            mode = name[len("render_"):]
+            registry = getattr(self.builder, "_renderers", None)
+            if registry is not None and mode in registry:
+                def shortcut(target: Any = None, **kwargs: Any) -> Any:
+                    return self.render(target=target, mode=mode, **kwargs)
+                return shortcut
+        raise AttributeError(
+            f"{type(self).__name__!r} object has no attribute {name!r}",
+        )
+
     # ------------------------------------------------------------------
-    # Renderer (decision 8)
+    # Renderer property (decision 8)
     # ------------------------------------------------------------------
 
     @property
     def renderer(self) -> Any:
-        """Lazy, cached dialect renderer for the default mode.
+        """Lazy, cached dialect renderer for the dialect's default mode.
 
-        Instantiated from the builder's renderer registry (the renderer
-        bound to ``self.builder._default_render_mode``) on first access.
         Available for inspection (``handler.renderer._STYLE_ROOTS``,
         etc.) or for explicit calls when the shortcut
         ``handler.render(...)`` is too narrow.
         """
-        if self._renderer is None:
-            mode = self.builder._default_render_mode
-            renderer_cls = self.builder._renderers[mode]
-            self._renderer = renderer_cls(self)
-        return self._renderer
+        return self._get_renderer(self.builder._default_render_mode)
 
     # ------------------------------------------------------------------
     # Sub-builder cache (decision 2)
@@ -122,18 +191,6 @@ class BuilderHandler:
             renderer_cls = builder._renderers[mode]
             self._sub_renderer_cache[key] = renderer_cls(self, builder)
         return self._sub_renderer_cache[key]
-
-    # ------------------------------------------------------------------
-    # Render target (decision 6)
-    # ------------------------------------------------------------------
-
-    @property
-    def render_target(self) -> Any:
-        return self._render_target
-
-    @render_target.setter
-    def render_target(self, value: Any) -> None:
-        self._render_target = value
 
     # ------------------------------------------------------------------
     # node_id index (decision 11)

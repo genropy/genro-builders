@@ -117,7 +117,7 @@ def test_svg_render_target_writes_to_writable():
     page = _Page()
     page.create()
     buf = io.StringIO()
-    page.render_target = buf
+    page.set_render_target("svg", buf, default=True)
     result = page.render()
     assert result is None
     assert buf.getvalue() == "<svg></svg>"
@@ -130,6 +130,6 @@ def test_svg_render_target_invalid_object_raises_type_error():
 
     page = _Page()
     page.create()
-    page.render_target = 42
+    page.set_render_target("svg", 42, default=True)
     with pytest.raises(TypeError):
         page.render()

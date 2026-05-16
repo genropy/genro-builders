@@ -219,7 +219,7 @@ def test_html_render_target_writes_to_writable():
     page = _Page()
     page.create()
     buf = io.StringIO()
-    page.render_target = buf
+    page.set_render_target("html", buf, default=True)
     result = page.render()
     assert result is None
     assert buf.getvalue() == "<div>a</div>"
@@ -232,7 +232,7 @@ def test_html_render_target_invalid_object_raises_type_error():
 
     page = _Page()
     page.create()
-    page.render_target = 42  # neither writable nor callable
+    page.set_render_target("html", 42, default=True)  # neither writable nor callable
     with pytest.raises(TypeError):
         page.render()
 
