@@ -17,7 +17,6 @@ builder = HtmlBuilder()
 body = builder.source.body()
 body.div(id='main').p('Hello, world!')
 
-builder.build()
 print(builder.render())
 ```
 
@@ -28,7 +27,6 @@ builder = HtmlBuilder()
 builder.data['title'] = 'Hello'
 builder.source.body().h1(value='^title')
 
-builder.build()
 builder.subscribe()
 print(builder.output)
 

@@ -19,7 +19,6 @@ def _render(main_fn):
 
     page = _Page()
     page.create()
-    page.build()
     return page, page.render()
 
 
@@ -32,7 +31,6 @@ def _render_pretty(main_fn):
 
     page = _Page()
     page.create()
-    page.build()
     return page, page.render(pretty=True)
 
 
@@ -62,7 +60,6 @@ def test_html_render_xml_false_emits_idiomatic_html5():
 
     page = _Page()
     page.create()
-    page.build()
     assert page.render(xml=False) == '<body><img src="logo.png"></body>'
 
 
@@ -74,7 +71,6 @@ def test_html_render_xml_true_default_matches_explicit():
 
     page = _Page()
     page.create()
-    page.build()
     assert page.render() == page.render(xml=True)
 
 
@@ -87,7 +83,6 @@ def test_html_render_unknown_kwarg_is_silently_ignored():
 
     page = _Page()
     page.create()
-    page.build()
     # ``no_such_option`` is not a render_html parameter — must be ignored.
     assert page.render(no_such_option=True) == "<div>x</div>"
 
@@ -223,7 +218,6 @@ def test_html_render_target_writes_to_writable():
 
     page = _Page()
     page.create()
-    page.build()
     buf = io.StringIO()
     page.render_target = buf
     result = page.render()
@@ -238,14 +232,13 @@ def test_html_render_target_invalid_object_raises_type_error():
 
     page = _Page()
     page.create()
-    page.build()
     page.render_target = 42  # neither writable nor callable
     with pytest.raises(TypeError):
         page.render()
 
 
 # ----------------------------------------------------------------------
-# Decision 8 renegotiated 2026-05-12: renderer / compiler properties.
+# Decision 8 (v0.4.0): renderer property.
 # ----------------------------------------------------------------------
 
 
@@ -267,27 +260,6 @@ def test_handler_renderer_is_cached():
 
     page = _Page()
     assert page.renderer is page.renderer
-
-
-def test_handler_compiler_is_html_compiler_instance():
-    from genro_builders.contrib.html.html_compiler import HtmlCompiler
-
-    class _Page(HtmlBuilderHandler):
-        def main(self, root):
-            pass
-
-    page = _Page()
-    assert isinstance(page.compiler, HtmlCompiler)
-
-
-def test_handler_compile_raises_not_implemented():
-    class _Page(HtmlBuilderHandler):
-        def main(self, root):
-            pass
-
-    page = _Page()
-    with pytest.raises(NotImplementedError):
-        page.compile()
 
 
 # ----------------------------------------------------------------------

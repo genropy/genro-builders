@@ -2,15 +2,14 @@
 """BuilderHandler — engine that drives a single Builder (decisions 4, 5, 9).
 
 The handler owns:
-    - one ``builder`` instance (decision 9: monobuilder per istanza);
-    - the ``source`` and ``built`` bags (decisions 4 and 12, level 2);
+    - one ``builder`` instance (decision 4: handler manages its builder);
+    - the ``source`` bag (decisions 4 and 12);
     - the ``_node_index`` mapping ``node_id -> path`` (decision 11);
     - the ``render_target`` slot (decision 6).
 
 Lifecycle (decision 5):
     handler = MyHandler()
     handler.create()    # main(source) -> populate self.source
-    handler.build()     # builder.build(source, built) -> self.built
     handler.render()    # builder.render(mode, render_target=...)
 
 Subclasses (typically ``HtmlBuilderHandler``, etc.) set
@@ -22,11 +21,11 @@ from typing import Any
 
 from .builder import BagBuilderBase
 from .builder_bag import BuilderBagNode
-from .built_bag import BuilderBuiltBag, BuilderSourceBag
+from .source_bag import BuilderSource
 
 
 class BuilderHandler:
-    """Engine that drives one builder through the create/build/render lifecycle."""
+    """Engine that drives one builder through the create/render lifecycle."""
 
     builder_class: type | None = None
 
@@ -37,12 +36,10 @@ class BuilderHandler:
                 "(decision 9: handler subclasses bind a specific builder).",
             )
         self.builder = self.builder_class()
-        self.source = BuilderSourceBag(builder=self.builder, handler=self)
-        self.built = BuilderBuiltBag(builder=self.builder, handler=self)
+        self.source = BuilderSource(builder=self.builder, handler=self)
         self._node_index: dict[str, str] = {}
         self._render_target: Any = None
         self._renderer: Any = None
-        self._compiler: Any = None
         self._subbuilder_cache: dict[str, Any] = {}
         self._sub_renderer_cache: dict[int, Any] = {}
 
@@ -54,10 +51,6 @@ class BuilderHandler:
         """Populate the source bag by invoking ``main(self.source)``."""
         self.main(self.source)
 
-    def build(self) -> None:
-        """Materialize ``self.source`` into ``self.built`` via the builder."""
-        self.builder.build(self.source, self.built)
-
     def render(self, mode: str | None = None, **kwargs: Any) -> Any:
         """Shortcut to ``self.renderer.render(...)``.
 
@@ -65,25 +58,15 @@ class BuilderHandler:
         ``self.renderer``) with ``render_target`` already populated
         from ``self._render_target``. Extra ``**kwargs`` are
         mode-specific options filtered downstream against the target
-        ``render_<mode>`` signature. See decision 6 (renegotiated
-        2026-05-12) and decision 8.
+        ``render_<mode>`` signature. See decision 6 and decision 8.
         """
         return self.renderer.render(
-            self.built, mode=mode, render_target=self._render_target,
+            self.source, mode=mode, render_target=self._render_target,
             **kwargs,
         )
 
-    def compile(self, **kwargs: Any) -> Any:
-        """Shortcut to ``self.compiler.compile(...)``.
-
-        Forwards to the dialect's compiler. Concrete compilers are
-        deferred; this raises ``NotImplementedError`` until a dialect
-        ships its own implementation.
-        """
-        return self.compiler.compile(**kwargs)
-
     # ------------------------------------------------------------------
-    # Renderer & compiler (decision 8, renegotiated 2026-05-12)
+    # Renderer (decision 8)
     # ------------------------------------------------------------------
 
     @property
@@ -98,13 +81,6 @@ class BuilderHandler:
         if self._renderer is None:
             self._renderer = self.builder._renderer_class(self)
         return self._renderer
-
-    @property
-    def compiler(self) -> Any:
-        """Lazy, cached dialect compiler. Symmetric to ``renderer``."""
-        if self._compiler is None:
-            self._compiler = self.builder._compiler_class(self)
-        return self._compiler
 
     # ------------------------------------------------------------------
     # Sub-builder cache (decision 2)
@@ -167,21 +143,16 @@ class BuilderHandler:
             )
         self._node_index[node_id] = path
 
-    def node_by_id(self, node_id: str, stage: str = "built") -> BuilderBagNode:
-        """Return the node registered under ``node_id`` from source or built."""
-        if stage not in ("source", "built"):
-            raise ValueError(
-                f"stage must be 'source' or 'built', got {stage!r}",
-            )
+    def node_by_id(self, node_id: str) -> BuilderBagNode:
+        """Return the source node registered under ``node_id``."""
         path = self._node_index[node_id]
-        bag = getattr(self, stage)
-        return bag.get_node(path)
+        return self.source.get_node(path)
 
     # ------------------------------------------------------------------
     # User hook
     # ------------------------------------------------------------------
 
-    def main(self, root: BuilderSourceBag) -> None:
+    def main(self, root: BuilderSource) -> None:
         """Override in subclass to populate the source bag."""
         raise NotImplementedError(
             f"{type(self).__name__}.main(root) must be implemented by the subclass",

@@ -37,7 +37,6 @@ svg.rect(x="74", y="72", width="14", height="14", fill="#3498db",
 # Chimney
 svg.rect(x="80", y="25", width="12", height="30", fill="#95a5a6")
 
-builder.build()
 output = builder.render()
 
 output_path = Path(__file__).with_suffix(".svg")

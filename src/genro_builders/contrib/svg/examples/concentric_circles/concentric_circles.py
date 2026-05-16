@@ -24,7 +24,6 @@ for r, color in zip(radii, colors, strict=True):
     svg.circle(cx="100", cy="100", r=str(r), fill=color,
                stroke="#c0392b", stroke_width="2")
 
-builder.build()
 output = builder.render()
 
 output_path = Path(__file__).with_suffix(".svg")

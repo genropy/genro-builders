@@ -22,7 +22,6 @@ class _Page(HtmlBuilderHandler):
 def test_render_returns_string_when_target_is_none():
     h = _Page()
     h.create()
-    h.build()
     out = h.render()
     assert isinstance(out, str)
     assert "div" in out
@@ -33,23 +32,20 @@ def test_render_default_mode_matches_dialect():
     """``render()`` uses ``_default_render_mode`` of the dialect."""
     h = _Page()
     h.create()
-    h.build()
     assert h.render() == h.render("html")
 
 
-def test_render_xml_mode_matches_built_to_xml():
-    """The ``xml`` mode is always available and equals ``built.to_xml()``."""
+def test_render_xml_mode_matches_source_to_xml():
+    """The ``xml`` mode is always available and equals ``source.to_xml()``."""
     h = _Page()
     h.create()
-    h.build()
-    assert h.render("xml") == h.built.to_xml()
+    assert h.render("xml") == h.source.to_xml()
 
 
 def test_render_xml_pretty_produces_multiline_output():
     """``pretty=True`` on xml mode produces a multi-line indented string."""
     h = _Page()
     h.create()
-    h.build()
     pretty = h.render("xml", pretty=True)
     linear = h.render("xml")
     assert pretty != linear
@@ -60,7 +56,6 @@ def test_render_xml_pretty_produces_multiline_output():
 def test_render_unknown_mode_raises_value_error():
     h = _Page()
     h.create()
-    h.build()
     with pytest.raises(ValueError):
         h.render("xyz")
 
@@ -69,7 +64,6 @@ def test_render_target_writes_to_writable_object():
     """A render_target with a .write method receives the output."""
     h = _Page()
     h.create()
-    h.build()
     buffer = io.StringIO()
     h.render_target = buffer
     result = h.render()
@@ -80,7 +74,6 @@ def test_render_target_writes_to_writable_object():
 def test_render_target_calls_callable_target():
     h = _Page()
     h.create()
-    h.build()
     captured: list[str] = []
     h.render_target = captured.append
     result = h.render()
@@ -92,7 +85,6 @@ def test_render_target_calls_callable_target():
 def test_render_target_invalid_object_raises_type_error():
     h = _Page()
     h.create()
-    h.build()
     h.render_target = object()  # not writable, not callable
     with pytest.raises(TypeError):
         h.render()
@@ -101,7 +93,6 @@ def test_render_target_invalid_object_raises_type_error():
 def test_render_target_writes_to_str_path(tmp_path):
     h = _Page()
     h.create()
-    h.build()
     out = tmp_path / "page.html"
     h.render_target = str(out)
     result = h.render()
@@ -114,7 +105,6 @@ def test_render_target_writes_to_str_path(tmp_path):
 def test_render_target_writes_to_pathlib_path(tmp_path):
     h = _Page()
     h.create()
-    h.build()
     out = tmp_path / "page.html"
     h.render_target = out
     result = h.render()
@@ -125,7 +115,6 @@ def test_render_target_writes_to_pathlib_path(tmp_path):
 def test_render_target_path_creates_missing_parent_dirs(tmp_path):
     h = _Page()
     h.create()
-    h.build()
     out = tmp_path / "deep" / "nested" / "page.html"
     assert not out.parent.exists()
     h.render_target = out

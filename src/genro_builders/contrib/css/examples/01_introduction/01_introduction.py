@@ -86,7 +86,6 @@ class HelloCss(CssBuilderHandler):
 if __name__ == "__main__":
     page = HelloCss()
     page.create()
-    page.build()
     rendered = page.render()
 
     output = Path(__file__).with_suffix(".css")

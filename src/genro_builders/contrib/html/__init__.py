@@ -14,7 +14,6 @@ Example::
 
     page = MyPage()
     page.create()
-    page.build()
     print(page.render())  # '<div>hello</div>'
 """
 

@@ -12,9 +12,9 @@ Decision 10: every node carries two slots, ``_builder`` and
 at attach time. Immutability is convention-only during the restart
 (see ``feedback_lightweight_nodes.md``).
 
-Decision 12: this module defines only level 1 (base common between
-source and built). Level 2 (``BuilderSourceBag`` / ``BuilderBuiltBag``)
-follows in 2.3.
+Decision 12: this module defines only level 1 (base common across
+all role specializations). Level 2 (``BuilderSource`` and future
+``BuilderData``, ...) lives in dedicated modules.
 """
 from __future__ import annotations
 

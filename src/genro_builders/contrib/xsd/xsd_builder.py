@@ -12,8 +12,7 @@ Example:
     >>>
     >>> bag = BuilderBag(builder=XsdBuilder, builder_xsd_source='pain.001.001.12.xsd')
     >>> doc = bag.Document()
-    >>> # ... build document ...
-    >>> bag.builder.build()
+    >>> # ... populate document ...
     >>> xml = bag.builder.render()  # validates against XSD
 """
 

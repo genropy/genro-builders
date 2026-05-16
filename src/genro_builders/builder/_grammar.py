@@ -91,6 +91,7 @@ class _GrammarMixin:
 
             # Element: no adapter, register directly with original kwargs
             kwargs.pop("node_value", None)
+            kwargs.pop("_tag", None)  # internal marker, never an attribute
             return self._add_element(destination_bag, node_value, node_tag=node_tag, **kwargs)
 
         return wrapper

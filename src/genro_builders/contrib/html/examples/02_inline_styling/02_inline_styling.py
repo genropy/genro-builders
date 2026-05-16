@@ -86,7 +86,6 @@ class StylingShowcase(HtmlBuilderHandler):
 if __name__ == "__main__":
     page = StylingShowcase()
     page.create()
-    page.build()
     rendered = page.render(pretty=True)
 
     output = Path(__file__).with_suffix(".html")

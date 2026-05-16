@@ -47,7 +47,6 @@ for i, (label, value) in enumerate(data):
     chart.text(label, x="-10", y=str(y + 20),
                font_size="14", fill="#666", text_anchor="end")
 
-builder.build()
 output = builder.render()
 
 output_path = Path(__file__).with_suffix(".svg")

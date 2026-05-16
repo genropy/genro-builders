@@ -18,7 +18,6 @@ def _render(main_fn, **render_kwargs):
 
     page = _Page()
     page.create()
-    page.build()
     return page.render(**render_kwargs)
 
 

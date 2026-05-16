@@ -30,7 +30,6 @@ class HelloPage(HtmlBuilderHandler):
 if __name__ == "__main__":
     page = HelloPage()
     page.create()
-    page.build()
     rendered = page.render(pretty=True)
 
     output = Path(__file__).with_suffix(".html")

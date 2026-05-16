@@ -11,8 +11,9 @@ Verifies that declaring ``svg`` as ``@subbuilder("svg")`` on
 
 Symmetric checks for ``SvgBuilder.foreignObject`` re-entering HTML.
 
-Also covers the build phase: ``handler.build()`` mirrors the
-sub-tree into ``built`` preserving the sub-builder dialect.
+Also covers the source: ``handler.create()`` populates the source
+with the sub-builder dialect attached to the sub-tree, which the
+render walker then dispatches via ``node._builder``.
 """
 from __future__ import annotations
 
@@ -136,12 +137,12 @@ def test_svg_html_div_validated_by_html_grammar():
 # ---------------------------------------------------------------------------
 
 
-def test_build_propagates_subbuilder_through_subtree():
-    """``page.build()`` produces built with sub-tree intact."""
+def test_create_propagates_subbuilder_through_subtree():
+    """``page.create()`` populates the source with the sub-builder
+    dialect attached to the sub-tree."""
     page = _HtmlWithSvg()
     page.create()
-    page.build()
-    body_node = next(iter(page.built))
+    body_node = next(iter(page.source))
     svg_node = next(iter(body_node.value))
     rect_node = next(iter(svg_node.value))
     assert svg_node.node_tag == "svg"
@@ -160,7 +161,6 @@ def test_render_html_with_svg_uses_svg_dialect():
     output mixes HTML void-tag style with SVG's space-before-slash."""
     page = _HtmlWithSvg()
     page.create()
-    page.build()
     out = page.render()
     # HTML body wraps the SVG host tag and content.
     assert out.startswith("<body><svg>")
@@ -175,7 +175,6 @@ def test_render_svg_html_wraps_in_foreignobject_with_xmlns():
     wrap tag — it does not appear in the markup."""
     page = _SvgWithForeignHtml()
     page.create()
-    page.build()
     out = page.render()
     assert out.startswith(
         '<svg><foreignObject xmlns="http://www.w3.org/1999/xhtml">',
@@ -198,7 +197,6 @@ def test_render_wrap_tag_carries_user_attributes_from_source():
 
     page = _Page()
     page.create()
-    page.build()
     out = page.render()
     assert 'x="10"' in out
     assert 'y="20"' in out
@@ -212,7 +210,6 @@ def test_subbuilder_without_wrap_tag_renders_host_tag_verbatim():
     verbatim around the sub-renderer output. No envelope inserted."""
     page = _HtmlWithSvg()
     page.create()
-    page.build()
     out = page.render()
     # No xmlns inserted: the host tag is HTML5's native <svg>.
     assert "xmlns" not in out
@@ -234,7 +231,6 @@ def test_render_alternates_dialects_across_three_switches():
 
     page = _Mixed()
     page.create()
-    page.build()
     out = page.render()
     # Outer HTML body wraps everything.
     assert out.startswith("<body><svg>")

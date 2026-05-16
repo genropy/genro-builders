@@ -207,7 +207,6 @@ class Section6(HtmlBuilderHandler):
 def _render_section(handler_cls, *, pretty=True):
     page = handler_cls()
     page.create()
-    page.build()
     return page.render(pretty=pretty)
 
 

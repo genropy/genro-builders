@@ -19,7 +19,6 @@ def _render(main_fn):
 
     page = _Page()
     page.create()
-    page.build()
     return page, page.render()
 
 
@@ -117,7 +116,6 @@ def test_svg_render_target_writes_to_writable():
 
     page = _Page()
     page.create()
-    page.build()
     buf = io.StringIO()
     page.render_target = buf
     result = page.render()
@@ -132,7 +130,6 @@ def test_svg_render_target_invalid_object_raises_type_error():
 
     page = _Page()
     page.create()
-    page.build()
     page.render_target = 42
     with pytest.raises(TypeError):
         page.render()

@@ -2,28 +2,24 @@
 """Builder system for genro-bag — grammar and bag layering.
 
 Builders declare a domain-specific grammar via decorators
-(@element, @abstract, @component); BuilderHandlers (introduced
-during fase 2 of the 2026-05 restart) drive the create/build/render
-lifecycle on top of the grammar.
+(@element, @abstract, @subbuilder, @data_element); BuilderHandlers
+drive the create/render lifecycle on top of the grammar.
 
 Core classes:
-    BagBuilderBase: Grammar base — @element, @abstract, @component.
+    BagBuilderBase: Grammar base — @element, @abstract,
+        @subbuilder, @data_element.
     BuilderBag / BuilderBagNode: level 1 of the bag/node layering
         (decision 12). Contain the slots ``_builder`` and ``_handler``
         and the grammar-aware attribute resolution shared between
-        source and built.
-    BuilderSourceBag / BuilderSourceBagNode: level 2 source side.
-    BuilderBuiltBag / BuilderBuiltBagNode: level 2 built side.
+        specializations.
+    BuilderSource / BuilderSourceNode: level 2 source side, the bag
+        the user populates in ``handler.create()`` and that
+        ``handler.render()`` serializes.
 """
 
 from genro_builders.builder import BagBuilderBase
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode
-from genro_builders.built_bag import (
-    BuilderBuiltBag,
-    BuilderBuiltBagNode,
-    BuilderSourceBag,
-    BuilderSourceBagNode,
-)
+from genro_builders.source_bag import BuilderSource, BuilderSourceNode
 
 __version__ = "0.16.0"
 
@@ -31,8 +27,6 @@ __all__ = [
     "BagBuilderBase",
     "BuilderBag",
     "BuilderBagNode",
-    "BuilderBuiltBag",
-    "BuilderBuiltBagNode",
-    "BuilderSourceBag",
-    "BuilderSourceBagNode",
+    "BuilderSource",
+    "BuilderSourceNode",
 ]

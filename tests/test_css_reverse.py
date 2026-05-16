@@ -53,7 +53,6 @@ def _roundtrip(css: str) -> str:
     handler_cls = namespace["ReversedCss"]
     handler = handler_cls()
     handler.create()
-    handler.build()
     return handler.render() or ""
 
 
@@ -442,7 +441,6 @@ def test_real_world_gnr_resets_roundtrip_executes_and_renders():
     exec(code, namespace)
     handler = namespace["ReversedCss"]()
     handler.create()
-    handler.build()
     out = handler.render()
     assert isinstance(out, str)
     assert "@import" in out

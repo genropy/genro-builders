@@ -27,7 +27,6 @@ class Theme(CssBuilderHandler):
 
 theme = Theme()
 theme.create()
-theme.build()
 print(theme.render())
 ```
 
@@ -312,7 +311,6 @@ class Theme(CssBuilderHandler):
 
 theme = Theme()
 theme.create()
-theme.build()
 print(theme.render())
 ```
 

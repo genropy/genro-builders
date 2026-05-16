@@ -15,7 +15,6 @@ Example::
 
     chart = MyChart()
     chart.create()
-    chart.build()
     print(chart.render())
 """
 

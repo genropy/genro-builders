@@ -17,7 +17,6 @@ Example::
 
     theme = Theme()
     theme.create()
-    theme.build()
     print(theme.render())
 """
 

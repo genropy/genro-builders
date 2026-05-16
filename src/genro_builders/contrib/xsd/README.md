@@ -20,7 +20,6 @@ bag = BuilderBag(builder=XsdBuilder, builder_xsd_source='schema.xsd')
 doc = bag.Document()
 # ... build document following XSD structure ...
 
-bag.builder.build()
 xml = bag.builder.render()
 ```
 

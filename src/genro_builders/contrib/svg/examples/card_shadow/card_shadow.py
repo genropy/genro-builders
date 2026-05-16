@@ -34,7 +34,6 @@ svg.text("Card Title", x="100", y="60",
 svg.text("With drop shadow", x="100", y="85",
          text_anchor="middle", font_size="12", fill="#999")
 
-builder.build()
 output = builder.render()
 
 output_path = Path(__file__).with_suffix(".svg")

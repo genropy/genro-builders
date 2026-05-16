@@ -19,7 +19,6 @@ svg = builder.source.svg(width="200", height="200", viewBox="0 0 200 200")
 svg.rect(x="10", y="10", width="80", height="80", fill="steelblue")
 svg.circle(cx="150", cy="50", r="40", fill="coral")
 
-builder.build()
 print(builder.render())
 ```
 

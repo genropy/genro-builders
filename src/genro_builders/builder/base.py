@@ -2,9 +2,9 @@
 """BagBuilderBase — grammar base class for Bag builders.
 
 A builder declares the grammar of a dialect via decorators
-(@element, @abstract, @component) and the schema of valid tag
-placements (sub_tags, parent_tags). Engine responsibilities — source,
-built, the create/build/render phases, render_target, node_id index —
+(@element, @abstract, @subbuilder, @data_element) and the schema of
+valid tag placements (sub_tags, parent_tags). Engine responsibilities
+— source, the create/render phases, render_target, node_id index —
 live on the BuilderHandler (decisions 1, 8, 9).
 
 Exports:
@@ -21,14 +21,12 @@ from genro_bag import Bag
 
 from ..compiler import CompilerBase
 from ..renderer import RendererBase
-from ._build import _BuildMixin
 from ._component import _ComponentMixin
 from ._grammar import _GrammarMixin
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
 
 
 class BagBuilderBase(
-    _BuildMixin,
     _ComponentMixin,
     _GrammarMixin,
     ABC,
@@ -38,10 +36,11 @@ class BagBuilderBase(
     A builder declares the dialect via decorators:
         - @element: Pure schema elements (body MUST be empty)
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
-        - @component: Composite structures (body called at expand time only)
+        - @subbuilder: Switch the active grammar to a sub-dialect.
+        - @data_element: Data-infrastructure elements.
 
-    Engine concerns (source/built bags, the three lifecycle phases,
-    render_target, node_id) belong to the BuilderHandler.
+    Engine concerns (source, lifecycle phases, render_target,
+    node_id) belong to the BuilderHandler.
     """
 
     _class_schema: Bag  # Schema built from decorators at class definition
