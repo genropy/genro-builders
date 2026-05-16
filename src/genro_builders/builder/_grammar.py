@@ -1,8 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Grammar mixin: element dispatch, component handling, validation, schema access.
+"""Grammar mixin: element dispatch, validation, schema access.
 
 Interprets the schema defined by decorators to create and validate nodes.
-Handles ``__getattr__`` lookup, element/data_element/component creation,
+Handles ``__getattr__`` lookup, element/data_element/subbuilder creation,
 child placement, all validation checks (call_args, sub_tags, parent_tags),
 and schema introspection (``__contains__``, ``_get_schema_info``, ``__iter__``).
 """
@@ -77,17 +77,6 @@ class _GrammarMixin:
             # Validate original kwargs BEFORE the method call
             node_value = args[0] if args else kwargs.get("node_value")
             self._validate_call_args(info, node_value, kwargs)
-
-            # iterate is a component-only capability (contract §8.1).
-            if kwargs.get("iterate") and not info.get("is_component"):
-                raise TypeError(
-                    f"iterate requires a @component node (with body to expand); "
-                    f"'{node_tag}' is an @element",
-                )
-
-            # Check if this is a component
-            if info.get("is_component"):
-                return self._handle_component(destination_bag, info, node_tag, kwargs)
 
             # Element: no adapter, register directly with original kwargs
             kwargs.pop("node_value", None)
@@ -233,7 +222,7 @@ class _GrammarMixin:
     ) -> Any:
         """Add a child to a node.
 
-        Uses _bag_call for schema elements (handles components and tag renames).
+        Uses _bag_call for schema elements (handles tag renames).
         Falls back to self._child() for unknown tags (provides validation errors).
         """
         if not isinstance(node.value, Bag):
@@ -404,7 +393,6 @@ class _GrammarMixin:
         """Check if target_node can accept child_tag at node_position.
 
         Builds children_tags = current tags + new tag, calls _validate_children_tags.
-        If child is a component with main_tag, validates using main_tag instead.
         Raises ValueError if not valid.
         """
         sub_tags_compiled = info.get("sub_tags_compiled")
@@ -415,17 +403,9 @@ class _GrammarMixin:
         if sub_tags_compiled == "*":
             return
 
-        # If child is a component with main_tag, validate as that tag
-        validation_tag = child_tag
-        child_schema = self._schema.get_node(child_tag)
-        if child_schema is not None:
-            main_tag = child_schema.attr.get("main_tag")
-            if main_tag:
-                validation_tag = main_tag
-
         # Build children_tags = current + new (excluding data elements)
         children_tags = (
-            [self._validation_tag_for(n) for n in target_node.value.nodes
+            [n.node_tag or n.label for n in target_node.value.nodes
              if not n.attr.get("_is_data_element")]
             if isinstance(target_node.value, Bag) else []
         )
@@ -436,19 +416,9 @@ class _GrammarMixin:
             if isinstance(target_node.value, Bag)
             else 0
         )
-        children_tags.insert(idx, validation_tag)
+        children_tags.insert(idx, child_tag)
 
         self._validate_children_tags(target_node.node_tag, sub_tags_compiled, children_tags)
-
-    def _validation_tag_for(self, node: BagNode) -> str:
-        """Return the tag to use for validation: main_tag if component, else node_tag."""
-        tag = node.node_tag or node.label
-        schema_node = self._schema.get_node(tag)
-        if schema_node is not None:
-            main_tag = schema_node.attr.get("main_tag")
-            if main_tag:
-                return str(main_tag)
-        return tag
 
     def _validate_parent_tags(
         self,
@@ -492,8 +462,8 @@ class _GrammarMixin:
 
             sub_tags, sub_tags_compiled, parent_tags, parent_tags_compiled,
             call_args_validations, _meta, documentation,
-            handler_name, is_component, is_data_element,
-            component_builder, based_on, slots.
+            handler_name, is_data_element, is_subbuilder,
+            subbuilder_name, wrap_tag.
 
         Results are cached on the schema node after first access.
 

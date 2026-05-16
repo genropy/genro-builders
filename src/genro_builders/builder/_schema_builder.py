@@ -22,8 +22,9 @@ class SchemaBuilder(BagBuilderBase):
     Use SchemaBuilder to define schemas at runtime instead of using decorators.
     Creates schema nodes with the structure expected by BagBuilderBase.
 
-    Note: SchemaBuilder cannot define @component - components require code
-    handlers and must be defined using the @component decorator.
+    Note: SchemaBuilder builds element-only schemas. Sub-builders and
+    data-elements that need code handlers must be defined via the
+    standard decorators.
 
     Schema conventions:
         - Elements: stored by name (e.g., 'div', 'span')

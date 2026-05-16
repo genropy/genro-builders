@@ -1,13 +1,13 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Public decorator API for defining builder grammars.
 
-Declarative decorators (``@element``, ``@abstract``, ``@subbuilder``)
-ignore the function body: they replace the decorated function with an
-inert ``_DeclarativeMarker`` carrying only what the framework reads
+Declarative decorators (``@element``, ``@abstract``) ignore the
+function body: they replace the decorated function with an inert
+``_DeclarativeMarker`` carrying only what the framework reads
 (``__name__``, ``__doc__``, ``_decorator``). Any body the user wrote
 is therefore unreachable.
 
-Body-bearing decorators (``@component``, ``@data_element``) keep the
+Body-bearing decorators (``@subbuilder``, ``@data_element``) keep the
 original function so the framework can call it later.
 
 Internal:
@@ -21,10 +21,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from .base import BagBuilderBase
+from typing import Any
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +91,7 @@ def _warn_if_body_present(func: Callable, decorator_name: str) -> None:
         warnings.warn(
             f"@{decorator_name} '{func.__name__}': the function body "
             "is ignored. Declarative decorators only read the signature; "
-            "if you need a body, use @component or @data_element instead.",
+            "if you need a body, use @data_element or @subbuilder instead.",
             stacklevel=3,
         )
 
@@ -207,120 +204,6 @@ def abstract(
 
 
 # ---------------------------------------------------------------------------
-# @component
-# ---------------------------------------------------------------------------
-
-def component(
-    tags: str | tuple[str, ...] | None = None,
-    main_tag: str | None = None,
-    sub_tags: str | tuple[str, ...] | None = None,
-    parent_tags: str | None = None,
-    builder: type[BagBuilderBase] | None = None,
-    based_on: str | None = None,
-    _meta: dict[str, Any] | None = None,
-    slots: list[str] | None = None,
-) -> Callable:
-    """Decorator to mark a method as component handler.
-
-    Components are composite structures whose handler receives a fresh
-    Component bag, populates it, and (optionally) returns it.
-    The populated bag becomes the node's value.
-
-    Unlike @element, @component REQUIRES a method body (ellipsis not allowed).
-    All component calls return a ``ComponentProxy`` that delegates to the
-    parent bag for chaining. If ``slots`` are defined, the proxy also
-    exposes slot Bags as attributes.
-
-    Args:
-        tags: Tag names this component handles. If None, uses method name.
-        main_tag: The DOM tag this component represents for validation.
-            When a parent element has strict sub_tags (e.g., HTML5 ``div``
-            only allows flow content), the component is validated as if
-            it were a ``main_tag`` element. For example,
-            ``@component(main_tag='div')`` means this component is treated
-            as a ``div`` when checking parent sub_tags.
-        sub_tags: Valid child tags AFTER the component is created.
-            Controls **validation** of children added after creation:
-            - ``''`` (empty string): Closed/leaf component — no children
-              can be added after creation.
-            - defined or ``None``: Open container — children matching
-              sub_tags can be added via the returned proxy.
-            All cases return ``ComponentProxy`` wrapping the parent bag.
-        parent_tags: Valid parent tags (comma-separated). If specified,
-            component can only be placed inside one of these parents.
-        builder: Optional builder class for the component's internal bag.
-            If not specified, uses the same builder class as parent.
-        _meta: Dict of metadata for renderers/compilers.
-        slots: List of named slot names. When present, the proxy also
-            provides access to slot Bags via attribute access.
-            The handler body should return a dict mapping slot names to
-            destination Bags where slot content will be mounted.
-
-    Handler signature (without slots)::
-
-        def handler(self, comp: Component, **kwargs) -> Component:
-            # 'comp' is the component's internal bag to populate.
-            # Returning comp is conventional but not required
-            # (the resolver ignores the return value).
-            # Body is called ONLY at compile time (lazy expansion).
-
-    Handler signature (with slots)::
-
-        def handler(self, comp: Component, **kwargs) -> dict[str, Bag]:
-            # Return dict mapping slot name -> destination Bag.
-            # Slot content is mounted into destination Bags at compile time.
-
-    Example - Closed component (sub_tags='')::
-
-        @component(sub_tags='')
-        def login_form(self, comp: Component, **kwargs):
-            comp.input(name='username')
-            comp.input(name='password')
-            comp.button('Login')
-            return comp
-
-        page.login_form()
-        page.other_element()  # continues at same level
-
-    Example - Open component (sub_tags defined)::
-
-        @component(sub_tags='item')
-        def mylist(self, comp: Component, title='', **kwargs):
-            comp.header(title=title)
-            return comp
-
-        lst = page.mylist(title='My List')
-        lst.item('First')
-        lst.item('Second')
-    """
-    def decorator(func: Callable) -> Callable:
-        # Components MUST have a real body (not ellipsis)
-        if _is_empty_body(func):
-            raise ValueError(
-                f"@component '{func.__name__}' must have a body - ellipsis (...) not allowed"
-            )
-
-        func._decorator = {  # type: ignore[attr-defined]
-            k: v
-            for k, v in {
-                "component": True,
-                "tags": tags,
-                "main_tag": main_tag,
-                "sub_tags": sub_tags,
-                "parent_tags": parent_tags,
-                "builder": builder,
-                "based_on": based_on,
-                "_meta": _meta,
-                "slots": slots,
-            }.items()
-            if v is not None
-        }
-        return func
-
-    return decorator
-
-
-# ---------------------------------------------------------------------------
 # @subbuilder
 # ---------------------------------------------------------------------------
 
@@ -372,10 +255,10 @@ def subbuilder(
         )
 
     def decorator(func: Callable) -> Callable:
-        # The body of an @subbuilder is treated like a @component body:
-        # a hook the build pipeline invokes during expansion. Empty body
-        # (``...``) means "use the default delegation
-        # (sub_builder.build(...))" — detected via ``_is_empty_body``.
+        # The body of an @subbuilder is a hook the framework can call
+        # to customise the sub-builder attach. Empty body (``...``)
+        # means "use the default delegation" — detected via
+        # ``_is_empty_body``.
         info: dict[str, Any] = {
             "subbuilder": True,
             "subbuilder_name": builder_name,

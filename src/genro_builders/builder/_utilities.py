@@ -141,8 +141,6 @@ def _extract_validators_from_signature(fn: Callable) -> dict[str, tuple[Any, lis
         "node_tag",
         "node_label",
         "node_position",
-        "component",  # first param of @component methods
-        "comp",  # short form for component param
     }
 
     try:
@@ -267,16 +265,6 @@ def _decorated_method_info(
                 tag_list.extend(tags_raw)
         handler_name = f"_dtel_{tag_list[0]}"
         return tag_list, handler_name, obj, decorator_info
-    elif decorator_info.get("component"):
-        tag_list: list[str] = [] if name.startswith("_") else [name]
-        tags_raw = decorator_info.get("tags")
-        if tags_raw:
-            if isinstance(tags_raw, str):
-                tag_list.extend(t.strip() for t in tags_raw.split(",") if t.strip())
-            else:
-                tag_list.extend(tags_raw)
-        handler_name = f"_comp_{tag_list[0]}"
-        return tag_list, handler_name, obj, decorator_info
     elif decorator_info.get("subbuilder"):
         tag_list: list[str] = [] if name.startswith("_") else [name]
         tags_raw = decorator_info.get("tags")
@@ -301,7 +289,7 @@ def _decorated_method_info(
 def _pop_decorated_methods(cls: type, builder_base: type):
     """Remove and yield decorated methods from cls and its mixin bases.
 
-    Collects @element, @abstract, and @component methods from:
+    Collects @element, @abstract, @subbuilder, @data_element methods from:
     1. The class itself (cls.__dict__) -- removed with delattr
     2. Mixin bases in MRO that are not BagBuilderBase subclasses
 

@@ -58,9 +58,9 @@ def test_abstract_returns_declarative_marker():
 
 
 def test_subbuilder_attaches_decorator_metadata_to_function():
-    """@subbuilder leaves the function alive (the body is invoked at
-    build time, similar to @component) and tags it with the decorator
-    info the framework reads from the schema."""
+    """@subbuilder leaves the function alive (the body is an optional
+    hook the framework can call to customise sub-builder attach) and
+    tags it with the decorator info the framework reads from the schema."""
     @subbuilder("html")
     def switch(self): ...
 

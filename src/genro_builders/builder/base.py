@@ -21,13 +21,11 @@ from genro_bag import Bag
 
 from ..compiler import CompilerBase
 from ..renderer import RendererBase
-from ._component import _ComponentMixin
 from ._grammar import _GrammarMixin
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
 
 
 class BagBuilderBase(
-    _ComponentMixin,
     _GrammarMixin,
     ABC,
 ):
@@ -67,7 +65,8 @@ class BagBuilderBase(
     # -----------------------------------------------------------------------
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Build _class_schema Bag from @element and @component decorated methods."""
+        """Build _class_schema Bag from decorated methods (@element,
+        @abstract, @subbuilder, @data_element)."""
         super().__init_subclass__(**kwargs)
 
         schema_path = getattr(cls, "_schema_path", None)
@@ -85,17 +84,12 @@ class BagBuilderBase(
             if method_name:
                 setattr(cls, method_name, obj)
 
-            is_component = decorator_info.get("component", False)
             is_data_element = decorator_info.get("data_element", False)
             is_subbuilder = decorator_info.get("subbuilder", False)
-            sub_tags = decorator_info.get("sub_tags") if is_component else decorator_info.get("sub_tags", "")
+            sub_tags = decorator_info.get("sub_tags", "")
             parent_tags = decorator_info.get("parent_tags")
             inherits_from = decorator_info.get("inherits_from", "")
             meta = decorator_info.get("_meta")
-            component_builder = decorator_info.get("builder")
-            based_on = decorator_info.get("based_on")
-            component_slots = decorator_info.get("slots")
-            main_tag = decorator_info.get("main_tag")
             subbuilder_name = decorator_info.get("subbuilder_name")
             subbuilder_wrap_tag = decorator_info.get("wrap_tag")
             documentation = obj.__doc__
@@ -108,21 +102,6 @@ class BagBuilderBase(
                         handler_name=method_name,
                         is_data_element=True,
                         documentation=documentation,
-                    )
-                elif is_component:
-                    cls._class_schema.set_item(
-                        tag, None,
-                        handler_name=method_name,
-                        is_component=True,
-                        main_tag=main_tag,
-                        component_builder=component_builder,
-                        based_on=based_on,
-                        slots=component_slots,
-                        sub_tags=sub_tags,
-                        parent_tags=parent_tags,
-                        _meta=meta,
-                        documentation=documentation,
-                        call_args_validations=call_args_validations,
                     )
                 elif is_subbuilder:
                     cls._class_schema.set_item(
