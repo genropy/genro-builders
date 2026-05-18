@@ -29,7 +29,7 @@ class Theme(CssBuilderHandler):
              ._.cssvar("primary", value="#3498db")
 
 
-t = Theme(); t.create(); t.build()
+t = Theme(); t.create()
 print(t.render())
 ```
 
@@ -122,11 +122,6 @@ input.
 
 The only mode is `css`. Output is multi-line, indented with two
 spaces, one property per line. No minification mode yet.
-
-## Compile
-
-Not implemented yet. `handler.compile()` raises
-`NotImplementedError`.
 
 ## Validation rules
 

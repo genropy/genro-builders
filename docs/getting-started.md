@@ -30,7 +30,6 @@ class HelloPage(HtmlBuilderHandler):
 
 page = HelloPage()
 page.create()
-page.build()
 print(page.render())
 ```
 
@@ -49,13 +48,10 @@ print(page.render(pretty=True))
 ## What just happened
 
 - `HelloPage()` instantiates the handler. The handler owns a builder
-  (`HtmlBuilder`), a source bag, a built bag, and a renderer.
+  (`HtmlBuilder`), a source bag, and a renderer.
 - `page.create()` calls `self.main(self.source)`. You populate the
   source bag using the dialect's fluent API.
-- `page.build()` materializes the source into a built bag (no-op
-  for plain HTML; expands components and data elements when those
-  are present).
-- `page.render()` walks the built bag and emits markup.
+- `page.render()` walks the source bag and emits markup.
 
 See [Builders overview](builders/overview.md) for the full lifecycle.
 
@@ -71,7 +67,7 @@ class Chart(SvgBuilderHandler):
         svg = root.svg(viewBox="0 0 100 100")
         svg.rect(x=10, y=10, width=80, height=80, fill="red")
 
-c = Chart(); c.create(); c.build()
+c = Chart(); c.create()
 print(c.render())
 ```
 
@@ -84,7 +80,7 @@ class Theme(CssBuilderHandler):
         sheet.rule(color="red", padding="10px")\
              .selector(_class="card")
 
-t = Theme(); t.create(); t.build()
+t = Theme(); t.create()
 print(t.render())
 ```
 
@@ -92,6 +88,6 @@ print(t.render())
 
 - [Builders overview](builders/overview.md) — the conceptual model.
 - [Common patterns](builders/patterns.md) — `._` chaining,
-  `node_by_id`, `render_target`.
+  `node_by_id`, render targets.
 - Per-grammar references: [HTML](grammars/html.md),
   [SVG](grammars/svg.md), [CSS](grammars/css.md).

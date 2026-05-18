@@ -4,14 +4,14 @@
 **Last Updated**: 2026-05-14
 **Status**: 🔴 DA REVISIONARE — Documento non ancora approvato.
 
-The framework provides five decorators for declaring a grammar.
+The framework provides four decorators for declaring a grammar.
 They live in
 [src/genro_builders/builder/_decorators.py](../../src/genro_builders/builder/_decorators.py)
 and are imported as:
 
 ```python
 from genro_builders.builder import (
-    element, abstract, subbuilder, component, data_element,
+    element, abstract, subbuilder, data_element,
 )
 ```
 
@@ -22,7 +22,6 @@ from genro_builders.builder import (
 | `@element` | Declare a tag in the grammar. | Ignored (declarative). |
 | `@abstract` | Declare an abstract base for inheritance. | Ignored (declarative). |
 | `@subbuilder` | Open a sub-grammar from this tag down. | Ignored (declarative). |
-| `@component` | Declare a macro that expands at build time. | Required. |
 | `@data_element` | Declare a transparent data-handling element. | Required. |
 
 ## `@element`
@@ -87,33 +86,12 @@ sub-builder governs its own `sub_tags`; the host only declares
 > the framework raises `NotImplementedError` when a subbuilder tag
 > is encountered.
 
-## `@component`
-
-Declares a macro that produces a sub-tree at build time. The body
-**is** executed (one of two body-bearing decorators).
-
-```python
-@component(main_tag='div')
-def card(self, comp, title, body):
-    comp.div(_class="card")
-    comp.h2(title)
-    comp.p(body)
-```
-
-- `main_tag` — the DOM tag this component represents for the
-  purpose of parent-side `sub_tags` validation.
-- `sub_tags` — what the component accepts as children **after**
-  creation (`''` = closed, anything else = open container).
-- `slots` — named slots that callers can fill from outside.
-
-> **Status**: the decorator is registered in the schema. Build-time
-> expansion is pending (see `roadmap/architecture-contract.md` §7).
-
 ## `@data_element`
 
 Declares a transparent element used for data-handling (writers,
 formulas). The body is a preprocessor returning `(path,
-attrs_dict)`. Data elements do not appear as nodes in the built bag.
+attrs_dict)`. Data elements live in the source tree but emit no
+markup at render time.
 
 ```python
 @data_element()
@@ -121,19 +99,18 @@ def data_setter(self, path, value=None, **kwargs):
     return path, dict(value=value, **kwargs)
 ```
 
-> **Status**: the decorator is registered. Build-time consumption is
-> pending until the data layer ships (see
-> `roadmap/data-architecture.md`).
+> **Status**: the decorator is registered. Consumption is pending
+> until the data layer ships (see `roadmap/data-architecture.md`).
 
 ## Declarative vs body-bearing
 
-The five decorators split into two families:
+The four decorators split into two families:
 
 - **Declarative**: `@element`, `@abstract`, `@subbuilder` — the
   framework only reads the signature and metadata. The function
   body is discarded; if you write a non-empty body, a warning is
   emitted at class definition time. Use `...` (ellipsis) as the
   body to suppress the warning.
-- **Body-bearing**: `@component`, `@data_element` — the framework
-  invokes the function during build. The body **must** be real
-  code (ellipsis raises `ValueError`).
+- **Body-bearing**: `@data_element` — the body **must** be real
+  code (ellipsis raises `ValueError`). The framework invokes it
+  when data elements are consumed (see the status callout above).

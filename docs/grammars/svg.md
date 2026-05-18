@@ -28,7 +28,7 @@ class Chart(SvgBuilderHandler):
         svg.circle(cx=50, cy=50, r=20, fill="white")
 
 
-c = Chart(); c.create(); c.build()
+c = Chart(); c.create()
 print(c.render())
 ```
 
@@ -98,12 +98,6 @@ serialize unchanged.
 The only mode is `svg`. Void tags emit with a space before the
 close (`<rect />`), in line with SVG convention. Pretty printing is
 not yet implemented.
-
-## Compile
-
-Not implemented yet. `handler.compile()` raises
-`NotImplementedError`. A future subtask will define live output
-(e.g. interactive SVG widgets).
 
 ## Validation rules
 

@@ -27,9 +27,9 @@ not currently usable: `contrib.xsd`, `contrib.data`.
 - **[Builders overview](builders/overview.md)** — what a builder is,
   how the lifecycle works.
 - **[Decorators](builders/decorators.md)** — `@element`, `@abstract`,
-  `@subbuilder`, `@component`, `@data_element`.
+  `@subbuilder`, `@data_element`.
 - **[Common patterns](builders/patterns.md)** — `._` chaining,
-  `node_by_id`, `render_target`.
+  `node_by_id`, render targets.
 - **Grammars** — per-grammar reference:
   [HTML](grammars/html.md), [SVG](grammars/svg.md),
   [CSS](grammars/css.md).

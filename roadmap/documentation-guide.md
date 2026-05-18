@@ -28,12 +28,12 @@ pattern emerges. Audience: a developer **using** the framework.
 Typical contents:
 
 - `documentation-guide.md` — this file.
-- `overview.md` — what a builder is, the three-phase lifecycle,
-  the handler/builder/renderer/compiler triad.
+- `overview.md` — what a builder is, the two-phase lifecycle,
+  the handler/builder/renderer triad.
 - `patterns.md` — cross-grammar idioms (e.g. the `._` chaining
-  pattern, `node_by_id`, `render_target` usage).
+  pattern, `node_by_id`, render target registration and dispatch).
 - `decorators.md` — `@element`, `@abstract`, `@subbuilder`,
-  `@component`, `@data_element`. The framework decorators.
+  `@data_element`. The framework decorators.
 
 ### 1.2 `docs/grammars/` — per-grammar
 
@@ -89,7 +89,7 @@ class Hello(<Name>BuilderHandler):
     def main(self, root):
         ...
 
-h = Hello(); h.create(); h.build()
+h = Hello(); h.create()
 print(h.render())
 ```
 
@@ -104,8 +104,7 @@ Tabular list of the grammar's elements. For each element:
 | `svg`  | subbuilder| —    | flow        | switches grammar |
 
 "Type" is one of: container (has children), leaf (no children),
-subbuilder (switches grammar), component (macro), data_element
-(transparent).
+subbuilder (switches grammar), data_element (transparent).
 
 If the grammar has many elements (HTML has 112), this can be
 abbreviated as a categorical list with the full schema referenced

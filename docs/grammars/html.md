@@ -29,7 +29,7 @@ class Page(HtmlBuilderHandler):
         body.p("genro-builders")
 
 
-p = Page(); p.create(); p.build()
+p = Page(); p.create()
 print(p.render(pretty=True))
 ```
 
@@ -122,12 +122,6 @@ pretty=False)`.
 
 `render_xml` (inherited from `RendererBase`) is also available; it
 delegates to `Bag.to_xml(pretty=...)` and produces stable XML.
-
-## Compile
-
-Not implemented yet. `handler.compile()` raises
-`NotImplementedError`. A future subtask will define the live
-output (DOM widgets, ASGI handlers, etc.).
 
 ## Validation rules
 

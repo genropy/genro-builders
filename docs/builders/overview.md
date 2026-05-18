@@ -15,34 +15,31 @@ The framework is built around three concrete classes:
   declares the grammar via decorators. No runtime state. No
   rendering logic.
 - **Renderer** (`HtmlRenderer`, `SvgRenderer`, `CssRenderer`, ...) —
-  walks a built bag and emits a string. One renderer class per
-  grammar.
+  walks the source bag and emits a string. One renderer class per
+  grammar, one renderer instance per mode.
 - **Handler** (`HtmlBuilderHandler`, `SvgBuilderHandler`,
   `CssBuilderHandler`, ...) — the engine. Owns one builder instance,
-  one source bag, one built bag, one render target. Drives the
-  lifecycle.
+  one source bag, and a mode-keyed dict of render targets. Drives
+  the lifecycle.
 
 The user subclasses the handler and implements `main(self, root)`.
 
-## The three phases
+## The two phases
 
-The handler's lifecycle has three phases, called explicitly:
+The handler's lifecycle has two phases, called explicitly:
 
 ```python
 page = MyPage()
 page.create()  # main(source) populates self.source
-page.build()   # source → built (expands components, etc.)
-page.render()  # serializes built
+page.render()  # serializes source
 ```
 
 | Phase | Method | What it does |
 |-------|--------|--------------|
 | Create | `handler.create()` | Calls `self.main(self.source)`. User code runs here, populating the source bag. |
-| Build | `handler.build()` | Walks the source and produces the built bag. For plain HTML/SVG/CSS this is mostly a mirror. Future expansion: components, data elements. |
-| Render | `handler.render(mode=None, **kwargs)` | Dispatches to `handler.renderer.render_<mode>(...)`. Returns the serialized output or writes it to `handler.render_target`. |
+| Render | `handler.render(mode=None, target=None, **kwargs)` | Dispatches to the renderer registered for `mode`. Returns the serialized output, or writes it to a render target previously registered via `handler.set_render_target(mode, target)`. |
 
-Each phase is independently inspectable: `page.source` after
-`create()`, `page.built` after `build()`.
+The source bag is inspectable as `page.source` after `create()`.
 
 ## Grammar declaration
 
@@ -86,14 +83,12 @@ class CustomerPage(HtmlBuilderHandler):
 |---------|----------|
 | Grammar (tags, validation, schema) | Builder |
 | Source bag (the recipe) | Handler |
-| Built bag (the materialized tree) | Handler |
-| Rendering (string output) | Renderer (instantiated lazily by handler) |
-| Compilation (future: live objects) | Compiler (stub; `NotImplementedError`) |
-| Render target (file, stream, buffer) | Handler |
+| Rendering (string output) | Renderer (one per mode, instantiated lazily by handler) |
+| Render targets (file, stream, buffer; one per mode) | Handler |
 | Node lookup by id | Handler (`node_by_id`) |
 
 This separation is fixed by the architecture contract (decision 8,
-renegotiated 2026-05-12). See `roadmap/architecture-contract.md`.
+v0.4.0). See `roadmap/architecture-contract.md`.
 
 ## What is not yet here
 
@@ -103,10 +98,6 @@ The following features are designed but not yet implemented:
   See `roadmap/data-architecture.md`.
 - **Reactivity** — automatic re-render when data changes. See
   `roadmap/implementation-roadmap.md`.
-- **Compilers** — concrete `compile()` methods. Today every
-  `*.compiler` is a stub that raises `NotImplementedError`.
-- **Components** (`@component` expansion in build). The decorator is
-  registered in the schema; expansion logic is pending.
 - **Sub-builders** (`@subbuilder(OtherBuilder)`). Decorator
   registers in the schema; attach logic is under active development
   (see `temp/subtask/subbuilder/`).

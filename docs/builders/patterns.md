@@ -81,30 +81,72 @@ Use `._` only when a leaf node interrupts the chain.
 
 ## Render targets — where the output goes
 
-By default `handler.render()` returns the rendered string.
-Alternatively, set `handler.render_target` to redirect:
+By default `handler.render()` returns the rendered string. You can
+also pass a target inline, or register one per mode in advance.
+
+### Inline target
 
 ```python
 # Return a string (default)
 text = page.render()
 
-# Write to a file
+# Write to a file (this call only)
 with open("out.html", "w") as f:
-    page.render_target = f
-    page.render()
+    page.render(target=f)
 
-# Pipe through a callable
-page.render_target = lambda chunk: socket.send(chunk)
-page.render()
+# Pipe through a callable (this call only)
+page.render(target=lambda chunk: socket.send(chunk))
 ```
+
+### Registered targets, one per mode
+
+For repeated rendering, register a target per mode once and let
+`render()` find it:
+
+```python
+page.set_render_target('html', 'out.html', default=True)
+page.set_render_target('xml',  'snapshot.xml')
+
+page.render()              # default mode 'html', writes out.html
+page.render(mode='xml')    # writes snapshot.xml
+page.render(target=False)  # default mode 'html', returns the string
+```
+
+`set_render_target(mode, target, default=False)` registers a target
+under a mode and optionally makes that mode the handler's default
+for subsequent plain `render()` calls.
+
+### Target semantics
+
+Inside `render(target=...)`:
+
+- `False` — forces return-as-string, **ignoring** any registered
+  target for the chosen mode;
+- any other falsy value (`None`, `""`, `0`) — falls back to the
+  target registered under the mode;
+- truthy value — used directly as the target for this call only.
 
 A render target may be:
 
 - `None` — the renderer accumulates a string and returns it.
+- A path string — opened for writing.
 - An object with a `.write(text)` method — file, stream, socket.
-- A callable — invoked once with the full text.
+- A callable — invoked with the rendered output.
 
-Any other type raises `TypeError`.
+The renderer rejects any other type with `TypeError`.
+
+### Shortcut: `render_<mode>(target=None)`
+
+For every mode in the builder's renderer registry the handler
+exposes an auto-generated shortcut:
+
+```python
+page.render_html('out.html')          # == page.render(target='out.html', mode='html')
+page.render_xml()                     # == page.render(mode='xml')
+```
+
+The shortcut accepts only `target` positionally; further kwargs go
+through `**kwargs` like in the canonical `render()` call.
 
 ## `node_id` and lookup
 
@@ -115,11 +157,9 @@ class Page(HtmlBuilderHandler):
     def main(self, root):
         root.body().h1("Title", node_id="header")
 
-page = Page(); page.create(); page.build()
+page = Page(); page.create()
 
-# Find it on source or built side:
-source_h1 = page.node_by_id("header", stage="source")
-built_h1  = page.node_by_id("header", stage="built")
+source_h1 = page.node_by_id("header")
 ```
 
 `node_id` is unique per handler. Collisions raise `ValueError`
@@ -135,7 +175,7 @@ A grammar's renderer can expose multiple `render_<mode>` methods.
 The handler dispatches via `mode`:
 
 ```python
-print(page.render())              # default mode (defined by builder)
+print(page.render())              # default mode (set by builder, or via set_render_target(..., default=True))
 print(page.render(mode="xml"))    # XML mode (Bag.to_xml under the hood)
 print(page.render(mode="html"))   # HTML mode (HtmlRenderer.render_html)
 print(page.render(pretty=True))   # mode-specific kwarg
