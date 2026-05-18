@@ -29,6 +29,47 @@ class BuilderHandler:
     """Engine that drives one builder through the create/render lifecycle."""
 
     builder_class: type | None = None
+    _struct_methods: dict[str, str] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Collect @struct_method declarations into ``cls._struct_methods``.
+
+        Legacy parity (gnrwebstruct.base.struct_method):
+            - dispatch name = explicit ``@struct_method('alias')`` if given,
+              else attr name with prefix-before-first-underscore stripped,
+              else attr name itself;
+            - dispatch lookup is case-insensitive (key stored lowercase);
+            - cross-MRO collisions: same dispatch name + same attr name
+              (subclass override) is allowed; same dispatch name + different
+              attr name raises ValueError.
+        """
+        super().__init_subclass__(**kwargs)
+        merged: dict[str, str] = {}
+        for klass in reversed(cls.__mro__):
+            parent_map = klass.__dict__.get("_struct_methods")
+            if parent_map:
+                merged.update(parent_map)
+        for attr_name, obj in cls.__dict__.items():
+            decorator = getattr(obj, "_decorator", None)
+            if decorator is None or not decorator.get("struct_method"):
+                continue
+            explicit = decorator.get("name")
+            if explicit is not None:
+                dispatch_name = explicit
+            elif "_" in attr_name:
+                dispatch_name = attr_name.split("_", 1)[1]
+            else:
+                dispatch_name = attr_name
+            key = dispatch_name.lower()
+            existing = merged.get(key)
+            if existing is not None and existing != attr_name:
+                raise ValueError(
+                    f"@struct_method '{dispatch_name}' is already tied to "
+                    f"implementation method '{existing}' (cannot rebind to "
+                    f"'{attr_name}')"
+                )
+            merged[key] = attr_name
+        cls._struct_methods = merged
 
     def __init__(self) -> None:
         if self.builder_class is None:

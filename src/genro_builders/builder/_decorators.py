@@ -308,16 +308,40 @@ def data_element(
     return decorator
 
 
-def struct_method(func: Callable) -> Callable:
+def struct_method(func_or_name):
     """Decorator: mark a handler method as a callable block invocable
     from any node via the bag's dispatch.
 
-    The body is preserved verbatim. Ellipsis body raises ValueError
-    (body-bearing decorator, same convention as @data_element).
+    Naming rules (legacy gnrwebstruct parity):
+        @struct_method
+        def widget(self, pane, ...): ...      # dispatch name: 'widget'
+
+        @struct_method
+        def iv_widget(self, pane, ...): ...   # dispatch name: 'widget'
+                                              # (strip prefix before first '_')
+
+        @struct_method('alias')
+        def some_internal_name(self, pane, ...): ...  # dispatch name: 'alias'
+
+    Body must not be empty (ellipsis); same convention as @data_element.
     """
-    if _is_empty_body(func):
-        raise ValueError(
-            f"@struct_method '{func.__name__}' must have a body"
-        )
-    func._decorator = {"struct_method": True}  # type: ignore[attr-defined]
-    return func
+    def _mark(func: Callable, explicit_name: str | None) -> Callable:
+        if _is_empty_body(func):
+            raise ValueError(
+                f"@struct_method '{func.__name__}' must have a body"
+            )
+        func._decorator = {  # type: ignore[attr-defined]
+            "struct_method": True,
+            "name": explicit_name,
+        }
+        return func
+
+    if isinstance(func_or_name, str):
+        explicit = func_or_name
+
+        def decorate(func: Callable) -> Callable:
+            return _mark(func, explicit)
+
+        return decorate
+
+    return _mark(func_or_name, None)

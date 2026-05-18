@@ -52,12 +52,25 @@ class _BuilderBagNodeMixin:
         parent = self._parent_bag
         return getattr(parent, "_builder", None) if parent is not None else None
 
+    def _resolve_handler(self) -> Any:
+        """Return the handler that owns this tree, falling back to the parent bag."""
+        try:
+            value = object.__getattribute__(self, "_handler")
+        except AttributeError:
+            value = None
+        if value is not None:
+            return value
+        parent = self._parent_bag
+        return getattr(parent, "_handler", None) if parent is not None else None
+
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attribute access to the active builder.
 
         ``node.div('hello')`` becomes ``builder._command_on_node(...)``
         when the active builder carries a tag named ``div`` in its
-        schema.
+        schema. If no grammar tag matches, fall back to a
+        ``@struct_method`` dispatched via the owning handler (legacy
+        gnrwebstruct parity).
         """
         if name.startswith("_"):
             raise AttributeError(
@@ -70,6 +83,12 @@ class _BuilderBagNodeMixin:
             )
         original_tag = builder._schema_tag_names.get(name.lower())
         if original_tag is None:
+            handler = self._resolve_handler()
+            if handler is not None:
+                method_name = handler._struct_methods.get(name.lower())
+                if method_name is not None:
+                    bound = getattr(handler, method_name)
+                    return lambda *args, **kwargs: bound(self, *args, **kwargs)
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
@@ -121,6 +140,25 @@ class _BuilderBagMixin:
             if original_tag is not None:
                 return builder._bag_call(self, original_tag)
         return super().__getattribute__(name)
+
+    def __getattr__(self, name: str) -> Any:
+        """Fallback after the regular attribute lookup fails: dispatch a
+        ``@struct_method`` via the owning handler (legacy gnrwebstruct
+        parity).
+        """
+        if name.startswith("_"):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+        handler = getattr(self, "_handler", None)
+        if handler is not None:
+            method_name = handler._struct_methods.get(name.lower())
+            if method_name is not None:
+                bound = getattr(handler, method_name)
+                return lambda *args, **kwargs: bound(self, *args, **kwargs)
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
 
     def __dir__(self) -> list[str]:
         """Expose schema tag names alongside the regular Bag API (original case)."""
