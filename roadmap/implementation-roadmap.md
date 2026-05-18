@@ -61,21 +61,22 @@ the sub-builder's renderer).
 
 ### 2.3 Components
 
-`@component`: a macro-like construct that produces a sub-tree at
-build time, preserved opaque in source (decision 7 of the
-contract). Includes the `main_tag` invariant and the single-root
-rule.
+A macro-like construct that produces a sub-tree, parameterised by
+its caller. Cited in the contract under "Discussioni aperte" as a
+candidate for re-introduction via `@struct_method` on the handler
+or via a new dedicated decorator. Includes the question of how the
+component declares its main tag and whether it accepts children.
 
 Touches: data (components often parameterise on a datapath and
 read pointers); data elements (a component frequently emits data
-elements alongside element nodes); iterate (a component with
-`iterate` replicates over data children).
+elements alongside element nodes); iterate (a component over data
+children).
 
 ### 2.4 Data elements
 
 `data_setter`, `data_formula`, and any other `@data_element`. They
-write to or install resolvers on the data store; they are
-transparent in the built tree.
+write to or install resolvers on the data store; they emit no
+markup at render time.
 
 Touches: data (they are the writers); components (data elements
 are commonly grouped inside a component); reactivity (data formulas
@@ -85,8 +86,8 @@ change).
 ### 2.5 Reactivity
 
 Change propagation: a write to `handler.data` causes the renderer
-(or compiler) to re-emit output. Includes the dependency graph,
-the subscriber, the dispatch, the throttling.
+to re-emit output. Includes the dependency graph, the subscriber,
+the dispatch, the throttling.
 
 Touches: every other axis. It is a meta-layer over a working
 system: it observes data, runs because of data, and re-renders the

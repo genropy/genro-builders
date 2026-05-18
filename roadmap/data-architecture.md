@@ -8,8 +8,8 @@ and users building applications on top of `BuilderHandler`.
 
 This document is the companion of
 [architecture-contract.md](architecture-contract.md). The contract
-fixes the twelve high-level decisions on builder, handler, render
-and compile; this document describes the **data model** that lives
+fixes the twelve high-level decisions on builder, handler, and
+render; this document describes the **data model** that lives
 on the handler: storage, path grammar, pointers, datapath, volumes,
 data access API, errors.
 
@@ -41,7 +41,7 @@ follow-up commits, one at a time.
 ## 1. Scope and placement
 
 This document covers the **data layer** of `genro-builders`: where
-data lives, how it is named, how nodes in the source and built tree
+data lives, how it is named, how nodes in the source tree
 reference it, and which API is allowed to read or write it. It is
 a companion to [architecture-contract.md](architecture-contract.md);
 that contract is the source of truth for handler/builder/render
@@ -72,12 +72,12 @@ customer invoice). A document has three parallel facets that the
 handler owns together:
 
 - **Schema / grammar** — provided by the builder
-  (`handler.builder`), which is grammar-only since the
-  renegotiation of decision 8 (2026-05-12).
+  (`handler.builder`), which is grammar-only (decision 8 of the
+  contract, v0.4.0).
 - **Data** — the live values of the document, owned by the handler
   as `handler.data` (a `Bag`).
-- **Presentation** — produced by `handler.renderer` reading
-  `handler.built` + `handler.data`.
+- **Presentation** — produced by the renderer registered for the
+  chosen mode, reading `handler.source` + `handler.data`.
 
 Because the data is part of the document's identity (loading an
 invoice means populating `handler.data`), the data lives on the
@@ -85,13 +85,12 @@ handler, not on the builder. Sub-builders (decision 2:
 `@subbuilder(SvgBuilder)`) **share** the handler's data; they do
 not own a local store of their own.
 
-The handler's lifecycle is unchanged from
+The handler's lifecycle is fixed by
 [architecture-contract.md §5](architecture-contract.md):
-`create` populates `source`, `build` materializes `built`,
-`render` serializes `built`. Data writes can happen at any
-moment after `__init__` and before — or in between — render
-calls. The renderer reads `handler.data` on every render, so
-re-rendering with new data produces new output without rebuilding.
+`create` populates `source`, `render` serializes `source`. Data
+writes can happen at any moment after `__init__` and before — or
+in between — render calls. The renderer reads `handler.data` on
+every render, so re-rendering with new data produces new output.
 
 ---
 
@@ -117,9 +116,7 @@ at `customer.name`. The suffix is orthogonal to the five forms.
 The grammar is intentionally identical for pointers and
 `datapath`. This means anything the user can write after `^` they
 can also write as a `datapath` value (without the leading `^`),
-and the resolution rules are the same. Symbolic forms (`#id`) are
-**source-time only**: the built tree does not keep a `node_id`
-index, so `#id` paths must be resolved before reaching the built.
+and the resolution rules are the same.
 
 ---
 
@@ -153,16 +150,16 @@ of the data store".
 
 A `^pointer` is a string that starts with `^` and carries the
 intent "read the data at this path". It can appear as a node's
-value or as a node's attribute. In the **source** tree, pointers
-are written verbatim by the user. In the **built** tree, pointers
-**remain strings** — they are not resolved during build.
+value or as a node's attribute. Pointers are written verbatim by
+the user; they live in the source tree as strings and are never
+rewritten in place.
 
-Pointer resolution happens just-in-time at render or compile time,
-on the node. The renderer or compiler reads `node.runtime_value`
-or `node.runtime_attrs`, which trigger the resolution chain. This
-late-binding makes it possible to render the same `built` multiple
+Pointer resolution happens just-in-time at render time, on the
+node. The renderer reads `node.runtime_value` or
+`node.runtime_attrs`, which trigger the resolution chain. This
+late-binding makes it possible to render the same source multiple
 times with different data, producing different outputs — the
-property reactivity is built on.
+property reactivity will be built on.
 
 Pointer values are never mutated in place: a write to the data
 store updates the value at the path, not the pointer string on
@@ -174,8 +171,8 @@ the node. The pointer is the *reference*, not the value.
 
 `abs_datapath(path)` is the **only** primitive that converts a
 path (in any of the five forms) into an absolute, fully-qualified
-string. It lives on the node (both source-side and built-side),
-walks the ancestor chain when needed, applies volume routing, and
+string. It lives on the node, walks the ancestor chain when
+needed, applies volume routing, and
 delegates symbolic lookup to `node_by_id` (§10).
 
 The rules are absolute:
@@ -185,16 +182,12 @@ The rules are absolute:
 - **No fallback** — an unresolvable path raises an exception.
   Missing volume → `KeyError`. Relative without anchor →
   `ValueError`.
-- **No drift between source and built** — both sides honour the
-  same grammar. The only difference is that the source side can
-  resolve symbolic forms (`#id`) because it keeps a `node_id`
-  index; the built side raises on symbolic input.
 
 `abs_datapath` is a **low-level primitive**. Application code
-(data elements, renderers, compilers, reactive callbacks) **must
-not** call it directly. The single application entry point is the
-pair described in §7. `abs_datapath` is exposed only for
-infrastructure that needs a path string without a read (typically
+(data elements, renderers, reactive callbacks) **must not** call
+it directly. The single application entry point is the pair
+described in §7. `abs_datapath` is exposed only for infrastructure
+that needs a path string without a read (typically
 dependency-graph registration).
 
 ---
@@ -267,10 +260,15 @@ singleton) is a layering violation.
 ## 9. DataBuilder — shared data pattern
 
 A `DataBuilder` is a handler dedicated to **data ownership**: it
-has a schema (declared via `@component` and `field`) but no
-renderer and no compiler. It exists to hold data that is read by
-multiple presentation handlers — invoices, PDFs, dashboards — via
-volume references.
+declares a schema and holds the data, with no renderer. It exists
+to hold data that is read by multiple presentation handlers —
+invoices, PDFs, dashboards — via volume references.
+
+> **Schema declaration syntax pending.** How the `DataBuilder`
+> declares its fields is under discussion in
+> [architecture-contract.md §Discussioni aperte](architecture-contract.md#discussioni-aperte).
+> The pattern below describes the runtime shape, not the
+> declaration surface.
 
 The typical setup is one or more `DataBuilder`s registered as
 volumes on the presentation handlers:
@@ -310,10 +308,7 @@ scopes:
 
 Any other `node_id` resolves nominally: the handler scans the
 source for a node whose `node_id` attribute matches. Collisions
-raise an error at registration time. Symbolic resolution is
-source-side only; the built tree raises if a symbolic form
-reaches it (because the built has no `node_id` index — it is a
-purely executional tree).
+raise an error at registration time.
 
 ---
 
@@ -323,11 +318,10 @@ The data layer fails loudly. The expected exceptions are:
 
 | Exception | Where | Meaning |
 |-----------|-------|---------|
-| `ValueError: Unresolved relative datapath` | `abs_datapath` (built side) | A `^.x` has no absolute ancestor anchor. |
-| `ValueError: Relative datapath without anchor` | `abs_datapath` (source side) | Same condition during `main()`. |
+| `ValueError: Unresolved relative datapath` | `abs_datapath` (at render time) | A `^.x` has no absolute ancestor anchor. |
+| `ValueError: Relative datapath without anchor` | `abs_datapath` (at create time) | Same condition during `main()`. |
 | `KeyError: Volume '<name>' not registered` | volume routing | A `^vol:x` referenced an unknown volume. |
 | `KeyError: No node with node_id '<id>'` | `node_by_id` | A `^#id.x` named an unknown node. |
-| `ValueError: Symbolic path on built side` | `abs_datapath` (built) | A `^#id.x` reached the built tree. |
 
 No silent default. No empty string. No `None` masquerading as a
 miss. Each error names what is missing and where.
@@ -342,20 +336,16 @@ The contractual properties the data layer always upholds:
    handler. Only volumes expose it to other handlers.
 2. **No prepend** — no code injects a handler name into a path.
 3. **No silent fallback** — unresolvable paths raise.
-4. **Built is formal** — `^pointer` strings live verbatim in the
-   built; resolution is render/compile-time only.
-5. **Resolution on the node** — only `BuiltBagNode` resolves
-   `^pointer`. Renderers and compilers read `runtime_value` /
-   `runtime_attrs`; they do not interpret `^...` themselves.
+4. **Source is formal** — `^pointer` strings live verbatim in the
+   source; resolution is render-time only.
+5. **Resolution on the node** — only `BuilderSourceNode` resolves
+   `^pointer`. The renderer reads `runtime_value` /
+   `runtime_attrs`; it does not interpret `^...` itself.
 6. **One read/write channel** —
    `node.get_relative_data` / `node.set_relative_data` are the
    only application entry points.
 7. **One resolver** — `abs_datapath` is the only primitive.
-   Source side and built side share the contract.
 8. **Volume is the only cross-handler vehicle** — no back-channel.
-9. **Single-root component** — a component produces exactly one
-   top-level node (from
-   [architecture-contract.md §7](architecture-contract.md#7-source-preserva-la-ricetta-dellutente-component-lazy)).
 
 These invariants are enforced by the implementation (raises) and
 by code review (the channel rule).
@@ -368,7 +358,7 @@ The following topics are referenced here for completeness but
 covered elsewhere or postponed:
 
 - **13.1 Reactivity** — change propagation from `handler.data` to
-  renderer/compiler. Forward reference: blueprint
+  the renderer. Forward reference: blueprint
   [../archive/docs/builders/manager-architecture.md §11](../archive/docs/builders/manager-architecture.md).
 - **13.2 Domain-data vs UI-state separation** — whether to split
   the data store into a domain part and a UI part. Deferred
@@ -386,17 +376,16 @@ Each topic above is a candidate for its own companion document.
 
 | Term | Meaning |
 |------|---------|
-| **handler** | A `BuilderHandler` instance — a document. Owns `source`, `built`, `data`, `renderer`, `compiler`, `render_target`. |
+| **handler** | A `BuilderHandler` instance — a document. Owns `source`, `data`, renderers and render targets (both mode-keyed). |
 | **data** | `handler.data`: the `Bag` that holds the live values of the document. |
-| **builder** | The grammar-only object (`handler.builder`). Defines tags, validation, build rules. |
+| **builder** | The grammar-only object (`handler.builder`). Defines tags, validation, render rules. |
 | **source** | The user's recipe, populated in `create`. |
-| **built** | The materialized tree, produced in `build`. Holds `^pointer` strings verbatim. |
 | **path** | A string identifying a location in a data store, in one of five canonical forms. |
-| **pointer** | A `^path` string that references data. Resolved at render/compile time. |
+| **pointer** | A `^path` string that references data. Resolved at render time. |
 | **datapath** | A node attribute that shifts the data context for descendants. Same grammar as the body of a pointer. |
 | **anchor** | The closest absolute `datapath` found while walking ancestors. Required to resolve a relative pointer. |
 | **volume** | A named reference to another handler's `data`, exposed via the handler's volume registry. |
-| **DataBuilder** | A handler dedicated to data ownership — schema + data, no renderer, no compiler. |
+| **DataBuilder** | A handler dedicated to data ownership — schema + data, no renderer. |
 | **node_id** | A source-side identifier used by symbolic pointers `^#id.x`. |
 | **`abs_datapath`** | The low-level primitive that converts any path form into an absolute string. Single resolver. |
 | **`get_relative_data` / `set_relative_data`** | The two application-level read/write entry points on a node. |
