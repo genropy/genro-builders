@@ -106,6 +106,11 @@ ignore = [
     "B008",   # no function calls in arg defaults
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Example notebooks favour compact one-liners (e.g. ``p = Page(); p.create()``)
+# for didactic density. Multi-statement-on-one-line is intentional there.
+"**/examples/**/*.ipynb" = ["E702"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["genro_builders"]
 
