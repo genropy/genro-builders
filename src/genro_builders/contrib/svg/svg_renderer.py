@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """SvgRenderer — renderer for the SVG dialect.
 
-Walks a built bag and produces SVG markup. SVG is XML by definition,
+Walks a source bag and produces SVG markup. SVG is XML by definition,
 so void tags are always self-closing; the legacy style ``<rect />``
 (space before the slash, per W3C XHTML convention followed by SVG
 tools) is preserved.
@@ -57,10 +57,10 @@ _VOID_TAGS = frozenset({
 class SvgRenderer(RendererBase):
     """Renderer for the SVG dialect (one mode: ``render_svg``)."""
 
-    def render_svg(self, built: Bag, render_target: Any = None) -> str | None:
-        """Serialize ``built`` as SVG markup. See module docstring."""
+    def render_svg(self, source: Bag, render_target: Any = None) -> str | None:
+        """Serialize ``source`` as SVG markup. See module docstring."""
         chunks: list[str] = []
-        for node in built:
+        for node in source:
             self._render_node(node, chunks.append)
         text = "".join(chunks)
         return self._write_or_return(text, render_target)

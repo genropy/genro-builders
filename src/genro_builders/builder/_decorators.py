@@ -286,7 +286,7 @@ def data_element(
     """Decorator for data infrastructure elements.
 
     Data elements have a preprocessor body that returns (path, attrs_dict).
-    They are transparent in sub_tags validation and NOT materialized in built.
+    They are transparent in sub_tags validation and emit no markup at render time.
 
     The handler body receives the raw arguments and returns a tuple:
         (path, attrs_dict) where path is the data path (None for controllers)

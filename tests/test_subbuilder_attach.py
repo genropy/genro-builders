@@ -133,7 +133,7 @@ def test_svg_html_div_validated_by_html_grammar():
 
 
 # ---------------------------------------------------------------------------
-# Build: sub-builder subtree mirrors into built
+# Create-side propagation through the source subtree
 # ---------------------------------------------------------------------------
 
 

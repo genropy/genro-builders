@@ -112,7 +112,9 @@ class _GrammarMixin:
     ) -> None:
         """Add a data element node to the source bag.
 
-        Not materialized in built. Processed as side effect during build walk.
+        The node lives in the source tree but is transparent to the
+        renderer: it emits no markup. Its consumption (side effects on
+        ``handler.data``) is part of the pending data layer.
         Bypasses _child() validation -- data elements are transparent.
         """
         label = self._auto_label(build_where, node_tag)
@@ -226,9 +228,9 @@ class _GrammarMixin:
         Falls back to self._child() for unknown tags (provides validation errors).
         """
         if not isinstance(node.value, Bag):
-            # Sub-bag must be the same type as the parent bag (so a
-            # source node spawns a source sub-bag, a built node a built
-            # sub-bag). ``_builder`` is resolved via the node itself
+            # Sub-bag must be the same type as the parent bag (e.g. a
+            # ``BuilderSourceNode`` spawns a ``BuilderSource`` sub-bag).
+            # ``_builder`` is resolved via the node itself
             # (its slot if populated, else ancestors): this lets an
             # @subbuilder node (e.g. <svg>) propagate its own dialect
             # down into the freshly-created sub-bag instead of leaking

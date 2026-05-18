@@ -127,7 +127,9 @@ class _BuilderBagMixin:
 class BuilderBagNode(BagNode, _BuilderBagNodeMixin):
     """Level-1 node: BagNode with builder-aware attribute dispatch.
 
-    Source-side and built-side nodes inherit from this (decision 12).
+    Level-2 specializations (e.g. ``BuilderSourceNode``, and any
+    future ``BuilderDataNode``) inherit from this. See decision 12
+    of the contract.
     """
 
     __slots__ = ("_builder", "_handler")
@@ -136,9 +138,10 @@ class BuilderBagNode(BagNode, _BuilderBagNodeMixin):
 class BuilderBag(Bag, _BuilderBagMixin):
     """Level-1 bag: Bag with builder-aware attribute dispatch.
 
-    Source-side and built-side bags inherit from this (decision 12).
-    Level-1 bags are not instantiated directly in normal flows; the
-    handler uses level-2 subclasses.
+    Level-2 specializations (e.g. ``BuilderSource``, and any future
+    ``BuilderData``) inherit from this. See decision 12 of the
+    contract. Level-1 bags are not instantiated directly in normal
+    flows; the handler uses level-2 subclasses.
     """
 
     node_class: type[BagNode] = BuilderBagNode

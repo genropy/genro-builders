@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """CssRenderer — renderer for the CSS dialect (level 1).
 
-Walks a built bag and produces CSS source. CSS is not XML, so this
+Walks a source bag and produces CSS markup. CSS is not XML, so this
 renderer does not go through ``render_xml``: it emits the
 ``selector-list { prop: value; ... }`` syntax directly.
 
@@ -57,16 +57,16 @@ class CssRenderer(RendererBase):
 
     def render_css(
         self,
-        built: Bag,
+        source: Bag,
         render_target: Any = None,
         *,
         pretty: bool = True,
         indent: str = "  ",
     ) -> str | None:
-        """Serialize ``built`` as CSS source. See module docstring."""
+        """Serialize ``source`` as CSS markup. See module docstring."""
         lines: list[str] = []
         self._render_top_sequence(
-            list(built), lines, pretty=pretty, indent=indent, depth=0,
+            list(source), lines, pretty=pretty, indent=indent, depth=0,
         )
         text = "\n".join(lines) + ("\n" if lines else "") if pretty else "".join(lines)
         return self._write_or_return(text, render_target)

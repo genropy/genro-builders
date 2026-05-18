@@ -87,15 +87,15 @@ class HtmlRenderer(RendererBase):
 
     def render_html(
         self,
-        built: Bag,
+        source: Bag,
         render_target: Any = None,
         *,
         xml: bool = True,
         pretty: bool = False,
     ) -> str | None:
-        """Serialize ``built`` as HTML5 markup. See module docstring."""
+        """Serialize ``source`` as HTML5 markup. See module docstring."""
         chunks: list[str] = []
-        for node in built:
+        for node in source:
             self._render_node(node, chunks.append, xml=xml, pretty=pretty, depth=0)
         text = "".join(chunks)
         return self._write_or_return(text, render_target)
