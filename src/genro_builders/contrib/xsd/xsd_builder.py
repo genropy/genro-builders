@@ -62,10 +62,19 @@ class XsdBuilder(BagBuilderBase):
 
         super().__init__(bag)
         self._schema = schema_bag
-        self._schema_tag_names = frozenset(
-            node.label for node in self._schema.nodes
-            if not node.label.startswith("@")
-        )
+        self._schema_tag_names: dict[str, str] = {}
+        for node in self._schema.nodes:
+            label = node.label
+            if label.startswith("@"):
+                continue
+            key = label.lower()
+            if key in self._schema_tag_names:
+                existing = self._schema_tag_names[key]
+                raise ValueError(
+                    f"Duplicate (case-insensitive) tag in XSD schema: "
+                    f"{existing!r} and {label!r} both lowercase to {key!r}"
+                )
+            self._schema_tag_names[key] = label
 
     def to_xml(self, full_validate: bool = False) -> str:
         """Serialize the bag to XML string.

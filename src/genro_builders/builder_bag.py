@@ -64,21 +64,26 @@ class _BuilderBagNodeMixin:
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
         builder = self._resolve_builder()
-        if builder is None or name not in builder._schema_tag_names:
+        if builder is None:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'"
+            )
+        original_tag = builder._schema_tag_names.get(name.lower())
+        if original_tag is None:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
         return lambda node_value=None, node_position=None, **attrs: builder._command_on_node(
-            self, name,
+            self, original_tag,
             node_position=node_position, node_value=node_value, **attrs,
         )
 
     def __dir__(self) -> list[str]:
-        """Expose schema tag names for autocompletion."""
+        """Expose schema tag names for autocompletion (original case)."""
         base = set(super().__dir__())
         builder = self._resolve_builder()
         if builder is not None:
-            base.update(builder._schema_tag_names)
+            base.update(builder._schema_tag_names.values())
         return sorted(base)
 
 
@@ -111,16 +116,18 @@ class _BuilderBagMixin:
             builder = super().__getattribute__("_builder")
         except AttributeError:
             builder = None
-        if builder is not None and name in builder._schema_tag_names:
-            return builder._bag_call(self, name)
+        if builder is not None:
+            original_tag = builder._schema_tag_names.get(name.lower())
+            if original_tag is not None:
+                return builder._bag_call(self, original_tag)
         return super().__getattribute__(name)
 
     def __dir__(self) -> list[str]:
-        """Expose schema tag names alongside the regular Bag API."""
+        """Expose schema tag names alongside the regular Bag API (original case)."""
         base = set(super().__dir__())
         builder = getattr(self, "_builder", None)
         if builder is not None:
-            base.update(builder._schema_tag_names)
+            base.update(builder._schema_tag_names.values())
         return sorted(base)
 
 

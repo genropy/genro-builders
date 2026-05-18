@@ -125,10 +125,19 @@ class BagBuilderBase(
                         call_args_validations=call_args_validations,
                     )
 
-        cls._schema_tag_names = frozenset(
-            node.label for node in cls._class_schema.nodes
-            if not node.label.startswith("@")
-        )
+        cls._schema_tag_names: dict[str, str] = {}
+        for node in cls._class_schema.nodes:
+            label = node.label
+            if label.startswith("@"):
+                continue
+            key = label.lower()
+            if key in cls._schema_tag_names:
+                existing = cls._schema_tag_names[key]
+                raise ValueError(
+                    f"Duplicate (case-insensitive) tag in {cls.__name__}: "
+                    f"{existing!r} and {label!r} both lowercase to {key!r}"
+                )
+            cls._schema_tag_names[key] = label
 
         name = cls.__dict__.get("_name")
         if name is not None:

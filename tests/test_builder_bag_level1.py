@@ -75,7 +75,7 @@ def test_builder_bag_dispatches_to_schema_when_builder_attached():
     """Decision 10: bag.<tag>(...) routes to builder._bag_call when tag is in schema."""
 
     class FakeBuilder:
-        _schema_tag_names = frozenset({"div"})
+        _schema_tag_names = {"div": "div"}
 
         def _bag_call(self, bag, name):
             return ("bag_call", bag, name)
@@ -90,7 +90,7 @@ def test_builder_bag_node_dispatches_to_builder_when_tag_known():
     """Decision 10: node.<tag>(...) routes to builder._command_on_node."""
 
     class FakeBuilder:
-        _schema_tag_names = frozenset({"span"})
+        _schema_tag_names = {"span": "span"}
 
         def _command_on_node(self, node, tag, node_position=None, node_value=None, **attrs):
             return ("cmd", node, tag, node_value, attrs)
@@ -108,7 +108,7 @@ def test_builder_bag_node_unknown_tag_raises_attribute_error():
     """Tags not in the builder schema should not resolve."""
 
     class FakeBuilder:
-        _schema_tag_names = frozenset({"div"})
+        _schema_tag_names = {"div": "div"}
 
     bag = BuilderBag()
     bag.set_item("root", None)

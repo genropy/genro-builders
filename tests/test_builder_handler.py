@@ -36,7 +36,7 @@ class _RecordingRenderer:
 class _RecordingBuilder:
     """Stand-in builder that records calls. Only used in tests."""
 
-    _schema_tag_names = frozenset()
+    _schema_tag_names: dict[str, str] = {}
     _schema = ()
     _default_render_mode = "stub"
     _renderers = {"stub": _RecordingRenderer}
