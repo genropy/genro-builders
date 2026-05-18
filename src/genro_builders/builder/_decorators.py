@@ -306,3 +306,18 @@ def data_element(
         return func
 
     return decorator
+
+
+def struct_method(func: Callable) -> Callable:
+    """Decorator: mark a handler method as a callable block invocable
+    from any node via the bag's dispatch.
+
+    The body is preserved verbatim. Ellipsis body raises ValueError
+    (body-bearing decorator, same convention as @data_element).
+    """
+    if _is_empty_body(func):
+        raise ValueError(
+            f"@struct_method '{func.__name__}' must have a body"
+        )
+    func._decorator = {"struct_method": True}  # type: ignore[attr-defined]
+    return func

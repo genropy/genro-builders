@@ -5,7 +5,7 @@ All external imports (``from genro_builders.builder import X``) continue
 to work unchanged after the split from a single module to a package.
 """
 
-from ._decorators import abstract, data_element, element, subbuilder
+from ._decorators import abstract, data_element, element, struct_method, subbuilder
 from ._schema_builder import SchemaBuilder
 from ._utilities import (
     _check_type,
@@ -21,6 +21,7 @@ __all__ = [
     "element",
     "abstract",
     "data_element",
+    "struct_method",
     "subbuilder",
     "Regex",
     "Range",

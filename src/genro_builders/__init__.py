@@ -17,7 +17,7 @@ Core classes:
         ``handler.render()`` serializes.
 """
 
-from genro_builders.builder import BagBuilderBase
+from genro_builders.builder import BagBuilderBase, struct_method
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode
 from genro_builders.source_bag import BuilderSource, BuilderSourceNode
 
@@ -29,4 +29,5 @@ __all__ = [
     "BuilderBagNode",
     "BuilderSource",
     "BuilderSourceNode",
+    "struct_method",
 ]
