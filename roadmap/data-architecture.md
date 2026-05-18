@@ -1,8 +1,7 @@
 # Data architecture
 
-**Version**: 0.1.0
-**Last Updated**: 2026-05-12
-**Status**: 🔴 DA REVISIONARE — Documento non ancora approvato.
+**Last Updated**: 2026-05-18
+**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
 **Audience**: Contributors writing or maintaining `genro-builders`,
 and users building applications on top of `BuilderHandler`.
 

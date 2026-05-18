@@ -1,8 +1,7 @@
 # genro-builders
 
-**Version**: 0.1.0
-**Last Updated**: 2026-05-14
-**Status**: 🔴 DA REVISIONARE — Documento non ancora approvato.
+**Last Updated**: 2026-05-18
+**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
 
 Builder system for [genro-bag](https://github.com/genropy/genro-bag).
 Construct structured documents — HTML, SVG, CSS — through a fluent,

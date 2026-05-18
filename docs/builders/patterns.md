@@ -1,8 +1,7 @@
 # Common patterns
 
-**Version**: 0.1.0
-**Last Updated**: 2026-05-14
-**Status**: 🔴 DA REVISIONARE — Documento non ancora approvato.
+**Last Updated**: 2026-05-18
+**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
 
 Cross-grammar idioms. These work the same way on HTML, SVG, CSS, or
 any user-defined dialect built on `BagBuilderBase`.
