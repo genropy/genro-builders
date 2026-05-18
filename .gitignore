@@ -150,5 +150,8 @@ temp/*
 !temp/.gitignore
 src/temp/
 
+# Structured subtask workspaces (per CLAUDE.md convention)
+.subtasks/
+
 # Local secondary worktrees (e.g. worktrees/blueprint for consultation)
 worktrees/
