@@ -21,7 +21,6 @@ from genro_bag import Bag
 
 from ...renderer import RendererBase
 
-
 _ATTR_MAP = {"_class": "class", "_for": "for"}
 
 _KEBAB_ATTRS = frozenset({

@@ -22,7 +22,6 @@ import pytest
 from genro_builders.contrib.html import HtmlBuilder, HtmlBuilderHandler
 from genro_builders.contrib.svg import SvgBuilder, SvgBuilderHandler
 
-
 # ---------------------------------------------------------------------------
 # Schema declaration
 # ---------------------------------------------------------------------------

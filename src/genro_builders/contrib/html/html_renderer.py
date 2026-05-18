@@ -45,7 +45,6 @@ from genro_bag import Bag
 
 from ...renderer import RendererBase
 
-
 _ATTR_MAP = {"_class": "class", "_for": "for"}
 
 _VOID_TAGS = frozenset({
@@ -400,10 +399,7 @@ def _is_style_attr(name: str) -> bool:
     """Return True if ``name`` matches a CSS root or a ``root_*`` form."""
     if name in _STYLE_ROOTS:
         return True
-    for root in _STYLE_ROOTS:
-        if name.startswith(root + "_"):
-            return True
-    return False
+    return any(name.startswith(root + "_") for root in _STYLE_ROOTS)
 
 
 def _parse_style_string(value: Any) -> dict[str, str]:

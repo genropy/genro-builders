@@ -13,6 +13,7 @@ Exports:
 
 from __future__ import annotations
 
+import contextlib
 from abc import ABC
 from pathlib import Path
 from typing import Any
@@ -159,10 +160,8 @@ class BagBuilderBase(
                 after the auto-import attempt.
         """
         if name not in BagBuilderBase.register:
-            try:
+            with contextlib.suppress(ImportError):
                 __import__(f"genro_builders.contrib.{name}")
-            except ImportError:
-                pass
         try:
             return BagBuilderBase.register[name]
         except KeyError:

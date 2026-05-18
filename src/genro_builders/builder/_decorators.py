@@ -23,7 +23,6 @@ import warnings
 from collections.abc import Callable
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Declarative marker (used by @element, @abstract, @subbuilder)
 # ---------------------------------------------------------------------------

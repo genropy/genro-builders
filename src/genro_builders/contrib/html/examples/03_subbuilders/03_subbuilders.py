@@ -25,7 +25,6 @@ from pathlib import Path
 
 from genro_builders.contrib.html import HtmlBuilder, HtmlBuilderHandler
 
-
 # ---------------------------------------------------------------------------
 # 1. HTML hosting SVG: a single shape inline
 # ---------------------------------------------------------------------------
