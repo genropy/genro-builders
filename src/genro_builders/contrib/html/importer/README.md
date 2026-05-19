@@ -1,109 +1,137 @@
-# `importer/` — Codegen artifacts for the HTML5 grammar
+# `importer/` — Manual diff tool for HTML5 grammar
 
-This directory holds the **build artifacts** of the pipeline that
-generates the HTML5 grammar from external sources (W3C RELAX NG).
-Nothing here is consumed at runtime by `HtmlBuilder`. The runtime
-consumer is `../html5_elements.py`, which lives next to the builder.
+This directory holds a **manual-use utility** for comparing the
+hand-written HTML5 grammar in `../html5_elements.py` against the
+current W3C HTML5 schema.
+
+> **This is not a codegen pipeline.** Nothing here runs in CI.
+> Nothing here regenerates `html5_elements.py` automatically. The
+> Python mixin is **hand-written and curated**, and stays that way.
+>
+> The tool here is for a human to run **occasionally** to spot
+> changes in the W3C schema and decide, case by case, which ones
+> to port into `html5_elements.py`.
 
 ## Inventory
 
-| File | Role |
-|---|---|
-| `html5_schema.bag.json` | HTML5 schema in **TYTX/Bag JSON** format. Intermediate artifact: the parsed and structured version of the W3C RELAX NG schema. Input to the codegen step that produces `../html5_elements.py`. |
-| `html5_schema.bag.mp` | Same content as `html5_schema.bag.json`, encoded in **MessagePack** (binary, smaller, faster to load). Twin of the JSON. |
+- **`html5_schema_builder.py`** — downloads the W3C RELAX NG
+  schema (RNC), converts it to a Bag, and prints/saves a snapshot.
+  Run by hand, never by CI.
 
-## Expected pipeline
+## Why it exists
 
+The hand-written `html5_elements.py` is curated for the typical
+GenroPy use case. It may legitimately diverge from the W3C schema:
+
+- It may **omit** elements (e.g. `<rb>`, `<rtc>` — deprecated
+  Ruby tags rarely used outside academic Japanese content).
+- It may **rename** an element to avoid Python keyword conflicts
+  (`<del>` is exposed as `del_` in Python).
+- It may **lag** behind the W3C schema (e.g. when a new element
+  like `<selectedcontent>` lands in HTML 2024 and we have not yet
+  decided whether to expose it).
+
+To decide what to keep aligned and what to leave alone, we need a
+way to see "what does the W3C say today?" — that is what this
+tool is for.
+
+## Workflow
+
+When you want to check for drift:
+
+```bash
+# Activate the project venv first.
+mkdir -p /tmp/html5_check
+cd /tmp/html5_check
+python -m genro_builders.contrib.html.importer.html5_schema_builder \
+    --url "https://github.com/validator/validator/tree/main/schema/html5" \
+    -o html5_schema.bag.mp --json
 ```
-┌──────────────────────────────┐
-│  W3C HTML5 RELAX NG schema   │   external (validator.nu / W3C)
-│  (https://validator.nu/...)  │
-└──────────────┬───────────────┘
-               │  step 1: RELAX NG → structured Bag schema
-               ▼
-┌──────────────────────────────┐
-│  html5_schema.bag.json       │
-│  html5_schema.bag.mp         │   versioned in this directory
-└──────────────┬───────────────┘
-               │  step 2: codegen → Python mixin
-               ▼
-┌──────────────────────────────┐
-│  ../html5_elements.py        │   class Html5Elements with 112
-│  (read-only, generated)      │   `@element(sub_tags=...)` methods
-└──────────────────────────────┘
+
+This will:
+
+1. Download all 26 RNC files from the W3C `validator/validator`
+   repository (about 200 KB total).
+2. Convert them to RNG using `rnc2rng` (must be installed:
+   `pip install rnc2rng`).
+3. Parse the RNG with `lxml` (must be installed: `pip install lxml`).
+4. Build a flat Bag with one node per element, each carrying a
+   `sub_tags` attribute (the comma-separated list of allowed
+   children).
+5. Save the Bag as `html5_schema.bag.mp` (MessagePack, binary) and
+   `html5_schema.bag.json` (TYTX JSON, human-readable).
+
+The output is **not versioned**. It lives in `/tmp` (or wherever
+you ran the command) and is discarded after you have inspected it.
+
+## Comparing the snapshot with the current mixin
+
+A small Python snippet does the comparison:
+
+```python
+from genro_bag import Bag
+import importlib
+
+fresh = Bag().fill_from('/tmp/html5_check/html5_schema.bag.mp')
+mixin = importlib.import_module(
+    'genro_builders.contrib.html.html5_elements'
+)
+mixin_labels = {
+    name for name in dir(mixin.Html5Elements)
+    if not name.startswith('_')
+}
+fresh_labels = {n.label for n in fresh}
+
+print('Only in fresh schema:', sorted(fresh_labels - mixin_labels))
+print('Only in current mixin:', sorted(mixin_labels - fresh_labels))
+
+for n in fresh:
+    if n.label not in mixin_labels:
+        continue
+    f = set(n.get_attr('sub_tags').split(','))
+    # The mixin's sub_tags are not directly accessible without an
+    # instance; the easiest way to inspect them is to import
+    # HtmlBuilder and walk `_class_schema`.
 ```
 
-`Html5Elements` is mixed into `HtmlBuilder` (see `../html_builder.py`)
-so that `BagBuilderBase.__init_subclass__` picks up the 112 elements
-at class definition time.
+Reading the output, decide for each delta:
 
-Custom Genro additions on top of the W3C grammar (e.g. the
-`@subbuilder("svg")` entry point) live in `../html5_extensions.py`,
-which is **NOT** generated and is preserved across regenerations
-via the MRO order `HtmlBuilder(BagBuilderBase, Html5Extensions, Html5Elements)`.
+- **New element worth exposing**: hand-edit `html5_elements.py` to
+  add a new `@element(sub_tags='...') def <name>(self): ...`.
+- **New element not worth exposing**: leave the mixin alone.
+- **`sub_tags` widening on an existing element**: hand-edit the
+  affected `@element(...)` to widen the constraint.
+- **`sub_tags` narrowing or rename**: investigate — the W3C may
+  have removed a child, or may be reflecting a deprecation.
 
-## Current debt
+There is no automation. Every change is a human decision.
 
-> **The pipeline is not reproducible with the code currently in the
-> repository.** The schema files in this directory are frozen
-> artifacts produced by a previous, now-removed pipeline.
+## Known historical baseline (2026-04)
 
-The historical converter modules — `html5_schema_builder.py`,
-`rng_schema.py`, `rng_converter.py` — used to live in `genro-bag`'s
-source tree but were removed during a past refactor. Their HTML
-coverage reports survive in `genro-bag/htmlcov/`, but the source
-files do not.
+The mixin `../html5_elements.py` was generated **once**, in April
+2026, from a snapshot of the W3C RNC of that period. The original
+codegen step that turned the Bag snapshot into Python source is no
+longer in the repository (it was a one-shot script). All
+subsequent edits to `html5_elements.py` are by hand.
 
-Two adjacent pipelines exist in the repository tree and may serve
-as a starting point if a regeneration is needed, but neither is a
-drop-in replacement for what produced the files in this directory:
+If a wholesale regeneration is ever needed (e.g. because the W3C
+HTML5 schema has materially diverged), the right approach is:
 
-- **`../../../../../scripts/rng_to_xsd.sh`** (in this repo, top level).
-  Downloads the W3C RNG files and converts them to XSD via `trang`.
-  Requires `brew install jing-trang`. Output: `temp/html5.xsd`.
-  Different target format (XSD, not Bag).
+1. Run the tool here to get a fresh Bag snapshot.
+2. Hand-write a one-shot Python script that walks the Bag and
+   emits `@element(...)` definitions in the desired style.
+3. Diff the generated output against the current mixin, port the
+   Genro-specific extensions (Python keyword escapes, omitted
+   elements, custom docstrings) back into the new version.
+4. Replace `html5_elements.py` in a single, reviewed commit.
 
-- **`../../../../../../genro-treestore/scripts/build_html5_schema.py`**
-  (in the `genro-treestore` repo). Downloads 26 RNC files from
-  `github.com/validator/validator/tree/main/schema/html5`, parses them
-  with `rnc2rng`, builds a **TreeStore** (not a Bag) and serializes
-  to MessagePack/JSON TYTX. Different intermediate structure
-  (TreeStore, not Bag).
+This has never been needed since April 2026 and may never be.
 
-If you need to regenerate the files in this directory, the most
-practical path today is:
+## Dependencies
 
-1. Reconstruct the equivalent of the deleted converter modules from
-   the coverage reports in `genro-bag/htmlcov/` and the AST
-   structure of `build_html5_schema.py`.
-2. Validate the output against the existing `html5_schema.bag.json`
-   (it should produce the same 112 elements and the same `sub_tags`).
-3. Re-run the codegen step that produces `../html5_elements.py`
-   (also currently un-versioned and missing).
+- `rnc2rng` (Python package, must also expose the `rnc2rng` CLI in
+  `PATH`). Install with `pip install rnc2rng`.
+- `lxml` (Python package). Install with `pip install lxml`.
 
-This is non-trivial. If the W3C HTML5 schema has not changed in a
-way that affects the 112 elements currently exposed, the safest
-option is to keep the frozen artifacts as they are.
-
-## Not to confuse with: `builder_grammar` export
-
-A different JSON file may live one day next to `../html_builder.py`,
-named `html.json`, produced by `HtmlBuilder.to_grammar('html.json')`
-(see `src/genro_builders/builder/GRAMMAR_FORMAT.md`).
-
-- `html5_schema.bag.json` (this directory) — **internal**: input to
-  the codegen of `Html5Elements`. Format: Bag TYTX. Not consumed at
-  runtime.
-- `html.json` (sibling of `html_builder.py`) — **external**: output
-  of `to_grammar`. Format: `builder_grammar v1.0` (neutral, cross-
-  language). Consumed by the future JavaScript builder and by future
-  `from_grammar` reconstruction in Python.
-
-Same `.json` extension by coincidence; orthogonal purposes.
-
-## When to touch this directory
-
-- **Never** at runtime. Nothing under `importer/` is imported.
-- **Only** when regenerating the HTML5 grammar from a newer W3C
-  RELAX NG schema. Before doing so, read the **Current debt**
-  section above and plan accordingly.
+Both are optional dependencies of `genro-builders`: they are
+required only when running this tool, not at runtime.

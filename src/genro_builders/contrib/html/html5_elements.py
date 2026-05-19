@@ -1,8 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""HTML5 element definitions generated from W3C Validator RELAX NG schema.
+"""HTML5 element definitions for HtmlBuilder.
 
-112 elements with sub_tags validation. Do not edit manually —
-regenerate from importer/html5_schema.bag.json if the schema changes.
+Originally derived (April 2026) from the W3C HTML5 Validator
+RELAX NG schema. From now on it is **hand-maintained**: edits and
+additions go in directly. The schema-diff utility in
+``importer/html5_schema_builder.py`` exists to spot W3C drift on
+demand, not to regenerate this file.
 """
 
 from __future__ import annotations
