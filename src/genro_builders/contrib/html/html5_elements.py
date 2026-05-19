@@ -2,7 +2,7 @@
 """HTML5 element definitions generated from W3C Validator RELAX NG schema.
 
 112 elements with sub_tags validation. Do not edit manually —
-regenerate from html5_schema.bag.json if the schema changes.
+regenerate from importer/html5_schema.bag.json if the schema changes.
 """
 
 from __future__ import annotations
