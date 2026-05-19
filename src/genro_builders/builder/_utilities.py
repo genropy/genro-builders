@@ -254,7 +254,7 @@ def _decorated_method_info(
     """Build (tag_list, method_name, obj, decorator_info) for a decorated method."""
     decorator_info = obj._decorator
     if decorator_info.get("abstract"):
-        return [f"@{name}"], None, obj, decorator_info
+        return [name], None, obj, decorator_info
     elif decorator_info.get("data_element"):
         tag_list: list[str] = [] if name.startswith("_") else [name]
         tags_raw = decorator_info.get("tags")

@@ -65,7 +65,7 @@ class XsdBuilder(BagBuilderBase):
         self._schema_tag_names: dict[str, str] = {}
         for node in self._schema.nodes:
             label = node.label
-            if label.startswith("@"):
+            if label.startswith("_"):
                 continue
             key = label.lower()
             if key in self._schema_tag_names:

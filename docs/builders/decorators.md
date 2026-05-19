@@ -57,12 +57,20 @@ Declares a base for inheritance. Never instantiated directly.
 @abstract(sub_tags='span,a,em,strong')
 def phrasing(self): ...
 
-@element(inherits_from='@phrasing')
+@element(inherits_from='phrasing')
 def p(self): ...
 ```
 
-Abstracts are stored under their name prefixed with `@`. The
-concrete element references them via `inherits_from='@<name>'`.
+Abstracts live in a dedicated `_abstracts` sub-bag of the class
+schema, separate from the top-level elements / subbuilders /
+data_elements. Labels are bare names — no `@` prefix. The concrete
+element references them via `inherits_from='<name>'`.
+
+If `inherits_from` names an abstract that does not exist (including
+typos in comma-separated lists like `'phrasing,flow'`), a
+`ValueError` is raised at class definition time. This catches
+mistakes immediately instead of producing elements with silently
+missing `sub_tags`.
 
 ## `@subbuilder`
 

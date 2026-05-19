@@ -80,10 +80,18 @@ class BagBuilderBase(
                     break
             cls._class_schema = Bag(source=parent_schema) if parent_schema else Bag()
 
+        # Ensure the dedicated sub-bag for abstracts exists. Abstracts
+        # live in a nested Bag rather than at the top level, with no `@`
+        # prefix on labels. This keeps element / subbuilder / data_element
+        # names cleanly separated from the abstract namespace.
+        if cls._class_schema.get_node("_abstracts") is None:
+            cls._class_schema.set_item("_abstracts", Bag())
+
         for tag_list, method_name, obj, decorator_info in _pop_decorated_methods(cls, BagBuilderBase):
             if method_name:
                 setattr(cls, method_name, obj)
 
+            is_abstract = decorator_info.get("abstract", False)
             is_data_element = decorator_info.get("data_element", False)
             is_subbuilder = decorator_info.get("subbuilder", False)
             sub_tags = decorator_info.get("sub_tags", "")
@@ -96,7 +104,16 @@ class BagBuilderBase(
             call_args_validations = _extract_validators_from_signature(obj)
 
             for tag in tag_list:
-                if is_data_element:
+                if is_abstract:
+                    cls._class_schema["_abstracts"].set_item(
+                        tag, None,
+                        sub_tags=sub_tags,
+                        parent_tags=parent_tags,
+                        inherits_from=inherits_from,
+                        _meta=meta,
+                        documentation=documentation,
+                    )
+                elif is_data_element:
                     cls._class_schema.set_item(
                         tag, None,
                         handler_name=method_name,
@@ -125,10 +142,32 @@ class BagBuilderBase(
                         call_args_validations=call_args_validations,
                     )
 
+        # Validate `inherits_from` references: each name in the
+        # comma-separated list must exist among the abstracts. Errors
+        # are raised at class definition time so dialect authors see
+        # them immediately (no silent fallback at instantiation).
+        abstracts_bag = cls._class_schema["_abstracts"]
+        known_abstracts = {node.label for node in abstracts_bag}
+        for node in cls._class_schema:
+            if node.label == "_abstracts":
+                continue
+            raw = node.get_attr("inherits_from")
+            if not raw:
+                continue
+            for parent in (p.strip() for p in raw.split(",")):
+                if not parent:
+                    continue
+                if parent not in known_abstracts:
+                    raise ValueError(
+                        f"{cls.__name__}.{node.label}: "
+                        f"inherits_from={parent!r} not found among abstracts; "
+                        f"available: {sorted(known_abstracts)}"
+                    )
+
         cls._schema_tag_names: dict[str, str] = {}
         for node in cls._class_schema.nodes:
             label = node.label
-            if label.startswith("@"):
+            if label.startswith("_"):
                 continue
             key = label.lower()
             if key in cls._schema_tag_names:

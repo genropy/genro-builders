@@ -48,7 +48,8 @@ Highlights:
   `keygen`.
 - Container elements use the W3C content categories.
 - A subset of phrasing elements is exposed under abstracts like
-  `@phrasing`, `@flow`, `@interactive`.
+  `phrasing`, `flow`, `interactive` (no `@` prefix; abstracts live
+  in the dedicated `_abstracts` sub-bag of the class schema).
 
 Refer to the auto-generated module for the exhaustive list.
 

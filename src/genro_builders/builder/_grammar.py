@@ -483,19 +483,19 @@ class _GrammarMixin:
         inherits_from = result.pop("inherits_from", None)
 
         if inherits_from:
+            abstracts_bag = self._schema["_abstracts"]
             parents = [p.strip() for p in inherits_from.split(",")]
             for parent in parents:
-                abstract_attrs = self._schema.get_attr(parent)
-                if abstract_attrs:
-                    for k, v in abstract_attrs.items():
-                        if k == "inherits_from":
-                            continue
-                        if k == "_meta":
-                            inherited = v or {}
-                            current = result.get("_meta") or {}
-                            result["_meta"] = {**inherited, **current}
-                        elif k not in result or not result[k]:
-                            result[k] = v
+                abstract_attrs = abstracts_bag.get_attr(parent)
+                for k, v in abstract_attrs.items():
+                    if k == "inherits_from":
+                        continue
+                    if k == "_meta":
+                        inherited = v or {}
+                        current = result.get("_meta") or {}
+                        result["_meta"] = {**inherited, **current}
+                    elif k not in result or not result[k]:
+                        result[k] = v
 
         sub_tags = result.get("sub_tags")
         if sub_tags is not None:

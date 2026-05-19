@@ -177,7 +177,7 @@ def abstract(
         @abstract(sub_tags='span,a,em,strong')
         def phrasing(self): ...
 
-        @element(inherits_from='@phrasing')
+        @element(inherits_from='phrasing')
         def p(self): ...
 
         @abstract(
