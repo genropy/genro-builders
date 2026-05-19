@@ -14,6 +14,7 @@ Exports:
 from __future__ import annotations
 
 import contextlib
+import json
 from abc import ABC
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from genro_bag import Bag
 
 from ..renderer import RendererBase
 from ._grammar import _GrammarMixin
+from ._grammar_export import _class_schema_to_grammar_document
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
 
 
@@ -214,6 +216,28 @@ class BagBuilderBase(
             return BagBuilderBase.register[name]
         except KeyError:
             raise LookupError(f"No builder registered with name {name!r}") from None
+
+    @classmethod
+    def to_grammar(cls, path: str | Path) -> None:
+        """Serialize the grammar to a ``builder_grammar`` v1.0 JSON file.
+
+        The output is a language-neutral document that describes the
+        builder's grammar (abstracts, subbuilders, elements,
+        data_elements) so that a consumer in another environment can
+        reconstruct an equivalent schema.
+
+        Format specification: see ``GRAMMAR_FORMAT.md`` co-located
+        with this module.
+
+        Args:
+            path: Destination file path. Recommended basename matches
+                the grammar name (e.g. ``html.json``).
+        """
+        document = _class_schema_to_grammar_document(cls)
+        Path(path).write_text(
+            json.dumps(document, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
     def __init__(self) -> None:
         """Initialize the builder. Grammar-only state (decisions 1, 8 v0.4.0).
