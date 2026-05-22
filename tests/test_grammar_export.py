@@ -44,9 +44,6 @@ def test_html_grammar_export(tmp_path: Path) -> None:
     assert data["elements"]["div"]["sub_tags"]
     assert data["elements"]["br"]["sub_tags"] == ""
 
-    assert "svg" in data["subbuilders"]
-    assert data["subbuilders"]["svg"]["builder_name"] == "svg"
-
 
 def test_svg_grammar_export_emits_bare_abstract_names(tmp_path: Path) -> None:
     data = _dump(SvgBuilder, tmp_path)

@@ -57,19 +57,6 @@ def test_abstract_returns_declarative_marker():
     assert phrasing._decorator["sub_tags"] == "span,a"
 
 
-def test_subbuilder_attaches_decorator_metadata_to_function():
-    """@subbuilder leaves the function alive (the body is an optional
-    hook the framework can call to customise sub-builder attach) and
-    tags it with the decorator info the framework reads from the schema."""
-    @subbuilder("html")
-    def switch(self): ...
-
-    assert callable(switch)
-    assert not isinstance(switch, _DeclarativeMarker)
-    assert switch._decorator["subbuilder"] is True
-    assert switch._decorator["subbuilder_name"] == "html"
-
-
 def test_subbuilder_rejects_non_string_target():
     """Passing a class (or anything non-str) raises TypeError."""
     import pytest

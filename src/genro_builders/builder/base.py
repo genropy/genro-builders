@@ -123,16 +123,10 @@ class BagBuilderBase(
                         documentation=documentation,
                     )
                 elif is_subbuilder:
-                    cls._class_schema.set_item(
-                        tag, None,
-                        handler_name=method_name,
-                        is_subbuilder=True,
-                        subbuilder_name=subbuilder_name,
-                        wrap_tag=subbuilder_wrap_tag,
-                        parent_tags=parent_tags,
-                        _meta=meta,
-                        documentation=documentation,
-                    )
+                    # Subbuilder is autonomous: dispatch goes through the
+                    # decorated method directly via __getattr__ on the node.
+                    # No schema entry, no _schema_tag_names registration.
+                    continue
                 else:
                     cls._class_schema.set_item(
                         tag, None,

@@ -126,8 +126,7 @@ class RendererBase:
         be emitted).
         """
         sub_renderer = self.handler.renderer_for(node_builder)
-        host_info = self.builder._get_schema_info(node.node_tag)
-        wrap_tag = host_info.get("wrap_tag") if host_info else None
+        wrap_tag = node.attr.get("_wrap_tag")
         if not wrap_tag:
             sub_renderer._render_subtree(node, emit)
             return

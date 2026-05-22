@@ -4,7 +4,8 @@
 The handler owns:
     - one ``builder`` instance (decision 4: handler manages its builder);
     - the ``source`` bag (decisions 4 and 12);
-    - the ``_node_index`` mapping ``node_id -> path`` (decision 11);
+    - the ``_node_index`` mapping ``node_id -> node`` (decision 11, populated
+      via subscription callbacks on the source bag);
     - the dict ``mode -> target`` of render targets (decision 6).
 
 Lifecycle (decision 5):
@@ -79,12 +80,17 @@ class BuilderHandler:
             )
         self.builder = self.builder_class()
         self.source = BuilderSource(builder=self.builder, handler=self)
-        self._node_index: dict[str, str] = {}
+        self._node_index: dict[str, BuilderBagNode] = {}
         self._render_targets: dict[str, Any] = {}
         self._default_render_mode: str | None = None
         self._renderer_cache: dict[str, Any] = {}
         self._subbuilder_cache: dict[str, Any] = {}
         self._sub_renderer_cache: dict[int, Any] = {}
+        self.source.subscribe(
+            "builder_handler_node_id",
+            insert=self._on_source_insert,
+            delete=self._on_source_delete,
+        )
 
     def _get_renderer(self, mode: str) -> Any:
         """Return the (cached) renderer instance for ``mode``."""
@@ -237,20 +243,25 @@ class BuilderHandler:
     # node_id index (decision 11)
     # ------------------------------------------------------------------
 
-    def register_node_id(self, node_id: str, path: str) -> None:
-        """Record ``node_id -> path``. Raise on collision."""
+    def _on_source_insert(self, node: BuilderBagNode, **_: Any) -> None:
+        """Subscription callback: register a node carrying a ``node_id`` attribute."""
+        node_id = node.get_attr("node_id")
+        if node_id is None:
+            return
         existing = self._node_index.get(node_id)
-        if existing is not None and existing != path:
-            raise ValueError(
-                f"Duplicate node_id '{node_id}': already mapped to '{existing}', "
-                f"cannot remap to '{path}'.",
-            )
-        self._node_index[node_id] = path
+        if existing is not None and existing is not node:
+            raise ValueError(f"Duplicate node_id '{node_id}'.")
+        self._node_index[node_id] = node
+
+    def _on_source_delete(self, node: BuilderBagNode, **_: Any) -> None:
+        """Subscription callback: drop the node from the index if it carried a ``node_id``."""
+        node_id = node.get_attr("node_id")
+        if node_id is not None:
+            self._node_index.pop(node_id, None)
 
     def node_by_id(self, node_id: str) -> BuilderBagNode:
         """Return the source node registered under ``node_id``."""
-        path = self._node_index[node_id]
-        return self.source.get_node(path)
+        return self._node_index[node_id]
 
     # ------------------------------------------------------------------
     # User hook

@@ -89,6 +89,9 @@ class _BuilderBagNodeMixin:
                 if method_name is not None:
                     bound = getattr(handler, method_name)
                     return lambda *args, **kwargs: bound(self, *args, **kwargs)
+            builder_method = getattr(type(builder), name, None)
+            if callable(builder_method):
+                return lambda **attrs: builder_method(builder, self, **attrs)
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )

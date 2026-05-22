@@ -166,45 +166,41 @@ class _GrammarMixin:
         if not getattr(build_where, '_skip_parent_validation', False):
             self._validate_parent_tags(child_info, parent_node)
 
-        # Extract node_id before passing attrs to set_item
-        node_id = attr.pop("node_id", None)
-
         node_label = node_label or self._auto_label(build_where, node_tag)
         child_node = build_where.set_item(
             node_label, node_value, _attributes=dict(attr),
             node_position=node_position, node_tag=node_tag,
         )
 
-        # Register node_id if provided
-        if node_id is not None:
-            if hasattr(self, "_node_id_map"):
-                if node_id in self._node_id_map:
-                    raise ValueError(
-                        f"Duplicate node_id '{node_id}': already assigned to "
-                        f"node '{self._node_id_map[node_id].label}'"
-                    )
-                self._node_id_map[node_id] = child_node
-            child_node.set_attr({"node_id": node_id}, trigger=False)
-
         if parent_node and parent_node.node_tag:
             self._validate_sub_tags(parent_node, parent_info)
 
-        # @subbuilder: attach the dialect's builder instance onto the
-        # node and skip sub_tags validation for the child (the subtree's
-        # grammar belongs to the sub-builder, not the host).
-        if child_info.get("is_subbuilder"):
-            handler = getattr(build_where, "_handler", None)
-            if handler is None:
-                raise RuntimeError(
-                    f"@subbuilder '{node_tag}' requires a handler to look up "
-                    f"the sub-builder; the active bag has no handler attached.",
-                )
-            child_node._builder = handler.get_subbuilder(child_info["subbuilder_name"])
-            child_node._handler = handler
-            return child_node
-
         self._validate_sub_tags(child_node, child_info)
 
+        return child_node
+
+    def _attach_subbuilder(self, node: BagNode, tag_name: str, builder_name: str, **attrs: Any) -> BagNode:
+        """Create a subbuilder child of ``node``, switching the active dialect."""
+        if not isinstance(node.value, Bag):
+            parent_bag = node._parent_bag
+            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
+            sub_bag = sub_bag_cls(
+                builder=node._resolve_builder(),
+                handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
+            )
+            node.value = sub_bag
+        meta = getattr(getattr(type(self), tag_name, None), "_subbuilder_meta", {})
+        sub_attrs: dict[str, Any] = {"_is_subbuilder": True, **attrs}
+        if meta.get("wrap_tag") is not None:
+            sub_attrs["_wrap_tag"] = meta["wrap_tag"]
+        child_node = node.value.set_item(
+            self._auto_label(node.value, tag_name), None,
+            _attributes=sub_attrs,
+            node_tag=tag_name,
+        )
+        handler = node._resolve_handler()
+        child_node._builder = handler.get_subbuilder(builder_name)
+        child_node._handler = handler
         return child_node
 
     def _auto_label(self, build_where: Bag, node_tag: str) -> str:
@@ -366,6 +362,11 @@ class _GrammarMixin:
             node._invalid_reasons = []
             return
 
+        # Subbuilder nodes are transparent containers for the embedded dialect.
+        if node.attr.get("_is_subbuilder"):
+            node._invalid_reasons = []
+            return
+
         sub_tags_compiled = info.get("sub_tags_compiled")
         if sub_tags_compiled is None:
             node._invalid_reasons = []
@@ -377,8 +378,9 @@ class _GrammarMixin:
             return
 
         children_tags = [
-            self._validation_tag_for(n) for n in node.value.nodes
+            n.node_tag for n in node.value.nodes
             if not n.attr.get("_is_data_element")
+            and not n.attr.get("_is_subbuilder")
         ] if isinstance(node.value, Bag) else []
 
         node._invalid_reasons = self._validate_children_tags(
@@ -397,6 +399,11 @@ class _GrammarMixin:
         Builds children_tags = current tags + new tag, calls _validate_children_tags.
         Raises ValueError if not valid.
         """
+        # Subbuilder nodes are transparent containers for the embedded dialect:
+        # any child is accepted regardless of the host tag's sub_tags rule.
+        if target_node.attr.get("_is_subbuilder"):
+            return
+
         sub_tags_compiled = info.get("sub_tags_compiled")
         if sub_tags_compiled is None:
             return
@@ -405,10 +412,11 @@ class _GrammarMixin:
         if sub_tags_compiled == "*":
             return
 
-        # Build children_tags = current + new (excluding data elements)
+        # Build children_tags = current + new (excluding data elements and subbuilders)
         children_tags = (
             [n.node_tag or n.label for n in target_node.value.nodes
-             if not n.attr.get("_is_data_element")]
+             if not n.attr.get("_is_data_element")
+             and not n.attr.get("_is_subbuilder")]
             if isinstance(target_node.value, Bag) else []
         )
 

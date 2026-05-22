@@ -23,27 +23,6 @@ from genro_builders.contrib.html import HtmlBuilder, HtmlBuilderHandler
 from genro_builders.contrib.svg import SvgBuilder, SvgBuilderHandler
 
 # ---------------------------------------------------------------------------
-# Schema declaration
-# ---------------------------------------------------------------------------
-
-
-def test_html_schema_declares_svg_as_subbuilder():
-    info = HtmlBuilder()._get_schema_info("svg")
-    assert info.get("is_subbuilder") is True
-    assert info.get("subbuilder_name") == "svg"
-
-
-def test_svg_schema_declares_html_as_subbuilder_with_wrap_tag():
-    """SVG's user-facing entry into HTML is the ``html`` tag; the
-    framework wraps the rendered HTML in ``<foreignObject>`` at render
-    time so the source stays readable while the markup is correct."""
-    info = SvgBuilder()._get_schema_info("html")
-    assert info.get("is_subbuilder") is True
-    assert info.get("subbuilder_name") == "html"
-    assert info.get("wrap_tag") == "foreignObject"
-
-
-# ---------------------------------------------------------------------------
 # Source-side attach: HtmlBuilder -> SvgBuilder via <svg>
 # ---------------------------------------------------------------------------
 

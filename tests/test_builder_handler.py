@@ -19,6 +19,7 @@ import pytest
 
 from genro_builders import BuilderSource
 from genro_builders.builder_handler import BuilderHandler
+from genro_builders.contrib.html import HtmlBuilderHandler
 
 
 class _RecordingRenderer:
@@ -118,26 +119,58 @@ def test_set_render_target_round_trip():
     assert h._default_render_mode == "stub"
 
 
-def test_register_node_id_and_node_by_id_round_trip():
-    """Decision 11: register a node_id and look it up."""
-    h = _StubHandler()
-    h.source.set_item("alfa", None)
-    h.register_node_id("anchor-1", "alfa")
-    node = h.node_by_id("anchor-1")
-    assert node is h.source.get_node("alfa")
+def test_node_id_kwarg_round_trip():
+    """Decision 11: node_id passed as kwarg is recoverable via node_by_id."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root):
+            root.body(node_id="anchor-1")
+
+    page = P()
+    page.create()
+    node = page.node_by_id("anchor-1")
+    assert node is page.source.get_node("body_0")
 
 
-def test_register_node_id_collision_raises():
-    """Decision 11: explicit error on collision."""
-    h = _StubHandler()
-    h.register_node_id("anchor-1", "alfa")
-    with pytest.raises(ValueError):
-        h.register_node_id("anchor-1", "beta")
+def test_node_id_kwarg_collision_raises():
+    """Decision 11: two nodes with the same node_id raise ValueError."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root):
+            body = root.body()
+            body.div(node_id="dup")
+            body.span(node_id="dup")
+
+    with pytest.raises(ValueError, match="Duplicate node_id"):
+        P().create()
 
 
-def test_register_node_id_idempotent_for_same_path():
-    """Re-registering the same id with the same path is a no-op."""
-    h = _StubHandler()
-    h.register_node_id("anchor", "alfa")
-    h.register_node_id("anchor", "alfa")  # must not raise
-    assert h._node_index["anchor"] == "alfa"
+def test_node_without_node_id_is_no_op():
+    """Nodes without node_id don't pollute the index."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root):
+            body = root.body()
+            body.div()
+            body.span(node_id="tagged")
+
+    page = P()
+    page.create()
+    assert list(page._node_index.keys()) == ["tagged"]
+
+
+def test_node_id_cleaned_on_delete():
+    """Decision 11: removing a node de-registers its node_id."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root):
+            body = root.body()
+            body.div(node_id="tagged")
+
+    page = P()
+    page.create()
+    assert page.node_by_id("tagged") is not None
+    body = page.source.get_node("body_0").value
+    del body["div_0"]
+    with pytest.raises(KeyError):
+        page.node_by_id("tagged")

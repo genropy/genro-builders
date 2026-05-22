@@ -254,23 +254,23 @@ def subbuilder(
         )
 
     def decorator(func: Callable) -> Callable:
-        # The body of an @subbuilder is a hook the framework can call
-        # to customise the sub-builder attach. Empty body (``...``)
-        # means "use the default delegation" — detected via
-        # ``_is_empty_body``.
-        info: dict[str, Any] = {
-            "subbuilder": True,
+        tag_name = tags if isinstance(tags, str) else (
+            tags[0] if isinstance(tags, tuple) and tags else func.__name__
+        )
+
+        def wrapper(self, node, **attrs):
+            return self._attach_subbuilder(node, tag_name, builder_name, **attrs)
+
+        wrapper.__name__ = func.__name__
+        wrapper.__doc__ = func.__doc__
+        wrapper._subbuilder_meta = {  # type: ignore[attr-defined]
             "subbuilder_name": builder_name,
-            "tags": tags,
+            "tag_name": tag_name,
+            "wrap_tag": wrap_tag,
+            "parent_tags": parent_tags,
+            "_meta": _meta,
         }
-        if parent_tags is not None:
-            info["parent_tags"] = parent_tags
-        if wrap_tag is not None:
-            info["wrap_tag"] = wrap_tag
-        if _meta:
-            info["_meta"] = _meta
-        func._decorator = info  # type: ignore[attr-defined]
-        return func
+        return wrapper
 
     return decorator
 
