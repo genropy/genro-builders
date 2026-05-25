@@ -30,7 +30,7 @@ class BuilderHandler:
     """Engine that drives one builder through the create/render lifecycle."""
 
     builder_class: type | None = None
-    _struct_methods: dict[str, str] = {}
+    _struct_methods: dict[str, str]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Collect @struct_method declarations into ``cls._struct_methods``.

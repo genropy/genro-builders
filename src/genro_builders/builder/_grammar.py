@@ -500,8 +500,8 @@ class _GrammarMixin:
         return result
 
     def __iter__(self):
-        """Iterate over schema nodes."""
-        return iter(self._schema)
+        """Iterate over public schema nodes (skips internal labels prefixed by '_')."""
+        return (n for n in self._schema if not n.label.startswith("_"))
 
     def __repr__(self) -> str:
         """Show builder schema summary."""
