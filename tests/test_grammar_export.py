@@ -44,6 +44,9 @@ def test_html_grammar_export(tmp_path: Path) -> None:
     assert data["elements"]["div"]["sub_tags"]
     assert data["elements"]["br"]["sub_tags"] == ""
 
+    assert "svg" in data["subbuilders"]
+    assert data["subbuilders"]["svg"]["builder_name"] == "svg"
+
 
 def test_svg_grammar_export_emits_bare_abstract_names(tmp_path: Path) -> None:
     data = _dump(SvgBuilder, tmp_path)
@@ -56,6 +59,14 @@ def test_svg_grammar_export_emits_bare_abstract_names(tmp_path: Path) -> None:
     raw = json.dumps(data)
     assert "@graphics" not in raw
     assert "@container_element" not in raw
+
+
+def test_svg_grammar_export_includes_html_subbuilder_with_wrap_tag(tmp_path: Path) -> None:
+    data = _dump(SvgBuilder, tmp_path)
+
+    assert "html" in data["subbuilders"]
+    assert data["subbuilders"]["html"]["builder_name"] == "html"
+    assert data["subbuilders"]["html"]["wrap_tag"] == "foreignObject"
 
 
 def test_css_grammar_export_smoke(tmp_path: Path) -> None:
