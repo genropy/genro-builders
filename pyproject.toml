@@ -54,8 +54,8 @@ docs = [
     "myst-parser>=4.0.0",
     "sphinxcontrib-mermaid>=1.0.0",
 ]
-xsd-validate = [
-    "xmlschema>=3.0",
+xsd = [
+    "xmlschema>=4.0,<5",
 ]
 jupyter = [
     "ipython>=8.0",
@@ -67,7 +67,7 @@ reverse = [
     "tree-sitter-css>=0.25",
 ]
 all = [
-    "genro-builders[dev,docs,xsd-validate,jupyter,reverse]",
+    "genro-builders[dev,docs,xsd,jupyter,reverse]",
 ]
 
 [project.scripts]
