@@ -85,26 +85,33 @@ class PythonGenerator:
         uses_literal = self._uses_literal(model)
         uses_decimal = self._uses_decimal(model)
 
+        # Standard-library imports come first, sorted alphabetically by
+        # module (decimal before typing) to match the project's ruff/isort
+        # configuration. This keeps the codegen output stable across
+        # `ruff --fix` runs.
+        stdlib_lines: list[str] = []
+        if uses_decimal:
+            stdlib_lines.append("from decimal import Decimal")
         typing_imports: list[str] = []
         if uses_annotated:
             typing_imports.append("Annotated")
         if uses_literal:
             typing_imports.append("Literal")
         if typing_imports:
-            out.write(f"from typing import {', '.join(typing_imports)}\n")
-
-        if uses_decimal:
-            out.write("from decimal import Decimal\n")
-
-        if typing_imports or uses_decimal:
+            stdlib_lines.append(f"from typing import {', '.join(typing_imports)}")
+        for line in stdlib_lines:
+            out.write(line + "\n")
+        if stdlib_lines:
             out.write("\n")
 
-        builder_imports: list[str] = ["element"]
-        if uses_regex:
-            builder_imports.append("Regex")
-        if uses_range:
-            builder_imports.append("Range")
-        out.write(f"from genro_builders.builder import {', '.join(builder_imports)}\n\n\n")
+        builder_imports = sorted(
+            ["element"]
+            + (["Regex"] if uses_regex else [])
+            + (["Range"] if uses_range else [])
+        )
+        out.write(
+            f"from genro_builders.builder import {', '.join(builder_imports)}\n\n\n"
+        )
 
     def _write_class(
         self,
@@ -273,7 +280,7 @@ class PythonGenerator:
         parts = ["self"]
         for name, ann, _ in call_args:
             safe = _safe_param_name(name)
-            parts.append(f"{safe}: {ann} = None")
+            parts.append(f"{safe}: {ann} | None = None")
         return ", ".join(parts)
 
     def _build_docstring(

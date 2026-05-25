@@ -77,7 +77,7 @@ def test_enum_attribute_yields_literal(gen):
     )
     src = gen.render(model, "Demo")
     assert "from typing import" in src and "Literal" in src
-    assert "kind: Literal['A', 'B', 'C']" in src
+    assert "kind: Literal['A', 'B', 'C'] | None = None" in src
 
 
 def test_regex_pattern_yields_annotated_regex(gen):
@@ -95,7 +95,7 @@ def test_regex_pattern_yields_annotated_regex(gen):
     src = gen.render(model, "Demo")
     assert "Annotated" in src
     assert "Regex('[A-Z]{3}')" in src
-    assert "from genro_builders.builder import element, Regex" in src
+    assert "from genro_builders.builder import Regex, element" in src
 
 
 def test_range_min_max_yields_annotated_range(gen):
@@ -119,7 +119,7 @@ def test_range_min_max_yields_annotated_range(gen):
     src = gen.render(model, "Demo")
     assert "Range(ge=1.0, le=99.0)" in src
     assert "from decimal import Decimal" in src
-    assert "from genro_builders.builder import element, Range" in src
+    assert "from genro_builders.builder import Range, element" in src
 
 
 def test_grammar_gap_constraints_surface_as_comment_notes(gen):
