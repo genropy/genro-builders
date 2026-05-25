@@ -210,7 +210,6 @@ def subbuilder(
     builder_name: str,
     tags: str | tuple[str, ...] | None = None,
     parent_tags: str | None = None,
-    wrap_tag: str | None = None,
     _meta: dict[str, Any] | None = None,
 ) -> Callable:
     """Decorator declaring a tag that opens a sub-builder (decision 2).
@@ -237,21 +236,24 @@ def subbuilder(
     ``_BuilderBagNodeMixin.__getattr__`` falling through to the
     builder method lookup, which then calls
     ``BagBuilderBase._attach_subbuilder(node, tag_name, builder_name,
-    **attrs)``. Metadata (``subbuilder_name``, ``wrap_tag``,
-    ``parent_tags``, ``_meta``) are attached on the wrapper as
-    ``_subbuilder_meta`` and read by the grammar exporter
+    **attrs)``. Metadata (``subbuilder_name``, ``parent_tags``,
+    ``_meta``) are attached on the wrapper as ``_subbuilder_meta``
+    and read by the grammar exporter
     (``_grammar_export._collect_subbuilders``) and by
     ``_attach_subbuilder`` itself.
+
+    Boundary markup (host-side wrap tag and framework attributes
+    such as XML namespaces) is declared on the host builder via a
+    ``wrapper_<sub_name>`` method returning a dict
+    ``{"tag": ..., "attrs": {...}}``. See the SVG host of HTML as
+    reference: ``SvgExtensions.wrapper_html`` returns
+    ``foreignObject`` + the XHTML namespace.
 
     Args:
         builder_name: Canonical ``_name`` of the Builder dialect active
             inside the subtree (e.g. ``"svg"``, ``"html"``).
         tags: Tag names this method handles. If None, uses method name.
         parent_tags: Valid parent tags in the host dialect.
-        wrap_tag: Optional tag name that the render walker wraps around
-            the sub-renderer's output (e.g. the SVG ``html`` subbuilder
-            uses ``wrap_tag="foreignObject"`` so the runtime markup
-            satisfies the SVG embedding rule). Skipped if ``None``.
         _meta: Dict of metadata for renderers/compilers.
     """
     if not isinstance(builder_name, str):
@@ -273,7 +275,6 @@ def subbuilder(
         wrapper._subbuilder_meta = {  # type: ignore[attr-defined]
             "subbuilder_name": builder_name,
             "tag_name": tag_name,
-            "wrap_tag": wrap_tag,
             "parent_tags": parent_tags,
             "_meta": _meta,
         }

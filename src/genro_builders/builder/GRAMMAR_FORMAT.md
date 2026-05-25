@@ -137,10 +137,11 @@ The shape of each per-element entry is fixed. All declared keys are
 
 ```json
 {
-  "doc": "Embed an SVG fragment.",
-  "builder_name": "svg",
+  "doc": "Embed an HTML fragment.",
+  "builder_name": "html",
   "parent_tags": null,
-  "wrap_tag": null,
+  "wrap_tag": "foreignObject",
+  "wrap_attrs": {"xmlns": "http://www.w3.org/1999/xhtml"},
   "_meta": null
 }
 ```
@@ -150,7 +151,8 @@ The shape of each per-element entry is fixed. All declared keys are
 | `doc` | string \| null | Documentation text. |
 | `builder_name` | string | Canonical name of the grammar the subbuilder switches to (matches some other `grammar.name`). |
 | `parent_tags` | string \| null | Cardinality string for valid parents. See §5. |
-| `wrap_tag` | string \| null | Optional wrap tag emitted by the renderer at the boundary. |
+| `wrap_tag` | string \| null | Host-side wrap tag emitted at the boundary (declared by the host's `wrapper_<sub_name>` method). |
+| `wrap_attrs` | object \| null | Framework attributes emitted on the wrap tag (e.g. XML namespace declarations declared by the host's `wrapper_<sub_name>` method). |
 | `_meta` | object \| null | Pass-through metadata. |
 
 ### 4.3 Element

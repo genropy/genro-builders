@@ -67,6 +67,9 @@ def test_svg_grammar_export_includes_html_subbuilder_with_wrap_tag(tmp_path: Pat
     assert "html" in data["subbuilders"]
     assert data["subbuilders"]["html"]["builder_name"] == "html"
     assert data["subbuilders"]["html"]["wrap_tag"] == "foreignObject"
+    assert data["subbuilders"]["html"]["wrap_attrs"] == {
+        "xmlns": "http://www.w3.org/1999/xhtml",
+    }
 
 
 def test_css_grammar_export_smoke(tmp_path: Path) -> None:

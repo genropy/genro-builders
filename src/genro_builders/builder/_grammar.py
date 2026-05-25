@@ -176,10 +176,7 @@ class _GrammarMixin:
                 handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
             )
             node.value = sub_bag
-        meta = getattr(getattr(type(self), tag_name, None), "_subbuilder_meta", {})
         sub_attrs: dict[str, Any] = {"_is_subbuilder": True, **attrs}
-        if meta.get("wrap_tag") is not None:
-            sub_attrs["_wrap_tag"] = meta["wrap_tag"]
         child_node = node.value.set_item(
             self._auto_label(node.value, tag_name), None,
             _attributes=sub_attrs,

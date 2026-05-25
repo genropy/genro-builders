@@ -134,26 +134,26 @@ class RendererBase:
         **walk_kwargs: Any,
     ) -> None:
         """Delegate a sub-builder subtree, optionally wrapping the
-        sub-renderer output in a host-dialect tag.
+        sub-renderer output in a host-dialect envelope.
 
-        The wrap tag (and any framework-emitted attribute on it) is
-        declared on the host schema by the ``@subbuilder(..., wrap_tag=...)``
-        decorator. The standard example is the SVG ``html`` subbuilder
-        wrapped in ``<foreignObject xmlns="http://www.w3.org/1999/xhtml">``:
-        the user only writes ``svg.html().div(...)`` while the runtime
-        emits the foreignObject envelope that replaces the bare ``html``
-        node so the markup satisfies the SVG embedding rule.
+        The host builder declares how it embeds a given sub-dialect via
+        a ``wrapper_<sub_name>`` method returning a dict
+        ``{"tag": <host-side wrap tag>, "attrs": <framework attrs>}``.
+        Example: ``SvgExtensions.wrapper_html`` returns
+        ``{"tag": "foreignObject", "attrs": {"xmlns": ".../xhtml"}}``,
+        which the runtime emits around the children of an
+        ``svg.html(...)`` subtree to satisfy the SVG embedding rule.
 
-        When ``wrap_tag`` is set the subbuilder node itself is invisible
+        When a wrapper is declared the subbuilder node itself is invisible
         in the output: the wrap tag stands in for it and the
         sub-renderer is asked to render only the children. Without a
-        wrap tag the sub-renderer renders the subbuilder node verbatim
+        wrapper the sub-renderer renders the subbuilder node verbatim
         (HTML hosting SVG: the ``<svg>`` tag is part of HTML5 and must
         be emitted).
         """
         sub_renderer = self.handler.renderer_for(node_builder)
-        wrap_tag = node.attr.get("_wrap_tag")
-        if not wrap_tag:
+        wrapper_spec = self._wrapper_spec_for(node_builder)
+        if wrapper_spec is None:
             sub_renderer._render_subtree(node, emit)
             return
         # The wrap tag stands in for the subbuilder node, so the user
@@ -162,9 +162,11 @@ class RendererBase:
         # them with the host renderer (the wrap tag is part of the host
         # dialect) and prepend the framework-emitted wrap attributes
         # (e.g. xmlns) so well-formedness is guaranteed.
+        wrap_tag = wrapper_spec["tag"]
+        wrap_attrs = wrapper_spec.get("attrs") or {}
         user_attrs = self._format_attrs(node.attr)
-        wrap_attrs = self._wrap_attrs_for(node_builder)
-        emit(f"<{wrap_tag}{wrap_attrs}{user_attrs}>")
+        framework_attrs = self._format_attrs(wrap_attrs)
+        emit(f"<{wrap_tag}{framework_attrs}{user_attrs}>")
         value = node.value
         if isinstance(value, Bag):
             for child in value:
@@ -173,18 +175,23 @@ class RendererBase:
             emit(sub_renderer._escape_text(value))
         emit(f"</{wrap_tag}>")
 
-    def _wrap_attrs_for(self, node_builder: Any) -> str:
-        """Hook returning the attributes emitted on the wrap tag.
+    def _wrapper_spec_for(self, node_builder: Any) -> dict[str, Any] | None:
+        """Look up the host builder's ``wrapper_<sub_name>`` method.
 
-        For the HTML re-entry inside SVG the XML spec calls for
-        ``xmlns="http://www.w3.org/1999/xhtml"`` on the first HTML
-        node; the framework places it on the wrap tag
-        (``<foreignObject>``) so the result is XML well-formed. Hosts
-        whose embedding rule is different can override this hook.
+        Returns the dict ``{"tag": ..., "attrs": ...}`` if declared,
+        ``None`` if the host does not wrap this sub-dialect. Walks
+        the MRO via ``__dict__`` to bypass the builder's ``__getattr__``
+        (which dispatches grammar tags).
         """
-        if getattr(node_builder, "_name", None) == "html":
-            return ' xmlns="http://www.w3.org/1999/xhtml"'
-        return ""
+        sub_name = getattr(node_builder, "_name", None)
+        if not sub_name:
+            return None
+        host = self.builder
+        attr_name = f"wrapper_{sub_name}"
+        for klass in type(host).__mro__:
+            if attr_name in klass.__dict__:
+                return klass.__dict__[attr_name](host)
+        return None
 
     def _write_or_return(self, text: str, render_target: Any) -> str | None:
         """Common pattern: return string, write to filesystem path, file-like, or invoke callable.

@@ -23,5 +23,17 @@ from genro_builders.builder import subbuilder
 class SvgExtensions:
     """Mixin layering Genro-specific decorators above the SVG grammar."""
 
-    @subbuilder("html", wrap_tag="foreignObject")
+    @subbuilder("html")
     def html(self): ...
+
+    def wrapper_html(self) -> dict:
+        """Boundary markup emitted around an embedded HTML subtree.
+
+        The XHTML namespace on the foreignObject envelope is required
+        for the document to be XML well-formed at the SVG/HTML
+        boundary.
+        """
+        return {
+            "tag": "foreignObject",
+            "attrs": {"xmlns": "http://www.w3.org/1999/xhtml"},
+        }
