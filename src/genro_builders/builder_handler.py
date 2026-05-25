@@ -139,10 +139,12 @@ class BuilderHandler:
             or self._default_render_mode
             or self.builder._default_render_mode
         )
-        effective_target = (
-            None if target is False
-            else target or self._render_targets.get(effective_mode)
-        )
+        if target is False:
+            effective_target = None
+        elif not target:
+            effective_target = self._render_targets.get(effective_mode)
+        else:
+            effective_target = target
         renderer = self._get_renderer(effective_mode)
         return renderer.render(
             self.source,

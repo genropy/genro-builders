@@ -186,7 +186,7 @@ class RendererBase:
             return ' xmlns="http://www.w3.org/1999/xhtml"'
         return ""
 
-    def _write_or_return(self, text: str | None, render_target: Any) -> str | None:
+    def _write_or_return(self, text: str, render_target: Any) -> str | None:
         """Common pattern: return string, write to filesystem path, file-like, or invoke callable.
 
         Accepted ``render_target`` shapes:
@@ -202,7 +202,7 @@ class RendererBase:
         if isinstance(render_target, (str, Path)):
             path = Path(render_target)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text or "", encoding="utf-8")
+            path.write_text(text, encoding="utf-8")
             return None
         write = getattr(render_target, "write", None)
         if callable(write):
@@ -249,4 +249,5 @@ class XmlRenderer(RendererBase):
           a string is prepended verbatim, ``False``/``None`` omit it.
         """
         text = source.to_xml(pretty=pretty, doc_header=doc_header)
+        assert text is not None  # to_xml returns None only with filename=
         return self._write_or_return(text, render_target)
