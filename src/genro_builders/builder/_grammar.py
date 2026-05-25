@@ -163,7 +163,11 @@ class _GrammarMixin:
         return child_node
 
     def _attach_subbuilder(self, node: BagNode, tag_name: str, builder_name: str, **attrs: Any) -> BagNode:
-        """Create a subbuilder child of ``node``, switching the active dialect."""
+        """Create a subbuilder child of ``node``, switching the active dialect.
+
+        Precondition: ``node`` is attached to a tree owned by a handler
+        (its ``_resolve_handler()`` returns the owning ``BuilderHandler``).
+        """
         if not isinstance(node.value, Bag):
             parent_bag = node._parent_bag
             sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
