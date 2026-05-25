@@ -17,6 +17,9 @@ import pytest
 
 from genro_builders import BagBuilderBase
 from genro_builders.builder import abstract, element
+from genro_builders.builder._grammar_export import (
+    _class_schema_to_grammar_document,
+)
 from genro_builders.contrib.css import CssBuilder
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.contrib.svg import SvgBuilder
@@ -202,10 +205,6 @@ def test_abstracts_section_is_topologically_ordered() -> None:
     document = _Topo.__mro__[0]  # ensure class is built
 
     # Build the document directly to avoid touching the filesystem
-    from genro_builders.builder._grammar_export import (
-        _class_schema_to_grammar_document,
-    )
-
     data = _class_schema_to_grammar_document(_Topo)
     abstracts_keys = list(data["abstracts"].keys())
 
