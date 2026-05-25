@@ -3,8 +3,7 @@
 sub_tags/parent_tags spec parsing, and decorated-method extraction.
 
 All functions are module-private (prefixed with ``_``) and consumed by
-the builder package internals. Some are re-exported in ``__init__.py``
-for backward-compatible test imports.
+the builder package internals.
 """
 
 from __future__ import annotations

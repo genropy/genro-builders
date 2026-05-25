@@ -49,7 +49,6 @@ class BagBuilderBase(
     """
 
     _class_schema: Bag  # Schema built from decorators at class definition
-    _schema_path: str | Path | None = None  # Default schema path (class attribute)
 
     # -----------------------------------------------------------------------
     # Builder registry (class-level, shared across all dialects)
@@ -58,8 +57,8 @@ class BagBuilderBase(
     #: Canonical name of this dialect (e.g. ``"html"``, ``"svg"``).
     #: Concrete dialects MUST declare ``_name`` as a class attribute to
     #: appear in :attr:`register`. Builders that leave ``_name = None``
-    #: (the default) are not registered — useful for internal-only
-    #: classes like ``SchemaBuilder``.
+    #: (the default) are not registered — useful for abstract bases
+    #: or internal-only classes.
     _name: str | None = None
 
     #: Class-level dict mapping ``_name`` to the Builder class. Populated
@@ -77,16 +76,12 @@ class BagBuilderBase(
         not collected here."""
         super().__init_subclass__(**kwargs)
 
-        schema_path = getattr(cls, "_schema_path", None)
-        if schema_path is not None:
-            cls._class_schema = Bag().fill_from(schema_path)
-        else:
-            parent_schema = None
-            for base in cls.__mro__[1:]:
-                if hasattr(base, "_class_schema"):
-                    parent_schema = base._class_schema
-                    break
-            cls._class_schema = Bag(source=parent_schema) if parent_schema else Bag()
+        parent_schema = None
+        for base in cls.__mro__[1:]:
+            if hasattr(base, "_class_schema"):
+                parent_schema = base._class_schema
+                break
+        cls._class_schema = Bag(source=parent_schema) if parent_schema else Bag()
 
         # Ensure the dedicated sub-bag for abstracts exists. Abstracts
         # live in a nested Bag rather than at the top level, with no `@`
