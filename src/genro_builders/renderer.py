@@ -85,6 +85,32 @@ class RendererBase:
         filtered = {k: v for k, v in kwargs.items() if k in accepted}
         return method(self, source, render_target=render_target, **filtered)
 
+    def _render_node(self, node: Any, emit: Any, **walk_kwargs: Any) -> None:
+        """Hook for concrete renderers that walk the source tree.
+
+        Concrete renderers that act as hosts of subbuilders, or that
+        drive their own walk inside ``render_<mode>``, must override
+        this to emit the markup of ``node`` plus its descendants.
+        ``RendererBase`` does not walk the tree on its own.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement _render_node; "
+            "override it to emit markup for the node and its descendants",
+        )
+
+    def _format_attrs(self, attrs: dict[str, Any]) -> str:
+        """Hook for concrete renderers that format per-node attributes.
+
+        Concrete renderers that host subbuilders with ``wrap_tag`` must
+        override this to format the user attributes of the wrapper node
+        in the host dialect. ``RendererBase`` does not format attributes
+        on its own.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement _format_attrs; "
+            "override it to format attributes for the host dialect",
+        )
+
     def _render_subtree(self, node: Any, emit: Any) -> None:
         """Render a single node-and-descendants into ``emit``.
 
@@ -95,10 +121,10 @@ class RendererBase:
         ``_render_node`` signature.
 
         Default implementation assumes ``_render_node(node, emit)`` has
-        no extra kwargs (matches the bare ``RendererBase``, ``SvgRenderer``,
-        ``CssRenderer`` shapes).
+        no extra kwargs (matches ``SvgRenderer`` and ``CssRenderer``
+        shapes).
         """
-        self._render_node(node, emit)  # type: ignore[attr-defined]
+        self._render_node(node, emit)
 
     def _render_subbuilder(
         self,
@@ -136,7 +162,7 @@ class RendererBase:
         # them with the host renderer (the wrap tag is part of the host
         # dialect) and prepend the framework-emitted wrap attributes
         # (e.g. xmlns) so well-formedness is guaranteed.
-        user_attrs = self._format_attrs(node.attr)  # type: ignore[attr-defined]
+        user_attrs = self._format_attrs(node.attr)
         wrap_attrs = self._wrap_attrs_for(node_builder)
         emit(f"<{wrap_tag}{wrap_attrs}{user_attrs}>")
         value = node.value
@@ -159,18 +185,6 @@ class RendererBase:
         if getattr(node_builder, "_name", None) == "html":
             return ' xmlns="http://www.w3.org/1999/xhtml"'
         return ""
-
-    def render_xml(
-        self,
-        source: Bag,
-        render_target: Any = None,
-        *,
-        pretty: bool = False,
-    ) -> str | None:
-        """Default XML render: ``Bag.to_xml(pretty=...)`` then routed
-        to render_target if provided."""
-        text = source.to_xml(pretty=pretty)
-        return self._write_or_return(text, render_target)
 
     def _write_or_return(self, text: str | None, render_target: Any) -> str | None:
         """Common pattern: return string, write to filesystem path, file-like, or invoke callable.
@@ -209,3 +223,30 @@ class RendererBase:
     def _escape_attr(self, value: Any) -> str:
         """Escape an attribute value (also escapes double quotes)."""
         return str(value).translate(_ATTR_ESCAPE)
+
+
+class XmlRenderer(RendererBase):
+    """Renderer of the shared ``xml`` mode.
+
+    Registered by ``BagBuilderBase.__init__`` so every dialect can serve
+    ``xml`` without declaring its own renderer. Concrete dialects that
+    want a custom XML walk override this class via ``register_renderer``.
+    """
+
+    def render_xml(
+        self,
+        source: Bag,
+        render_target: Any = None,
+        *,
+        pretty: bool = False,
+        doc_header: bool | str | None = None,
+    ) -> str | None:
+        """Serialize ``source`` as XML via ``Bag.to_xml``.
+
+        - ``pretty`` formats with indentation;
+        - ``doc_header`` is forwarded verbatim: ``True`` emits the
+          standard ``<?xml version='1.0' encoding='UTF-8'?>`` declaration,
+          a string is prepended verbatim, ``False``/``None`` omit it.
+        """
+        text = source.to_xml(pretty=pretty, doc_header=doc_header)
+        return self._write_or_return(text, render_target)

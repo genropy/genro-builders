@@ -53,6 +53,22 @@ def test_render_xml_pretty_produces_multiline_output():
     assert "\n" not in linear
 
 
+def test_render_xml_doc_header_true_emits_xml_declaration():
+    """``doc_header=True`` prepends the standard XML declaration."""
+    h = _Page()
+    h.create()
+    text = h.render(mode="xml", doc_header=True)
+    assert text.startswith("<?xml version='1.0' encoding='UTF-8'?>")
+
+
+def test_render_xml_doc_header_custom_string_prepended_verbatim():
+    """A custom ``doc_header`` string is prepended verbatim."""
+    h = _Page()
+    h.create()
+    text = h.render(mode="xml", doc_header="<!DOCTYPE foo>")
+    assert text.startswith("<!DOCTYPE foo>")
+
+
 def test_render_unknown_mode_raises_value_error():
     h = _Page()
     h.create()

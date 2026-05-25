@@ -21,7 +21,7 @@ from typing import Any
 
 from genro_bag import Bag
 
-from ..renderer import RendererBase
+from ..renderer import XmlRenderer
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
@@ -237,7 +237,7 @@ class BagBuilderBase(
         self._schema = type(self)._class_schema
         self._schema_tag_names = type(self)._schema_tag_names
         self._renderers: dict[str, type] = {}
-        self.register_renderer("xml", RendererBase)
+        self.register_renderer("xml", XmlRenderer)
 
     def register_renderer(self, name: str, renderer_class: type) -> None:
         """Register a renderer class under ``name`` on this builder.
