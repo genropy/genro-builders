@@ -142,9 +142,9 @@ class _GrammarMixin:
         Raises ValueError if validation fails, KeyError if parent tag not in schema.
         """
         parent_node = build_where.parent_node
+        parent_info: dict | None = None
         if parent_node and parent_node.node_tag:
             parent_info = self._get_schema_info(parent_node.node_tag)
-            self._accept_child(parent_node, parent_info, node_tag, node_position)
 
         child_info = self._get_schema_info(node_tag)
         self._validate_parent_tags(child_info, parent_node)
@@ -155,10 +155,13 @@ class _GrammarMixin:
             node_position=node_position, node_tag=node_tag,
         )
 
-        if parent_node and parent_node.node_tag:
-            self._validate_sub_tags(parent_node, parent_info)
-
-        self._validate_sub_tags(child_node, child_info)
+        try:
+            if parent_info is not None:
+                self._validate_sub_tags(parent_node, parent_info)
+            self._validate_sub_tags(child_node, child_info)
+        except ValueError:
+            build_where.pop(node_label)
+            raise
 
         return child_node
 
@@ -190,7 +193,7 @@ class _GrammarMixin:
     def _auto_label(self, build_where: Bag, node_tag: str) -> str:
         """Generate unique label for a node: tag_0, tag_1, ..."""
         n = 0
-        while f"{node_tag}_{n}" in build_where._nodes:
+        while build_where.node(f"{node_tag}_{n}") is not None:
             n += 1
         return f"{node_tag}_{n}"
 
@@ -370,49 +373,6 @@ class _GrammarMixin:
         node._invalid_reasons = self._validate_children_tags(
             node_tag, sub_tags_compiled, children_tags
         )
-
-    def _accept_child(
-        self,
-        target_node: BagNode,
-        info: dict,
-        child_tag: str,
-        node_position: str | int | None,
-    ) -> None:
-        """Check if target_node can accept child_tag at node_position.
-
-        Builds children_tags = current tags + new tag, calls _validate_children_tags.
-        Raises ValueError if not valid.
-        """
-        # Subbuilder nodes are transparent containers for the embedded dialect:
-        # any child is accepted regardless of the host tag's sub_tags rule.
-        if target_node.attr.get("_is_subbuilder"):
-            return
-
-        sub_tags_compiled = info.get("sub_tags_compiled")
-        if sub_tags_compiled is None:
-            return
-
-        # Wildcard "*" accepts any children - no validation needed
-        if sub_tags_compiled == "*":
-            return
-
-        # Build children_tags = current + new (excluding data elements and subbuilders)
-        children_tags = (
-            [n.node_tag or n.label for n in target_node.value.nodes
-             if not n.attr.get("_is_data_element")
-             and not n.attr.get("_is_subbuilder")]
-            if isinstance(target_node.value, Bag) else []
-        )
-
-        # Insert new tag at correct position
-        idx = (
-            target_node.value._nodes._parse_position(node_position)
-            if isinstance(target_node.value, Bag)
-            else 0
-        )
-        children_tags.insert(idx, child_tag)
-
-        self._validate_children_tags(target_node.node_tag, sub_tags_compiled, children_tags)
 
     def _validate_parent_tags(
         self,
