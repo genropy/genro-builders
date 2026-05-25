@@ -29,12 +29,5 @@ Example::
 from __future__ import annotations
 
 from .examples.fatturapa import FatturaPABuilder, FatturaPABuilderHandler
-from .xsd_builder import XsdBuilder  # legacy, removed in a follow-up commit
-from .xsd_reader import XsdReader  # legacy, removed in a follow-up commit
 
-__all__ = [
-    "FatturaPABuilder",
-    "FatturaPABuilderHandler",
-    "XsdBuilder",
-    "XsdReader",
-]
+__all__ = ["FatturaPABuilder", "FatturaPABuilderHandler"]

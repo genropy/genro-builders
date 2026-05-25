@@ -18,7 +18,6 @@ from genro_builders import BagBuilderBase
 from genro_builders.contrib.data import DataBuilder
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.contrib.svg import SvgBuilder
-from genro_builders.contrib.xsd import XsdBuilder
 
 
 def test_html_builder_is_registered():
@@ -29,10 +28,6 @@ def test_svg_builder_is_registered():
     assert BagBuilderBase.get_builder_class("svg") is SvgBuilder
 
 
-def test_xsd_builder_is_registered():
-    assert BagBuilderBase.get_builder_class("xsd") is XsdBuilder
-
-
 def test_data_builder_is_registered():
     assert BagBuilderBase.get_builder_class("data") is DataBuilder
 
@@ -41,7 +36,6 @@ def test_real_builders_have_explicit_name():
     """Each public dialect declares ``_name`` as a class attribute."""
     assert HtmlBuilder._name == "html"
     assert SvgBuilder._name == "svg"
-    assert XsdBuilder._name == "xsd"
     assert DataBuilder._name == "data"
 
 

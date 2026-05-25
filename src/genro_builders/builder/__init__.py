@@ -6,7 +6,6 @@ to work unchanged after the split from a single module to a package.
 """
 
 from ._decorators import abstract, data_element, element, struct_method, subbuilder
-from ._schema_builder import SchemaBuilder
 from ._utilities import (
     _check_type,
     _parse_sub_tags_spec,
@@ -17,7 +16,6 @@ from .base import BagBuilderBase
 
 __all__ = [
     "BagBuilderBase",
-    "SchemaBuilder",
     "element",
     "abstract",
     "data_element",
