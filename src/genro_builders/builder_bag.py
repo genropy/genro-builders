@@ -25,6 +25,22 @@ from genro_bag import Bag, BagNode
 _BUILDERBAG_PROTECTED = frozenset({"node_class"})
 
 
+def _dispatch_struct_method(handler: Any, target: Any, name: str) -> Any | None:
+    """Resolve ``name`` as a ``@struct_method`` on ``handler``.
+
+    Returns a callable bound to ``target`` (bag or node) when the name
+    matches a registered struct method on the handler; ``None`` if no
+    match (caller falls through to whatever else it wants to try).
+    """
+    if handler is None:
+        return None
+    method_name = handler._struct_methods.get(name.lower())
+    if method_name is None:
+        return None
+    bound = getattr(handler, method_name)
+    return lambda *args, **kwargs: bound(target, *args, **kwargs)
+
+
 class _BuilderBagNodeMixin:
     """Builder-aware logic for nodes: schema dispatch via __getattr__.
 
@@ -83,14 +99,11 @@ class _BuilderBagNodeMixin:
             )
         original_tag = builder._schema_tag_names.get(name.lower())
         if original_tag is None:
-            handler = self._resolve_handler()
-            if handler is not None:
-                method_name = handler._struct_methods.get(name.lower())
-                if method_name is not None:
-                    bound = getattr(handler, method_name)
-                    return lambda *args, **kwargs: bound(self, *args, **kwargs)
+            struct = _dispatch_struct_method(self._resolve_handler(), self, name)
+            if struct is not None:
+                return struct
             builder_method = getattr(type(builder), name, None)
-            if callable(builder_method):
+            if getattr(builder_method, "_subbuilder_meta", None) is not None:
                 return lambda **attrs: builder_method(builder, self, **attrs)
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
@@ -153,12 +166,9 @@ class _BuilderBagMixin:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
-        handler = getattr(self, "_handler", None)
-        if handler is not None:
-            method_name = handler._struct_methods.get(name.lower())
-            if method_name is not None:
-                bound = getattr(handler, method_name)
-                return lambda *args, **kwargs: bound(self, *args, **kwargs)
+        struct = _dispatch_struct_method(getattr(self, "_handler", None), self, name)
+        if struct is not None:
+            return struct
         raise AttributeError(
             f"'{type(self).__name__}' object has no attribute '{name}'"
         )
