@@ -36,8 +36,13 @@ class BagBuilderBase(
     A builder declares the dialect via decorators:
         - @element: Pure schema elements (body MUST be empty)
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
-        - @subbuilder: Switch the active grammar to a sub-dialect.
         - @data_element: Data-infrastructure elements.
+
+    Plus @subbuilder, which is **autonomous**: it does not pass through
+    ``__init_subclass__`` and does not appear in ``_class_schema``. Its
+    wrapper lives on the builder class as a regular method; dispatch is
+    handled by ``_BuilderBagNodeMixin.__getattr__`` falling through to
+    ``_attach_subbuilder``.
 
     Engine concerns (source, lifecycle phases, render_target,
     node_id) belong to the BuilderHandler.
@@ -68,7 +73,8 @@ class BagBuilderBase(
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Build _class_schema Bag from decorated methods (@element,
-        @abstract, @subbuilder, @data_element)."""
+        @abstract, @data_element). @subbuilder is autonomous and is
+        not collected here."""
         super().__init_subclass__(**kwargs)
 
         schema_path = getattr(cls, "_schema_path", None)
@@ -95,13 +101,10 @@ class BagBuilderBase(
 
             is_abstract = decorator_info.get("abstract", False)
             is_data_element = decorator_info.get("data_element", False)
-            is_subbuilder = decorator_info.get("subbuilder", False)
             sub_tags = decorator_info.get("sub_tags", "")
             parent_tags = decorator_info.get("parent_tags")
             inherits_from = decorator_info.get("inherits_from", "")
             meta = decorator_info.get("_meta")
-            subbuilder_name = decorator_info.get("subbuilder_name")
-            subbuilder_wrap_tag = decorator_info.get("wrap_tag")
             documentation = obj.__doc__
             call_args_validations = _extract_validators_from_signature(obj)
 
@@ -122,11 +125,6 @@ class BagBuilderBase(
                         is_data_element=True,
                         documentation=documentation,
                     )
-                elif is_subbuilder:
-                    # Subbuilder is autonomous: dispatch goes through the
-                    # decorated method directly via __getattr__ on the node.
-                    # No schema entry, no _schema_tag_names registration.
-                    continue
                 else:
                     cls._class_schema.set_item(
                         tag, None,

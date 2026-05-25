@@ -148,21 +148,6 @@ class _GrammarMixin:
 
         child_info = self._get_schema_info(node_tag)
 
-        # ----------------------------------------------------------------
-        # Decision 2: @subbuilder switches the active dialect for the
-        # subtree. We create the node like a regular element, then resolve
-        # the sub-builder class from the global registry, instantiate it
-        # (cached on the handler), and assign it to the node's _builder
-        # slot. From now on grammar dispatch on this node and its
-        # descendants follows the sub-builder, via
-        # ``BuilderBagNode._resolve_builder``.
-        #
-        # The sub-builder is not validated by the host's ``sub_tags``
-        # rules: the host only owns ``parent_tags`` (where the
-        # sub-builder may be embedded). The subtree's grammar belongs
-        # to the sub-builder.
-        # ----------------------------------------------------------------
-
         if not getattr(build_where, '_skip_parent_validation', False):
             self._validate_parent_tags(child_info, parent_node)
 

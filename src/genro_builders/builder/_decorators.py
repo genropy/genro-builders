@@ -228,13 +228,20 @@ def subbuilder(
     This removes import-circularity barriers between mutually-referencing
     dialect modules (HTML <-> SVG, etc.).
 
-    Like ``@element`` and ``@abstract`` it is purely declarative: any
-    function body the user writes is dropped, with a best-effort
-    warning when the body is detected as non-empty.
-
-    Currently the framework records the declaration in the schema but
-    raises ``NotImplementedError`` at attach time (decision 2 is
-    pending implementation — see ``_GrammarMixin._child``).
+    Unlike ``@element`` and ``@abstract``, ``@subbuilder`` is
+    **autonomous**: it does not pass through the generic decorator
+    pipeline (``_pop_decorated_methods`` / ``__init_subclass__``) and
+    does not appear in ``_class_schema`` / ``_schema_tag_names``. The
+    decorator returns a callable wrapper that lives on the builder
+    class as a regular method; dispatch happens via
+    ``_BuilderBagNodeMixin.__getattr__`` falling through to the
+    builder method lookup, which then calls
+    ``BagBuilderBase._attach_subbuilder(node, tag_name, builder_name,
+    **attrs)``. Metadata (``subbuilder_name``, ``wrap_tag``,
+    ``parent_tags``, ``_meta``) are attached on the wrapper as
+    ``_subbuilder_meta`` and read by the grammar exporter
+    (``_grammar_export._collect_subbuilders``) and by
+    ``_attach_subbuilder`` itself.
 
     Args:
         builder_name: Canonical ``_name`` of the Builder dialect active
