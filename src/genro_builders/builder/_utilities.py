@@ -252,6 +252,11 @@ def _decorated_method_info(
 ) -> tuple[list[str], str | None, Any, dict]:
     """Build (tag_list, method_name, obj, decorator_info) for a decorated method."""
     decorator_info = obj._decorator
+    if decorator_info.get("struct_method"):
+        raise ValueError(
+            f"@struct_method '{name}' must live on a BuilderHandler "
+            "subclass, not on a builder",
+        )
     if decorator_info.get("abstract"):
         return [name], None, obj, decorator_info
     elif decorator_info.get("data_element"):

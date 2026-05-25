@@ -52,8 +52,13 @@ class BuilderHandler:
                 merged.update(parent_map)
         for attr_name, obj in cls.__dict__.items():
             decorator = getattr(obj, "_decorator", None)
-            if decorator is None or not decorator.get("struct_method"):
+            if decorator is None:
                 continue
+            if not decorator.get("struct_method"):
+                raise ValueError(
+                    f"BuilderHandler subclass {cls.__name__} has decorated "
+                    f"method '{attr_name}' that is not @struct_method",
+                )
             explicit = decorator.get("name")
             if explicit is not None:
                 dispatch_name = explicit
