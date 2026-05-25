@@ -141,7 +141,7 @@ class _GrammarMixin:
 
         Raises ValueError if validation fails, KeyError if parent tag not in schema.
         """
-        parent_node = build_where._parent_node
+        parent_node = build_where.parent_node
         if parent_node and parent_node.node_tag:
             parent_info = self._get_schema_info(parent_node.node_tag)
             self._accept_child(parent_node, parent_info, node_tag, node_position)
@@ -169,7 +169,7 @@ class _GrammarMixin:
         (its ``_resolve_handler()`` returns the owning ``BuilderHandler``).
         """
         if not isinstance(node.value, Bag):
-            parent_bag = node._parent_bag
+            parent_bag = node.parent_bag
             sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
             sub_bag = sub_bag_cls(
                 builder=node._resolve_builder(),
@@ -215,7 +215,7 @@ class _GrammarMixin:
             # @subbuilder node (e.g. <svg>) propagate its own dialect
             # down into the freshly-created sub-bag instead of leaking
             # the host dialect.
-            parent_bag = node._parent_bag
+            parent_bag = node.parent_bag
             sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
             sub_bag = sub_bag_cls(
                 builder=node._resolve_builder(),

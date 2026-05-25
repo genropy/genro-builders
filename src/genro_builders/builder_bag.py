@@ -65,7 +65,7 @@ class _BuilderBagNodeMixin:
             value = None
         if value is not None:
             return value
-        parent = self._parent_bag
+        parent = self.parent_bag
         return getattr(parent, "_builder", None) if parent is not None else None
 
     def _resolve_handler(self) -> Any:
@@ -76,7 +76,7 @@ class _BuilderBagNodeMixin:
             value = None
         if value is not None:
             return value
-        parent = self._parent_bag
+        parent = self.parent_bag
         return getattr(parent, "_handler", None) if parent is not None else None
 
     def __getattr__(self, name: str) -> Any:
