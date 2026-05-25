@@ -147,9 +147,7 @@ class _GrammarMixin:
             self._accept_child(parent_node, parent_info, node_tag, node_position)
 
         child_info = self._get_schema_info(node_tag)
-
-        if not getattr(build_where, '_skip_parent_validation', False):
-            self._validate_parent_tags(child_info, parent_node)
+        self._validate_parent_tags(child_info, parent_node)
 
         node_label = node_label or self._auto_label(build_where, node_tag)
         child_node = build_where.set_item(
