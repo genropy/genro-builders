@@ -308,3 +308,42 @@ def test_on_source_change_upd_detail_normalized():
     upds = [e for e in h.events if e[0] == "upd"]
     assert upds, f"expected at least one 'upd', got {h.events!r}"
     assert any(detail == "value" for _, detail in upds)
+
+
+# ----------------------------------------------------------------------
+# Hot-swap of the payload (subtask handler_wrapper_root, P4)
+# ----------------------------------------------------------------------
+
+
+def test_source_subscription_survives_payload_hot_swap():
+    """Replacing _sourceroot['main'] keeps the wrapper subscription alive."""
+
+    class H(_StubHandler):
+        events: list[tuple[str, str | None]] = []
+
+        def on_source_change(self, node, evt, evt_detail=None, **kw):
+            self.events.append((evt, evt_detail))
+
+    h = H()
+    new_source = BuilderSource(builder=h.builder, handler=h)
+    h._sourceroot["main"] = new_source
+    h.events.clear()
+    new_source["after_swap"] = "value"
+    assert any(evt == "ins" for evt, _ in h.events)
+
+
+def test_data_subscription_survives_payload_hot_swap():
+    """Replacing _dataroot['main'] keeps the wrapper subscription alive."""
+
+    class H(_StubHandler):
+        events: list[tuple[str, str | None]] = []
+
+        def on_data_change(self, node, evt, evt_detail=None, **kw):
+            self.events.append((evt, evt_detail))
+
+    h = H()
+    new_data = Bag()
+    h._dataroot["main"] = new_data
+    h.events.clear()
+    new_data["after_swap"] = 42
+    assert any(evt == "ins" for evt, _ in h.events)
