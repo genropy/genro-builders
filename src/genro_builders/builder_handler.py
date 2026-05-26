@@ -3,10 +3,28 @@
 
 The handler owns:
     - one ``builder`` instance (decision 4: handler manages its builder);
-    - the ``source`` bag (decisions 4 and 12);
-    - the ``_node_index`` mapping ``node_id -> node`` (decision 11, populated
-      via subscription callbacks on the source bag);
+    - two wrapper bags, ``_sourceroot`` and ``_dataroot``, each holding
+      the live payload under the key ``"main"``:
+
+          _sourceroot["main"] = BuilderSource(...)   # alias: self.source
+          _dataroot  ["main"] = Bag()                # alias: self.data
+
+      Wrapping the payload under a stable root lets the subscription
+      live on the wrapper (not on the payload), so it survives hot-swap
+      of the payload (mirrors the legacy JS ``gnrdomsource.js`` pattern);
+    - the ``_node_index`` mapping ``node_id -> node`` (decision 11,
+      populated by the internal source dispatcher on insert/delete);
     - the dict ``mode -> target`` of render targets (decision 6).
+
+Reactive hooks:
+    Subclasses react to mutations by overriding the no-op hooks
+    :meth:`on_source_change` and :meth:`on_data_change`. The handler
+    subscribes to both wrappers in ``__init__`` and dispatches every
+    insert/update/delete through the internal callbacks
+    :meth:`_on_source_event` / :meth:`_on_data_event`, which normalize
+    the event code to ``"ins"`` / ``"upd"`` / ``"del"`` and split the
+    update subtype into ``evt_detail`` (e.g. ``"value"`` for the genro_bag
+    ``"upd_value"`` code).
 
 Lifecycle (decision 5):
     handler = MyHandler()
@@ -29,7 +47,15 @@ from .source_bag import BuilderSource
 
 
 class BuilderHandler:
-    """Engine that drives one builder through the create/render lifecycle."""
+    """Engine that drives one builder through the create/render lifecycle.
+
+    Holds two wrapper bags (``_sourceroot`` and ``_dataroot``), each with
+    the active payload under the key ``"main"``, and exposes the payloads
+    as :attr:`source` and :attr:`data`. Subscribes both wrappers in
+    ``__init__`` and routes every event to the public override points
+    :meth:`on_source_change` / :meth:`on_data_change`. See the module
+    docstring for the full picture.
+    """
 
     builder_class: type | None = None
     _struct_methods: dict[str, str]
