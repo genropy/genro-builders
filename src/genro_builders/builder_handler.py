@@ -98,10 +98,17 @@ class BuilderHandler:
         self._renderer_cache: dict[str, Any] = {}
         self._subbuilder_cache: dict[str, Any] = {}
         self._sub_renderer_cache: dict[int, Any] = {}
-        self.source.subscribe(
-            "builder_handler_node_id",
-            insert=self._on_source_insert,
-            delete=self._on_source_delete,
+        self._sourceroot.subscribe(
+            "builder_handler_source",
+            insert=self._on_source_event,
+            update=self._on_source_event,
+            delete=self._on_source_event,
+        )
+        self._dataroot.subscribe(
+            "builder_handler_data",
+            insert=self._on_data_event,
+            update=self._on_data_event,
+            delete=self._on_data_event,
         )
 
     def _get_renderer(self, mode: str) -> Any:
@@ -254,24 +261,44 @@ class BuilderHandler:
         return self._sub_renderer_cache[key]
 
     # ------------------------------------------------------------------
-    # node_id index (decision 11)
+    # Wrapper-root subscriptions (decision 11 + HWR refactor)
     # ------------------------------------------------------------------
 
-    def _on_source_insert(self, node: BuilderBagNode, **_: Any) -> None:
-        """Subscription callback: register a node carrying a ``node_id`` attribute."""
-        node_id = node.get_attr("node_id")
-        if node_id is None:
-            return
-        existing = self._node_index.get(node_id)
-        if existing is not None and existing is not node:
-            raise ValueError(f"Duplicate node_id '{node_id}'.")
-        self._node_index[node_id] = node
+    def _on_source_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
+        """Internal dispatcher for events on ``_sourceroot``.
 
-    def _on_source_delete(self, node: BuilderBagNode, **_: Any) -> None:
-        """Subscription callback: drop the node from the index if it carried a ``node_id``."""
-        node_id = node.get_attr("node_id")
-        if node_id is not None:
-            self._node_index.pop(node_id, None)
+        Maintains the ``_node_index`` for insert/delete (decision 11),
+        then forwards a normalized event to :meth:`on_source_change`.
+        """
+        if evt == "ins":
+            node_id = node.get_attr("node_id")
+            if node_id is not None:
+                existing = self._node_index.get(node_id)
+                if existing is not None and existing is not node:
+                    raise ValueError(f"Duplicate node_id '{node_id}'.")
+                self._node_index[node_id] = node
+            self.on_source_change(node, "ins", evt_detail=None, **kw)
+        elif evt == "del":
+            node_id = node.get_attr("node_id")
+            if node_id is not None:
+                self._node_index.pop(node_id, None)
+            self.on_source_change(node, "del", evt_detail=None, **kw)
+        else:
+            detail = evt[4:] if evt.startswith("upd_") else evt
+            self.on_source_change(node, "upd", evt_detail=detail, **kw)
+
+    def _on_data_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
+        """Internal dispatcher for events on ``_dataroot``.
+
+        Forwards a normalized event to :meth:`on_data_change`.
+        """
+        if evt == "ins":
+            self.on_data_change(node, "ins", evt_detail=None, **kw)
+        elif evt == "del":
+            self.on_data_change(node, "del", evt_detail=None, **kw)
+        else:
+            detail = evt[4:] if evt.startswith("upd_") else evt
+            self.on_data_change(node, "upd", evt_detail=detail, **kw)
 
     def node_by_id(self, node_id: str) -> BuilderBagNode:
         """Return the source node registered under ``node_id``."""
@@ -281,20 +308,34 @@ class BuilderHandler:
     # Reactive hooks (subtask handler_wrapper_root, P2)
     # ------------------------------------------------------------------
 
-    def on_source_change(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
+    def on_source_change(
+        self,
+        node: BuilderBagNode,
+        evt: str,
+        evt_detail: str | None = None,
+        **kw: Any,
+    ) -> None:
         """Override point. Called for every insert/update/delete on source.
 
-        ``evt`` is one of ``"insert"``, ``"update"``, ``"delete"``. Default
-        implementation is a no-op; subclasses override to react to source
-        mutations. Wired up by the wrapper-root subscription in P3.
+        ``evt`` is the normalized 3-letter event code: ``"ins"``, ``"upd"``,
+        ``"del"``. ``evt_detail`` carries the update subtype when ``evt ==
+        "upd"`` (e.g. ``"value"``, ``"attrs"``, or any custom string
+        emitted by the mutator); it is ``None`` for inserts and deletes.
+        Default implementation is a no-op; subclasses override to react to
+        source mutations.
         """
 
-    def on_data_change(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
+    def on_data_change(
+        self,
+        node: BuilderBagNode,
+        evt: str,
+        evt_detail: str | None = None,
+        **kw: Any,
+    ) -> None:
         """Override point. Called for every insert/update/delete on data.
 
-        ``evt`` is one of ``"insert"``, ``"update"``, ``"delete"``. Default
-        implementation is a no-op; subclasses override to react to data
-        mutations. Wired up by the wrapper-root subscription in P3.
+        Same protocol as :meth:`on_source_change` but for the ``data``
+        wrapper. Default implementation is a no-op.
         """
 
     # ------------------------------------------------------------------

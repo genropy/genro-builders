@@ -227,3 +227,84 @@ def test_on_data_change_default_is_noop():
     """Default on_data_change is a no-op: callable, returns None."""
     h = _StubHandler()
     assert h.on_data_change(node=None, evt="insert") is None  # type: ignore[arg-type]
+
+
+# ----------------------------------------------------------------------
+# Wrapper-root subscriptions (subtask handler_wrapper_root, P3)
+# ----------------------------------------------------------------------
+
+
+def test_on_source_change_fires_on_insert():
+    """Override of on_source_change receives 'ins' when grammar populates source."""
+
+    class P(HtmlBuilderHandler):
+        events: list[tuple[str, str | None]] = []
+
+        def main(self, root):
+            root.body()
+
+        def on_source_change(self, node, evt, evt_detail=None, **kw):
+            self.events.append((evt, evt_detail))
+
+    page = P()
+    page.create()
+    inserts = [e for e in page.events if e[0] == "ins"]
+    assert len(inserts) >= 1
+    assert all(detail is None for _, detail in inserts)
+
+
+def test_on_source_change_fires_on_delete():
+    """Override of on_source_change receives 'del' when a source node is removed."""
+
+    class P(HtmlBuilderHandler):
+        events: list[tuple[str, str | None]] = []
+
+        def main(self, root):
+            body = root.body()
+            body.div()
+
+        def on_source_change(self, node, evt, evt_detail=None, **kw):
+            self.events.append((evt, evt_detail))
+
+    page = P()
+    page.create()
+    body = page.source.get_node("body_0").value
+    page.events.clear()
+    del body["div_0"]
+    assert ("del", None) in page.events
+
+
+def test_on_data_change_fires_on_mutation():
+    """Override of on_data_change receives events when handler.data is mutated."""
+
+    class H(_StubHandler):
+        events: list[tuple[str, str | None]] = []
+
+        def on_data_change(self, node, evt, evt_detail=None, **kw):
+            self.events.append((evt, evt_detail))
+
+    h = H()
+    h.data["foo"] = 1
+    assert ("ins", None) in h.events
+    h.data["foo"] = 2
+    assert any(evt == "upd" for evt, _ in h.events)
+    del h.data["foo"]
+    assert ("del", None) in h.events
+
+
+def test_on_source_change_upd_detail_normalized():
+    """evt='upd_value' from genro_bag arrives as evt='upd', evt_detail='value'."""
+
+    class H(_StubHandler):
+        events: list[tuple[str, str | None]] = []
+
+        def on_source_change(self, node, evt, evt_detail=None, **kw):
+            self.events.append((evt, evt_detail))
+
+    h = H()
+    h.source["x"] = "first"
+    h.events.clear()
+    h.source["x"] = "second"
+    upds = [e for e in h.events if e[0] == "upd"]
+    assert upds, f"expected at least one 'upd', got {h.events!r}"
+    assert any(detail == "value" for _, detail in upds)
