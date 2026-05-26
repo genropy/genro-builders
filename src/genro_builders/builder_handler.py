@@ -278,6 +278,26 @@ class BuilderHandler:
         return self._node_index[node_id]
 
     # ------------------------------------------------------------------
+    # Reactive hooks (subtask handler_wrapper_root, P2)
+    # ------------------------------------------------------------------
+
+    def on_source_change(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
+        """Override point. Called for every insert/update/delete on source.
+
+        ``evt`` is one of ``"insert"``, ``"update"``, ``"delete"``. Default
+        implementation is a no-op; subclasses override to react to source
+        mutations. Wired up by the wrapper-root subscription in P3.
+        """
+
+    def on_data_change(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
+        """Override point. Called for every insert/update/delete on data.
+
+        ``evt`` is one of ``"insert"``, ``"update"``, ``"delete"``. Default
+        implementation is a no-op; subclasses override to react to data
+        mutations. Wired up by the wrapper-root subscription in P3.
+        """
+
+    # ------------------------------------------------------------------
     # User hook
     # ------------------------------------------------------------------
 

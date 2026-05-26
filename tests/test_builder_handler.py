@@ -210,3 +210,20 @@ def test_handler_data_aliases_dataroot_main():
     assert h.data is h._dataroot["main"]
     h.data["foo"] = 1
     assert h.data["foo"] == 1
+
+
+# ----------------------------------------------------------------------
+# Reactive hooks (subtask handler_wrapper_root, P2)
+# ----------------------------------------------------------------------
+
+
+def test_on_source_change_default_is_noop():
+    """Default on_source_change is a no-op: callable, returns None."""
+    h = _StubHandler()
+    assert h.on_source_change(node=None, evt="insert") is None  # type: ignore[arg-type]
+
+
+def test_on_data_change_default_is_noop():
+    """Default on_data_change is a no-op: callable, returns None."""
+    h = _StubHandler()
+    assert h.on_data_change(node=None, evt="insert") is None  # type: ignore[arg-type]
