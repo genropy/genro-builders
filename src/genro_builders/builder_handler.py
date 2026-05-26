@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from genro_bag import Bag
+
 from .builder import BagBuilderBase
 from .builder_bag import BuilderBagNode
 from .source_bag import BuilderSource
@@ -84,7 +86,12 @@ class BuilderHandler:
                 "(decision 9: handler subclasses bind a specific builder).",
             )
         self.builder = self.builder_class()
-        self.source = BuilderSource(builder=self.builder, handler=self)
+        self._sourceroot: Bag = Bag()
+        self._dataroot: Bag = Bag()
+        self._sourceroot["main"] = BuilderSource(builder=self.builder, handler=self)
+        self._dataroot["main"] = Bag()
+        self.source: BuilderSource = self._sourceroot["main"]
+        self.data: Bag = self._dataroot["main"]
         self._node_index: dict[str, BuilderBagNode] = {}
         self._render_targets: dict[str, Any] = {}
         self._default_render_mode: str | None = None

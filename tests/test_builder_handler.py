@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from genro_bag import Bag
 
 from genro_builders import BuilderSource
 from genro_builders.builder_handler import BuilderHandler
@@ -174,3 +175,38 @@ def test_node_id_cleaned_on_delete():
     del body["div_0"]
     with pytest.raises(KeyError):
         page.node_by_id("tagged")
+
+
+# ----------------------------------------------------------------------
+# Wrapper-root structure (subtask handler_wrapper_root, P1)
+# ----------------------------------------------------------------------
+
+
+def test_handler_has_sourceroot_wrapper():
+    """_sourceroot is a plain Bag holding the BuilderSource under 'main'."""
+    h = _StubHandler()
+    assert isinstance(h._sourceroot, Bag)
+    assert "main" in h._sourceroot
+    assert isinstance(h._sourceroot["main"], BuilderSource)
+
+
+def test_handler_has_dataroot_wrapper():
+    """_dataroot is a plain Bag holding a plain Bag under 'main'."""
+    h = _StubHandler()
+    assert isinstance(h._dataroot, Bag)
+    assert "main" in h._dataroot
+    assert isinstance(h._dataroot["main"], Bag)
+
+
+def test_handler_source_aliases_sourceroot_main():
+    """self.source is the same object as _sourceroot['main']."""
+    h = _StubHandler()
+    assert h.source is h._sourceroot["main"]
+
+
+def test_handler_data_aliases_dataroot_main():
+    """self.data is the same object as _dataroot['main'] and is mutable."""
+    h = _StubHandler()
+    assert h.data is h._dataroot["main"]
+    h.data["foo"] = 1
+    assert h.data["foo"] == 1
