@@ -10,7 +10,7 @@ and schema introspection (``__contains__``, ``_get_schema_info``, ``__iter__``).
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from genro_bag import Bag
 
@@ -159,6 +159,9 @@ class _GrammarMixin:
 
         try:
             if parent_info is not None:
+                # parent_info is set only inside `if parent_node and ...` above,
+                # so a non-None parent_info guarantees a non-None parent_node.
+                assert parent_node is not None
                 self._validate_sub_tags(parent_node, parent_info)
             self._validate_sub_tags(child_node, child_info)
         except ValueError:
@@ -167,7 +170,7 @@ class _GrammarMixin:
 
         return child_node
 
-    def _attach_subbuilder(self, node: BagNode, tag_name: str, builder_name: str, **attrs: Any) -> BagNode:
+    def _attach_subbuilder(self, node: BuilderBagNode, tag_name: str, builder_name: str, **attrs: Any) -> BagNode:
         """Create a subbuilder child of ``node``, switching the active dialect.
 
         Precondition: ``node`` is attached to a tree owned by a handler
@@ -175,18 +178,18 @@ class _GrammarMixin:
         """
         if not isinstance(node.value, Bag):
             parent_bag = node.parent_bag
-            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
+            sub_bag_cls = cast("type[BuilderBag]", type(parent_bag)) if parent_bag is not None else BuilderBag
             sub_bag = sub_bag_cls(
                 builder=node._resolve_builder(),
                 handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
             )
             node.value = sub_bag
         sub_attrs: dict[str, Any] = {"_is_subbuilder": True, **attrs}
-        child_node = node.value.set_item(
+        child_node = cast("BuilderBagNode", node.value.set_item(
             self._auto_label(node.value, tag_name), None,
             _attributes=sub_attrs,
             node_tag=tag_name,
-        )
+        ))
         handler = node._resolve_handler()
         child_node._builder = handler.get_subbuilder(builder_name)
         child_node._handler = handler
@@ -221,7 +224,7 @@ class _GrammarMixin:
             # down into the freshly-created sub-bag instead of leaking
             # the host dialect.
             parent_bag = node.parent_bag
-            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
+            sub_bag_cls = cast("type[BuilderBag]", type(parent_bag)) if parent_bag is not None else BuilderBag
             sub_bag = sub_bag_cls(
                 builder=node._resolve_builder(),
                 handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
@@ -321,8 +324,10 @@ class _GrammarMixin:
         Raises:
             ValueError: if tag not allowed or max exceeded
         """
-        # Wildcard "*" accepts any children - no validation needed
-        if sub_tags_compiled == "*":
+        # Wildcard "*" accepts any children - no validation needed.
+        # isinstance (not == "*") so mypy narrows the remaining type to dict:
+        # _parse_sub_tags_spec returns "*" as its only str value, else a dict.
+        if isinstance(sub_tags_compiled, str):
             return []
 
         bounds = {tag: list(minmax) for tag, minmax in sub_tags_compiled.items()}

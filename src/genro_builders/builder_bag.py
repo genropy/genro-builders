@@ -208,6 +208,12 @@ class BuilderBagNode(BagNode, _BuilderBagNodeMixin):
 
     __slots__ = ("_builder", "_handler")
 
+    # Type annotations for the __slots__ above so type checkers recognize
+    # these as members (slots alone are not typed). They hold a builder
+    # instance / BuilderHandler, both untyped here.
+    _builder: Any
+    _handler: Any
+
 
 class BuilderBag(Bag, _BuilderBagMixin):
     """Level-1 bag: Bag with builder-aware attribute dispatch.
