@@ -20,6 +20,8 @@ from ._utilities import _check_type, _parse_parent_tags_spec, _parse_sub_tags_sp
 if TYPE_CHECKING:
     from genro_bag import BagNode
 
+    from ..builder_bag import BuilderBagNode
+
 
 class _GrammarMixin:
     """Mixin for element dispatch, creation, validation, and schema access."""
@@ -199,7 +201,7 @@ class _GrammarMixin:
 
     def _command_on_node(
         self,
-        node: BagNode,
+        node: BuilderBagNode,
         child_tag: str,
         node_position: str | int | None = None,
         node_value: Any = None,
@@ -225,6 +227,8 @@ class _GrammarMixin:
                 handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
             )
             node.value = sub_bag
+
+        node._check_unique_id(attrs.get("node_id"))
 
         if child_tag in self._schema:
             info = self._get_schema_info(child_tag)

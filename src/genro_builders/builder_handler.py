@@ -12,8 +12,6 @@ The handler owns:
       Wrapping the payload under a stable root lets the subscription
       live on the wrapper (not on the payload), so it survives hot-swap
       of the payload (mirrors the legacy JS ``gnrdomsource.js`` pattern);
-    - the ``_node_index`` mapping ``node_id -> node`` (decision 11,
-      populated by the internal source dispatcher on insert/delete);
     - the dict ``mode -> target`` of render targets (decision 6).
 
 Reactive hooks:
@@ -37,7 +35,7 @@ Subclasses (typically ``HtmlBuilderHandler``, etc.) set
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from genro_bag import Bag
 
@@ -118,7 +116,6 @@ class BuilderHandler:
         self._dataroot["main"] = Bag()
         self.source: BuilderSource = self._sourceroot["main"]
         self.data: Bag = self._dataroot["main"]
-        self._node_index: dict[str, BuilderBagNode] = {}
         self._render_targets: dict[str, Any] = {}
         self._default_render_mode: str | None = None
         self._renderer_cache: dict[str, Any] = {}
@@ -293,21 +290,12 @@ class BuilderHandler:
     def _on_source_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
         """Internal dispatcher for events on ``_sourceroot``.
 
-        Maintains the ``_node_index`` for insert/delete (decision 11),
-        then forwards a normalized event to :meth:`on_source_change`.
+        Normalizes the raw bag event and forwards it to
+        :meth:`on_source_change`.
         """
         if evt == "ins":
-            node_id = node.get_attr("node_id")
-            if node_id is not None:
-                existing = self._node_index.get(node_id)
-                if existing is not None and existing is not node:
-                    raise ValueError(f"Duplicate node_id '{node_id}'.")
-                self._node_index[node_id] = node
             self.on_source_change(node, "ins", evt_detail=None, **kw)
         elif evt == "del":
-            node_id = node.get_attr("node_id")
-            if node_id is not None:
-                self._node_index.pop(node_id, None)
             self.on_source_change(node, "del", evt_detail=None, **kw)
         else:
             detail = evt[4:] if evt.startswith("upd_") else evt
@@ -327,8 +315,15 @@ class BuilderHandler:
             self.on_data_change(node, "upd", evt_detail=detail, **kw)
 
     def node_by_id(self, node_id: str) -> BuilderBagNode:
-        """Return the source node registered under ``node_id``."""
-        return self._node_index[node_id]
+        """Return the source node carrying ``node_id``.
+
+        Walk-based lookup over the source tree. Raises ``KeyError`` if
+        no node carries the requested id.
+        """
+        node = self.source.get_node_by_attr("node_id", node_id)
+        if node is None:
+            raise KeyError(node_id)
+        return cast(BuilderBagNode, node)
 
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)

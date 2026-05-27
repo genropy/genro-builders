@@ -146,20 +146,6 @@ def test_node_id_kwarg_collision_raises():
         P().create()
 
 
-def test_node_without_node_id_is_no_op():
-    """Nodes without node_id don't pollute the index."""
-
-    class P(HtmlBuilderHandler):
-        def main(self, root):
-            body = root.body()
-            body.div()
-            body.span(node_id="tagged")
-
-    page = P()
-    page.create()
-    assert list(page._node_index.keys()) == ["tagged"]
-
-
 def test_node_id_cleaned_on_delete():
     """Decision 11: removing a node de-registers its node_id."""
 

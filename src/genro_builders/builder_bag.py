@@ -79,6 +79,22 @@ class _BuilderBagNodeMixin:
         parent = self.parent_bag
         return getattr(parent, "_handler", None) if parent is not None else None
 
+    def _check_unique_id(self, node_id: Any) -> None:
+        """Raise ValueError if ``node_id`` is already taken in this
+        handler's source space. No-op when ``node_id`` is None.
+
+        Called before adding a child, so the candidate id is checked
+        against the existing tree only. Uniqueness scope is the owning
+        handler (one node_id namespace per handler, subbuilders included).
+        """
+        if node_id is None:
+            return
+        try:
+            self._resolve_handler().node_by_id(node_id)
+        except KeyError:
+            return
+        raise ValueError(f"Duplicate node_id '{node_id}'.")
+
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attribute access to the active builder.
 
