@@ -120,6 +120,10 @@ warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
 files = ["src/genro_builders"]
+# Tutorial examples are runnable scripts, not library code. Their files share
+# module names across dialects (e.g. 01_introduction.py in css/html/svg), which
+# collide under mypy's module resolution. They are excluded from type checking.
+exclude = "/examples/"
 
 [tool.coverage.run]
 source = ["src/genro_builders"]
