@@ -373,10 +373,15 @@ class _GrammarMixin:
             node._invalid_reasons = []
             return
 
+        # Domain nodes always carry a node_tag; only data_element and
+        # subbuilder nodes may lack one, and both are excluded here. The
+        # `and n.node_tag` makes that invariant explicit (children_tags is
+        # list[str], not list[str | None]).
         children_tags = [
             n.node_tag for n in node.value.nodes
             if not n.attr.get("_is_data_element")
             and not n.attr.get("_is_subbuilder")
+            and n.node_tag
         ] if isinstance(node.value, Bag) else []
 
         node._invalid_reasons = self._validate_children_tags(
