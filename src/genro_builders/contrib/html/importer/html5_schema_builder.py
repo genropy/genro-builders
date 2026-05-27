@@ -61,7 +61,7 @@ import urllib.request
 from pathlib import Path
 
 from genro_bag import Bag
-from lxml import etree
+from lxml import etree  # type: ignore[import-untyped]  # lxml ships no type stubs
 
 
 def download_from_github(url: str, dest_dir: Path) -> list[str]:
@@ -391,7 +391,7 @@ def first_elements(
 
         # Correct group semantics: first(A) + first(B) only if A is nullable
         # Stop adding when we hit a non-nullable element
-        res: set[str] = set()
+        res = set()
         all_prev_nullable = True
 
         for part in children:
@@ -567,12 +567,14 @@ def main() -> None:
 
     if args.output.suffix == ".mp" or str(args.output).endswith(".bag.mp"):
         data = schema.to_tytx(transport="msgpack")
+        assert isinstance(data, bytes)  # no filename -> always returns bytes
         args.output.write_bytes(data)
         print(f"\nSaved to {args.output} ({len(data)} bytes)")
     else:
-        data = schema.to_tytx(transport="json")
-        args.output.write_text(data)
-        print(f"\nSaved to {args.output} ({len(data)} bytes)")
+        text = schema.to_tytx(transport="json")
+        assert isinstance(text, str)  # no filename -> always returns str
+        args.output.write_text(text)
+        print(f"\nSaved to {args.output} ({len(text)} bytes)")
 
     # Optional JSON output
     if args.json:

@@ -125,6 +125,32 @@ files = ["src/genro_builders"]
 # collide under mypy's module resolution. They are excluded from type checking.
 exclude = "/examples/"
 
+# The grammar machine works with BuilderBag/BuilderBagNode but receives them
+# typed as the genro_bag base Bag/BagNode (e.g. node.value, type(parent_bag)).
+# BuilderBag adds builder=/handler= kwargs and the _builder/_handler slots that
+# the base types don't declare. This is a known, accepted type boundary: the
+# code is correct at runtime. We silence only the two error codes this boundary
+# produces, scoped to this module, rather than littering the code with casts.
+[[tool.mypy.overrides]]
+module = "genro_builders.builder._grammar"
+disable_error_code = ["call-arg", "union-attr"]
+
+# Same BuilderBag/BagNode boundary: __getattr__ dispatches to builder methods
+# resolved dynamically (getattr on the active builder), which mypy can't narrow.
+[[tool.mypy.overrides]]
+module = "genro_builders.builder_bag"
+disable_error_code = ["misc"]
+
+# HTML/SVG renderers override _render_node with dialect-specific walk params,
+# incompatible with the base **walk_kwargs signature. These signatures will be
+# reworked by the render_walk_generator subtask (Fase 2); silenced until then.
+[[tool.mypy.overrides]]
+module = [
+    "genro_builders.contrib.html.html_renderer",
+    "genro_builders.contrib.svg.svg_renderer",
+]
+disable_error_code = ["override"]
+
 [tool.coverage.run]
 source = ["src/genro_builders"]
 branch = true

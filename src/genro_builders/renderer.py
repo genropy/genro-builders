@@ -190,7 +190,8 @@ class RendererBase:
         attr_name = f"wrapper_{sub_name}"
         for klass in type(host).__mro__:
             if attr_name in klass.__dict__:
-                return klass.__dict__[attr_name](host)
+                wrapper: dict[str, Any] | None = klass.__dict__[attr_name](host)
+                return wrapper
         return None
 
     def _write_or_return(self, text: str, render_target: Any) -> str | None:

@@ -525,7 +525,7 @@ class CssReverser:
         return stmts
 
     def _media_condition(self, node: Any) -> str:
-        text = node.text.decode()
+        text: str = node.text.decode()
         prefix = "@media"
         if text.startswith(prefix):
             text = text[len(prefix):].lstrip()
@@ -557,7 +557,7 @@ class CssReverser:
         return stmts
 
     def _supports_condition(self, node: Any) -> str:
-        text = node.text.decode()
+        text: str = node.text.decode()
         prefix = "@supports"
         if text.startswith(prefix):
             text = text[len(prefix):].lstrip()
@@ -585,6 +585,6 @@ class CssReverser:
             property_kwargs[_kebab_to_snake(prop)] = value
 
     def _declaration_value(self, node: Any) -> str:
-        text = node.text.decode().rstrip(";").rstrip()
+        text: str = node.text.decode().rstrip(";").rstrip()
         _, _, rest = text.partition(":")
         return rest.strip()

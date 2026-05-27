@@ -10,7 +10,7 @@ and schema introspection (``__contains__``, ``_get_schema_info``, ``__iter__``).
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
 
@@ -178,18 +178,18 @@ class _GrammarMixin:
         """
         if not isinstance(node.value, Bag):
             parent_bag = node.parent_bag
-            sub_bag_cls = cast("type[BuilderBag]", type(parent_bag)) if parent_bag is not None else BuilderBag
+            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
             sub_bag = sub_bag_cls(
                 builder=node._resolve_builder(),
                 handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
             )
             node.value = sub_bag
         sub_attrs: dict[str, Any] = {"_is_subbuilder": True, **attrs}
-        child_node = cast("BuilderBagNode", node.value.set_item(
+        child_node = node.value.set_item(
             self._auto_label(node.value, tag_name), None,
             _attributes=sub_attrs,
             node_tag=tag_name,
-        ))
+        )
         handler = node._resolve_handler()
         child_node._builder = handler.get_subbuilder(builder_name)
         child_node._handler = handler
@@ -224,7 +224,7 @@ class _GrammarMixin:
             # down into the freshly-created sub-bag instead of leaking
             # the host dialect.
             parent_bag = node.parent_bag
-            sub_bag_cls = cast("type[BuilderBag]", type(parent_bag)) if parent_bag is not None else BuilderBag
+            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
             sub_bag = sub_bag_cls(
                 builder=node._resolve_builder(),
                 handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
