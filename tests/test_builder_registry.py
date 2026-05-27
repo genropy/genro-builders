@@ -47,5 +47,5 @@ def test_lookup_unknown_name_raises_lookup_error():
 
 def test_base_class_does_not_register_itself():
     """``BagBuilderBase`` is abstract: it must not appear in the registry."""
-    for cls in BagBuilderBase.register.values():
+    for cls in BagBuilderBase._registry.values():
         assert cls is not BagBuilderBase

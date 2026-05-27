@@ -17,7 +17,7 @@ import contextlib
 import json
 from abc import ABC
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from genro_bag import Bag
 
@@ -63,8 +63,16 @@ class BagBuilderBase(
 
     #: Class-level dict mapping ``_name`` to the Builder class. Populated
     #: automatically in :meth:`__init_subclass__` whenever a subclass
-    #: declares ``_name``. Lookup via :meth:`get_builder_class`.
-    register: dict[str, type] = {}
+    #: declares ``_name``. Lookup via :meth:`get_builder_class`. Named
+    #: ``_registry`` (not ``register``) to avoid shadowing the
+    #: ``ABCMeta.register`` virtual-subclass method inherited via ABC.
+    _registry: ClassVar[dict[str, type]] = {}
+
+    #: Case-insensitive tag map (lowercase key -> canonical label), rebuilt
+    #: per subclass in :meth:`__init_subclass__`. Declared here so the type
+    #: is known at class scope (it cannot be annotated on the ``cls`` target).
+    #: Not a ClassVar: ``__init__`` binds it onto each instance as well.
+    _schema_tag_names: dict[str, str]
 
     # -----------------------------------------------------------------------
     # Initialization
@@ -153,7 +161,7 @@ class BagBuilderBase(
                         f"available: {sorted(known_abstracts)}"
                     )
 
-        cls._schema_tag_names: dict[str, str] = {}
+        cls._schema_tag_names = {}
         for node in cls._class_schema.nodes:
             label = node.label
             if label.startswith("_"):
@@ -173,13 +181,13 @@ class BagBuilderBase(
                 raise TypeError(
                     f"{cls.__name__}._name must be str, got {type(name).__name__}"
                 )
-            existing = BagBuilderBase.register.get(name)
-            if existing is not None and existing is not cls:
+            existing_builder = BagBuilderBase._registry.get(name)
+            if existing_builder is not None and existing_builder is not cls:
                 raise ValueError(
                     f"Builder name {name!r} already registered to "
-                    f"{existing.__name__}; cannot register {cls.__name__}"
+                    f"{existing_builder.__name__}; cannot register {cls.__name__}"
                 )
-            BagBuilderBase.register[name] = cls
+            BagBuilderBase._registry[name] = cls
 
     @classmethod
     def get_builder_class(cls, name: str) -> type:
@@ -196,11 +204,11 @@ class BagBuilderBase(
             LookupError: if no builder is registered under ``name``
                 after the auto-import attempt.
         """
-        if name not in BagBuilderBase.register:
+        if name not in BagBuilderBase._registry:
             with contextlib.suppress(ImportError):
                 __import__(f"genro_builders.contrib.{name}")
         try:
-            return BagBuilderBase.register[name]
+            return BagBuilderBase._registry[name]
         except KeyError:
             raise LookupError(f"No builder registered with name {name!r}") from None
 

@@ -221,7 +221,7 @@ def subbuilder(
     ``parent_tags`` (where the sub-builder may be embedded).
 
     The target builder is identified by its canonical ``_name`` (see
-    :attr:`BagBuilderBase.register`). Resolution is lazy: the framework
+    :attr:`BagBuilderBase._registry`). Resolution is lazy: the framework
     looks the class up via :meth:`BagBuilderBase.get_builder_class`
     when the sub-builder is actually attached, not at decoration time.
     This removes import-circularity barriers between mutually-referencing
