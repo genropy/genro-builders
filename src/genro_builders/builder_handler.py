@@ -342,6 +342,10 @@ class BuilderHandler:
                                        until the result is absolute;
                                        ``ValueError`` if the chain ends
                                        without an absolute anchor
+            ``a.#parent.b``         — ``#parent`` segments cancel the
+                                       preceding segment (filesystem
+                                       ``..`` equivalent); ``ValueError``
+                                       if it has nothing left to cancel
 
         Symbolic scopes (``#...``) raise NotImplementedError until P3.
         Ancestor ``datapath`` values that are callable, pointer (``^``)
@@ -372,6 +376,8 @@ class BuilderHandler:
             composed = f"{volume}:{composed}"
         if attr is not None:
             composed = f"{composed}?{attr}"
+        if "#parent" in composed:
+            composed = self._collapse_parent(composed, raw)
         return composed
 
     def _compose_relative(
@@ -416,6 +422,26 @@ class BuilderHandler:
         if path.startswith("."):
             raise ValueError(f"unresolved relative datapath: {raw!r}")
         return path
+
+    def _collapse_parent(self, path: str, raw: str) -> str:
+        """Collapse ``#parent`` segments in a composed path.
+
+        Path-level rewrite: each ``#parent`` segment cancels the segment
+        immediately before it (``a.b.#parent.c`` -> ``a.c``). Raises
+        ``ValueError`` when ``#parent`` has no segment left to cancel,
+        rather than silently dropping it.
+        """
+        out: list[str] = []
+        for segment in path.split("."):
+            if segment == "#parent":
+                if not out:
+                    raise ValueError(
+                        f"#parent has no segment to cancel: {raw!r}"
+                    )
+                out.pop()
+            else:
+                out.append(segment)
+        return ".".join(out)
 
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)

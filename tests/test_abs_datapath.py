@@ -197,6 +197,42 @@ def test_relative_walk_uses_leaf_datapath_too():
 
 
 # ---------------------------------------------------------------------------
+# #parent path-level rewrite (filesystem ".." equivalent)
+# ---------------------------------------------------------------------------
+
+
+def test_parent_collapses_preceding_segment():
+    page, leaf = _leaf()
+    assert page.abs_datapath(leaf, "a.b.#parent.c") == "a.c"
+
+
+def test_parent_collapses_multiple_segments():
+    page, leaf = _leaf()
+    assert page.abs_datapath(leaf, "a.b.c.#parent.#parent.d") == "a.d"
+
+
+def test_parent_after_relative_resolution():
+    """#parent applies AFTER the ancestor walk has composed the path."""
+    page = _PageWithDatapath()       # body.datapath="myform"
+    page.create()
+    leaf = page.node_by_id("leaf")
+    # relative resolves to "myform.row.name", then #parent collapses "row"
+    assert page.abs_datapath(leaf, ".row.#parent.name") == "myform.name"
+
+
+def test_parent_with_volume_and_attr():
+    page, leaf = _leaf()
+    assert page.abs_datapath(leaf, "vol:a.b.#parent.c?color") == "vol:a.c?color"
+
+
+def test_parent_with_nothing_to_cancel_raises():
+    """No silent drop: too many #parent segments raises ValueError."""
+    page, leaf = _leaf()
+    with pytest.raises(ValueError):
+        page.abs_datapath(leaf, "a.#parent.#parent.b")
+
+
+# ---------------------------------------------------------------------------
 # Forms reserved for later phases — explicit NotImplementedError (no fallback)
 # ---------------------------------------------------------------------------
 
