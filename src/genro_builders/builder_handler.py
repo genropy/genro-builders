@@ -325,6 +325,52 @@ class BuilderHandler:
             raise KeyError(node_id)
         return cast(BuilderBagNode, node)
 
+    def abs_datapath(self, node: BuilderBagNode, path: str) -> str:
+        """Compose the absolute path for ``path`` relative to ``node``.
+
+        Pure address composition: returns *where* a datum lives as a
+        string, never reads the datastore. Supported syntactic forms:
+
+            ``field``               — absolute, returned as-is
+            ``^...``                — pointer mark stripped, recurses
+            ``volume:field``        — absolute in another builder; the
+                                       ``volume:`` prefix is preserved,
+                                       routing happens at read time
+            ``field?attr``          — ``?attr`` is preserved at the tail
+
+        P1 stage: parsing + composition of the forms above. Relative
+        paths (``.x``) and symbolic scopes (``#...``) are recognized
+        and raise NotImplementedError until P2/P3 land.
+        """
+        raw = path
+        if path.startswith("^"):
+            path = path[1:]
+
+        if path.startswith("#"):
+            raise NotImplementedError(
+                f"symbolic scope not implemented yet (P3): {raw!r}",
+            )
+
+        volume: str | None = None
+        if ":" in path and not path.startswith("."):
+            volume, path = path.split(":", 1)
+
+        attr: str | None = None
+        if "?" in path:
+            path, attr = path.split("?", 1)
+
+        if path.startswith("."):
+            raise NotImplementedError(
+                f"relative datapath not implemented yet (P2): {raw!r}",
+            )
+
+        composed = path
+        if volume is not None:
+            composed = f"{volume}:{composed}"
+        if attr is not None:
+            composed = f"{composed}?{attr}"
+        return composed
+
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)
     # ------------------------------------------------------------------
