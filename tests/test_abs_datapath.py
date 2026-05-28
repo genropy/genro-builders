@@ -233,14 +233,136 @@ def test_parent_with_nothing_to_cancel_raises():
 
 
 # ---------------------------------------------------------------------------
-# Forms reserved for later phases — explicit NotImplementedError (no fallback)
+# Symbolic scopes (P3): #FORM, #ANCHOR, #nodeId
 # ---------------------------------------------------------------------------
 
 
-def test_symbolic_scope_raises_not_implemented_in_p2():
+def test_symbolic_form_with_formId():
+    """#FORM resolves to the nearest ancestor with attr formId set."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body(formId="inv", datapath="f").div(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    assert page.abs_datapath(leaf, "#FORM.x") == "f.x"
+
+
+def test_symbolic_form_with_form_true():
+    """#FORM also matches form=True (DB-D3, replaces legacy _fakeform)."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body(form=True, datapath="f").div(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    assert page.abs_datapath(leaf, "#FORM.x") == "f.x"
+
+
+def test_symbolic_form_walks_past_unmarked_intermediate():
+    """The walk continues past ancestors that are not marked."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            outer = root.body(formId="inv", datapath="f")
+            inner = outer.div()                  # unmarked intermediate
+            inner.span(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    assert page.abs_datapath(leaf, "#FORM.x") == "f.x"
+
+
+def test_symbolic_form_without_marked_ancestor_raises_key_error():
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body().div(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    with pytest.raises(KeyError):
+        page.abs_datapath(leaf, "#FORM.x")
+
+
+def test_symbolic_anchor_with_attribute_presence():
+    """#ANCHOR matches the nearest ancestor with attr _anchor present."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body(_anchor="whatever", datapath="a").div(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    assert page.abs_datapath(leaf, "#ANCHOR.x") == "a.x"
+
+
+def test_symbolic_anchor_value_is_arbitrary():
+    """_anchor value is arbitrary: presence alone is the marker."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body(_anchor=True, datapath="a").div(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    assert page.abs_datapath(leaf, "#ANCHOR.x") == "a.x"
+
+
+def test_symbolic_anchor_without_marker_raises_key_error():
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body().div(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    with pytest.raises(KeyError):
+        page.abs_datapath(leaf, "#ANCHOR.x")
+
+
+def test_symbolic_node_id_resolves_via_node_by_id():
+    """#<id> dispatches to node_by_id and composes with the target's datapath."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body(node_id="hub", datapath="rec").div(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    assert page.abs_datapath(leaf, "#hub.x") == "rec.x"
+
+
+def test_symbolic_unknown_id_raises_key_error():
     page, leaf = _leaf()
-    with pytest.raises(NotImplementedError):
-        page.abs_datapath(leaf, "#FORM.name")
+    with pytest.raises(KeyError):
+        page.abs_datapath(leaf, "#totally-unknown.x")
+
+
+def test_symbolic_with_pointer_mark():
+    """^#FORM.x: pointer mark is stripped, symbolic dispatch happens after."""
+
+    class P(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body(formId="inv", datapath="f").div(node_id="leaf")
+
+    page = P()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    assert page.abs_datapath(leaf, "^#FORM.x") == "f.x"
+
+
+# ---------------------------------------------------------------------------
+# Forms reserved for later phases — explicit NotImplementedError (no fallback)
+# ---------------------------------------------------------------------------
 
 
 def test_callable_ancestor_datapath_raises_not_implemented():

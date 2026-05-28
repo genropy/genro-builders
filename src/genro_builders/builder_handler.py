@@ -346,8 +346,20 @@ class BuilderHandler:
                                        preceding segment (filesystem
                                        ``..`` equivalent); ``ValueError``
                                        if it has nothing left to cancel
+            ``#FORM.x``             — relative to the nearest ancestor
+                                       marked with ``formId`` set or
+                                       ``form=True`` (DB-D3); ``KeyError``
+                                       if no such ancestor
+            ``#ANCHOR.x``           — relative to the nearest ancestor
+                                       with attr ``_anchor`` present;
+                                       ``KeyError`` otherwise
+            ``#<node_id>.x``        — relative to the node carrying that
+                                       ``node_id`` (any other ``#xxx``
+                                       falls in here); ``KeyError`` if
+                                       no node carries that id
 
-        Symbolic scopes (``#...``) raise NotImplementedError until P3.
+        ``#ROW``, ``#WORKSPACE``, ``#S`` are recognized but raise
+        NotImplementedError (P4).
         Ancestor ``datapath`` values that are callable, pointer (``^``)
         or symbolic (``#``) raise NotImplementedError (P4).
         """
@@ -356,9 +368,7 @@ class BuilderHandler:
             path = path[1:]
 
         if path.startswith("#"):
-            raise NotImplementedError(
-                f"symbolic scope not implemented yet (P3): {raw!r}",
-            )
+            return self._resolve_symbolic(node, path, raw)
 
         volume: str | None = None
         if ":" in path and not path.startswith("."):
@@ -442,6 +452,73 @@ class BuilderHandler:
             else:
                 out.append(segment)
         return ".".join(out)
+
+    def _resolve_symbolic(
+        self,
+        node: BuilderBagNode,
+        path: str,
+        raw: str,
+    ) -> str:
+        """Resolve a ``#SYMBOL[.relpath]`` path.
+
+        Dispatch (path starts with ``#``):
+            ``#FORM``       — nearest ancestor with attr ``formId`` set
+                              OR ``form=True`` (DB-D3);
+            ``#ANCHOR``     — nearest ancestor with attr ``_anchor``
+                              present (any value, DB-D3);
+            ``#<id>``       — node carrying that ``node_id`` (any other
+                              ``#xxx`` falls in here).
+
+        ``#ROW``, ``#WORKSPACE`` and ``#S`` are recognized as known
+        legacy scopes and raise ``NotImplementedError`` (P4 —
+        predisposed, not silently joined).
+
+        The matching ancestor / node is then used as starting point for
+        a relative resolution of ``relpath`` via ``abs_datapath``, so
+        the ancestor's own ``datapath`` chain is consulted normally.
+        """
+        symbol, _, relpath = path[1:].partition(".")
+        if symbol in ("ROW", "WORKSPACE", "S"):
+            raise NotImplementedError(
+                f"symbolic scope #{symbol} recognized but not implemented "
+                f"(P4): {raw!r}"
+            )
+        if symbol == "FORM":
+            anchor = self._find_marked_ancestor(node, form=True, anchor=False, raw=raw)
+        elif symbol == "ANCHOR":
+            anchor = self._find_marked_ancestor(node, form=False, anchor=True, raw=raw)
+        else:
+            anchor = self.node_by_id(symbol)
+        rel = f".{relpath}" if relpath else "."
+        return self.abs_datapath(anchor, rel)
+
+    def _find_marked_ancestor(
+        self,
+        node: BuilderBagNode,
+        *,
+        form: bool,
+        anchor: bool,
+        raw: str,
+    ) -> BuilderBagNode:
+        """Walk ancestors looking for a node carrying the requested marker.
+
+        Markers (DB-D3):
+            ``form=True``   — ``formId`` set OR ``form=True`` in attrs;
+            ``anchor=True`` — ``_anchor`` present in attrs.
+
+        The walk starts from ``node`` itself. Raises ``KeyError`` if no
+        ancestor satisfies the marker (no silent fallback).
+        """
+        current: BagNode | None = node
+        while current is not None:
+            attrs = current.attr
+            if form and (attrs.get("formId") is not None or attrs.get("form") is True):
+                return cast(BuilderBagNode, current)
+            if anchor and "_anchor" in attrs:
+                return cast(BuilderBagNode, current)
+            current = current.parent_node
+        marker = "FORM" if form else "ANCHOR"
+        raise KeyError(f"#{marker}: no marked ancestor found for {raw!r}")
 
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)
