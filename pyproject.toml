@@ -151,15 +151,16 @@ module = [
 ]
 disable_error_code = ["override"]
 
-# Walk-based lookups on the handler (node_by_id, abs_datapath helpers) traverse
-# the source tree via genro_bag's BagNode.parent_node / get_node_by_attr, which
-# return BagNode. At runtime every node in a BuilderSource is a BuilderBagNode
-# (invariant enforced at construction by the source), but mypy can't see this
-# narrowing. We silence the resulting return-value mismatch for this module
+# Walk-based lookups on the handler (node_by_id, abs_datapath helpers,
+# register_pointer) traverse the source tree via genro_bag's
+# BagNode.parent_node / get_node_by_attr / Bag.node, which return BagNode.
+# At runtime every node in a BuilderSource is a BuilderBagNode (invariant
+# enforced at construction by the source), but mypy can't see this narrowing.
+# We silence the resulting return-value/arg-type mismatches for this module
 # rather than littering the code with casts.
 [[tool.mypy.overrides]]
 module = "genro_builders.builder_handler"
-disable_error_code = ["return-value"]
+disable_error_code = ["return-value", "arg-type"]
 
 [tool.coverage.run]
 source = ["src/genro_builders"]

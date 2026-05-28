@@ -130,18 +130,6 @@ class BuilderHandler:
         # ``abs_datapath``); valore = dict ``{id(node): node}`` (BuilderBagNode
         # non è hashable, indicizziamo per ``id`` per add/remove O(1)).
         self.pointer_map: dict[str, dict[int, BuilderBagNode]] = {}
-        self._sourceroot.subscribe(
-            "builder_handler_source",
-            insert=self._on_source_event,
-            update=self._on_source_event,
-            delete=self._on_source_event,
-        )
-        self._dataroot.subscribe(
-            "builder_handler_data",
-            insert=self._on_data_event,
-            update=self._on_data_event,
-            delete=self._on_data_event,
-        )
 
     def _ensure_mode(self, mode: str) -> dict[str, Any]:
         """Return the ``self.renderers[mode]`` entry, creating it lazily.
@@ -163,8 +151,35 @@ class BuilderHandler:
     # ------------------------------------------------------------------
 
     def create(self) -> None:
-        """Populate the source bag by invoking ``main(self.source)``."""
+        """Run the construction phase, then arm the reactive subscribes.
+
+        Sequence:
+            1. ``self.main(self.source)`` builds the document. Subscribes
+               are not active yet, so the inserts from the builder API
+               do NOT dispatch to ``on_source_change``.
+            2. ``register_pointer`` walks the resulting subtree and
+               populates ``self.pointer_map`` once. Skipped silently if
+               ``main`` did not produce any top-level node.
+            3. ``_sourceroot``/``_dataroot`` are subscribed: from here on
+               every mutation flows to ``on_source_change`` /
+               ``on_data_change``.
+        """
         self.main(self.source)
+        first = self.source.node(0)
+        if first is not None:
+            self.register_pointer(first)
+        self._sourceroot.subscribe(
+            "builder_handler_source",
+            insert=self._on_source_event,
+            update=self._on_source_event,
+            delete=self._on_source_event,
+        )
+        self._dataroot.subscribe(
+            "builder_handler_data",
+            insert=self._on_data_event,
+            update=self._on_data_event,
+            delete=self._on_data_event,
+        )
 
     def render(
         self,
