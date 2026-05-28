@@ -35,7 +35,7 @@ Subclasses (typically ``HtmlBuilderHandler``, etc.) set
 """
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 from genro_bag import Bag, BagNode
 
@@ -323,7 +323,7 @@ class BuilderHandler:
         node = self.source.get_node_by_attr("node_id", node_id)
         if node is None:
             raise KeyError(node_id)
-        return cast(BuilderBagNode, node)
+        return node
 
     def abs_datapath(self, node: BuilderBagNode, path: str) -> str:
         """Compose the absolute path for ``path`` relative to ``node``.
@@ -480,9 +480,9 @@ class BuilderHandler:
         while current is not None:
             attrs = current.attr
             if form and (attrs.get("formId") is not None or attrs.get("form") is True):
-                return cast(BuilderBagNode, current)
+                return current
             if anchor and "_anchor" in attrs:
-                return cast(BuilderBagNode, current)
+                return current
             current = current.parent_node
         marker = "FORM" if form else "ANCHOR"
         raise KeyError(f"#{marker}: no marked ancestor found for {raw!r}")
