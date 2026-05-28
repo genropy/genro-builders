@@ -37,7 +37,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from genro_bag import Bag
+from genro_bag import Bag, BagNode
 
 from .builder import BagBuilderBase
 from .builder_bag import BuilderBagNode
@@ -337,10 +337,15 @@ class BuilderHandler:
                                        ``volume:`` prefix is preserved,
                                        routing happens at read time
             ``field?attr``          — ``?attr`` is preserved at the tail
+            ``.field`` / ``.x``     — relative: walk ancestors and
+                                       chain their ``datapath`` attribute
+                                       until the result is absolute;
+                                       ``ValueError`` if the chain ends
+                                       without an absolute anchor
 
-        P1 stage: parsing + composition of the forms above. Relative
-        paths (``.x``) and symbolic scopes (``#...``) are recognized
-        and raise NotImplementedError until P2/P3 land.
+        Symbolic scopes (``#...``) raise NotImplementedError until P3.
+        Ancestor ``datapath`` values that are callable, pointer (``^``)
+        or symbolic (``#``) raise NotImplementedError (P4).
         """
         raw = path
         if path.startswith("^"):
@@ -360,9 +365,7 @@ class BuilderHandler:
             path, attr = path.split("?", 1)
 
         if path.startswith("."):
-            raise NotImplementedError(
-                f"relative datapath not implemented yet (P2): {raw!r}",
-            )
+            path = self._compose_relative(node, path, raw)
 
         composed = path
         if volume is not None:
@@ -370,6 +373,49 @@ class BuilderHandler:
         if attr is not None:
             composed = f"{composed}?{attr}"
         return composed
+
+    def _compose_relative(
+        self,
+        node: BuilderBagNode,
+        path: str,
+        raw: str,
+    ) -> str:
+        """Resolve a relative path by walking ancestors.
+
+        Chains ``attr["datapath"]`` of ancestors (starting from ``node``)
+        in front of ``path`` until the result no longer starts with
+        ``.``. Stops at the first ancestor whose ``datapath`` is
+        absolute. Raises ``ValueError`` if the chain ends while ``path``
+        is still relative.
+
+        Datapath values that are callable, pointer (``^``) or symbolic
+        (``#``) are deferred to P4 — they raise ``NotImplementedError``
+        rather than being silently concatenated.
+        """
+        current: BagNode | None = node
+        while current is not None and path.startswith("."):
+            dp = current.attr.get("datapath")
+            if dp is not None:
+                if not isinstance(dp, str):
+                    raise NotImplementedError(
+                        f"callable/non-string datapath on ancestor "
+                        f"not implemented (P4): resolving {raw!r}"
+                    )
+                if dp.startswith("^"):
+                    raise NotImplementedError(
+                        f"pointer datapath on ancestor not implemented "
+                        f"(P4): resolving {raw!r}"
+                    )
+                if dp.startswith("#"):
+                    raise NotImplementedError(
+                        f"symbolic datapath on ancestor not implemented "
+                        f"(P4): resolving {raw!r}"
+                    )
+                path = dp + path
+            current = current.parent_node
+        if path.startswith("."):
+            raise ValueError(f"unresolved relative datapath: {raw!r}")
+        return path
 
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)
