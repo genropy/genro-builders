@@ -109,15 +109,20 @@ def test_render_delegates_to_renderer_with_source_mode_and_target():
 
 
 def test_set_render_target_round_trip():
-    """Decision 6: set_render_target stores target in the per-mode dict."""
+    """Decision 6: set_render_target wires target/default for the mode.
+
+    Observed behavior: a render() with no explicit target uses the one
+    registered under the mode; default=True makes the mode the handler's
+    default for plain render() calls.
+    """
     h = _StubHandler()
-    assert h._render_targets == {}
     h.set_render_target("stub", "x")
-    assert h._render_targets == {"stub": "x"}
-    assert h._default_render_mode is None
+    h.render(mode="stub")
+    assert h.renderer.calls[-1][2] == "x"   # target argument forwarded
     h.set_render_target("stub", "y", default=True)
-    assert h._render_targets == {"stub": "y"}
-    assert h._default_render_mode == "stub"
+    h.render()                              # no mode → handler default
+    assert h.renderer.calls[-1][1] == "stub"
+    assert h.renderer.calls[-1][2] == "y"
 
 
 def test_node_id_kwarg_round_trip():

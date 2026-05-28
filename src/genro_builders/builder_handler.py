@@ -116,11 +116,8 @@ class BuilderHandler:
         self._dataroot["main"] = Bag()
         self.source: BuilderSource = self._sourceroot["main"]
         self.data: Bag = self._dataroot["main"]
-        self._render_targets: dict[str, Any] = {}
+        self.renderers: dict[str, dict[str, Any]] = {}
         self._default_render_mode: str | None = None
-        self._renderer_cache: dict[str, Any] = {}
-        self._subbuilder_cache: dict[str, Any] = {}
-        self._sub_renderer_cache: dict[int, Any] = {}
         self._sourceroot.subscribe(
             "builder_handler_source",
             insert=self._on_source_event,
@@ -134,12 +131,20 @@ class BuilderHandler:
             delete=self._on_data_event,
         )
 
-    def _get_renderer(self, mode: str) -> Any:
-        """Return the (cached) renderer instance for ``mode``."""
-        if mode not in self._renderer_cache:
+    def _ensure_mode(self, mode: str) -> dict[str, Any]:
+        """Return the ``self.renderers[mode]`` entry, creating it lazily.
+
+        Each entry holds ``{"target": ..., "instance": RendererBase}``.
+        The renderer class is read from the builder's registry the first
+        time the mode is touched (either by ``set_render_target`` or by
+        ``render``).
+        """
+        entry = self.renderers.get(mode)
+        if entry is None:
             renderer_cls = self.builder._renderers[mode]
-            self._renderer_cache[mode] = renderer_cls(self)
-        return self._renderer_cache[mode]
+            entry = {"target": None, "instance": renderer_cls(self)}
+            self.renderers[mode] = entry
+        return entry
 
     # ------------------------------------------------------------------
     # Lifecycle (decision 5)
@@ -181,14 +186,14 @@ class BuilderHandler:
             or self._default_render_mode
             or self.builder._default_render_mode
         )
+        entry = self._ensure_mode(effective_mode)
         if target is False:
             effective_target = None
         elif not target:
-            effective_target = self._render_targets.get(effective_mode)
+            effective_target = entry["target"]
         else:
             effective_target = target
-        renderer = self._get_renderer(effective_mode)
-        return renderer.render(
+        return entry["instance"].render(
             self.source,
             mode=effective_mode,
             render_target=effective_target,
@@ -207,7 +212,7 @@ class BuilderHandler:
         ``default=True`` the mode also becomes the handler's default
         for plain ``self.render()`` calls.
         """
-        self._render_targets[mode] = target
+        self._ensure_mode(mode)["target"] = target
         if default:
             self._default_render_mode = mode
 
@@ -237,51 +242,41 @@ class BuilderHandler:
 
     @property
     def renderer(self) -> Any:
-        """Lazy, cached dialect renderer for the dialect's default mode.
+        """Dialect renderer for the builder's default mode.
 
         Available for inspection (``handler.renderer._STYLE_ROOTS``,
         etc.) or for explicit calls when the shortcut
-        ``handler.render(...)`` is too narrow.
+        ``handler.render(...)`` is too narrow. The instance is created
+        on first access and kept in ``self.renderers``.
         """
-        return self._get_renderer(self.builder._default_render_mode)
+        return self._ensure_mode(self.builder._default_render_mode)["instance"]
 
     # ------------------------------------------------------------------
-    # Sub-builder cache (decision 2)
+    # Sub-builder access (decision 2)
     # ------------------------------------------------------------------
 
     def get_subbuilder(self, name: str) -> Any:
-        """Return a cached sub-builder instance by canonical name.
+        """Return a sub-builder instance by canonical name.
 
         Looks up the class in the global registry via
-        :meth:`BagBuilderBase.get_builder_class` and instantiates it
-        once per handler. Subsequent calls with the same name return
-        the same instance (sub-builders are essentially stateless
-        grammars, so one instance per dialect per document is enough).
+        :meth:`BagBuilderBase.get_builder_class` and instantiates it.
         """
-        if name not in self._subbuilder_cache:
-            cls = BagBuilderBase.get_builder_class(name)
-            self._subbuilder_cache[name] = cls()
-        return self._subbuilder_cache[name]
+        return BagBuilderBase.get_builder_class(name)()
 
     def renderer_for(self, builder: Any) -> Any:
-        """Return the (cached) renderer instance bound to ``builder``.
+        """Return the renderer instance bound to ``builder``.
 
-        For the primary builder this is just ``self.renderer``. For a
+        For the primary builder this is ``self.renderer``. For a
         sub-builder (a different dialect attached to a subtree), the
         renderer class is read from the sub-builder's renderer registry
-        (default mode) and instantiated once per handler. The
-        sub-renderer carries an explicit ``builder`` reference so
-        polymorphic dispatch via ``node._builder`` can identify it
-        correctly.
+        (default mode) and instantiated on the spot. The sub-renderer
+        carries an explicit ``builder`` reference so polymorphic
+        dispatch via ``node._builder`` can identify it correctly.
         """
         if builder is self.builder:
             return self.renderer
-        key = id(builder)
-        if key not in self._sub_renderer_cache:
-            mode = builder._default_render_mode
-            renderer_cls = builder._renderers[mode]
-            self._sub_renderer_cache[key] = renderer_cls(self, builder)
-        return self._sub_renderer_cache[key]
+        mode = builder._default_render_mode
+        return builder._renderers[mode](self, builder)
 
     # ------------------------------------------------------------------
     # Wrapper-root subscriptions (decision 11 + HWR refactor)
