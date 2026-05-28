@@ -125,6 +125,11 @@ class BuilderHandler:
         self._dataroot.set_backref()
         self.renderers: dict[str, dict[str, Any]] = {}
         self._default_render_mode: str | None = None
+        # DAT.2 — mappa delle dipendenze pointer popolata da
+        # ``register_pointer``. Chiave esterna = path assoluto (output di
+        # ``abs_datapath``); valore = dict ``{id(node): node}`` (BuilderBagNode
+        # non è hashable, indicizziamo per ``id`` per add/remove O(1)).
+        self.pointer_map: dict[str, dict[int, BuilderBagNode]] = {}
         self._sourceroot.subscribe(
             "builder_handler_source",
             insert=self._on_source_event,
@@ -468,6 +473,78 @@ class BuilderHandler:
             current = current.parent_node
         marker = "FORM" if form else "ANCHOR"
         raise KeyError(f"#{marker}: no marked ancestor found for {raw!r}")
+
+    # ------------------------------------------------------------------
+    # Pointer map (DAT.2)
+    # ------------------------------------------------------------------
+
+    def register_pointer(self, node: BuilderBagNode, unregister: bool = False) -> None:
+        """Update ``self.pointer_map`` for the subtree rooted at ``node``.
+
+        Walks the subtree recursively. For each visited node, collects
+        every pointer string it carries (a ``str`` value starting with
+        ``^``, either as ``node.value`` or as any entry of ``node.attr``)
+        and updates ``self.pointer_map`` accordingly.
+
+        Map key — the granularity is **per-attribute**, so a consumer of
+        the future reactive notification knows exactly which attribute
+        of the node changed (and can update only that, without
+        rebuilding):
+
+            - pointer on ``node.value``    → key = ``abs_datapath(node, pointer)``
+            - pointer on ``node.attr[a]``  → key = ``abs_datapath(node, pointer) + "?" + a``
+
+        Map value: ``{id(node): node}`` (``BuilderBagNode`` is not
+        hashable, so we index by ``id`` for O(1) add/remove).
+
+        ``unregister=False`` (default) — add. ``unregister=True`` —
+        remove; the path entry is pruned from ``self.pointer_map`` when
+        it becomes empty. Remove is **silent** when the path or the
+        node is not registered: tolerates partial-registration scenarios
+        (e.g. a subtree built outside the normal flow).
+
+        Errors from ``abs_datapath`` (``ValueError`` for unresolved
+        relative paths, ``KeyError`` for unknown symbolic anchors) are
+        propagated.
+        """
+        pointers: list[tuple[str, str]] = [
+            (attrname, v)
+            for attrname, v in node.attr.items()
+            if isinstance(v, str) and v.startswith("^")
+        ]
+        value = node.value
+        if isinstance(value, str) and value.startswith("^"):
+            pointers.append(("", value))
+        self._update_pointer_map(node, pointers, unregister)
+        if isinstance(node.value, Bag):
+            for child in node.value:
+                self.register_pointer(child, unregister=unregister)
+
+    def _update_pointer_map(
+        self,
+        node: BuilderBagNode,
+        pointers: list[tuple[str, str]],
+        unregister: bool,
+    ) -> None:
+        """Apply add/remove on ``self.pointer_map`` for ``pointers`` of ``node``.
+
+        Each entry of ``pointers`` is ``(attrname, pointer_str)``:
+        ``attrname=""`` for a pointer on ``node.value``, otherwise the
+        attribute name. The key composition rule is documented in
+        :meth:`register_pointer`.
+        """
+        for attrname, pointer in pointers:
+            path = self.abs_datapath(node, pointer)
+            if attrname:
+                path = f"{path}?{attrname}"
+            if unregister:
+                inner = self.pointer_map.get(path)
+                if inner is not None:
+                    inner.pop(id(node), None)
+                    if not inner:
+                        del self.pointer_map[path]
+            else:
+                self.pointer_map.setdefault(path, {})[id(node)] = node
 
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)

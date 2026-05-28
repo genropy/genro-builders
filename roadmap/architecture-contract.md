@@ -420,6 +420,36 @@ La distinzione fra pointer e valore stringa normale la fa l'helper di
 risoluzione riconoscendo il prefisso `^` al momento di emettere
 valore/attributo.
 
+**Mappa dipendenze pointer (`self.pointer_map`)** — l'handler espone
+
+```python
+self.pointer_map: dict[str, dict[int, BuilderBagNode]]
+```
+
+popolata da `register_pointer(node, unregister=False)`. Il metodo
+cammina il sottoalbero a partire da `node` e per ogni pointer trovato
+costruisce la chiave secondo la regola **per-attributo**:
+
+- pointer su `node.value`    → chiave = `abs_datapath(node, pointer)`;
+- pointer su `node.attr[a]`  → chiave = `abs_datapath(node, pointer) + "?" + a`.
+
+La granularità per-attributo è il payload operativo per il consumatore
+reattivo futuro: quando arriva la notifica "è cambiato `path?color`",
+l'handler sa esattamente quale attributo aggiornare sul nodo, senza
+ricostruire. Il valore interno è `dict[int, BuilderBagNode]` indicizzato
+per `id(node)` perché `BuilderBagNode` non è hashable; più nodi possono
+dipendere dalla stessa chiave.
+
+`register_pointer(..., unregister=True)` è la simmetrica: rimuove le
+entry, prune dei path che diventano vuoti, **silenzioso** su nodi/path
+non registrati (tollera scenari di registrazione parziale). Predisposta
+per la reattività; oggi il consumatore corrente userà solo il ramo
+register.
+
+`self.pointer_map` è popolata **esplicitamente** dal chiamante: non si
+auto-popola alla creazione né durante il walk del render. Chi vuole la
+mappa per un sottoalbero chiama `register_pointer` su quel sottoalbero.
+
 ---
 
 ## Area RX — Reattività push (rinviata)
