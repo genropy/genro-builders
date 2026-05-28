@@ -116,6 +116,13 @@ class BuilderHandler:
         self._dataroot["main"] = Bag()
         self.source: BuilderSource = self._sourceroot["main"]
         self.data: Bag = self._dataroot["main"]
+        # HND.2 — wrapper-root strutturale: backref acceso sempre, in modo
+        # esplicito. Serve a abs_datapath e alla risalita ancestor in genere.
+        # Indipendente dalle subscribe (che oggi lo attiverebbero comunque
+        # come side-effect, ma il loro scopo è la reattività push, non la
+        # struttura).
+        self._sourceroot.set_backref()
+        self._dataroot.set_backref()
         self.renderers: dict[str, dict[str, Any]] = {}
         self._default_render_mode: str | None = None
         self._sourceroot.subscribe(

@@ -181,8 +181,14 @@ sopravvivere le sottoscrizioni fatte sul wrapper.
 Gli slot aggiuntivi del wrapper (`["workspace"]`, `["meta"]`, ...) sono
 **predisposti** ma non usati nel base. Sono punti di estensione futuri.
 
+**Backref**: entrambi i wrapper-root hanno il backref di `genro_bag`
+acceso esplicitamente in `__init__` (`set_backref()`). È parte del
+contratto strutturale: serve a `abs_datapath` (`DAT.2`) e a ogni
+risalita ancestor sui nodi, indipendentemente dalla reattività.
+
 `HND.2` è puramente strutturale: **non implica** subscribe attivi. La
-reattività push è area `RX`.
+reattività push è area `RX`. Il backref è acceso anche quando le
+subscribe sono spente.
 
 ### HND.3 — Render con `mode` e `target`, multipli e nominati
 
