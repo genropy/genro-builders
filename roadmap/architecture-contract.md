@@ -4,20 +4,26 @@
 **Sostituisce**: v0.4.0 (archiviata in
 `roadmap/outdated_versions/architecture-contract-v0.4.md`).
 
-**Stato del codice di riferimento**: `develop @ 9c12d59` (= `origin/develop`),
-suite **300 test verdi**, coverage 82%. A questa versione il codice è
-allineato al contratto sui punti chiave dell'identità dei nodi:
+**Stato del codice di riferimento**: `develop @ 8e61e9f` (= `origin/develop`),
+suite **332 test verdi**, coverage 83%. A questa versione il codice è
+allineato al contratto sui punti chiave dell'identità dei nodi e del
+render subsystem:
 
 - subtask `handler_wrapper_root` (commit `82f4630`..`5086c7e`): wrapper-root,
   subscribe sui wrapper, hook reattivi → `HND.2`, `RX`;
-- subtask `render_walk_generator` Fase 1 (commit `9c12d59`): rimossa la
-  mappa `_node_index`, lookup walk-based, unicità via `_check_unique_id`
-  → `BAG.4`, `BAG.5`.
+- migrazione `node_id` (commit `9c12d59`): rimossa la mappa `_node_index`,
+  lookup walk-based, unicità via `_check_unique_id` → `BAG.4`, `BAG.5`;
+- subtask `abs_datapath` (commit `48231bc`..`500ac6b`):
+  `BuilderHandler.abs_datapath(node, path)` per la composizione sintattica
+  dei path assoluti (no lettura dati) → `DAT.2`;
+- refactor render subsystem (commit `8e61e9f`): `self.renderers` come unica
+  struttura per-mode (`{target, instance}`), popolata lazy → `HND.3`.
 
-Restano da implementare: generatore di walk in `RendererBase` con modalità
-`render_xml` raw/xml (`render_walk_generator` Fase 2 → `DAT.2`, `BLD.3`),
-risoluzione pointer (subtask `data_binding` → `DAT.2`), reattività push
-(`RX`), BuilderSuite (`SUITE`).
+Restano da implementare: generatore di walk in `RendererBase` con `walk()`
++ `rendered_item()` polimorfico, banco di prova XML modalità `xml`
+(`render_walk_generator` → `DAT.2`, `BLD.3`), risoluzione pointer a
+render time (subtask `data_binding` → `DAT.2`), reattività push (`RX`),
+BuilderSuite (`SUITE`).
 
 ---
 
@@ -47,7 +53,7 @@ si conserva la versione superata in `roadmap/outdated_versions/`.
   le regole di serializzazione. Solo dichiarazione, nessun engine.
 - **BuilderHandler**: la macchina che consuma un builder. Possiede i
   wrapper-root `_sourceroot` / `_dataroot`, le due fasi `create`/`render`,
-  il dict `mode → target`.
+  il dict `renderers: mode → {target, instance}`.
 - **Preset** (`HtmlBuilderHandler`, ecc.): sottoclassi di `BuilderHandler`
   con `builder_class` già fissata. L'utente eredita da uno di questi.
 - **Source**: il bag (`BuilderSource`) popolato in `create`, serializzato
@@ -182,14 +188,20 @@ reattività push è area `RX`.
 
 `render` esiste sia sul builder che sull'handler.
 
-**Sul builder**: registry di renderer per-istanza, popolato in `__init__`
-via `register_renderer(name, renderer_class)`. Il base registra i mode
-condivisi (`xml`); i dialetti aggiungono i propri. Override possibile
-ri-registrando lo stesso nome.
+**Sul builder** — registry delle classi renderer, per-istanza, popolato
+in `__init__` via `register_renderer(name, renderer_class)`. Il base
+registra i mode condivisi (`xml`); i dialetti aggiungono i propri.
+Override possibile ri-registrando lo stesso nome.
 
-**Sull'handler**: dict `mode → target` valorizzato via
-`set_render_target(mode, target, default=False)`. Più target sotto mode
-diversi; un mode marcato default per `render()` senza argomenti.
+**Sull'handler** — un'unica struttura `self.renderers: dict[str, dict]`
+con entry `{"target": ..., "instance": RendererBase}` per ogni mode
+attivo sull'handler. La struttura è **popolata lazy** dal helper interno
+`_ensure_mode(mode)`: alla prima `set_render_target(mode, ...)` o alla
+prima `render(mode=...)`, l'handler legge la classe renderer dal registry
+del builder, la istanzia con `self`, e mette l'entry nel dict.
+`set_render_target(mode, target, default=False)` riusa la stessa entry
+per scrivere il target. Più target sotto mode diversi; un mode marcato
+`default=True` diventa il default per `render()` senza argomenti.
 
 Semantica del `target` (invariata da v0.4.0):
 
@@ -201,6 +213,10 @@ Risoluzione del `mode`: argomento esplicito > `_default_render_mode`
 dell'handler > `_default_render_mode` del builder.
 
 Shortcut auto-generati `render_<mode>(target)` per ogni mode registrato.
+
+Sub-builder (BLD.2): `renderer_for(builder)` istanzia il renderer del
+sub-builder al volo (mode di default del sub-builder), senza entrare in
+`self.renderers`. `self.renderers` riguarda i mode dell'handler primario.
 
 ### HND.4 — Due fasi esplicite: create, render
 
