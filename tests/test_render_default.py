@@ -163,18 +163,3 @@ def test_render_target_false_forces_string(tmp_path):
     assert not out.exists()
 
 
-def test_render_shortcut_render_html():
-    """The auto-generated render_<mode> shortcut delegates to render()."""
-    h = _Page()
-    h.create()
-    direct = h.render(mode="html")
-    via_shortcut = h.render_html()
-    assert direct == via_shortcut
-
-
-def test_render_shortcut_unknown_mode_raises():
-    """render_<mode> is generated only if the mode is registered."""
-    h = _Page()
-    h.create()
-    with pytest.raises(AttributeError):
-        h.render_xyz()

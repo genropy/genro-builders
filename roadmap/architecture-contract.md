@@ -218,7 +218,9 @@ Semantica del `target` (invariata da v0.4.0):
 Risoluzione del `mode`: argomento esplicito > `_default_render_mode`
 dell'handler > `_default_render_mode` del builder.
 
-Shortcut auto-generati `render_<mode>(target)` per ogni mode registrato.
+L'API utente è **una sola**: `handler.render(target, mode, **kw)`. Niente
+shortcut `render_<mode>(...)`: aggiungerebbero solo un'altra forma di
+chiamata per la stessa cosa.
 
 Sub-builder (BLD.2): `renderer_for(builder)` istanzia il renderer del
 sub-builder al volo (mode di default del sub-builder), senza entrare in

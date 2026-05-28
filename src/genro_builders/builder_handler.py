@@ -223,26 +223,6 @@ class BuilderHandler:
         if default:
             self._default_render_mode = mode
 
-    def __getattr__(self, name: str) -> Any:
-        """Auto-generated ``render_<mode>`` shortcuts.
-
-        ``handler.render_xml('out.xml')`` is equivalent to
-        ``handler.render(target='out.xml', mode='xml')``. The shortcut
-        is generated only when the mode exists in the builder's
-        renderer registry; otherwise the lookup falls through to the
-        normal ``AttributeError``.
-        """
-        if name.startswith("render_"):
-            mode = name[len("render_"):]
-            registry = getattr(self.builder, "_renderers", None)
-            if registry is not None and mode in registry:
-                def shortcut(target: Any = None, **kwargs: Any) -> Any:
-                    return self.render(target=target, mode=mode, **kwargs)
-                return shortcut
-        raise AttributeError(
-            f"{type(self).__name__!r} object has no attribute {name!r}",
-        )
-
     # ------------------------------------------------------------------
     # Renderer property (decision 8)
     # ------------------------------------------------------------------
