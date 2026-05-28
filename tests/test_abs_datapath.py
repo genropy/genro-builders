@@ -1,17 +1,17 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BuilderHandler.abs_datapath — P1 stage.
+"""Tests for BuilderHandler.abs_datapath.
 
-P1 covers the syntactic forms that do not require ancestor walk nor
-symbolic dispatch:
+Covers all supported path forms:
 
-    ``field``         — absolute, no-op
-    ``^field``        — strip pointer mark
-    ``volume:field``  — preserve volume prefix
-    ``field?attr``    — preserve ?attr tail
-    combinations of the above
-
-Relative paths (``.x``) and symbolic scopes (``#...``) are expected to
-raise NotImplementedError in P1 — P2 and P3 will land their behavior.
+    ``field``           — absolute, no-op
+    ``^field``          — strip pointer mark
+    ``volume:field``    — preserve volume prefix
+    ``field?attr``      — preserve ?attr tail
+    ``.x``              — relative: walk ancestor datapath chain
+    ``a.#parent.b``     — #parent collapses preceding segment
+    ``#FORM.x``         — nearest ancestor with formId or form=True
+    ``#ANCHOR.x``       — nearest ancestor with attr _anchor present
+    ``#<node_id>.x``    — node carrying that node_id
 
 Test pattern: subclass HtmlBuilderHandler with main(self, root) that
 seeds the tree; assert on the string returned by abs_datapath, never
@@ -360,48 +360,3 @@ def test_symbolic_with_pointer_mark():
     assert page.abs_datapath(leaf, "^#FORM.x") == "f.x"
 
 
-# ---------------------------------------------------------------------------
-# Forms reserved for later phases — explicit NotImplementedError (no fallback)
-# ---------------------------------------------------------------------------
-
-
-def test_callable_ancestor_datapath_raises_not_implemented():
-    """P4: callable datapath on an ancestor is recognized but not implemented."""
-
-    class P(HtmlBuilderHandler):
-        def main(self, root) -> None:
-            root.body(datapath=lambda: "x").div(node_id="leaf")
-
-    page = P()
-    page.create()
-    leaf = page.node_by_id("leaf")
-    with pytest.raises(NotImplementedError):
-        page.abs_datapath(leaf, ".name")
-
-
-def test_pointer_ancestor_datapath_raises_not_implemented():
-    """P4: an ancestor datapath that is itself a ^pointer is deferred."""
-
-    class P(HtmlBuilderHandler):
-        def main(self, root) -> None:
-            root.body(datapath="^src").div(node_id="leaf")
-
-    page = P()
-    page.create()
-    leaf = page.node_by_id("leaf")
-    with pytest.raises(NotImplementedError):
-        page.abs_datapath(leaf, ".name")
-
-
-def test_symbolic_ancestor_datapath_raises_not_implemented():
-    """P4: an ancestor datapath that is itself #symbolic is deferred."""
-
-    class P(HtmlBuilderHandler):
-        def main(self, root) -> None:
-            root.body(datapath="#FORM").div(node_id="leaf")
-
-    page = P()
-    page.create()
-    leaf = page.node_by_id("leaf")
-    with pytest.raises(NotImplementedError):
-        page.abs_datapath(leaf, ".name")

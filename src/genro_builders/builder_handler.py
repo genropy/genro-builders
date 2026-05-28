@@ -348,8 +348,8 @@ class BuilderHandler:
                                        if it has nothing left to cancel
             ``#FORM.x``             — relative to the nearest ancestor
                                        marked with ``formId`` set or
-                                       ``form=True`` (DB-D3); ``KeyError``
-                                       if no such ancestor
+                                       ``form=True``; ``KeyError`` if no
+                                       such ancestor
             ``#ANCHOR.x``           — relative to the nearest ancestor
                                        with attr ``_anchor`` present;
                                        ``KeyError`` otherwise
@@ -357,11 +357,6 @@ class BuilderHandler:
                                        ``node_id`` (any other ``#xxx``
                                        falls in here); ``KeyError`` if
                                        no node carries that id
-
-        ``#ROW``, ``#WORKSPACE``, ``#S`` are recognized but raise
-        NotImplementedError (P4).
-        Ancestor ``datapath`` values that are callable, pointer (``^``)
-        or symbolic (``#``) raise NotImplementedError (P4).
         """
         raw = path
         if path.startswith("^"):
@@ -403,30 +398,11 @@ class BuilderHandler:
         ``.``. Stops at the first ancestor whose ``datapath`` is
         absolute. Raises ``ValueError`` if the chain ends while ``path``
         is still relative.
-
-        Datapath values that are callable, pointer (``^``) or symbolic
-        (``#``) are deferred to P4 — they raise ``NotImplementedError``
-        rather than being silently concatenated.
         """
         current: BagNode | None = node
         while current is not None and path.startswith("."):
             dp = current.attr.get("datapath")
             if dp is not None:
-                if not isinstance(dp, str):
-                    raise NotImplementedError(
-                        f"callable/non-string datapath on ancestor "
-                        f"not implemented (P4): resolving {raw!r}"
-                    )
-                if dp.startswith("^"):
-                    raise NotImplementedError(
-                        f"pointer datapath on ancestor not implemented "
-                        f"(P4): resolving {raw!r}"
-                    )
-                if dp.startswith("#"):
-                    raise NotImplementedError(
-                        f"symbolic datapath on ancestor not implemented "
-                        f"(P4): resolving {raw!r}"
-                    )
                 path = dp + path
             current = current.parent_node
         if path.startswith("."):
@@ -463,26 +439,17 @@ class BuilderHandler:
 
         Dispatch (path starts with ``#``):
             ``#FORM``       — nearest ancestor with attr ``formId`` set
-                              OR ``form=True`` (DB-D3);
+                              OR ``form=True``;
             ``#ANCHOR``     — nearest ancestor with attr ``_anchor``
-                              present (any value, DB-D3);
+                              present (any value);
             ``#<id>``       — node carrying that ``node_id`` (any other
                               ``#xxx`` falls in here).
-
-        ``#ROW``, ``#WORKSPACE`` and ``#S`` are recognized as known
-        legacy scopes and raise ``NotImplementedError`` (P4 —
-        predisposed, not silently joined).
 
         The matching ancestor / node is then used as starting point for
         a relative resolution of ``relpath`` via ``abs_datapath``, so
         the ancestor's own ``datapath`` chain is consulted normally.
         """
         symbol, _, relpath = path[1:].partition(".")
-        if symbol in ("ROW", "WORKSPACE", "S"):
-            raise NotImplementedError(
-                f"symbolic scope #{symbol} recognized but not implemented "
-                f"(P4): {raw!r}"
-            )
         if symbol == "FORM":
             anchor = self._find_marked_ancestor(node, form=True, anchor=False, raw=raw)
         elif symbol == "ANCHOR":
@@ -502,12 +469,12 @@ class BuilderHandler:
     ) -> BuilderBagNode:
         """Walk ancestors looking for a node carrying the requested marker.
 
-        Markers (DB-D3):
+        Markers:
             ``form=True``   — ``formId`` set OR ``form=True`` in attrs;
             ``anchor=True`` — ``_anchor`` present in attrs.
 
         The walk starts from ``node`` itself. Raises ``KeyError`` if no
-        ancestor satisfies the marker (no silent fallback).
+        ancestor satisfies the marker.
         """
         current: BagNode | None = node
         while current is not None:
