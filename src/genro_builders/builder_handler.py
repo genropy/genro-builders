@@ -35,7 +35,6 @@ Subclasses (typically ``HtmlBuilderHandler``, etc.) set
 """
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from genro_bag import Bag
@@ -43,8 +42,6 @@ from genro_bag import Bag
 from .builder import BagBuilderBase
 from .builder_bag import BuilderBagNode
 from .source_bag import BuilderSource
-
-_TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
 class BuilderHandler:
@@ -488,68 +485,6 @@ class BuilderHandler:
     # ------------------------------------------------------------------
     # Runtime evaluation (slice 0)
     # ------------------------------------------------------------------
-
-    def evaluate_on_node(
-        self, node: BuilderBagNode,
-    ) -> tuple[Any, dict[str, Any]]:
-        """Resolve pointers and templates carried by ``node``.
-
-        Returns ``(runtime_value, runtime_attrs)``. Two-phase pipeline
-        (DB-D5, DB-D11):
-
-        Phase 1 — pointer resolution. Any string starting with ``^`` or
-        ``=`` (on ``node.value`` or on ``node.attr[name]``) is composed
-        through :meth:`abs_datapath` and looked up in ``self.data`` via
-        ``Bag.get_item``; non-pointer values pass through verbatim.
-
-        Phase 2 — template expansion. After phase 1, any string still
-        carrying ``${name}`` placeholders is expanded against the
-        resolved attrs from phase 1: ``${name}`` becomes
-        ``str(resolved[name])``, or the empty string ``""`` when
-        ``resolved[name]`` is ``None`` (DB-D11.6). ``KeyError`` is
-        raised if ``name`` is not in ``resolved``.
-
-        DB-D11 forbids cascade: an attribute is either a pointer OR a
-        template OR a literal — never two at once. Phase 2 only acts on
-        strings that did NOT match the pointer prefix in phase 1, so
-        the invariant holds by construction.
-
-        Errors raised by :meth:`abs_datapath`
-        (``ValueError`` / ``KeyError``) propagate unchanged. Absent
-        data on a valid path resolves to ``None`` (DB-D10: no internal
-        try/except; the caller decides whether ``None`` is meaningful).
-        """
-        resolved: dict[str, Any] = {}
-        for attrname, v in node.attr.items():
-            if isinstance(v, str) and v and v[0] in ("^", "="):
-                path = node.abs_datapath(v)
-                resolved[attrname] = self.data.get_item(path)
-            else:
-                resolved[attrname] = v
-
-        value = node.value
-        if isinstance(value, str) and value and value[0] in ("^", "="):
-            runtime_value: Any = self.data.get_item(
-                node.abs_datapath(value),
-            )
-        else:
-            runtime_value = value
-
-        def _expand(s: str) -> str:
-            def repl(m: re.Match[str]) -> str:
-                name = m.group(1)
-                val = resolved[name]
-                return "" if val is None else str(val)
-            return _TEMPLATE_RE.sub(repl, s)
-
-        for attrname, v in list(resolved.items()):
-            if isinstance(v, str) and "${" in v:
-                resolved[attrname] = _expand(v)
-
-        if isinstance(runtime_value, str) and "${" in runtime_value:
-            runtime_value = _expand(runtime_value)
-
-        return runtime_value, resolved
 
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)

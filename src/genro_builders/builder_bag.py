@@ -18,9 +18,14 @@ all role specializations). Level 2 (``BuilderSource`` and future
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from genro_bag import Bag, BagNode
+
+# Template token used by ``evaluate_on_node`` to spot ``${name}``
+# placeholders in attribute values and node values (DB-D11).
+_TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
 def _dispatch_struct_method(handler: Any, target: Any, name: str) -> Any | None:
@@ -263,6 +268,71 @@ class _BuilderBagNodeMixin:
         rel = f".{relpath}" if relpath else "."
         result: str = anchor.abs_datapath(rel)
         return result
+
+    # ------------------------------------------------------------------
+    # Runtime evaluation (DAT.2, slice0) — moved here from BuilderHandler
+    # ------------------------------------------------------------------
+
+    def evaluate_on_node(self) -> tuple[Any, dict[str, Any]]:
+        """Resolve pointers and templates carried by this node.
+
+        Returns ``(runtime_value, runtime_attrs)``. Two-phase pipeline
+        (DB-D5, DB-D11):
+
+        Phase 1 — pointer resolution. Any string starting with ``^`` or
+        ``=`` (on ``self.value`` or on ``self.attr[name]``) is composed
+        through :meth:`abs_datapath` and looked up in ``handler.data``
+        via ``Bag.get_item``; non-pointer values pass through verbatim.
+
+        Phase 2 — template expansion. After phase 1, any string still
+        carrying ``${name}`` placeholders is expanded against the
+        resolved attrs from phase 1: ``${name}`` becomes
+        ``str(resolved[name])``, or the empty string ``""`` when
+        ``resolved[name]`` is ``None`` (DB-D11.6). ``KeyError`` is
+        raised if ``name`` is not in ``resolved``.
+
+        DB-D11 forbids cascade: an attribute is either a pointer OR a
+        template OR a literal — never two at once. Phase 2 only acts on
+        strings that did NOT match the pointer prefix in phase 1, so
+        the invariant holds by construction.
+
+        Errors raised by :meth:`abs_datapath`
+        (``ValueError`` / ``KeyError``) propagate unchanged. Absent
+        data on a valid path resolves to ``None`` (DB-D10: no internal
+        try/except; the caller decides whether ``None`` is meaningful).
+        """
+        handler = self._resolve_handler()
+        resolved: dict[str, Any] = {}
+        for attrname, v in self.attr.items():
+            if isinstance(v, str) and v and v[0] in ("^", "="):
+                path = self.abs_datapath(v)
+                resolved[attrname] = handler.data.get_item(path)
+            else:
+                resolved[attrname] = v
+
+        value = self.value
+        if isinstance(value, str) and value and value[0] in ("^", "="):
+            runtime_value: Any = handler.data.get_item(
+                self.abs_datapath(value),
+            )
+        else:
+            runtime_value = value
+
+        def _expand(s: str) -> str:
+            def repl(m: re.Match[str]) -> str:
+                name = m.group(1)
+                val = resolved[name]
+                return "" if val is None else str(val)
+            return _TEMPLATE_RE.sub(repl, s)
+
+        for attrname, v in list(resolved.items()):
+            if isinstance(v, str) and "${" in v:
+                resolved[attrname] = _expand(v)
+
+        if isinstance(runtime_value, str) and "${" in runtime_value:
+            runtime_value = _expand(runtime_value)
+
+        return runtime_value, resolved
 
     def _find_marked_datapath_ancestor(
         self,
