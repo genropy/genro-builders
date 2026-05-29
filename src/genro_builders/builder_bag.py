@@ -170,6 +170,25 @@ class _BuilderBagNodeMixin:
             _reason=reason,
         )
 
+    def fire_event(
+        self,
+        path: str,
+        value: Any = True,
+        attributes: dict[str, Any] | None = None,
+        reason: Any = None,
+    ) -> None:
+        """Write ``value`` to ``path`` marking the event as ``fired``.
+
+        Legacy shortcut for ``set_relative_data(..., fired=True)``
+        (DB-D7 point 5). Used when the write is a notification more
+        than a data mutation; the ``_fired`` flag flows through the
+        Bag subscribe pipeline so downstream consumers can distinguish
+        events meant as triggers from ordinary value updates.
+        """
+        self.set_relative_data(
+            path, value, attributes=attributes, fired=True, reason=reason,
+        )
+
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attribute access to the active builder.
 

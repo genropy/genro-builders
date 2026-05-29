@@ -248,6 +248,13 @@ class PageTester(HtmlBuilderHandler):
         assert out == 99
         assert self.data.get_item("myform.zero") == 99
 
+    # P6: fire_event is implemented as an API surface but not exercised
+    # here. Its only observable outcome is a transient event on the
+    # bag's subscribe pipeline (``_fired=True`` resets the value to
+    # ``None`` right after setting it — the legacy "fire" pattern), so
+    # a meaningful test needs a real reactive consumer downstream.
+    # Tests will land in the slice that introduces that consumer.
+
 
 def test_data_binding_slice0_cumulative():
     """Drive every ``test_NN_*`` on ``PageTester`` in numeric order."""
