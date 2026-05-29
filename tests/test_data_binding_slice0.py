@@ -3,8 +3,8 @@
 
 Covers:
     P1 - ``handler.data`` exposed as a live ``Bag`` with active subscriptions.
-    P3 - ``BuilderHandler.evaluate_on_node`` phase 1 (pointer resolution).
-    P4 - ``BuilderHandler.evaluate_on_node`` phase 2 (template expansion).
+    P3 - ``BuilderBagNode.runtime_values`` phase 1 (pointer resolution).
+    P4 - ``BuilderBagNode.runtime_values`` phase 2 (template expansion).
     P5 - ``node.get_relative_data`` / ``node.set_relative_data`` round-trip.
 
 Canonical example
@@ -25,18 +25,18 @@ Canonical example
 
     # P3 — pointer on value + pointer on attr
     leaf = body.div("^.title", color="^.color")
-    rv, ra = leaf.evaluate_on_node()
+    rv, ra = leaf.runtime_values()
     assert rv == "Hello"
     assert ra["color"] == "blue"
 
     # P4 — template referencing a resolved attr
     leaf2 = body.div(_class="card ${color}", color="^.color")
-    _, ra2 = leaf2.evaluate_on_node()
+    _, ra2 = leaf2.runtime_values()
     assert ra2["_class"] == "card blue"
 
     # P3 — absent data → None on a valid path
     leaf3 = body.div(color="^.missing")
-    _, ra3 = leaf3.evaluate_on_node()
+    _, ra3 = leaf3.runtime_values()
     assert ra3["color"] is None
 
     # P5 — write/read round-trip via the node API
@@ -92,8 +92,8 @@ def test_data_subscriptions_active_after_create():
 
 
 # ---------------------------------------------------------------------------
-# P3 - evaluate_on_node phase 1: pointer resolution
-# P4 - evaluate_on_node phase 2: template expansion
+# P3 - runtime_values phase 1: pointer resolution
+# P4 - runtime_values phase 2: template expansion
 # P5 - node.get_relative_data / set_relative_data
 #
 # Cumulative walkthrough on a single PageTester. Each test_NN_* exercises
@@ -116,7 +116,7 @@ class PageTester(HtmlBuilderHandler):
         self.data.set_item("myform.color", "blue")
         body = self.node_by_id("body")
         leaf = body.div(color="^.color", node_id="leaf_03")
-        rv, ra = leaf.evaluate_on_node()
+        rv, ra = leaf.runtime_values()
         assert ra["color"] == "blue"
         assert rv is None  # no node_value set
 
@@ -125,7 +125,7 @@ class PageTester(HtmlBuilderHandler):
         registration semantics handled outside abs_datapath)."""
         body = self.node_by_id("body")
         leaf = body.div(color="=.color", node_id="leaf_04")
-        rv, ra = leaf.evaluate_on_node()
+        rv, ra = leaf.runtime_values()
         assert ra["color"] == "blue"
         assert rv is None
 
@@ -134,7 +134,7 @@ class PageTester(HtmlBuilderHandler):
         self.data.set_item("myform.title", "Hello")
         body = self.node_by_id("body")
         leaf = body.div("^.title", node_id="leaf_05")
-        rv, ra = leaf.evaluate_on_node()
+        rv, ra = leaf.runtime_values()
         assert rv == "Hello"
         assert "datapath" not in ra  # body's datapath does not leak here
 
@@ -142,7 +142,7 @@ class PageTester(HtmlBuilderHandler):
         """Valid path but no data populated → ``None``."""
         body = self.node_by_id("body")
         leaf = body.div(color="^.missing", node_id="leaf_06")
-        _, ra = leaf.evaluate_on_node()
+        _, ra = leaf.runtime_values()
         assert ra["color"] is None
 
     def test_07_eval_broken_path_raises(self) -> None:
@@ -151,7 +151,7 @@ class PageTester(HtmlBuilderHandler):
         body = orphan.body(node_id="orphan_body_07")
         leaf = body.div(color="^.color", node_id="leaf_07")
         with pytest.raises(ValueError):
-            leaf.evaluate_on_node()
+            leaf.runtime_values()
 
     def test_08_eval_equals_not_in_pointer_map(self) -> None:
         """``=`` is NOT registered in pointer_map (DB-D9 / DBS lazy-only)."""
@@ -165,7 +165,7 @@ class PageTester(HtmlBuilderHandler):
         """Literal (non-pointer) attrs are returned verbatim."""
         body = self.node_by_id("body")
         leaf = body.div(color="literal-red", node_id="leaf_09")
-        _, ra = leaf.evaluate_on_node()
+        _, ra = leaf.runtime_values()
         assert ra["color"] == "literal-red"
 
     # -- P4: template expansion ----------------------------------------
@@ -179,7 +179,7 @@ class PageTester(HtmlBuilderHandler):
             color="^.color",
             node_id="leaf_10",
         )
-        _, ra = leaf.evaluate_on_node()
+        _, ra = leaf.runtime_values()
         assert ra["color"] == "blue"
         assert ra["_class"] == "card blue"
 
@@ -191,7 +191,7 @@ class PageTester(HtmlBuilderHandler):
             missing="^.never_set",
             node_id="leaf_11",
         )
-        _, ra = leaf.evaluate_on_node()
+        _, ra = leaf.runtime_values()
         assert ra["missing"] is None
         assert ra["_class"] == "card "
 
@@ -204,7 +204,7 @@ class PageTester(HtmlBuilderHandler):
             node_id="leaf_12",
         )
         with pytest.raises(KeyError):
-            leaf.evaluate_on_node()
+            leaf.runtime_values()
 
     def test_13_template_on_value(self) -> None:
         """Template on ``node.value`` is expanded in phase 2."""
@@ -214,7 +214,7 @@ class PageTester(HtmlBuilderHandler):
             who="^.title",
             node_id="leaf_13",
         )
-        rv, _ = leaf.evaluate_on_node()
+        rv, _ = leaf.runtime_values()
         assert rv == "hello Hello"
 
     # -- P5: get_relative_data / set_relative_data ---------------------

@@ -23,7 +23,7 @@ from typing import Any
 
 from genro_bag import Bag, BagNode
 
-# Template token used by ``evaluate_on_node`` to spot ``${name}``
+# Template token used by ``runtime_values`` to spot ``${name}``
 # placeholders in attribute values and node values (DB-D11).
 _TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
@@ -138,7 +138,7 @@ class _BuilderBagNodeMixin:
                                        ``abs_datapath`` is neutral wrt
                                        the prefix; the lazy/eager
                                        distinction (``^`` vs ``=``)
-                                       lives in ``evaluate_on_node``
+                                       lives in ``runtime_values``
                                        and in the pointer-map registry
             ``volume:field``        — absolute in another builder; the
                                        ``volume:`` prefix is preserved,
@@ -273,7 +273,7 @@ class _BuilderBagNodeMixin:
     # Runtime evaluation (DAT.2, slice0) — moved here from BuilderHandler
     # ------------------------------------------------------------------
 
-    def evaluate_on_node(self) -> tuple[Any, dict[str, Any]]:
+    def runtime_values(self) -> tuple[Any, dict[str, Any]]:
         """Resolve pointers and templates carried by this node.
 
         Returns ``(runtime_value, runtime_attrs)``. Two-phase pipeline
