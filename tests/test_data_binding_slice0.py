@@ -22,11 +22,27 @@ Canonical example
     page.data.set_item("myform.color", "blue")
 
     body = page.node_by_id("body")
-    leaf = body.div("^.title", color="^.color")
 
+    # P3 — pointer on value + pointer on attr
+    leaf = body.div("^.title", color="^.color")
     rv, ra = page.evaluate_on_node(leaf)
     assert rv == "Hello"
     assert ra["color"] == "blue"
+
+    # P4 — template referencing a resolved attr
+    leaf2 = body.div(_class="card ${color}", color="^.color")
+    _, ra2 = page.evaluate_on_node(leaf2)
+    assert ra2["_class"] == "card blue"
+
+    # P3 — absent data → None on a valid path
+    leaf3 = body.div(color="^.missing")
+    _, ra3 = page.evaluate_on_node(leaf3)
+    assert ra3["color"] is None
+
+    # P5 — write/read round-trip via the node API
+    leaf.set_relative_data(".title", "World")
+    assert page.data.get_item("myform.title") == "World"
+    assert leaf.get_relative_data(".title") == "World"
 
 All mutations of ``page.data`` flow through the canonical API
 (``data.set_item`` or ``node.set_relative_data``), never via direct
