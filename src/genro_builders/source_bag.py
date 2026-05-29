@@ -26,4 +26,4 @@ class BuilderSourceNode(BuilderBagNode):
 class BuilderSource(BuilderBag):
     """Source-side bag. The user populates this through ``handler.create()``."""
 
-    node_class: type[BagNode] = BuilderSourceNode
+    _node_class: type[BagNode] = BuilderSourceNode
