@@ -4,10 +4,10 @@
 **Sostituisce**: v0.4.0 (archiviata in
 `roadmap/outdated_versions/architecture-contract-v0.4.md`).
 
-**Stato del codice di riferimento**: `develop @ 8e61e9f` (= `origin/develop`),
-suite **332 test verdi**, coverage 83%. A questa versione il codice è
-allineato al contratto sui punti chiave dell'identità dei nodi e del
-render subsystem:
+**Stato del codice di riferimento**: `develop @ 4cecfbe` (= `origin/develop`),
+suite **345 test verdi**, coverage 83%. A questa versione il codice è
+allineato al contratto sui punti chiave dell'identità dei nodi, del
+render subsystem e del data binding pull-based:
 
 - subtask `handler_wrapper_root` (commit `82f4630`..`5086c7e`): wrapper-root,
   subscribe sui wrapper, hook reattivi → `HND.2`, `RX`;
@@ -17,12 +17,29 @@ render subsystem:
   `BuilderHandler.abs_datapath(node, path)` per la composizione sintattica
   dei path assoluti (no lettura dati) → `DAT.2`;
 - refactor render subsystem (commit `8e61e9f`): `self.renderers` come unica
-  struttura per-mode (`{target, instance}`), popolata lazy → `HND.3`.
+  struttura per-mode (`{target, instance}`), popolata lazy → `HND.3`;
+- subscribe in `create()` (commit `ded47da`): le subscription sui wrapper
+  sono attivate da `create()`, non più da `__init__`, per non emettere
+  dispatch artefatti durante il `main` → `HND.2`;
+- `set_child` promosso a API pubblica della grammar (commit `f76aeed`),
+  `BagBuilderBase.new_root()` e scorciatoia sull'handler (commit
+  `aec67e9`): permettono di costruire sottoalberi offline → `BLD.2`;
+- subtask `data_binding_slice0` (commit `a9479e7`..`3d2f7de`):
+  `BuilderHandler.pointer_map`, `register_pointer(node, unregister=...)`
+  ricorsivo, `_update_pointer_map` interno, mapkeep automatico **completo**
+  in `_on_source_event` (DAT.2 fase 1+2 per `ins`/`del`, più
+  `_on_upd_value` con dispatch sulla matrice 9-casi
+  scalar/pointer/bag × scalar/pointer/bag e `_on_upd_attrs` sui pointer
+  per-attributo),
+  `BuilderHandler.evaluate_on_node(node)` pull-based (pointer `^`/`=` +
+  template `${name}`), `abs_datapath` simmetrico su `^`/`=`,
+  `_BuilderBagNodeMixin.get_relative_data` / `set_relative_data` /
+  `fire_event` → `DAT.2`.
 
-Restano da implementare: generatore di walk in `RendererBase` con `walk()`
-+ `rendered_item()` polimorfico, banco di prova XML modalità `xml`
-(`render_walk_generator` → `DAT.2`, `BLD.3`), risoluzione pointer a
-render time (subtask `data_binding` → `DAT.2`), reattività push (`RX`),
+Restano da implementare: generatore di walk in `RendererBase` con
+`render(node)` + `render_children(bag)` + `rendered_item(node, value,
+runtime_attrs)` polimorfico, banco di prova XML modalità `xml`
+(`render_walk_generator` → `DAT.2`, `BLD.3`), reattività push (`RX`),
 BuilderSuite (`SUITE`).
 
 ---
