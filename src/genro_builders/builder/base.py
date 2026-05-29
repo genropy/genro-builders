@@ -22,6 +22,7 @@ from typing import Any, ClassVar
 from genro_bag import Bag
 
 from ..renderer import XmlRenderer
+from ..source_bag import BuilderSource
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
@@ -256,6 +257,24 @@ class BagBuilderBase(
         diverge.
         """
         self._renderers[name] = renderer_class
+
+    def new_root(self) -> BuilderSource:
+        """Return a fresh, throw-away ``BuilderSource`` driven by this builder.
+
+        The returned source carries this builder (so the grammar API
+        works: ``root.div(...)`` etc.) and has backref enabled (so
+        ``parent_node`` is usable). It carries **no handler**: it is not
+        connected to a pointer_map, has no reactive subscribes, cannot
+        ``create()`` or ``render()``.
+
+        Typical use: pre-build a subtree offline, then attach it as the
+        value of some node in a live source — the resulting ``ins`` event
+        on the live source triggers ``register_pointer`` for the new
+        subtree. The throw-away root itself is not retained by anything.
+        """
+        root = BuilderSource(builder=self, handler=None)
+        root.set_backref()
+        return root
 
     #: Default rendering mode used when ``render(mode=None)`` is called.
     #: Concrete dialects override this (e.g. ``"html"`` for HtmlBuilder).

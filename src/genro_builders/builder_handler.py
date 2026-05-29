@@ -258,6 +258,15 @@ class BuilderHandler:
         """
         return self._ensure_mode(self.builder._default_render_mode)["instance"]
 
+    def new_root(self) -> BuilderSource:
+        """Shortcut for ``self.builder.new_root()``.
+
+        Returns a throw-away ``BuilderSource`` driven by this handler's
+        builder, with no handler attached. See ``BagBuilderBase.new_root``
+        for the full contract.
+        """
+        return self.builder.new_root()
+
     # ------------------------------------------------------------------
     # Sub-builder access (decision 2)
     # ------------------------------------------------------------------
@@ -522,15 +531,7 @@ class BuilderHandler:
         relative paths, ``KeyError`` for unknown symbolic anchors) are
         propagated.
         """
-        pointers: list[tuple[str, str]] = [
-            (attrname, v)
-            for attrname, v in node.attr.items()
-            if isinstance(v, str) and v.startswith("^")
-        ]
-        value = node.value
-        if isinstance(value, str) and value.startswith("^"):
-            pointers.append(("", value))
-        self._update_pointer_map(node, pointers, unregister)
+        self._update_pointer_map(node, node.pointers(), unregister)
         if isinstance(node.value, Bag):
             for child in node.value:
                 self.register_pointer(child, unregister=unregister)

@@ -86,14 +86,39 @@ class _BuilderBagNodeMixin:
         Called before adding a child, so the candidate id is checked
         against the existing tree only. Uniqueness scope is the owning
         handler (one node_id namespace per handler, subbuilders included).
+
+        When the bag has no handler attached (off-line subtree built via
+        ``BagBuilderBase.new_root``), the check is a no-op: uniqueness
+        will be enforced — and is the user's responsibility to respect —
+        only once the subtree is attached to a live source.
         """
         if node_id is None:
             return
+        handler = self._resolve_handler()
+        if handler is None:
+            return
         try:
-            self._resolve_handler().node_by_id(node_id)
+            handler.node_by_id(node_id)
         except KeyError:
             return
         raise ValueError(f"Duplicate node_id '{node_id}'.")
+
+    def pointers(self) -> list[tuple[str, str]]:
+        """Return the pointers carried by this node as ``(attrname, pointer)``.
+
+        ``attrname=""`` for a pointer in ``node.value``, otherwise the
+        attribute name. A pointer is any string starting with ``^``.
+        Walks only this node — does not recurse into children.
+        """
+        result: list[tuple[str, str]] = [
+            (attrname, v)
+            for attrname, v in self.attr.items()
+            if isinstance(v, str) and v.startswith("^")
+        ]
+        value = self.value
+        if isinstance(value, str) and value.startswith("^"):
+            result.append(("", value))
+        return result
 
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attribute access to the active builder.

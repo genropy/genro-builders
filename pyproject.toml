@@ -160,7 +160,7 @@ disable_error_code = ["override"]
 # rather than littering the code with casts.
 [[tool.mypy.overrides]]
 module = "genro_builders.builder_handler"
-disable_error_code = ["return-value", "arg-type"]
+disable_error_code = ["return-value", "arg-type", "no-any-return"]
 
 [tool.coverage.run]
 source = ["src/genro_builders"]
