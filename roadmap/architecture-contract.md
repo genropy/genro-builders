@@ -31,10 +31,18 @@ render subsystem e del data binding pull-based:
   `_on_upd_value` con dispatch sulla matrice 9-casi
   scalar/pointer/bag × scalar/pointer/bag e `_on_upd_attrs` sui pointer
   per-attributo),
-  `BuilderHandler.evaluate_on_node(node)` pull-based (pointer `^`/`=` +
-  template `${name}`), `abs_datapath` simmetrico su `^`/`=`,
+  primitive pull-based di risoluzione (pointer `^`/`=` + template
+  `${name}`), `abs_datapath` simmetrico su `^`/`=`,
   `_BuilderBagNodeMixin.get_relative_data` / `set_relative_data` /
-  `fire_event` → `DAT.2`.
+  `fire_event` → `DAT.2`;
+- refactor "catena nodo-side" (commit `54e3268`, `18b8362`, `150c469`):
+  `abs_datapath(path)` e `runtime_values()` migrati da `BuilderHandler`
+  a `_BuilderBagNodeMixin`. Il soggetto della composizione path e
+  della risoluzione runtime (pointer + template) è ora il nodo stesso;
+  l'handler resta proprietario di `pointer_map`/`register_pointer` e
+  della data bag. Nome `evaluate_on_node` rinominato `runtime_values`
+  per dichiarare il return (`tuple[runtime_value, runtime_attrs]`).
+  → `DAT.2`.
 
 Restano da implementare: generatore di walk in `RendererBase` con
 `render(node)` + `render_children(bag)` + `rendered_item(node, value,
@@ -447,8 +455,8 @@ popolata da `register_pointer(node, unregister=False)`. Il metodo
 cammina il sottoalbero a partire da `node` e per ogni pointer trovato
 costruisce la chiave secondo la regola **per-attributo**:
 
-- pointer su `node.value`    → chiave = `abs_datapath(node, pointer)`;
-- pointer su `node.attr[a]`  → chiave = `abs_datapath(node, pointer) + "?" + a`.
+- pointer su `node.value`    → chiave = `node.abs_datapath(pointer)`;
+- pointer su `node.attr[a]`  → chiave = `node.abs_datapath(pointer) + "?" + a`.
 
 La granularità per-attributo è il payload operativo per il consumatore
 reattivo futuro: quando arriva la notifica "è cambiato `path?color`",
