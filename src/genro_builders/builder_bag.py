@@ -118,6 +118,181 @@ class _BuilderBagNodeMixin:
             result.append(("", value))
         return result
 
+    # ------------------------------------------------------------------
+    # Path composition (DAT.2) — moved here from BuilderHandler
+    # ------------------------------------------------------------------
+
+    def abs_datapath(self, path: str) -> str:
+        """Compose the absolute path for ``path`` relative to this node.
+
+        Pure address composition: returns *where* a datum lives as a
+        string, never reads the datastore. Supported syntactic forms:
+
+            ``field``               — absolute, returned as-is
+            ``^...`` / ``=...``     — pointer mark stripped, recurses.
+                                       ``abs_datapath`` is neutral wrt
+                                       the prefix; the lazy/eager
+                                       distinction (``^`` vs ``=``)
+                                       lives in ``evaluate_on_node``
+                                       and in the pointer-map registry
+            ``volume:field``        — absolute in another builder; the
+                                       ``volume:`` prefix is preserved,
+                                       routing happens at read time
+            ``field?attr``          — ``?attr`` is preserved at the tail
+            ``.field`` / ``.x``     — relative: walk ancestors and
+                                       chain their ``datapath`` attribute
+                                       until the result is absolute;
+                                       ``ValueError`` if the chain ends
+                                       without an absolute anchor
+            ``a.#parent.b``         — ``#parent`` segments cancel the
+                                       preceding segment (filesystem
+                                       ``..`` equivalent); ``ValueError``
+                                       if it has nothing left to cancel
+            ``#FORM.x``             — relative to the nearest ancestor
+                                       marked with ``formId`` set or
+                                       ``form=True``; ``KeyError`` if no
+                                       such ancestor
+            ``#ANCHOR.x``           — relative to the nearest ancestor
+                                       with attr ``_anchor`` present;
+                                       ``KeyError`` otherwise
+            ``#<node_id>.x``        — relative to the node carrying that
+                                       ``node_id`` (any other ``#xxx``
+                                       falls in here); ``KeyError`` if
+                                       no node carries that id
+        """
+        raw = path
+        if path and path[0] in ("^", "="):
+            path = path[1:]
+
+        if path.startswith("#"):
+            return self._resolve_symbolic_datapath(path, raw)
+
+        volume: str | None = None
+        if ":" in path and not path.startswith("."):
+            volume, path = path.split(":", 1)
+
+        attr: str | None = None
+        if "?" in path:
+            path, attr = path.split("?", 1)
+
+        if path.startswith("."):
+            path = self._compose_relative_datapath(path, raw)
+
+        composed = path
+        if volume is not None:
+            composed = f"{volume}:{composed}"
+        if attr is not None:
+            composed = f"{composed}?{attr}"
+        if "#parent" in composed:
+            composed = self._collapse_parent_datapath(composed, raw)
+        return composed
+
+    def _compose_relative_datapath(self, path: str, raw: str) -> str:
+        """Resolve a relative path by walking ancestors.
+
+        Chains ``attr["datapath"]`` of ancestors (starting from this
+        node) in front of ``path`` until the result no longer starts
+        with ``.``. Stops at the first ancestor whose ``datapath`` is
+        absolute. Raises ``ValueError`` if the chain ends while
+        ``path`` is still relative.
+        """
+        # ``current`` typed as Any: the mixin is combined with BagNode
+        # at runtime to form BuilderBagNode, but pyright analyses the
+        # mixin in isolation and can't see the eventual concrete shape.
+        current: Any = self
+        while current is not None and path.startswith("."):
+            dp = current.attr.get("datapath")
+            if dp is not None:
+                path = dp + path
+            current = current.parent_node
+        if path.startswith("."):
+            raise ValueError(f"unresolved relative datapath: {raw!r}")
+        return path
+
+    def _collapse_parent_datapath(self, path: str, raw: str) -> str:
+        """Collapse ``#parent`` segments in a composed path.
+
+        Path-level rewrite: each ``#parent`` segment cancels the segment
+        immediately before it (``a.b.#parent.c`` -> ``a.c``). Raises
+        ``ValueError`` when ``#parent`` has no segment left to cancel,
+        rather than silently dropping it.
+        """
+        out: list[str] = []
+        for segment in path.split("."):
+            if segment == "#parent":
+                if not out:
+                    raise ValueError(
+                        f"#parent has no segment to cancel: {raw!r}"
+                    )
+                out.pop()
+            else:
+                out.append(segment)
+        return ".".join(out)
+
+    def _resolve_symbolic_datapath(self, path: str, raw: str) -> str:
+        """Resolve a ``#SYMBOL[.relpath]`` path.
+
+        Dispatch (path starts with ``#``):
+            ``#FORM``       — nearest ancestor with attr ``formId`` set
+                              OR ``form=True``;
+            ``#ANCHOR``     — nearest ancestor with attr ``_anchor``
+                              present (any value);
+            ``#<id>``       — node carrying that ``node_id`` (any other
+                              ``#xxx`` falls in here).
+
+        The matching ancestor / node is then used as starting point for
+        a relative resolution of ``relpath`` via ``abs_datapath``, so
+        the ancestor's own ``datapath`` chain is consulted normally.
+        """
+        symbol, _, relpath = path[1:].partition(".")
+        if symbol == "FORM":
+            anchor = self._find_marked_datapath_ancestor(
+                form=True, anchor=False, raw=raw,
+            )
+        elif symbol == "ANCHOR":
+            anchor = self._find_marked_datapath_ancestor(
+                form=False, anchor=True, raw=raw,
+            )
+        else:
+            handler = self._resolve_handler()
+            if handler is None:
+                raise KeyError(
+                    f"#<id>: cannot resolve {raw!r} on a node without handler"
+                )
+            anchor = handler.node_by_id(symbol)
+        rel = f".{relpath}" if relpath else "."
+        result: str = anchor.abs_datapath(rel)
+        return result
+
+    def _find_marked_datapath_ancestor(
+        self,
+        *,
+        form: bool,
+        anchor: bool,
+        raw: str,
+    ) -> Any:
+        """Walk ancestors looking for a node carrying the requested marker.
+
+        Markers:
+            ``form=True``   — ``formId`` set OR ``form=True`` in attrs;
+            ``anchor=True`` — ``_anchor`` present in attrs.
+
+        The walk starts from this node itself. Raises ``KeyError`` if
+        no ancestor satisfies the marker.
+        """
+        # ``current`` typed as Any for the same reason explained in
+        # _compose_relative_datapath: mixin analysed in isolation.
+        current: Any = self
+        while current is not None:
+            attrs = current.attr
+            if form and (attrs.get("formId") is not None or attrs.get("form") is True):
+                return current
+            if anchor and "_anchor" in attrs:
+                return current
+            current = current.parent_node
+        marker = "FORM" if form else "ANCHOR"
+        raise KeyError(f"#{marker}: no marked ancestor found for {raw!r}")
+
     def get_relative_data(
         self,
         path: str,
@@ -126,7 +301,7 @@ class _BuilderBagNodeMixin:
     ) -> Any:
         """Read ``handler.data`` at ``path`` resolved relative to this node.
 
-        ``path`` is composed via :meth:`BuilderHandler.abs_datapath`, so
+        ``path`` is composed via :meth:`abs_datapath`, so
         it accepts the same syntactic forms (absolute, relative ``.x``,
         ``#FORM``, ``#ANCHOR``, ``#<node_id>``, with or without the
         ``^``/``=`` prefix). The lookup is performed against the live
@@ -138,7 +313,7 @@ class _BuilderBagNodeMixin:
         the two cases are intentionally not distinguished (DBS-D1).
         """
         handler = self._resolve_handler()
-        abs_path = handler.abs_datapath(self, path)
+        abs_path = self.abs_datapath(path)
         if autocreate and handler.data.get_item(abs_path) is None:
             handler.data.set_item(abs_path, default)
         return handler.data.get_item(abs_path, default=default)
@@ -153,7 +328,7 @@ class _BuilderBagNodeMixin:
     ) -> None:
         """Write ``value`` into ``handler.data`` at ``path``.
 
-        ``path`` is composed via :meth:`BuilderHandler.abs_datapath`
+        ``path`` is composed via :meth:`abs_datapath`
         (same forms as :meth:`get_relative_data`). ``attributes``,
         ``fired`` and ``reason`` are forwarded to ``Bag.set_item`` as
         the corresponding underscore-prefixed parameters. ``reason``
@@ -161,7 +336,7 @@ class _BuilderBagNodeMixin:
         object is passed here, unchanged.
         """
         handler = self._resolve_handler()
-        abs_path = handler.abs_datapath(self, path)
+        abs_path = self.abs_datapath(path)
         handler.data.set_item(
             abs_path,
             value,

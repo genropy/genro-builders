@@ -472,7 +472,7 @@ def test_ins_phase_2_mapkeep():
                 attr_name = None
             for node in entry.values():
                 pointer = node.attr[attr_name] if attr_name else node.value
-                composed = page.abs_datapath(node, pointer)
+                composed = node.abs_datapath(pointer)
                 if attr_name:
                     composed = f"{composed}?{attr_name}"
                 assert composed == path

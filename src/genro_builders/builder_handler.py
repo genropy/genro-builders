@@ -38,7 +38,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from genro_bag import Bag, BagNode
+from genro_bag import Bag
 
 from .builder import BagBuilderBase
 from .builder_bag import BuilderBagNode
@@ -348,173 +348,6 @@ class BuilderHandler:
             raise KeyError(node_id)
         return node
 
-    def abs_datapath(self, node: BuilderBagNode, path: str) -> str:
-        """Compose the absolute path for ``path`` relative to ``node``.
-
-        Pure address composition: returns *where* a datum lives as a
-        string, never reads the datastore. Supported syntactic forms:
-
-            ``field``               — absolute, returned as-is
-            ``^...`` / ``=...``     — pointer mark stripped, recurses.
-                                       ``abs_datapath`` is neutral wrt
-                                       the prefix; the lazy/eager
-                                       distinction (``^`` vs ``=``)
-                                       lives in ``evaluate_on_node``
-                                       and in the pointer-map registry
-            ``volume:field``        — absolute in another builder; the
-                                       ``volume:`` prefix is preserved,
-                                       routing happens at read time
-            ``field?attr``          — ``?attr`` is preserved at the tail
-            ``.field`` / ``.x``     — relative: walk ancestors and
-                                       chain their ``datapath`` attribute
-                                       until the result is absolute;
-                                       ``ValueError`` if the chain ends
-                                       without an absolute anchor
-            ``a.#parent.b``         — ``#parent`` segments cancel the
-                                       preceding segment (filesystem
-                                       ``..`` equivalent); ``ValueError``
-                                       if it has nothing left to cancel
-            ``#FORM.x``             — relative to the nearest ancestor
-                                       marked with ``formId`` set or
-                                       ``form=True``; ``KeyError`` if no
-                                       such ancestor
-            ``#ANCHOR.x``           — relative to the nearest ancestor
-                                       with attr ``_anchor`` present;
-                                       ``KeyError`` otherwise
-            ``#<node_id>.x``        — relative to the node carrying that
-                                       ``node_id`` (any other ``#xxx``
-                                       falls in here); ``KeyError`` if
-                                       no node carries that id
-        """
-        raw = path
-        if path and path[0] in ("^", "="):
-            path = path[1:]
-
-        if path.startswith("#"):
-            return self._resolve_symbolic(node, path, raw)
-
-        volume: str | None = None
-        if ":" in path and not path.startswith("."):
-            volume, path = path.split(":", 1)
-
-        attr: str | None = None
-        if "?" in path:
-            path, attr = path.split("?", 1)
-
-        if path.startswith("."):
-            path = self._compose_relative(node, path, raw)
-
-        composed = path
-        if volume is not None:
-            composed = f"{volume}:{composed}"
-        if attr is not None:
-            composed = f"{composed}?{attr}"
-        if "#parent" in composed:
-            composed = self._collapse_parent(composed, raw)
-        return composed
-
-    def _compose_relative(
-        self,
-        node: BuilderBagNode,
-        path: str,
-        raw: str,
-    ) -> str:
-        """Resolve a relative path by walking ancestors.
-
-        Chains ``attr["datapath"]`` of ancestors (starting from ``node``)
-        in front of ``path`` until the result no longer starts with
-        ``.``. Stops at the first ancestor whose ``datapath`` is
-        absolute. Raises ``ValueError`` if the chain ends while ``path``
-        is still relative.
-        """
-        current: BagNode | None = node
-        while current is not None and path.startswith("."):
-            dp = current.attr.get("datapath")
-            if dp is not None:
-                path = dp + path
-            current = current.parent_node
-        if path.startswith("."):
-            raise ValueError(f"unresolved relative datapath: {raw!r}")
-        return path
-
-    def _collapse_parent(self, path: str, raw: str) -> str:
-        """Collapse ``#parent`` segments in a composed path.
-
-        Path-level rewrite: each ``#parent`` segment cancels the segment
-        immediately before it (``a.b.#parent.c`` -> ``a.c``). Raises
-        ``ValueError`` when ``#parent`` has no segment left to cancel,
-        rather than silently dropping it.
-        """
-        out: list[str] = []
-        for segment in path.split("."):
-            if segment == "#parent":
-                if not out:
-                    raise ValueError(
-                        f"#parent has no segment to cancel: {raw!r}"
-                    )
-                out.pop()
-            else:
-                out.append(segment)
-        return ".".join(out)
-
-    def _resolve_symbolic(
-        self,
-        node: BuilderBagNode,
-        path: str,
-        raw: str,
-    ) -> str:
-        """Resolve a ``#SYMBOL[.relpath]`` path.
-
-        Dispatch (path starts with ``#``):
-            ``#FORM``       — nearest ancestor with attr ``formId`` set
-                              OR ``form=True``;
-            ``#ANCHOR``     — nearest ancestor with attr ``_anchor``
-                              present (any value);
-            ``#<id>``       — node carrying that ``node_id`` (any other
-                              ``#xxx`` falls in here).
-
-        The matching ancestor / node is then used as starting point for
-        a relative resolution of ``relpath`` via ``abs_datapath``, so
-        the ancestor's own ``datapath`` chain is consulted normally.
-        """
-        symbol, _, relpath = path[1:].partition(".")
-        if symbol == "FORM":
-            anchor = self._find_marked_ancestor(node, form=True, anchor=False, raw=raw)
-        elif symbol == "ANCHOR":
-            anchor = self._find_marked_ancestor(node, form=False, anchor=True, raw=raw)
-        else:
-            anchor = self.node_by_id(symbol)
-        rel = f".{relpath}" if relpath else "."
-        return self.abs_datapath(anchor, rel)
-
-    def _find_marked_ancestor(
-        self,
-        node: BuilderBagNode,
-        *,
-        form: bool,
-        anchor: bool,
-        raw: str,
-    ) -> BuilderBagNode:
-        """Walk ancestors looking for a node carrying the requested marker.
-
-        Markers:
-            ``form=True``   — ``formId`` set OR ``form=True`` in attrs;
-            ``anchor=True`` — ``_anchor`` present in attrs.
-
-        The walk starts from ``node`` itself. Raises ``KeyError`` if no
-        ancestor satisfies the marker.
-        """
-        current: BagNode | None = node
-        while current is not None:
-            attrs = current.attr
-            if form and (attrs.get("formId") is not None or attrs.get("form") is True):
-                return current
-            if anchor and "_anchor" in attrs:
-                return current
-            current = current.parent_node
-        marker = "FORM" if form else "ANCHOR"
-        raise KeyError(f"#{marker}: no marked ancestor found for {raw!r}")
-
     # ------------------------------------------------------------------
     # Pointer map (DAT.2)
     # ------------------------------------------------------------------
@@ -567,7 +400,7 @@ class BuilderHandler:
         :meth:`register_pointer`.
         """
         for attrname, pointer in pointers:
-            path = self.abs_datapath(node, pointer)
+            path = node.abs_datapath(pointer)
             if attrname:
                 path = f"{path}?{attrname}"
             if unregister:
@@ -689,7 +522,7 @@ class BuilderHandler:
         resolved: dict[str, Any] = {}
         for attrname, v in node.attr.items():
             if isinstance(v, str) and v and v[0] in ("^", "="):
-                path = self.abs_datapath(node, v)
+                path = node.abs_datapath(v)
                 resolved[attrname] = self.data.get_item(path)
             else:
                 resolved[attrname] = v
@@ -697,7 +530,7 @@ class BuilderHandler:
         value = node.value
         if isinstance(value, str) and value and value[0] in ("^", "="):
             runtime_value: Any = self.data.get_item(
-                self.abs_datapath(node, value),
+                node.abs_datapath(value),
             )
         else:
             runtime_value = value
