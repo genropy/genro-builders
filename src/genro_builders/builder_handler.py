@@ -659,16 +659,27 @@ class BuilderHandler:
     def evaluate_on_node(
         self, node: BuilderBagNode,
     ) -> tuple[Any, dict[str, Any]]:
-        """Resolve pointers carried by ``node`` against ``self.data``.
+        """Resolve pointers and templates carried by ``node``.
 
-        Returns ``(runtime_value, runtime_attrs)``. Phase 1 of the
-        two-phase resolution pipeline (DB-D5): pointer-shaped values
-        (string starting with ``^`` or ``=``) are translated to their
-        absolute path via :meth:`abs_datapath` and looked up in
-        ``self.data``; non-pointer values are returned verbatim.
+        Returns ``(runtime_value, runtime_attrs)``. Two-phase pipeline
+        (DB-D5, DB-D11):
 
-        Phase 2 (template expansion via ``${name}``) is layered on top
-        in a separate slice; this implementation stops at phase 1.
+        Phase 1 — pointer resolution. Any string starting with ``^`` or
+        ``=`` (on ``node.value`` or on ``node.attr[name]``) is composed
+        through :meth:`abs_datapath` and looked up in ``self.data`` via
+        ``Bag.get_item``; non-pointer values pass through verbatim.
+
+        Phase 2 — template expansion. After phase 1, any string still
+        carrying ``${name}`` placeholders is expanded against the
+        resolved attrs from phase 1: ``${name}`` becomes
+        ``str(resolved[name])``, or the empty string ``""`` when
+        ``resolved[name]`` is ``None`` (DB-D11.6). ``KeyError`` is
+        raised if ``name`` is not in ``resolved``.
+
+        DB-D11 forbids cascade: an attribute is either a pointer OR a
+        template OR a literal — never two at once. Phase 2 only acts on
+        strings that did NOT match the pointer prefix in phase 1, so
+        the invariant holds by construction.
 
         Errors raised by :meth:`abs_datapath`
         (``ValueError`` / ``KeyError``) propagate unchanged. Absent
@@ -690,6 +701,20 @@ class BuilderHandler:
             )
         else:
             runtime_value = value
+
+        def _expand(s: str) -> str:
+            def repl(m: re.Match[str]) -> str:
+                name = m.group(1)
+                val = resolved[name]
+                return "" if val is None else str(val)
+            return _TEMPLATE_RE.sub(repl, s)
+
+        for attrname, v in list(resolved.items()):
+            if isinstance(v, str) and "${" in v:
+                resolved[attrname] = _expand(v)
+
+        if isinstance(runtime_value, str) and "${" in runtime_value:
+            runtime_value = _expand(runtime_value)
 
         return runtime_value, resolved
 

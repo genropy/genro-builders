@@ -152,6 +152,55 @@ class PageTester(HtmlBuilderHandler):
         _, ra = self.evaluate_on_node(leaf)
         assert ra["color"] == "literal-red"
 
+    # -- P4: template expansion ----------------------------------------
+
+    def test_10_template_two_phase(self) -> None:
+        """A pointer on one attr + a template referencing it: phase 1
+        resolves the pointer, phase 2 substitutes ``${name}``."""
+        body = self.node_by_id("body")
+        leaf = body.div(
+            _class="card ${color}",
+            color="^.color",
+            node_id="leaf_10",
+        )
+        _, ra = self.evaluate_on_node(leaf)
+        assert ra["color"] == "blue"
+        assert ra["_class"] == "card blue"
+
+    def test_11_template_none_to_empty_string(self) -> None:
+        """A pointer resolved to ``None`` substitutes to ``""`` (DB-D11.6)."""
+        body = self.node_by_id("body")
+        leaf = body.div(
+            _class="card ${missing}",
+            missing="^.never_set",
+            node_id="leaf_11",
+        )
+        _, ra = self.evaluate_on_node(leaf)
+        assert ra["missing"] is None
+        assert ra["_class"] == "card "
+
+    def test_12_template_unknown_name_raises(self) -> None:
+        """A ``${name}`` whose ``name`` is not in resolved attrs raises
+        ``KeyError`` (DB-D10 crash-totale)."""
+        body = self.node_by_id("body")
+        leaf = body.div(
+            _class="card ${nowhere}",
+            node_id="leaf_12",
+        )
+        with pytest.raises(KeyError):
+            self.evaluate_on_node(leaf)
+
+    def test_13_template_on_value(self) -> None:
+        """Template on ``node.value`` is expanded in phase 2."""
+        body = self.node_by_id("body")
+        leaf = body.div(
+            "hello ${who}",
+            who="^.title",
+            node_id="leaf_13",
+        )
+        rv, _ = self.evaluate_on_node(leaf)
+        assert rv == "hello Hello"
+
 
 def test_data_binding_slice0_cumulative():
     """Drive every ``test_NN_*`` on ``PageTester`` in numeric order."""
