@@ -301,15 +301,24 @@ class BuilderHandler:
     def _on_source_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
         """Internal dispatcher for events on ``_sourceroot``.
 
-        Normalizes the raw bag event and forwards it to
-        :meth:`on_source_change`.
+        First maintains ``self.pointer_map`` coherent across the
+        mutation (DAT.2), then forwards a normalized event to the user
+        hook :meth:`on_source_change`. Mapkeep is structural, not
+        user-facing: it MUST happen even if the user does not override
+        the public hook (and overriding the hook does NOT bypass it).
         """
         if evt == "ins":
+            self.register_pointer(node)
             self.on_source_change(node, "ins", evt_detail=None, **kw)
         elif evt == "del":
+            self.register_pointer(node, unregister=True)
             self.on_source_change(node, "del", evt_detail=None, **kw)
         else:
             detail = evt[4:] if evt.startswith("upd_") else evt
+            if detail in ("value", "value_attr"):
+                self._on_upd_value(node, kw.get("oldvalue"))
+            if detail in ("attrs", "value_attr"):
+                self._on_upd_attrs(node, kw.get("attrs_diff") or {})
             self.on_source_change(node, "upd", evt_detail=detail, **kw)
 
     def _on_data_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
@@ -561,6 +570,79 @@ class BuilderHandler:
                         del self.pointer_map[path]
             else:
                 self.pointer_map.setdefault(path, {})[id(node)] = node
+
+    def _value_nature(self, v: Any) -> str:
+        """Classify a value as ``"bag"``, ``"pointer"`` or ``"scalar"``.
+
+        Used by :meth:`_on_upd_value` to dispatch over the 9-cases matrix
+        of value transitions (old kind × new kind).
+        """
+        if isinstance(v, Bag):
+            return "bag"
+        if isinstance(v, str) and v.startswith("^"):
+            return "pointer"
+        return "scalar"
+
+    def _on_upd_value(self, node: BuilderBagNode, oldvalue: Any) -> None:
+        """Keep ``self.pointer_map`` coherent across an ``upd_value`` event.
+
+        Dispatches over the 9 transitions of (old kind, new kind) where
+        each kind is one of ``"scalar"``, ``"pointer"``, ``"bag"`` —
+        see :meth:`_value_nature`. The actions are:
+
+        - on ``"scalar"`` boundary: nothing to do for that side
+        - on ``"pointer"`` boundary: add/remove the direct entry of ``node``
+        - on ``"bag"`` boundary: walk the (old or new) subtree
+        """
+        new = node.value
+        old_kind = self._value_nature(oldvalue)
+        new_kind = self._value_nature(new)
+        match (old_kind, new_kind):
+            case ("scalar", "scalar"):
+                pass
+            case ("scalar", "pointer"):
+                self._update_pointer_map(node, [("", new)], unregister=False)
+            case ("scalar", "bag"):
+                for child in new:
+                    self.register_pointer(child)
+            case ("pointer", "scalar"):
+                self._update_pointer_map(node, [("", oldvalue)], unregister=True)
+            case ("pointer", "pointer"):
+                self._update_pointer_map(node, [("", oldvalue)], unregister=True)
+                self._update_pointer_map(node, [("", new)], unregister=False)
+            case ("pointer", "bag"):
+                self._update_pointer_map(node, [("", oldvalue)], unregister=True)
+                for child in new:
+                    self.register_pointer(child)
+            case ("bag", "scalar"):
+                for old_child in oldvalue:
+                    self.register_pointer(old_child, unregister=True)
+            case ("bag", "pointer"):
+                for old_child in oldvalue:
+                    self.register_pointer(old_child, unregister=True)
+                self._update_pointer_map(node, [("", new)], unregister=False)
+            case ("bag", "bag"):
+                for old_child in oldvalue:
+                    self.register_pointer(old_child, unregister=True)
+                for child in new:
+                    self.register_pointer(child)
+
+    def _on_upd_attrs(self, node: BuilderBagNode, attrs_diff: dict) -> None:
+        """Keep ``self.pointer_map`` coherent across an ``upd_attrs`` event.
+
+        ``attrs_diff`` is the per-attribute diff produced by ``genro_bag``:
+        ``{attr_name: {"old": old_value, "new": new_value}, ...}``. Only
+        changed keys appear. For each entry, deregister the old pointer
+        (if the old value was a pointer) and register the new one (if
+        the new value is a pointer). Non-pointer values are ignored.
+        """
+        for attrname, change in attrs_diff.items():
+            old_v = change.get("old")
+            new_v = change.get("new")
+            if isinstance(old_v, str) and old_v.startswith("^"):
+                self._update_pointer_map(node, [(attrname, old_v)], unregister=True)
+            if isinstance(new_v, str) and new_v.startswith("^"):
+                self._update_pointer_map(node, [(attrname, new_v)], unregister=False)
 
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)
