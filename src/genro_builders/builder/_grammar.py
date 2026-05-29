@@ -106,7 +106,7 @@ class _GrammarMixin:
             node_tag: The tag name for the element.
             **attr: Node attributes.
         """
-        return self._child(build_where, node_tag, node_value, node_label=node_label, **attr)
+        return self.set_child(build_where, node_tag, node_value, node_label=node_label, **attr)
 
     def _add_data_element(
         self, build_where: Bag, node_tag: str,
@@ -117,7 +117,7 @@ class _GrammarMixin:
         The node lives in the source tree but is transparent to the
         renderer: it emits no markup. Its consumption (side effects on
         ``handler.data``) is part of the pending data layer.
-        Bypasses _child() validation -- data elements are transparent.
+        Bypasses set_child() validation -- data elements are transparent.
         """
         label = self._auto_label(build_where, node_tag)
         build_where.set_item(
@@ -130,7 +130,7 @@ class _GrammarMixin:
             node_tag=node_tag,
         )
 
-    def _child(
+    def set_child(
         self,
         build_where: Bag,
         node_tag: str,
@@ -140,6 +140,16 @@ class _GrammarMixin:
         **attr: Any,
     ) -> BagNode:
         """Create a child node in the target Bag with validation.
+
+        Public entry point for the grammar machine: every ``body.div(...)``,
+        ``body.span(...)`` etc. ultimately lands here. Use it directly when
+        you need to attach a node whose tag is computed at runtime (rather
+        than spelled out as a method name), e.g. when injecting a subtree
+        pre-built via ``BagBuilderBase.new_root``.
+
+        Auto-labels the new node via ``_auto_label`` when ``node_label``
+        is omitted, ensuring no collision with existing siblings in
+        ``build_where``.
 
         Raises ValueError if validation fails, KeyError if parent tag not in schema.
         """
@@ -213,7 +223,7 @@ class _GrammarMixin:
         """Add a child to a node.
 
         Uses _bag_call for schema elements (handles tag renames).
-        Falls back to self._child() for unknown tags (provides validation errors).
+        Falls back to self.set_child() for unknown tags (provides validation errors).
         """
         if not isinstance(node.value, Bag):
             # Sub-bag must be the same type as the parent bag (e.g. a
@@ -247,8 +257,8 @@ class _GrammarMixin:
                 **attrs,
             )
 
-        # Tag not in schema: use _child() which will validate and raise
-        return self._child(
+        # Tag not in schema: use set_child() which will validate and raise
+        return self.set_child(
             node.value,
             child_tag,
             node_value=node_value,
