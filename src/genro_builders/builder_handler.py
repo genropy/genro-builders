@@ -352,7 +352,12 @@ class BuilderHandler:
         string, never reads the datastore. Supported syntactic forms:
 
             ``field``               — absolute, returned as-is
-            ``^...``                — pointer mark stripped, recurses
+            ``^...`` / ``=...``     — pointer mark stripped, recurses.
+                                       ``abs_datapath`` is neutral wrt
+                                       the prefix; the lazy/eager
+                                       distinction (``^`` vs ``=``)
+                                       lives in ``evaluate_on_node``
+                                       and in the pointer-map registry
             ``volume:field``        — absolute in another builder; the
                                        ``volume:`` prefix is preserved,
                                        routing happens at read time
@@ -379,7 +384,7 @@ class BuilderHandler:
                                        no node carries that id
         """
         raw = path
-        if path.startswith("^"):
+        if path and path[0] in ("^", "="):
             path = path[1:]
 
         if path.startswith("#"):

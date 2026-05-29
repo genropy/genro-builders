@@ -69,6 +69,36 @@ def test_pointer_mark_stripped_on_dotted_path():
 
 
 # ---------------------------------------------------------------------------
+# Eager pointer mark (=) stripping — symmetric to ^ (DB-D9)
+# ---------------------------------------------------------------------------
+
+
+def test_equals_mark_is_stripped():
+    page, leaf = _leaf()
+    assert page.abs_datapath(leaf, "=field") == "field"
+
+
+def test_equals_mark_stripped_on_dotted_path():
+    page, leaf = _leaf()
+    assert page.abs_datapath(leaf, "=user.name") == "user.name"
+
+
+def test_equals_mark_with_volume():
+    page, leaf = _leaf()
+    assert page.abs_datapath(leaf, "=vol:field") == "vol:field"
+
+
+def test_equals_mark_with_attr_tail():
+    page, leaf = _leaf()
+    assert page.abs_datapath(leaf, "=field?color") == "field?color"
+
+
+def test_equals_mark_volume_and_attr_combined():
+    page, leaf = _leaf()
+    assert page.abs_datapath(leaf, "=vol:user.name?size") == "vol:user.name?size"
+
+
+# ---------------------------------------------------------------------------
 # Volume prefix preserved
 # ---------------------------------------------------------------------------
 
@@ -145,6 +175,13 @@ def test_relative_with_pointer_mark():
     page.create()
     leaf = page.node_by_id("leaf")
     assert page.abs_datapath(leaf, "^.name") == "myform.name"
+
+
+def test_relative_with_equals_mark():
+    page = _PageWithDatapath()
+    page.create()
+    leaf = page.node_by_id("leaf")
+    assert page.abs_datapath(leaf, "=.name") == "myform.name"
 
 
 class _PageRelativeChain(HtmlBuilderHandler):
