@@ -35,6 +35,7 @@ Subclasses (typically ``HtmlBuilderHandler``, etc.) set
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from genro_bag import Bag, BagNode
@@ -42,6 +43,8 @@ from genro_bag import Bag, BagNode
 from .builder import BagBuilderBase
 from .builder_bag import BuilderBagNode
 from .source_bag import BuilderSource
+
+_TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
 class BuilderHandler:
@@ -648,6 +651,47 @@ class BuilderHandler:
                 self._update_pointer_map(node, [(attrname, old_v)], unregister=True)
             if isinstance(new_v, str) and new_v.startswith("^"):
                 self._update_pointer_map(node, [(attrname, new_v)], unregister=False)
+
+    # ------------------------------------------------------------------
+    # Runtime evaluation (slice 0)
+    # ------------------------------------------------------------------
+
+    def evaluate_on_node(
+        self, node: BuilderBagNode,
+    ) -> tuple[Any, dict[str, Any]]:
+        """Resolve pointers carried by ``node`` against ``self.data``.
+
+        Returns ``(runtime_value, runtime_attrs)``. Phase 1 of the
+        two-phase resolution pipeline (DB-D5): pointer-shaped values
+        (string starting with ``^`` or ``=``) are translated to their
+        absolute path via :meth:`abs_datapath` and looked up in
+        ``self.data``; non-pointer values are returned verbatim.
+
+        Phase 2 (template expansion via ``${name}``) is layered on top
+        in a separate slice; this implementation stops at phase 1.
+
+        Errors raised by :meth:`abs_datapath`
+        (``ValueError`` / ``KeyError``) propagate unchanged. Absent
+        data on a valid path resolves to ``None`` (DB-D10: no internal
+        try/except; the caller decides whether ``None`` is meaningful).
+        """
+        resolved: dict[str, Any] = {}
+        for attrname, v in node.attr.items():
+            if isinstance(v, str) and v and v[0] in ("^", "="):
+                path = self.abs_datapath(node, v)
+                resolved[attrname] = self.data.get_item(path)
+            else:
+                resolved[attrname] = v
+
+        value = node.value
+        if isinstance(value, str) and value and value[0] in ("^", "="):
+            runtime_value: Any = self.data.get_item(
+                self.abs_datapath(node, value),
+            )
+        else:
+            runtime_value = value
+
+        return runtime_value, resolved
 
     # ------------------------------------------------------------------
     # Reactive hooks (subtask handler_wrapper_root, P2)

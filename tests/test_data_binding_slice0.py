@@ -34,6 +34,8 @@ attribute writes.
 """
 from __future__ import annotations
 
+import pytest
+
 from genro_builders.contrib.html import HtmlBuilderHandler
 
 # ---------------------------------------------------------------------------
@@ -71,3 +73,89 @@ def test_data_subscriptions_active_after_create():
     page.create()
     page.data.set_item("x", 1)
     assert any(evt == "ins" for evt, _ in events)
+
+
+# ---------------------------------------------------------------------------
+# P3 - evaluate_on_node phase 1: pointer resolution
+# P4 - evaluate_on_node phase 2: template expansion
+# P5 - node.get_relative_data / set_relative_data
+#
+# Cumulative walkthrough on a single PageTester. Each test_NN_* exercises
+# one canonical operation against a shared source/data state; the driver
+# at the bottom invokes them in numeric order.
+# ---------------------------------------------------------------------------
+
+
+class PageTester(HtmlBuilderHandler):
+    """Shared handler for the slice-0 cumulative walkthrough."""
+
+    def main(self, root) -> None:
+        """Seed a body anchored at ``myform`` with a single id'd leaf."""
+        root.body(datapath="myform", node_id="body")
+
+    # -- P3: pointer resolution ----------------------------------------
+
+    def test_03_eval_pointer_caret_on_attr(self) -> None:
+        """``^.path`` on an attribute resolves against ``self.data``."""
+        self.data.set_item("myform.color", "blue")
+        body = self.node_by_id("body")
+        leaf = body.div(color="^.color", node_id="leaf_03")
+        rv, ra = self.evaluate_on_node(leaf)
+        assert ra["color"] == "blue"
+        assert rv is None  # no node_value set
+
+    def test_04_eval_pointer_equals_on_attr(self) -> None:
+        """``=.path`` resolves like ``^`` (DB-D9: same lookup, different
+        registration semantics handled outside abs_datapath)."""
+        body = self.node_by_id("body")
+        leaf = body.div(color="=.color", node_id="leaf_04")
+        rv, ra = self.evaluate_on_node(leaf)
+        assert ra["color"] == "blue"
+        assert rv is None
+
+    def test_05_eval_pointer_on_value(self) -> None:
+        """A pointer in ``node.value`` resolves into ``runtime_value``."""
+        self.data.set_item("myform.title", "Hello")
+        body = self.node_by_id("body")
+        leaf = body.div("^.title", node_id="leaf_05")
+        rv, ra = self.evaluate_on_node(leaf)
+        assert rv == "Hello"
+        assert "datapath" not in ra  # body's datapath does not leak here
+
+    def test_06_eval_pointer_absent_returns_none(self) -> None:
+        """Valid path but no data populated → ``None``."""
+        body = self.node_by_id("body")
+        leaf = body.div(color="^.missing", node_id="leaf_06")
+        _, ra = self.evaluate_on_node(leaf)
+        assert ra["color"] is None
+
+    def test_07_eval_broken_path_raises(self) -> None:
+        """Relative path with no ancestor datapath chain → ``ValueError``."""
+        orphan = self.new_root()
+        body = orphan.body(node_id="orphan_body_07")
+        leaf = body.div(color="^.color", node_id="leaf_07")
+        with pytest.raises(ValueError):
+            self.evaluate_on_node(leaf)
+
+    def test_08_eval_equals_not_in_pointer_map(self) -> None:
+        """``=`` is NOT registered in pointer_map (DB-D9 / DBS lazy-only)."""
+        # leaf_04 was added with color="=.color"; the eager pointer must
+        # not appear under "myform.color?color" in the map.
+        entry = self.pointer_map.get("myform.color?color", {})
+        leaf_04 = self.node_by_id("leaf_04")
+        assert id(leaf_04) not in entry
+
+    def test_09_eval_literal_attr_passthrough(self) -> None:
+        """Literal (non-pointer) attrs are returned verbatim."""
+        body = self.node_by_id("body")
+        leaf = body.div(color="literal-red", node_id="leaf_09")
+        _, ra = self.evaluate_on_node(leaf)
+        assert ra["color"] == "literal-red"
+
+
+def test_data_binding_slice0_cumulative():
+    """Drive every ``test_NN_*`` on ``PageTester`` in numeric order."""
+    page = PageTester()
+    page.create()
+    for name in sorted(n for n in dir(page) if n.startswith("test_")):
+        getattr(page, name)()
