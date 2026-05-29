@@ -22,8 +22,6 @@ from typing import Any
 
 from genro_bag import Bag, BagNode
 
-_BUILDERBAG_PROTECTED = frozenset({"node_class"})
-
 
 def _dispatch_struct_method(handler: Any, target: Any, name: str) -> Any | None:
     """Resolve ``name`` as a ``@struct_method`` on ``handler``.
@@ -120,6 +118,58 @@ class _BuilderBagNodeMixin:
             result.append(("", value))
         return result
 
+    def get_relative_data(
+        self,
+        path: str,
+        autocreate: bool = False,
+        default: Any = None,
+    ) -> Any:
+        """Read ``handler.data`` at ``path`` resolved relative to this node.
+
+        ``path`` is composed via :meth:`BuilderHandler.abs_datapath`, so
+        it accepts the same syntactic forms (absolute, relative ``.x``,
+        ``#FORM``, ``#ANCHOR``, ``#<node_id>``, with or without the
+        ``^``/``=`` prefix). The lookup is performed against the live
+        ``handler.data`` Bag.
+
+        When ``autocreate=True``, if the current value at ``path`` is
+        ``None`` (either missing or explicitly stored as ``None``),
+        ``default`` is written to ``handler.data`` before the read —
+        the two cases are intentionally not distinguished (DBS-D1).
+        """
+        handler = self._resolve_handler()
+        abs_path = handler.abs_datapath(self, path)
+        if autocreate and handler.data.get_item(abs_path) is None:
+            handler.data.set_item(abs_path, default)
+        return handler.data.get_item(abs_path, default=default)
+
+    def set_relative_data(
+        self,
+        path: str,
+        value: Any,
+        attributes: dict[str, Any] | None = None,
+        fired: bool = False,
+        reason: Any = None,
+    ) -> None:
+        """Write ``value`` into ``handler.data`` at ``path``.
+
+        ``path`` is composed via :meth:`BuilderHandler.abs_datapath`
+        (same forms as :meth:`get_relative_data`). ``attributes``,
+        ``fired`` and ``reason`` are forwarded to ``Bag.set_item`` as
+        the corresponding underscore-prefixed parameters. ``reason``
+        is polymorphic (DB-D8): the subscriber receives whatever
+        object is passed here, unchanged.
+        """
+        handler = self._resolve_handler()
+        abs_path = handler.abs_datapath(self, path)
+        handler.data.set_item(
+            abs_path,
+            value,
+            _attributes=attributes,
+            _fired=fired,
+            _reason=reason,
+        )
+
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attribute access to the active builder.
 
@@ -176,15 +226,14 @@ class _BuilderBagMixin:
         """Resolve attribute lookup with grammar priority.
 
         Order:
-            1. dunder / private → normal lookup (fast path).
-            2. infrastructure names (``node_class``) → normal.
-            3. ``bag_<name>`` → strip prefix and look up the underlying Bag.
-            4. ``_builder`` set and ``name`` in its schema → grammar dispatch.
-            5. fallback to normal lookup.
+            1. dunder / private (``_<name>``) → normal lookup (fast path);
+               this also covers infrastructure attributes inherited from
+               genro_bag (``_node_class``, ``_container_class``, ...).
+            2. ``bag_<name>`` → strip prefix and look up the underlying Bag.
+            3. ``_builder`` set and ``name`` in its schema → grammar dispatch.
+            4. fallback to normal lookup.
         """
         if name.startswith("_"):
-            return super().__getattribute__(name)
-        if name in _BUILDERBAG_PROTECTED:
             return super().__getattribute__(name)
         if name.startswith("bag_"):
             return super().__getattribute__(name[4:])
@@ -249,7 +298,7 @@ class BuilderBag(Bag, _BuilderBagMixin):
     flows; the handler uses level-2 subclasses.
     """
 
-    node_class: type[BagNode] = BuilderBagNode
+    _node_class: type[BagNode] = BuilderBagNode
 
     def __init__(
         self,

@@ -201,6 +201,37 @@ class PageTester(HtmlBuilderHandler):
         rv, _ = self.evaluate_on_node(leaf)
         assert rv == "hello Hello"
 
+    # -- P5: get_relative_data / set_relative_data ---------------------
+
+    def test_14_set_relative_data_writes_data(self) -> None:
+        """``set_relative_data`` writes through abs_datapath into data."""
+        body = self.node_by_id("body")
+        leaf = body.div(node_id="leaf_14")
+        leaf.set_relative_data(".title", "World")
+        assert self.data.get_item("myform.title") == "World"
+
+    def test_15_get_relative_data_reads_data(self) -> None:
+        """``get_relative_data`` returns what ``data`` holds (round-trip)."""
+        leaf = self.node_by_id("leaf_14")
+        assert leaf.get_relative_data(".title") == "World"
+
+    def test_16_autocreate_creates_missing(self) -> None:
+        """``autocreate=True`` writes ``default`` when the path is missing."""
+        body = self.node_by_id("body")
+        leaf = body.div(node_id="leaf_16")
+        out = leaf.get_relative_data(".new_field", autocreate=True, default=42)
+        assert out == 42
+        assert self.data.get_item("myform.new_field") == 42
+
+    def test_17_autocreate_overwrites_none(self) -> None:
+        """``autocreate=True`` rewrites an existing ``None`` (DBS-D1: None
+        and missing are treated alike)."""
+        self.data.set_item("myform.zero", None)
+        leaf = self.node_by_id("leaf_16")
+        out = leaf.get_relative_data(".zero", autocreate=True, default=99)
+        assert out == 99
+        assert self.data.get_item("myform.zero") == 99
+
 
 def test_data_binding_slice0_cumulative():
     """Drive every ``test_NN_*`` on ``PageTester`` in numeric order."""
