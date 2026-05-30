@@ -1,7 +1,7 @@
 # HTML grammar
 
-**Last Updated**: 2026-05-18
-**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
+**Last Updated**: 2026-05-30
+**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
 **Maintainer**: core team.
 
 HTML5 grammar generated from the W3C schema. 112 elements, full

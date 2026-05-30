@@ -1,7 +1,7 @@
 # SVG grammar
 
-**Last Updated**: 2026-05-18
-**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
+**Last Updated**: 2026-05-30
+**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
 **Maintainer**: core team.
 
 SVG 1.1 grammar. 56 elements covering shapes, paths, text,

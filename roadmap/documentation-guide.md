@@ -1,7 +1,7 @@
 # Builders documentation guide
 
-**Last Updated**: 2026-05-18
-**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
+**Last Updated**: 2026-05-30
+**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere.
 **Audience**: Contributors writing documentation for a specific
 grammar (HTML, SVG, CSS, ...) under `docs/grammars/<name>.md`,
 and contributors writing framework-wide documentation under

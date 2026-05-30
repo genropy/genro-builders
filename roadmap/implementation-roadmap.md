@@ -1,7 +1,7 @@
 # Implementation roadmap — open problem
 
-**Last Updated**: 2026-05-18
-**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
+**Last Updated**: 2026-05-30
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0.
 This document is intentionally **not a plan**. It exposes the
 problem and lists what is on the table; it does not pick an order
 and does not record decisions. Treating any statement here as a
@@ -18,12 +18,31 @@ model; this document only frames the question
 
 ## 1. The problem
 
-`develop` is intentionally stripped down. The features that the
-blueprint (v0.2.0) had explored — pointers, datapath, components
-with expansion, sub-builders, data elements, reactivity,
-multi-builder — are not back yet. The architectural contract is
-fixed, the data model has a draft, but no feature has been
-re-implemented under the new contract.
+`develop` is being progressively re-built under the v0.5.0 contract.
+Compared to the blueprint v0.2.0 the following axes are already
+back on `develop`:
+
+- **Data (pull-based)**: `handler.data`, `^pointer` / `=pointer` /
+  `${name}` template, `node.abs_datapath`, `node.runtime_values`,
+  `node.get_relative_data` / `set_relative_data` / `fire_event`,
+  `BuilderHandler.pointer_map` with automatic mapkeep on source
+  events. Closed in the `data_binding_slice0` subtask (commit
+  `a9479e7..3d2f7de`).
+- **Sub-builders**: `@subbuilder(OtherBuilder)` with grammar
+  validation against the sub-builder schema, and renderer
+  polymorphism via the `renderer_<mode>` property + R₀ walk cache
+  (commit `be072fb` for the renderer-side chain).
+- **Render subsystem**: universal walk on `RendererBase.render`,
+  `rendered_item` for dialect-specific fragments, `finalize_method`
+  shape dispatch (commit `be072fb`).
+
+Features still on this document's open list — **not back yet**:
+
+- Components (`@component`, expansion semantics, slots).
+- Data elements (`data_setter`, `data_formula`, `data_controller`,
+  `_delay`, `_interval`).
+- Push reactivity (subscribe / auto-render on data change).
+- Multi-builder (suite-level orchestrator).
 
 The features are **not independent**. Each one presupposes parts
 of the others; each one influences how the others will look. The
@@ -38,21 +57,28 @@ how to navigate this graph.
 Each axis is listed with what it is and what other axes it
 touches. No ranking is implied.
 
-### 2.1 Data
+### 2.1 Data — *partially closed (pull-based slice)*
 
-The path grammar, `handler.data`, `^pointer`, `datapath`,
-`abs_datapath`, `get_relative_data` / `set_relative_data`. See
-[data-architecture.md](data-architecture.md).
+The path grammar, `handler.data`, `^pointer` / `=pointer` /
+`${name}`, `node.abs_datapath`, `node.runtime_values`,
+`get_relative_data` / `set_relative_data` / `fire_event`. See
+[data-architecture.md](data-architecture.md) and the contract
+section `DAT.2`. Pull-based resolution is already in (closed in
+`data_binding_slice0`); push reactivity (axis 2.5) is the
+open companion.
 
 Touches: every other axis. Without a data layer, components cannot
 iterate, data elements have no destination, reactivity has nothing
 to observe, sub-builders cannot share state.
 
-### 2.2 Sub-builders
+### 2.2 Sub-builders — *closed*
 
 `@subbuilder(OtherBuilder)`: a declared switch of active builder
 on a sub-tree (decision 2 of the contract). HTML → SVG is the
-typical case.
+typical case. Renderer-side polymorphism via the R₀ walk cache
+keyed on `id(builder)` is in place (commit `be072fb`); host
+envelope (e.g. SVG ospita HTML in `<foreignObject>`) is declared
+on the host builder via `wrapper_<sub_name>`.
 
 Touches: data (sub-builders share or do not share the parent's
 data — open question); render (the renderer of the sub-tree is

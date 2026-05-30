@@ -1,7 +1,7 @@
 # Builders overview
 
-**Last Updated**: 2026-05-18
-**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
+**Last Updated**: 2026-05-30
+**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
 
 A builder is a Python class that defines a grammar for a structured
 document: HTML, SVG, CSS, or any user-defined dialect.
@@ -86,8 +86,8 @@ class CustomerPage(HtmlBuilderHandler):
 | Render targets (file, stream, buffer; one per mode) | Handler |
 | Node lookup by id | Handler (`node_by_id`) |
 
-This separation is fixed by the architecture contract (decision 8,
-v0.4.0). See `roadmap/architecture-contract.md`.
+This separation is fixed by the architecture contract (sections
+`BLD.3` / `HND.3`, v0.5.0). See `roadmap/architecture-contract.md`.
 
 ## What is not yet here
 

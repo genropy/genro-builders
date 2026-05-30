@@ -1,7 +1,7 @@
 # genro-builders
 
-**Last Updated**: 2026-05-18
-**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
+**Last Updated**: 2026-05-30
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0.
 
 Builder system for [genro-bag](https://github.com/genropy/genro-bag).
 Construct structured documents — HTML, SVG, CSS — through a fluent,
@@ -38,7 +38,8 @@ not currently usable: `contrib.xsd`, `contrib.data`.
 Documents describing where the project is heading — not yet shipped
 in code — live in `roadmap/` at the repo root:
 
-- `roadmap/architecture-contract.md` — the 12 architectural decisions.
+- `roadmap/architecture-contract.md` — the architectural contract
+  (v0.5.0, in vigore dal 2026-05-27).
 - `roadmap/data-architecture.md` — the data model proposal (pointers,
   datapath, volumes).
 - `roadmap/implementation-roadmap.md` — open problem framing.

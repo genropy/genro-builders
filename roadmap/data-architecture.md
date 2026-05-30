@@ -1,7 +1,7 @@
 # Data architecture
 
-**Last Updated**: 2026-05-18
-**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
+**Last Updated**: 2026-05-30
+**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro `data_binding_slice0`.
 **Audience**: Contributors writing or maintaining `genro-builders`,
 and users building applications on top of `BuilderHandler`.
 
@@ -71,8 +71,8 @@ customer invoice). A document has three parallel facets that the
 handler owns together:
 
 - **Schema / grammar** — provided by the builder
-  (`handler.builder`), which is grammar-only (decision 8 of the
-  contract, v0.4.0).
+  (`handler.builder`), which is grammar-only (contract `BLD.3`,
+  v0.5.0).
 - **Data** — the live values of the document, owned by the handler
   as `handler.data` (a `Bag`).
 - **Presentation** — produced by the renderer registered for the

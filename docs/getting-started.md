@@ -1,7 +1,7 @@
 # Getting started
 
-**Last Updated**: 2026-05-18
-**Status**: 🟡 APPROVATO PARZIALMENTE — allineato a v0.4.0, contenuto sostanziale da rileggere.
+**Last Updated**: 2026-05-30
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0.
 
 Build a first page in five minutes.
 
@@ -14,7 +14,7 @@ pip install genro-builders
 ## A first HTML page
 
 Define a handler subclass, implement `main(self, root)`, run the
-three-phase lifecycle.
+two-phase lifecycle (`create()` then `render()`).
 
 ```python
 from genro_builders.contrib.html import HtmlBuilderHandler
