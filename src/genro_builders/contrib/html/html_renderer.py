@@ -221,8 +221,7 @@ class HtmlRenderer(RendererBase):
 
         return "".join(html_parts)
 
-    @staticmethod
-    def _html_attr_value(value: Any) -> str:
+    def _html_attr_value(self, value: Any) -> str:
         """Render a non-CSS attribute value (three-state booleans + escape)."""
         if value is True:
             return "true"
@@ -232,8 +231,7 @@ class HtmlRenderer(RendererBase):
             return "null"
         return str(value).translate(_ATTR_VALUE_ESCAPE)
 
-    @staticmethod
-    def _css_value(value: Any) -> str:
+    def _css_value(self, value: Any) -> str:
         """Render a CSS property value. No unit injection: raw stringification."""
         if value is True:
             return "true"
