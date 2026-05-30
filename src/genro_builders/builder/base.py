@@ -238,25 +238,13 @@ class BagBuilderBase(
     def __init__(self) -> None:
         """Initialize the builder. Grammar-only state (decisions 1, 8 v0.4.0).
 
-        Each builder instance maintains its own renderer registry
-        (``self._renderers``) populated by ``self.register_renderer``.
-        Sub-classes override ``__init__`` to call ``super().__init__()``
-        and then register their dialect-specific renderers.
+        Renderers are exposed as ``renderer_<mode>`` properties on the
+        builder class. The base class declares ``renderer_xml`` so the
+        ``xml`` mode is always available; concrete dialects declare
+        their own (``renderer_html`` on ``HtmlBuilder`` etc.).
         """
         self._schema = type(self)._class_schema
         self._schema_tag_names = type(self)._schema_tag_names
-        self._renderers: dict[str, type] = {}
-        self.register_renderer("xml", XmlRenderer)
-
-    def register_renderer(self, name: str, renderer_class: type) -> None:
-        """Register a renderer class under ``name`` on this builder.
-
-        Calling ``register_renderer`` again with the same name
-        overrides the previous registration. The registry is
-        per-instance: two builder instances of the same class can
-        diverge.
-        """
-        self._renderers[name] = renderer_class
 
     @property
     def renderer_xml(self) -> XmlRenderer:

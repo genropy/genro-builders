@@ -241,9 +241,10 @@ class RendererBase:
 class XmlRenderer(RendererBase):
     """Renderer of the shared ``xml`` mode.
 
-    Registered by ``BagBuilderBase.__init__`` so every dialect can serve
-    ``xml`` without declaring its own renderer. Concrete dialects that
-    want a custom XML walk override this class via ``register_renderer``.
+    Exposed by ``BagBuilderBase.renderer_xml`` so every dialect can
+    serve ``xml`` without declaring its own renderer. Concrete dialects
+    that want a custom XML walk override ``renderer_xml`` on their
+    builder to return a different renderer class.
     """
 
     def render_xml(

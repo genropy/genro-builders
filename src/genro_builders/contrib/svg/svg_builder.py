@@ -21,10 +21,6 @@ class SvgBuilder(BagBuilderBase, SvgExtensions, SvgElements):
     _name = "svg"
     _default_render_mode = "svg"
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.register_renderer("svg", SvgRenderer)
-
     @property
     def renderer_svg(self) -> SvgRenderer:
         """Fresh ``SvgRenderer`` instance bound to this builder.

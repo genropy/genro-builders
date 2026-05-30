@@ -26,8 +26,9 @@ from genro_builders.contrib.html import HtmlBuilderHandler
 class _RecordingRenderer:
     """Stand-in renderer that records render() calls. Only used in tests."""
 
-    def __init__(self, handler):
+    def __init__(self, handler=None, builder=None):
         self.handler = handler
+        self._builder = builder
         self.calls: list[tuple[Any, Any, Any]] = []
 
     def render(self, source, mode=None, render_target=None, **kwargs) -> str:
@@ -41,7 +42,10 @@ class _RecordingBuilder:
     _schema_tag_names: dict[str, str] = {}
     _schema = ()
     _default_render_mode = "stub"
-    _renderers = {"stub": _RecordingRenderer}
+
+    @property
+    def renderer_stub(self) -> _RecordingRenderer:
+        return _RecordingRenderer(builder=self)
 
 
 class _StubHandler(BuilderHandler):

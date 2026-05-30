@@ -21,10 +21,6 @@ class HtmlBuilder(BagBuilderBase, Html5Extensions, Html5Elements):
     _name = "html"
     _default_render_mode = "html"
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.register_renderer("html", HtmlRenderer)
-
     @property
     def renderer_html(self) -> HtmlRenderer:
         """Fresh ``HtmlRenderer`` instance bound to this builder.

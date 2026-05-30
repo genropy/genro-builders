@@ -37,10 +37,6 @@ class CssBuilder(BagBuilderBase, CssElements):
     _name = "css"
     _default_render_mode = "css"
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.register_renderer("css", CssRenderer)
-
     @property
     def renderer_css(self) -> CssRenderer:
         """Fresh ``CssRenderer`` instance bound to this builder.

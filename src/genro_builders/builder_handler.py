@@ -140,19 +140,18 @@ class BuilderHandler:
         (either by ``set_render_target`` or by ``render``). Lookup is
         on the builder *class* (not the instance) to bypass the grammar
         ``__getattr__`` that would otherwise intercept every attribute
-        and produce a wrapper function. During step 2a of the
-        renderer-side chain refactor the legacy
-        ``builder._renderers[mode]`` registry is kept as a fallback for
-        callers that have not migrated yet (test stubs, downstream
-        builders); it will be removed in step 2b once nothing uses it.
+        and produce a wrapper function. ``KeyError`` if no property
+        matches the requested mode.
         """
         entry = self.renderers.get(mode)
         if entry is None:
             prop = getattr(type(self.builder), f"renderer_{mode}", None)
-            if prop is not None:
-                renderer = prop.__get__(self.builder, type(self.builder))
-            else:
-                renderer = self.builder._renderers[mode](self)
+            if prop is None:
+                raise KeyError(
+                    f"{type(self.builder).__name__} does not expose a "
+                    f"'renderer_{mode}' property",
+                )
+            renderer = prop.__get__(self.builder, type(self.builder))
             renderer.handler = self
             entry = {"target": None, "instance": renderer}
             self.renderers[mode] = entry
@@ -217,8 +216,8 @@ class BuilderHandler:
           ``set_render_target(..., default=True)``);
         - otherwise the builder's ``_default_render_mode``.
 
-        The renderer corresponding to ``mode`` is looked up in the
-        builder's ``_renderers`` registry and instantiated on the fly.
+        The renderer corresponding to ``mode`` is obtained from the
+        builder's ``renderer_<mode>`` property and cached per mode.
         """
         effective_mode = (
             mode
@@ -296,15 +295,25 @@ class BuilderHandler:
 
         For the primary builder this is ``self.renderer``. For a
         sub-builder (a different dialect attached to a subtree), the
-        renderer class is read from the sub-builder's renderer registry
-        (default mode) and instantiated on the spot. The sub-renderer
-        carries an explicit ``builder`` reference so polymorphic
-        dispatch via ``node._builder`` can identify it correctly.
+        renderer is read from the sub-builder's ``renderer_<mode>``
+        property (default mode). The instance carries an explicit
+        ``builder`` reference so polymorphic dispatch via
+        ``node.builder`` can identify it correctly; the handler is
+        injected immediately afterwards so subbuilder paths inside the
+        sub-renderer can still reach back (e.g. for further nesting).
         """
         if builder is self.builder:
             return self.renderer
         mode = builder._default_render_mode
-        return builder._renderers[mode](self, builder)
+        prop = getattr(type(builder), f"renderer_{mode}", None)
+        if prop is None:
+            raise KeyError(
+                f"{type(builder).__name__} does not expose a "
+                f"'renderer_{mode}' property",
+            )
+        sub_renderer = prop.__get__(builder, type(builder))
+        sub_renderer.handler = self
+        return sub_renderer
 
     # ------------------------------------------------------------------
     # Wrapper-root subscriptions (decision 11 + HWR refactor)
