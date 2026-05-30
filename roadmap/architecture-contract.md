@@ -297,10 +297,12 @@ path, file-like o callable; `None` → ritorna il valore).
 L'API utente è **una sola**: `handler.render(startnode, mode, target, **kw)`.
 Niente shortcut `render_<mode>(...)`.
 
-Sub-builder (BLD.2): `renderer_for(builder)` accede alla property
-`builder.renderer_<default_mode>` del sub-builder e inietta
-l'handler. Il sub-renderer non entra in `self.renderers` (quello è
-solo per il builder primario); finisce nella cache `renders` di R₀.
+Sub-builder (BLD.2): il sub-renderer è risolto dal walk universale
+via `RendererBase.get_render(builder)` di R₀ — accesso alla property
+`builder.renderer_<default_mode>` del sub-builder, iniezione
+dell'handler, memoizzazione nella cache `renders` di R₀ con chiave
+`id(builder)`. Non entra in `self.renderers` (che riguarda solo i
+mode del builder primario).
 
 ### HND.4 — Due fasi esplicite: create, render
 

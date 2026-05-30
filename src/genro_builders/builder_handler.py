@@ -300,31 +300,6 @@ class BuilderHandler:
         """
         return BagBuilderBase.get_builder_class(name)()
 
-    def renderer_for(self, builder: Any) -> Any:
-        """Return the renderer instance bound to ``builder``.
-
-        For the primary builder this is ``self.renderer``. For a
-        sub-builder (a different dialect attached to a subtree), the
-        renderer is read from the sub-builder's ``renderer_<mode>``
-        property (default mode). The instance carries an explicit
-        ``builder`` reference so polymorphic dispatch via
-        ``node.builder`` can identify it correctly; the handler is
-        injected immediately afterwards so subbuilder paths inside the
-        sub-renderer can still reach back (e.g. for further nesting).
-        """
-        if builder is self.builder:
-            return self.renderer
-        mode = builder._default_render_mode
-        prop = getattr(type(builder), f"renderer_{mode}", None)
-        if prop is None:
-            raise KeyError(
-                f"{type(builder).__name__} does not expose a "
-                f"'renderer_{mode}' property",
-            )
-        sub_renderer = prop.__get__(builder, type(builder))
-        sub_renderer.handler = self
-        return sub_renderer
-
     # ------------------------------------------------------------------
     # Wrapper-root subscriptions (decision 11 + HWR refactor)
     # ------------------------------------------------------------------
