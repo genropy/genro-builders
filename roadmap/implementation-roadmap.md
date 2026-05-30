@@ -38,11 +38,17 @@ back on `develop`:
 
 Features still on this document's open list — **not back yet**:
 
-- Components (`@component`, expansion semantics, slots).
 - Data elements (`data_setter`, `data_formula`, `data_controller`,
   `_delay`, `_interval`).
 - Push reactivity (subscribe / auto-render on data change).
 - Multi-builder (suite-level orchestrator).
+
+Components have been **dropped** as a framework primitive: factoring
+out repeated builder calls is done with plain Python methods on the
+handler, with no `@component` decorator, no expansion phase, no
+slot semantics. The decision dates to 2026-04-27 (Stage 1 vs Stage 2
+deliberation) and the rebuild of May 2026 removed the residual
+scaffolding.
 
 The features are **not independent**. Each one presupposes parts
 of the others; each one influences how the others will look. The
@@ -67,9 +73,9 @@ section `DAT.2`. Pull-based resolution is already in (closed in
 `data_binding_slice0`); push reactivity (axis 2.5) is the
 open companion.
 
-Touches: every other axis. Without a data layer, components cannot
-iterate, data elements have no destination, reactivity has nothing
-to observe, sub-builders cannot share state.
+Touches: every other axis. Without a data layer, data elements
+have no destination, reactivity has nothing to observe,
+sub-builders cannot share state.
 
 ### 2.2 Sub-builders — *closed*
 
@@ -84,31 +90,17 @@ Touches: data (sub-builders share or do not share the parent's
 data — open question); render (the renderer of the sub-tree is
 the sub-builder's renderer).
 
-### 2.3 Components
-
-A macro-like construct that produces a sub-tree, parameterised by
-its caller. Cited in the contract under "Discussioni aperte" as a
-candidate for re-introduction via `@struct_method` on the handler
-or via a new dedicated decorator. Includes the question of how the
-component declares its main tag and whether it accepts children.
-
-Touches: data (components often parameterise on a datapath and
-read pointers); data elements (a component frequently emits data
-elements alongside element nodes); iterate (a component over data
-children).
-
-### 2.4 Data elements
+### 2.3 Data elements
 
 `data_setter`, `data_formula`, and any other `@data_element`. They
 write to or install resolvers on the data store; they emit no
 markup at render time.
 
-Touches: data (they are the writers); components (data elements
-are commonly grouped inside a component); reactivity (data formulas
+Touches: data (they are the writers); reactivity (data formulas
 are pull-based but trigger reactive cascades when dependencies
 change).
 
-### 2.5 Reactivity
+### 2.4 Reactivity
 
 Change propagation: a write to `handler.data` causes the renderer
 to re-emit output. Includes the dependency graph, the subscriber,
@@ -118,7 +110,7 @@ Touches: every other axis. It is a meta-layer over a working
 system: it observes data, runs because of data, and re-renders the
 output of the rest.
 
-### 2.6 Multi-builder
+### 2.5 Multi-builder
 
 An orchestrator above one or more handlers (decision 4 mentions
 this as an explicit layer above the handler). Coordinates handlers
@@ -157,7 +149,7 @@ Any concrete order sits somewhere between the two extremes.
 
 Some axes look like foundations (the data layer is referenced by
 everything), some look like applicative layers built on top
-(components, data elements, sub-builders), some look like
+(data elements, sub-builders), some look like
 meta-layers that observe and coordinate (reactivity, multi-builder).
 The question is whether this layering is real or apparent: a
 foundation that is too rigid forces rewrites above; a meta-layer
@@ -166,11 +158,11 @@ that comes too early has nothing stable to observe.
 ### 3.3 Where does the design pressure come from?
 
 Each axis has different sources of design pressure. Data has the
-pressure of "the grammar must compose"; components have "the
-expansion must be predictable and re-runnable"; reactivity has
-"the dispatch must be coalescing and idempotent". An axis
-designed in isolation lacks the pressure from the other axes,
-and the design that emerges may not survive contact with them.
+pressure of "the grammar must compose"; data elements have "the
+computation must be deterministic and topologically sortable";
+reactivity has "the dispatch must be coalescing and idempotent".
+An axis designed in isolation lacks the pressure from the other
+axes, and the design that emerges may not survive contact with them.
 
 ### 3.4 What is the smallest end-to-end demo worth?
 
@@ -192,10 +184,11 @@ the data document and the contract. They are not a recipe.
 
 - The data layer is referenced (as path grammar) by every other
   axis. It is the most-depended-on.
-- Sub-builders and components are largely orthogonal to each
-  other, but both touch the data layer.
-- Data elements are values of the data layer and are commonly
-  emitted from components; they sit between the two.
+- Sub-builders are orthogonal to data and reactivity, but the
+  sub-renderer reads the same pointers, so the grammar must
+  match.
+- Data elements are values of the data layer: writers, formulas,
+  controllers. They sit on top of data.
 - Reactivity presupposes that data exists, that the renderer
   runs, and that the chain renderer → output is stable.
 - Multi-builder presupposes everything that a single handler has,
@@ -217,9 +210,9 @@ axes.
 - **Rewriting reactivity** is contained: reactivity is mostly
   additive (subscriber + dispatch), so building it on a system
   that later changes shape is unpleasant but feasible.
-- **Rewriting components / data elements / sub-builders** is
-  intermediate: their public API leaks into user code (decorators,
-  signatures), and changes there mean user-visible churn.
+- **Rewriting data elements / sub-builders** is intermediate:
+  their public API leaks into user code (decorators, signatures),
+  and changes there mean user-visible churn.
 
 This asymmetry is one input to the order question; not the only
 one.
