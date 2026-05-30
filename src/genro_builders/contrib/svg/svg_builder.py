@@ -16,7 +16,7 @@ from .svg_renderer import SvgRenderer
 
 class SvgBuilder(BagBuilderBase, SvgExtensions, SvgElements):
     """SVG dialect builder. Grammar only — rendering on
-    ``SvgRenderer``, registered under the ``"svg"`` mode."""
+    ``SvgRenderer``, exposed via the ``renderer_svg`` property."""
 
     _name = "svg"
     _default_render_mode = "svg"
@@ -24,3 +24,12 @@ class SvgBuilder(BagBuilderBase, SvgExtensions, SvgElements):
     def __init__(self) -> None:
         super().__init__()
         self.register_renderer("svg", SvgRenderer)
+
+    @property
+    def renderer_svg(self) -> SvgRenderer:
+        """Fresh ``SvgRenderer`` instance bound to this builder.
+
+        Each access returns a new instance: the renderer is meant to be
+        ephemeral, used for a single ``render`` call and discarded.
+        """
+        return SvgRenderer(builder=self)

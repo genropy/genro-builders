@@ -36,7 +36,7 @@ class RendererBase:
     """Base renderer. Concrete dialects subclass it and add
     ``render_<mode>`` methods."""
 
-    def __init__(self, handler: Any, builder: Any = None) -> None:
+    def __init__(self, handler: Any = None, builder: Any = None) -> None:
         self.handler = handler
         # When ``builder`` is None (default) the renderer is bound to
         # the handler's primary dialect — used by ``handler.renderer``.
@@ -44,6 +44,11 @@ class RendererBase:
         # ``handler.renderer_for(sub_builder)`` the explicit ``builder``
         # locks the renderer to that dialect, so polymorphic dispatch
         # via ``node._builder`` can compare against it without looping.
+        #
+        # ``handler`` is optional during step 2a of the renderer-side
+        # chain refactor: the builder property ``renderer_<mode>`` can
+        # produce an instance carrying only the builder; the caller
+        # (typically the handler) injects ``self.handler`` right after.
         self._builder = builder
 
     @property

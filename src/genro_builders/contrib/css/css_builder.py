@@ -32,7 +32,7 @@ from .css_renderer import CssRenderer
 
 class CssBuilder(BagBuilderBase, CssElements):
     """CSS dialect builder. Grammar only — rendering on
-    ``CssRenderer``, registered under the ``"css"`` mode."""
+    ``CssRenderer``, exposed via the ``renderer_css`` property."""
 
     _name = "css"
     _default_render_mode = "css"
@@ -40,6 +40,15 @@ class CssBuilder(BagBuilderBase, CssElements):
     def __init__(self) -> None:
         super().__init__()
         self.register_renderer("css", CssRenderer)
+
+    @property
+    def renderer_css(self) -> CssRenderer:
+        """Fresh ``CssRenderer`` instance bound to this builder.
+
+        Each access returns a new instance: the renderer is meant to be
+        ephemeral, used for a single ``render`` call and discarded.
+        """
+        return CssRenderer(builder=self)
 
     # ------------------------------------------------------------------
     # Reverse: from CSS source to CssBuilderHandler Python source

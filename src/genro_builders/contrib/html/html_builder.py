@@ -16,7 +16,7 @@ from .html_renderer import HtmlRenderer
 
 class HtmlBuilder(BagBuilderBase, Html5Extensions, Html5Elements):
     """HTML5 dialect builder. Grammar only — rendering on
-    ``HtmlRenderer``, registered under the ``"html"`` mode."""
+    ``HtmlRenderer``, exposed via the ``renderer_html`` property."""
 
     _name = "html"
     _default_render_mode = "html"
@@ -24,3 +24,12 @@ class HtmlBuilder(BagBuilderBase, Html5Extensions, Html5Elements):
     def __init__(self) -> None:
         super().__init__()
         self.register_renderer("html", HtmlRenderer)
+
+    @property
+    def renderer_html(self) -> HtmlRenderer:
+        """Fresh ``HtmlRenderer`` instance bound to this builder.
+
+        Each access returns a new instance: the renderer is meant to be
+        ephemeral, used for a single ``render`` call and discarded.
+        """
+        return HtmlRenderer(builder=self)

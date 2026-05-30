@@ -258,6 +258,17 @@ class BagBuilderBase(
         """
         self._renderers[name] = renderer_class
 
+    @property
+    def renderer_xml(self) -> XmlRenderer:
+        """Fresh ``XmlRenderer`` instance bound to this builder.
+
+        Each access returns a new instance: the renderer is meant to be
+        ephemeral, used for a single ``render`` call and discarded.
+        Inherited by every concrete dialect so ``xml`` is always
+        available as a render mode.
+        """
+        return XmlRenderer(builder=self)
+
     def new_root(self) -> BuilderSource:
         """Return a fresh, throw-away ``BuilderSource`` driven by this builder.
 

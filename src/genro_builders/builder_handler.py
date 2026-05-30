@@ -135,14 +135,26 @@ class BuilderHandler:
         """Return the ``self.renderers[mode]`` entry, creating it lazily.
 
         Each entry holds ``{"target": ..., "instance": RendererBase}``.
-        The renderer class is read from the builder's registry the first
-        time the mode is touched (either by ``set_render_target`` or by
-        ``render``).
+        The renderer instance is requested from the builder's
+        ``renderer_<mode>`` property the first time the mode is touched
+        (either by ``set_render_target`` or by ``render``). Lookup is
+        on the builder *class* (not the instance) to bypass the grammar
+        ``__getattr__`` that would otherwise intercept every attribute
+        and produce a wrapper function. During step 2a of the
+        renderer-side chain refactor the legacy
+        ``builder._renderers[mode]`` registry is kept as a fallback for
+        callers that have not migrated yet (test stubs, downstream
+        builders); it will be removed in step 2b once nothing uses it.
         """
         entry = self.renderers.get(mode)
         if entry is None:
-            renderer_cls = self.builder._renderers[mode]
-            entry = {"target": None, "instance": renderer_cls(self)}
+            prop = getattr(type(self.builder), f"renderer_{mode}", None)
+            if prop is not None:
+                renderer = prop.__get__(self.builder, type(self.builder))
+            else:
+                renderer = self.builder._renderers[mode](self)
+            renderer.handler = self
+            entry = {"target": None, "instance": renderer}
             self.renderers[mode] = entry
         return entry
 
