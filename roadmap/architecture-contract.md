@@ -4,7 +4,7 @@
 **Sostituisce**: v0.4.0 (archiviata in
 `roadmap/outdated_versions/architecture-contract-v0.4.md`).
 
-**Stato del codice di riferimento**: `develop @ 4cecfbe` (= `origin/develop`),
+**Stato del codice di riferimento**: `develop @ be072fb` (= `origin/develop`),
 suite **345 test verdi**, coverage 83%. A questa versione il codice è
 allineato al contratto sui punti chiave dell'identità dei nodi, del
 render subsystem e del data binding pull-based:
@@ -43,12 +43,22 @@ render subsystem e del data binding pull-based:
   della data bag. Nome `evaluate_on_node` rinominato `runtime_values`
   per dichiarare il return (`tuple[runtime_value, runtime_attrs]`).
   → `DAT.2`.
+- refactor "catena renderer-side" (commit `3fe2a6d`, `9acab0e`,
+  `a0e26ed`, `be072fb`): `node.builder` property pubblica;
+  renderer dichiarati come property `renderer_<mode>` sul builder
+  (niente più `register_renderer`/`_renderers`); walk universale su
+  `RendererBase.render(source, **opts)` che ricorre su sé stesso e
+  delega il frammento locale a `rendered_item(node, item,
+  runtime_attrs, **opts)`; cache `renders` su R₀ con chiave
+  `id(builder)` per il subbuilder polimorfico; `finalize(result,
+  target)` come dispatcher di shape via
+  `finalize_<finalize_method>` (tutti i renderer attuali sono
+  `raw`, ereditano `finalize_raw` dalla base). Wrapper subbuilder
+  (es. `<foreignObject>` per HTML dentro SVG) gestito da R₀ tramite
+  `wrapper_<sub_name>` del builder host. → `BLD.3`, `HND.3`.
 
-Restano da implementare: generatore di walk in `RendererBase` con
-`render(node)` + `render_children(bag)` + `rendered_item(node, value,
-runtime_attrs)` polimorfico, banco di prova XML modalità `xml`
-(`render_walk_generator` → `DAT.2`, `BLD.3`), reattività push (`RX`),
-BuilderSuite (`SUITE`).
+Restano da implementare: reattività push (`RX`), BuilderSuite
+(`SUITE`).
 
 ---
 
@@ -156,17 +166,37 @@ solo lo slot `_builder` dei nodi del sottoalbero (`BAG.3`). Il `parent_tags`
 del builder ospite resta valido (HTML dichiara dove `<svg>` può apparire);
 da `<svg>` in giù la validazione passa allo schema del sub-builder.
 
-### BLD.3 — Builder = grammar pura; rendering in renderer dedicati
+### BLD.3 — Builder = grammar pura; renderer come property `renderer_<mode>`
 
-Il builder contiene **solo** la grammar: decoratori, schema, validazione,
-registry dei renderer per-istanza (`HND.3`). Il rendering vive in
-`RendererBase` e nei concreti (`XmlRenderer`, `HtmlRenderer`, ...). Ogni
-renderer concreto serve un singolo mode.
+Il builder contiene **solo** la grammar: decoratori, schema, validazione.
+I renderer disponibili per quel dialetto sono dichiarati come
+**property `renderer_<mode>`** sulla classe builder. Ogni accesso alla
+property restituisce un'**istanza fresca** del renderer concreto, legata
+al builder via `builder=self`. Le istanze sono pensate per essere
+**effimere**: vivono lo spazio di una `handler.render(...)` e poi sono
+scartate.
+
+Il rendering vive in `RendererBase` e nei concreti (`XmlRenderer`,
+`HtmlRenderer`, `SvgRenderer`, `CssRenderer`). `BagBuilderBase`
+dichiara `renderer_xml` (ereditato da ogni dialetto); i builder
+concreti aggiungono i propri (`HtmlBuilder.renderer_html`,
+`SvgBuilder.renderer_svg`, `CssBuilder.renderer_css`).
+
+Aliasare un mode su un renderer esistente è una riga di classe:
+`renderer_xhtml = renderer_html`. L'utente che vuole esporre un mode
+in più sul proprio subbuilder usa lo stesso pattern (descriptor
+sharing).
+
+Niente registry `_renderers` né metodo `register_renderer`: la lista
+dei mode supportati si scopre per introspezione dei nomi che iniziano
+per `renderer_` sulla classe builder. Errore esplicito
+(`AttributeError`/`KeyError`) quando il mode richiesto non corrisponde
+ad alcuna property.
 
 Conseguenze: il builder è testabile in isolamento; aggiungere un mode
-significa registrare un renderer, non modificare il builder; estendere un
-dialetto è una subclass del builder che registra renderer nel proprio
-`__init__`.
+significa aggiungere una property o un alias, non un metodo
+imperativo; estendere un dialetto è una subclass del builder con
+property aggiuntive.
 
 ---
 
@@ -219,20 +249,20 @@ subscribe sono spente.
 
 `render` esiste sia sul builder che sull'handler.
 
-**Sul builder** — registry delle classi renderer, per-istanza, popolato
-in `__init__` via `register_renderer(name, renderer_class)`. Il base
-registra i mode condivisi (`xml`); i dialetti aggiungono i propri.
-Override possibile ri-registrando lo stesso nome.
+**Sul builder** — property `renderer_<mode>` per ogni mode supportato
+(`BLD.3`). `BagBuilderBase` dichiara `renderer_xml` (ereditato); i
+dialetti aggiungono i propri (`renderer_html`, `renderer_svg`,
+`renderer_css`). Niente registry imperativo.
 
-**Sull'handler** — un'unica struttura `self.renderers: dict[str, dict]`
-con entry `{"target": ..., "instance": RendererBase}` per ogni mode
-attivo sull'handler. La struttura è **popolata lazy** dal helper interno
-`_ensure_mode(mode)`: alla prima `set_render_target(mode, ...)` o alla
-prima `render(mode=...)`, l'handler legge la classe renderer dal registry
-del builder, la istanzia con `self`, e mette l'entry nel dict.
-`set_render_target(mode, target, default=False)` riusa la stessa entry
-per scrivere il target. Più target sotto mode diversi; un mode marcato
-`default=True` diventa il default per `render()` senza argomenti.
+**Sull'handler** — `self.renderers: dict[str, dict]` con entry
+`{"target": ..., "instance": RendererBase}` per ogni mode toccato
+dall'handler. Popolata lazy dall'helper interno `_ensure_mode(mode)`:
+alla prima `set_render_target(mode, ...)` o alla prima `render(mode=...)`,
+l'handler accede alla property `builder.renderer_<mode>` (via
+class-level descriptor, per bypassare il dispatch grammar che
+intercetta gli attributi sul nodo), inietta `self` come `handler` e
+salva l'entry. `set_render_target(mode, target, default=False)` riusa
+la stessa entry per scrivere il target.
 
 Semantica del `target` (invariata da v0.4.0):
 
@@ -243,13 +273,34 @@ Semantica del `target` (invariata da v0.4.0):
 Risoluzione del `mode`: argomento esplicito > `_default_render_mode`
 dell'handler > `_default_render_mode` del builder.
 
-L'API utente è **una sola**: `handler.render(target, mode, **kw)`. Niente
-shortcut `render_<mode>(...)`: aggiungerebbero solo un'altra forma di
-chiamata per la stessa cosa.
+**Flusso di `handler.render(startnode=None, mode=None, target=None, **opts)`**:
 
-Sub-builder (BLD.2): `renderer_for(builder)` istanzia il renderer del
-sub-builder al volo (mode di default del sub-builder), senza entrare in
-`self.renderers`. `self.renderers` riguarda i mode dell'handler primario.
+1. risolve `effective_mode` e `effective_target` come sopra;
+2. recupera R₀ via `_ensure_mode(effective_mode)` (l'istanza è cached
+   per mode in `self.renderers`);
+3. setta `r0.mode = effective_mode` e `r0.add_render(self.builder, r0)`
+   (seed della cache di R₀ con sé stesso);
+4. chiama `result = r0.render(startnode or self.source, **opts)`;
+5. chiama `r0.finalize(result, effective_target)`.
+
+`r0.render` è il walk universale di `RendererBase`: per ogni nodo
+chiama `node.runtime_values()`, ricorre sui figli, e produce il
+frammento locale tramite `rendered_item(node, item, runtime_attrs,
+**opts)`. La cache `renders` di R₀ (chiave `id(builder)`) gestisce
+i sub-builder polimorfici.
+
+`r0.finalize` dispatcha via `getattr(self, f"finalize_{self.finalize_method}")`.
+Tutti i renderer attuali (HTML/SVG/CSS/XML) sono `finalize_method = "raw"`
+ed ereditano `finalize_raw` dalla base (writeable target → file
+path, file-like o callable; `None` → ritorna il valore).
+
+L'API utente è **una sola**: `handler.render(startnode, mode, target, **kw)`.
+Niente shortcut `render_<mode>(...)`.
+
+Sub-builder (BLD.2): `renderer_for(builder)` accede alla property
+`builder.renderer_<default_mode>` del sub-builder e inietta
+l'handler. Il sub-renderer non entra in `self.renderers` (quello è
+solo per il builder primario); finisce nella cache `renders` di R₀.
 
 ### HND.4 — Due fasi esplicite: create, render
 
