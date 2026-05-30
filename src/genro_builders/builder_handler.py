@@ -194,20 +194,17 @@ class BuilderHandler:
 
     def render(
         self,
-        target: Any = None,
+        startnode: Any = None,
         mode: str | None = None,
-        **kwargs: Any,
+        target: Any = None,
+        **opts: Any,
     ) -> Any:
         """Render the source via the renderer bound to ``mode``.
 
-        Argument ``target`` semantics (decision 6 v0.4.0):
-
-        - ``False`` → forces return-as-string, ignores any registered
-          target for the chosen mode;
-        - any other falsy value (``None``, ``""``, ``0``) → falls back
-          to the target registered under ``mode`` (see
-          ``set_render_target``);
-        - truthy value → used directly as the target for this call.
+        ``startnode`` defaults to the source wrapper node
+        (``self.source.parent_node``) — the root of the user's
+        document, the same node ``main()`` populates. Pass an
+        explicit node to render a subtree.
 
         ``mode`` resolution:
 
@@ -216,8 +213,20 @@ class BuilderHandler:
           ``set_render_target(..., default=True)``);
         - otherwise the builder's ``_default_render_mode``.
 
-        The renderer corresponding to ``mode`` is obtained from the
-        builder's ``renderer_<mode>`` property and cached per mode.
+        ``target`` semantics (decision 6 v0.4.0):
+
+        - ``False`` → forces return-as-string, ignores any registered
+          target for the chosen mode;
+        - any other falsy value (``None``, ``""``, ``0``) → falls back
+          to the target registered under ``mode`` (see
+          ``set_render_target``);
+        - truthy value → used directly as the target for this call.
+
+        Flow: instantiate an ephemeral main renderer (R0) from the
+        builder's ``renderer_<mode>`` property, seed its cache with
+        itself, run the walk on ``startnode``, then finalize the
+        result through R0's ``finalize`` (which dispatches to the
+        renderer's shape-specific finalize method).
         """
         effective_mode = (
             mode
@@ -231,12 +240,13 @@ class BuilderHandler:
             effective_target = entry["target"]
         else:
             effective_target = target
-        return entry["instance"].render(
-            self.source,
-            mode=effective_mode,
-            render_target=effective_target,
-            **kwargs,
-        )
+        r0 = entry["instance"]
+        r0.mode = effective_mode
+        r0.add_render(self.builder, r0)
+        if startnode is None:
+            startnode = self.source
+        result = r0.render(startnode, **opts)
+        return r0.finalize(result, effective_target)
 
     def set_render_target(
         self,

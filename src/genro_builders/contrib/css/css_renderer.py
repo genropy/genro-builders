@@ -53,7 +53,38 @@ _RE_ATTR_NAME = re.compile(r"^[a-zA-Z_-][\w-]*$")
 
 
 class CssRenderer(RendererBase):
-    """Renderer for the CSS dialect (one mode: ``render_css``)."""
+    """Renderer for the CSS dialect.
+
+    CSS rendering does not fit the universal node-by-node walk of
+    ``RendererBase.render`` (cssvar grouping, importcss ordering,
+    @media/@supports nested blocks). The renderer overrides ``render``
+    with its own top-level dispatch but participates in the
+    ``finalize`` contract via ``finalize_method = "raw"``: it
+    produces a string and lets the handler call ``finalize`` on it.
+    """
+
+    def render(
+        self,
+        source: Any,
+        *,
+        pretty: bool = True,
+        indent: str = "  ",
+        **_opts: Any,
+    ) -> str:
+        """Override the universal walk: CSS needs a custom top-level
+        dispatch. ``source`` is the bag (or a node containing a bag)
+        of top-level CSS elements (stylesheet / selector / cssvar /
+        importcss). Returns the serialized stylesheet as a string."""
+        if isinstance(source, Bag):
+            nodes = list(source)
+        else:
+            value = source.value
+            nodes = list(value) if isinstance(value, Bag) else [source]
+        lines: list[str] = []
+        self._render_top_sequence(
+            nodes, lines, pretty=pretty, indent=indent, depth=0,
+        )
+        return "\n".join(lines) + ("\n" if lines else "") if pretty else "".join(lines)
 
     def render_css(
         self,
@@ -63,7 +94,8 @@ class CssRenderer(RendererBase):
         pretty: bool = True,
         indent: str = "  ",
     ) -> str | None:
-        """Serialize ``source`` as CSS markup. See module docstring."""
+        """Legacy entry — used by ``from_css`` and tests that haven't
+        migrated to the new ``handler.render(...)``/``finalize`` flow."""
         lines: list[str] = []
         self._render_top_sequence(
             list(source), lines, pretty=pretty, indent=indent, depth=0,

@@ -41,8 +41,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from genro_bag import Bag
-
 from ...renderer import RendererBase
 
 _ATTR_MAP = {"_class": "class", "_for": "for"}
@@ -82,69 +80,76 @@ _GENRO_MACRO_NAMES = frozenset({
 
 
 class HtmlRenderer(RendererBase):
-    """Renderer for the HTML5 dialect (one mode: ``render_html``)."""
+    """Renderer for the HTML5 dialect.
 
-    def render_html(
+    ``rendered_item`` emits the markup for one node. The walk is
+    driven by the universal ``RendererBase.render`` on the base
+    class: children fragments arrive already-rendered via ``item``.
+    """
+
+    def rendered_item(
         self,
-        source: Bag,
-        render_target: Any = None,
+        node: Any,
+        item: Any,
+        runtime_attrs: dict[str, Any],
         *,
         xml: bool = True,
         pretty: bool = False,
-    ) -> str | None:
-        """Serialize ``source`` as HTML5 markup. See module docstring."""
-        chunks: list[str] = []
-        for node in source:
-            self._render_node(node, chunks.append, xml=xml, pretty=pretty, depth=0)
-        text = "".join(chunks)
-        return self._write_or_return(text, render_target)
+        **_extra: Any,
+    ) -> str:
+        """Emit the HTML5 fragment for ``node``.
 
-    def _render_subtree(self, node: Any, emit: Any) -> None:
-        """Entry point used by host renderers when they delegate a
-        subtree to this renderer (P5). Forwards to ``_render_node`` with
-        HTML defaults so the caller does not need to know HTML-specific
-        walk parameters."""
-        self._render_node(node, emit, xml=True, pretty=False, depth=0)
-
-    def _render_node(
-        self,
-        node: Any,
-        emit: Any,
-        *,
-        xml: bool,
-        pretty: bool,
-        depth: int,
-    ) -> None:
-        # @subbuilder polymorphism (decision 2, P5): if the node carries
-        # a foreign dialect, hand the whole subtree off to that dialect's
-        # renderer. ``node.builder`` resolves slot + ancestor walk.
-        node_builder = node.builder
-        if node_builder is not None and node_builder is not self.builder:
-            self._render_subbuilder(node, emit, node_builder, pretty=pretty, depth=depth)
-            return
+        - ``item`` is a list of already-rendered child fragments when
+          the node's value is a Bag; a leaf value otherwise (``None``
+          for empty leaves).
+        - ``xml`` selects XHTML-style void tags (``<br/>`` vs
+          ``<br>``).
+        - ``pretty`` enables multi-line indented output (2 spaces per
+          level).
+        """
         tag = node.node_tag or node.label
-        attrs = self._format_attrs(node.attr)
+        attrs = self._format_attrs(runtime_attrs)
+        depth = self._node_depth(node)
         indent = "  " * depth if pretty else ""
         newline = "\n" if pretty else ""
         if tag in _VOID_TAGS:
-            emit(f"{indent}<{tag}{attrs}/>{newline}" if xml else f"{indent}<{tag}{attrs}>{newline}")
-            return
-        value = node.value
-        if isinstance(value, Bag):
-            emit(f"{indent}<{tag}{attrs}>{newline}")
-            for child in value:
-                self._render_node(
-                    child, emit, xml=xml, pretty=pretty, depth=depth + 1,
-                )
-            emit(f"{indent}</{tag}>{newline}")
-        elif value is not None:
-            emit(
-                f"{indent}<{tag}{attrs}>"
-                f"{self._escape_text(value)}"
-                f"</{tag}>{newline}"
-            )
-        else:
-            emit(f"{indent}<{tag}{attrs}></{tag}>{newline}")
+            if xml:
+                return f"{indent}<{tag}{attrs}/>{newline}"
+            return f"{indent}<{tag}{attrs}>{newline}"
+        if isinstance(item, list):
+            body = "".join(item)
+            return f"{indent}<{tag}{attrs}>{newline}{body}{indent}</{tag}>{newline}"
+        if item is None:
+            return f"{indent}<{tag}{attrs}></{tag}>{newline}"
+        return (
+            f"{indent}<{tag}{attrs}>"
+            f"{self._escape_text(item)}"
+            f"</{tag}>{newline}"
+        )
+
+    def _node_depth(self, node: Any) -> int:
+        """Count the wrapper-rooted depth of ``node``.
+
+        The handler stores the user's source as
+        ``self._sourceroot["main"]``; the wrapper node ``main`` is
+        depth 0 from the user's perspective. We count parent bags
+        upward and subtract one so the wrapper node itself sits at 0.
+        """
+        depth = 0
+        current = node
+        while current is not None:
+            parent_bag = getattr(current, "parent_bag", None)
+            if parent_bag is None:
+                break
+            parent_node = parent_bag.parent_node
+            if parent_node is None:
+                break
+            current = parent_node
+            depth += 1
+        # Wrapper root (``_sourceroot["main"]``) is one step above the
+        # user's first node; offset so the user-visible top-level sits
+        # at depth 0.
+        return max(depth - 1, 0)
 
     # ------------------------------------------------------------------
     # Attribute formatting (HTML + CSS kwarg fusion)

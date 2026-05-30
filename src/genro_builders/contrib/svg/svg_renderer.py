@@ -17,8 +17,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from genro_bag import Bag
-
 from ...renderer import RendererBase
 
 _ATTR_MAP = {"_class": "class", "_for": "for"}
@@ -54,40 +52,37 @@ _VOID_TAGS = frozenset({
 
 
 class SvgRenderer(RendererBase):
-    """Renderer for the SVG dialect (one mode: ``render_svg``)."""
+    """Renderer for the SVG dialect.
 
-    def render_svg(self, source: Bag, render_target: Any = None) -> str | None:
-        """Serialize ``source`` as SVG markup. See module docstring."""
-        chunks: list[str] = []
-        for node in source:
-            self._render_node(node, chunks.append)
-        text = "".join(chunks)
-        return self._write_or_return(text, render_target)
+    ``rendered_item`` emits the markup for one node. The walk is
+    driven by the universal ``RendererBase.render`` on the base
+    class: children fragments arrive already-rendered via ``item``.
+    """
 
-    def _render_node(self, node: Any, emit: Any) -> None:
-        # @subbuilder polymorphism (decision 2, P5/P6): delegate any
-        # foreign-dialect subtree to the appropriate renderer. If the
-        # host schema declares a wrap_tag (e.g. SVG html-subbuilder
-        # wrapped in foreignObject) the host emits the envelope while
-        # the sub-renderer fills the body. ``node.builder`` resolves
-        # slot + ancestor walk.
-        node_builder = node.builder
-        if node_builder is not None and node_builder is not self.builder:
-            self._render_subbuilder(node, emit, node_builder)
-            return
+    def rendered_item(
+        self,
+        node: Any,
+        item: Any,
+        runtime_attrs: dict[str, Any],
+        **_opts: Any,
+    ) -> str:
+        """Emit the SVG fragment for ``node``.
+
+        - ``item`` is a list of already-rendered child fragments when
+          the node's value is a Bag; a leaf value otherwise (``None``
+          for empty leaves).
+        - Void tags use the XHTML-style self-closing form preferred
+          by SVG tooling (``<rect ... />``).
+        """
         tag = node.node_tag or node.label
-        attrs = self._format_attrs(node.attr)
+        attrs = self._format_attrs(runtime_attrs)
         if tag in _VOID_TAGS:
-            emit(f"<{tag}{attrs} />")
-            return
-        emit(f"<{tag}{attrs}>")
-        value = node.value
-        if isinstance(value, Bag):
-            for child in value:
-                self._render_node(child, emit)
-        elif value is not None:
-            emit(self._escape_text(value))
-        emit(f"</{tag}>")
+            return f"<{tag}{attrs} />"
+        if isinstance(item, list):
+            return f"<{tag}{attrs}>{''.join(item)}</{tag}>"
+        if item is None:
+            return f"<{tag}{attrs}></{tag}>"
+        return f"<{tag}{attrs}>{self._escape_text(item)}</{tag}>"
 
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
         parts: list[str] = []

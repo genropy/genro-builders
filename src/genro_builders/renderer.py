@@ -2,25 +2,34 @@
 """RendererBase — base class for builder renderers.
 
 A renderer walks a source bag and produces a textual representation.
-Each dialect declares its own renderer subclass (``HtmlRenderer``,
-``SvgRenderer``, ...) and exposes one or more ``render_<mode>``
-methods. ``render()`` dispatches to the requested mode, filtering
-kwargs against the method's signature so that mode-specific options
-do not leak across modes.
+The walk lives on the base class as a single ``render(node, **opts)``
+method that recurses on itself. For each node visited the base
+resolves the renderer responsible for the node (its own builder),
+caches it under ``id(builder)`` on the root renderer (R0), and asks
+that renderer for the local fragment via ``rendered_item``.
 
-Renderer instances are owned by the ``BuilderHandler``, one per
-mode, lazy and cached (decision 6 of the contract, v0.4.0). The
-property ``handler.renderer`` returns the renderer for the default
-mode; ``handler.render(...)`` dispatches to the requested mode and
-forwards to ``self._get_renderer(mode).render(...)``.
+The base also owns ``finalize(result, target)``: a dispatcher that
+looks up ``finalize_<self.finalize_method>`` on the renderer and
+calls it. Concrete renderers declare ``finalize_method`` as a class
+attribute; if their shape is "raw" (a ready-to-write string) they
+inherit ``finalize_raw`` here and need to do nothing else.
 
-Decision 8 (v0.4.0): rendering lives in dedicated classes parallel
-to the builder; the builder only declares grammar.
+Concrete renderers (HtmlRenderer, SvgRenderer, CssRenderer,
+XmlRenderer) implement ``rendered_item(node, item, runtime_attrs,
+**opts)`` — the dialect-specific fragment for one node, given the
+already-rendered children (``item``) and the runtime attributes
+already resolved from pointers (``runtime_attrs``).
+
+Sub-builder polymorphism: when R0 sees a node whose builder differs
+from its own, the local fragment is produced by the foreign
+renderer's ``rendered_item`` (cached). If the host builder declares
+a ``wrapper_<sub_name>`` method, R0 wraps the foreign fragment in
+the dialect-specific envelope (e.g. SVG hosting HTML in
+``<foreignObject xmlns="...">``).
 """
 
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 from typing import Any
 
@@ -33,152 +42,142 @@ _ATTR_ESCAPE = str.maketrans(
 
 
 class RendererBase:
-    """Base renderer. Concrete dialects subclass it and add
-    ``render_<mode>`` methods."""
+    """Base renderer. Owns the universal walk + cache + finalize.
+
+    Concrete dialects subclass it and add ``rendered_item`` plus,
+    optionally, a non-``raw`` ``finalize_method`` with the matching
+    ``finalize_<shape>`` method.
+    """
+
+    #: Default finalize shape: ``finalize_raw`` writes a string to the
+    #: target. Concrete renderers override only if their result is not
+    #: already a serialized string.
+    finalize_method: str = "raw"
 
     def __init__(self, handler: Any = None, builder: Any = None) -> None:
         self.handler = handler
-        # When ``builder`` is None (default) the renderer is bound to
-        # the handler's primary dialect — used by ``handler.renderer``.
-        # When a sub-renderer is instantiated via
-        # ``handler.renderer_for(sub_builder)`` the explicit ``builder``
-        # locks the renderer to that dialect, so polymorphic dispatch
-        # via ``node._builder`` can compare against it without looping.
-        #
-        # ``handler`` is optional during step 2a of the renderer-side
-        # chain refactor: the builder property ``renderer_<mode>`` can
-        # produce an instance carrying only the builder; the caller
-        # (typically the handler) injects ``self.handler`` right after.
+        # When ``builder`` is None the renderer falls back to
+        # ``self.handler.builder``. When the builder property
+        # ``renderer_<mode>`` instantiates this class it passes
+        # ``builder=self`` directly so the renderer is locked to that
+        # dialect even before a handler is attached.
         self._builder = builder
+        # Cache of "renderer instance for builder X". Populated by R0
+        # (the main renderer of a render() call) on first visit of a
+        # node owned by a foreign builder. Keyed by id(builder) because
+        # builders are not always hashable. Each sub-renderer is also
+        # an instance of RendererBase but its own ``renders`` dict
+        # stays empty: only R0 drives the walk.
+        self.renders: dict[int, RendererBase] = {}
+        # The render mode of the active call. Set by the handler on
+        # R0 right after instantiation; ``get_render`` uses it to
+        # resolve sub-builder ``renderer_<mode>`` properties.
+        self.mode: str | None = None
 
     @property
     def builder(self) -> Any:
         return self._builder if self._builder is not None else self.handler.builder
 
-    def render(
-        self,
-        source: Bag,
-        mode: str | None = None,
-        render_target: Any = None,
-        **kwargs: Any,
-    ) -> Any:
-        """Dispatch to the requested render mode.
+    # ------------------------------------------------------------------
+    # Walk + sub-renderer cache
+    # ------------------------------------------------------------------
 
-        ``mode is None`` -> the dialect's default mode (class attribute
-        ``_default_render_mode`` on the builder).
+    def add_render(self, builder: Any, renderer: RendererBase) -> None:
+        """Seed the cache with a renderer for ``builder``.
 
-        ``**kwargs`` are mode-specific options. The dispatch filters
-        them against the target method's signature: kwargs the method
-        does not declare are silently ignored.
+        Called by the handler on R0 right after instantiation to
+        register the main builder/renderer pair: the walk then hits
+        the cache for every native node and only pays a property
+        lookup on foreign (sub-builder) nodes.
         """
-        effective_mode = mode if mode is not None else self.builder._default_render_mode
-        method_name = f"render_{effective_mode}"
-        method = None
-        for klass in type(self).__mro__:
-            if method_name in klass.__dict__:
-                method = klass.__dict__[method_name]
-                break
-        if method is None:
-            raise ValueError(
-                f"{type(self).__name__} does not support render mode "
-                f"'{effective_mode}' (no method '{method_name}')",
+        self.renders[id(builder)] = renderer
+
+    def get_render(self, builder: Any) -> RendererBase:
+        """Return the renderer responsible for nodes of ``builder``.
+
+        Hit the cache for repeat lookups (the common case during the
+        walk); on miss resolve the sub-builder's renderer for its own
+        default mode (``builder._default_render_mode``) — the SVG
+        sub-renderer is asked for SVG output even when the host is
+        HTML. Inject ``self.handler`` and memoise.
+        ``KeyError`` if the sub-builder does not expose a
+        ``renderer_<mode>`` property for its declared default mode.
+        """
+        rn = self.renders.get(id(builder))
+        if rn is not None:
+            return rn
+        sub_mode = builder._default_render_mode
+        prop = getattr(type(builder), f"renderer_{sub_mode}", None)
+        if prop is None:
+            raise KeyError(
+                f"{type(builder).__name__} does not expose a "
+                f"'renderer_{sub_mode}' property",
             )
-        accepted = {
-            p for p in inspect.signature(method).parameters
-            if p not in {"self", "source", "render_target"}
-        }
-        filtered = {k: v for k, v in kwargs.items() if k in accepted}
-        return method(self, source, render_target=render_target, **filtered)
+        rn = prop.__get__(builder, type(builder))
+        rn.handler = self.handler
+        self.renders[id(builder)] = rn
+        return rn
 
-    def _render_node(self, node: Any, emit: Any, **walk_kwargs: Any) -> None:
-        """Hook for concrete renderers that walk the source tree.
+    def render(self, source: Any, **opts: Any) -> Any:
+        """Walk ``source`` and produce its rendered fragment.
 
-        Concrete renderers that act as hosts of subbuilders, or that
-        drive their own walk inside ``render_<mode>``, must override
-        this to emit the markup of ``node`` plus its descendants.
-        ``RendererBase`` does not walk the tree on its own.
+        ``source`` may be a Bag or a BagNode. For a Bag the renderer
+        emits the concatenation of each top-level child's fragment.
+        For a node: ``runtime_values`` resolves pointers, children are
+        rendered recursively, and the dialect's ``rendered_item``
+        composes the final fragment. When the node's builder differs
+        from R0's a foreign renderer is fetched via ``get_render``;
+        if the host declares a ``wrapper_<sub_name>`` envelope the
+        sub-builder node itself is replaced by the wrap tag and only
+        its children are emitted by the sub-renderer.
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement _render_node; "
-            "override it to emit markup for the node and its descendants",
-        )
-
-    def _format_attrs(self, attrs: dict[str, Any]) -> str:
-        """Hook for concrete renderers that format per-node attributes.
-
-        Concrete renderers that host subbuilders with ``wrap_tag`` must
-        override this to format the user attributes of the wrapper node
-        in the host dialect. ``RendererBase`` does not format attributes
-        on its own.
-        """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement _format_attrs; "
-            "override it to format attributes for the host dialect",
-        )
-
-    def _render_subtree(self, node: Any, emit: Any) -> None:
-        """Render a single node-and-descendants into ``emit``.
-
-        Default entry point invoked by a host renderer when it delegates
-        a sub-builder subtree (decision 2, P5). Subclasses with extra
-        per-walk parameters (HTML's ``xml``/``pretty``/``depth``, etc.)
-        override this to forward sensible defaults to their own
-        ``_render_node`` signature.
-
-        Default implementation assumes ``_render_node(node, emit)`` has
-        no extra kwargs (matches ``SvgRenderer`` and ``CssRenderer``
-        shapes).
-        """
-        self._render_node(node, emit)
-
-    def _render_subbuilder(
-        self,
-        node: Any,
-        emit: Any,
-        node_builder: Any,
-        **walk_kwargs: Any,
-    ) -> None:
-        """Delegate a sub-builder subtree, optionally wrapping the
-        sub-renderer output in a host-dialect envelope.
-
-        The host builder declares how it embeds a given sub-dialect via
-        a ``wrapper_<sub_name>`` method returning a dict
-        ``{"tag": <host-side wrap tag>, "attrs": <framework attrs>}``.
-        Example: ``SvgExtensions.wrapper_html`` returns
-        ``{"tag": "foreignObject", "attrs": {"xmlns": ".../xhtml"}}``,
-        which the runtime emits around the children of an
-        ``svg.html(...)`` subtree to satisfy the SVG embedding rule.
-
-        When a wrapper is declared the subbuilder node itself is invisible
-        in the output: the wrap tag stands in for it and the
-        sub-renderer is asked to render only the children. Without a
-        wrapper the sub-renderer renders the subbuilder node verbatim
-        (HTML hosting SVG: the ``<svg>`` tag is part of HTML5 and must
-        be emitted).
-        """
-        sub_renderer = self.handler.renderer_for(node_builder)
+        if isinstance(source, Bag):
+            return "".join(self.render(child, **opts) for child in source)
+        node = source
+        node_builder = node.builder
+        if node_builder is None or node_builder is self.builder:
+            item, ra = node.runtime_values()
+            if isinstance(node.value, Bag):
+                item = [self.render(child, **opts) for child in node.value]
+            return self.rendered_item(node, item, ra, **opts)
+        # Foreign builder: hand off to its renderer.
+        rn = self.get_render(node_builder)
         wrapper_spec = self._wrapper_spec_for(node_builder)
         if wrapper_spec is None:
-            sub_renderer._render_subtree(node, emit)
-            return
-        # The wrap tag stands in for the subbuilder node, so the user
-        # attributes on that node (e.g. ``x=10, y=20`` for
-        # ``svg.html(x=10, y=20)``) belong on the wrap tag. We format
-        # them with the host renderer (the wrap tag is part of the host
-        # dialect) and prepend the framework-emitted wrap attributes
-        # (e.g. xmlns) so well-formedness is guaranteed.
-        wrap_tag = wrapper_spec["tag"]
-        wrap_attrs = wrapper_spec.get("attrs") or {}
-        user_attrs = self._format_attrs(node.attr)
-        framework_attrs = self._format_attrs(wrap_attrs)
-        emit(f"<{wrap_tag}{framework_attrs}{user_attrs}>")
+            # No envelope: the sub-builder node renders verbatim.
+            return rn.render(node, **opts)
+        # Envelope: the wrap tag replaces the sub-builder node, the
+        # sub-renderer emits only the children.
         value = node.value
         if isinstance(value, Bag):
-            for child in value:
-                sub_renderer._render_subtree(child, emit)
-        elif value is not None:
-            emit(sub_renderer._escape_text(value))
-        emit(f"</{wrap_tag}>")
+            children_fragment = "".join(rn.render(child, **opts) for child in value)
+        elif value is None:
+            children_fragment = ""
+        else:
+            children_fragment = rn._escape_text(value)
+        return self._wrap_fragment(node, children_fragment, wrapper_spec)
+
+    def rendered_item(
+        self,
+        node: Any,
+        item: Any,
+        runtime_attrs: dict[str, Any],
+        **opts: Any,
+    ) -> Any:
+        """Produce the dialect-specific fragment for ``node``.
+
+        Concrete renderers override this. ``item`` is the children's
+        rendered fragments (list) when the node's value is a Bag,
+        otherwise the node's raw value. ``runtime_attrs`` is the
+        attribute dict already resolved through pointer expansion.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement rendered_item",
+        )
+
+    # ------------------------------------------------------------------
+    # Sub-builder wrapper (host-dialect envelope)
+    # ------------------------------------------------------------------
 
     def _wrapper_spec_for(self, node_builder: Any) -> dict[str, Any] | None:
         """Look up the host builder's ``wrapper_<sub_name>`` method.
@@ -199,35 +198,85 @@ class RendererBase:
                 return wrapper
         return None
 
-    def _write_or_return(self, text: str, render_target: Any) -> str | None:
-        """Common pattern: return string, write to filesystem path, file-like, or invoke callable.
+    def _wrap_fragment(
+        self,
+        node: Any,
+        fragment: Any,
+        wrapper_spec: dict[str, Any],
+    ) -> str:
+        """Wrap a sub-renderer fragment in the host envelope.
 
-        Accepted ``render_target`` shapes:
+        Default ``raw`` implementation: the fragment is treated as a
+        string, the user attributes of the wrapper node are formatted
+        with the host renderer and concatenated with the framework
+        attributes (e.g. ``xmlns``) declared by the wrapper spec.
+        """
+        wrap_tag = wrapper_spec["tag"]
+        wrap_attrs = wrapper_spec.get("attrs") or {}
+        user_attrs = self._format_attrs(node.attr)
+        framework_attrs = self._format_attrs(wrap_attrs)
+        return f"<{wrap_tag}{framework_attrs}{user_attrs}>{fragment}</{wrap_tag}>"
+
+    def _format_attrs(self, attrs: dict[str, Any]) -> str:
+        """Hook used by ``_wrap_fragment``. Override in dialects that
+        host sub-builders with wrap_tag (e.g. ``HtmlRenderer`` ospitando
+        SVG, ``SvgRenderer`` ospitando HTML)."""
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement _format_attrs",
+        )
+
+    # ------------------------------------------------------------------
+    # Finalize (target side)
+    # ------------------------------------------------------------------
+
+    def finalize(self, result: Any, target: Any) -> Any:
+        """Dispatch the finalization to ``finalize_<finalize_method>``.
+
+        The finalize method is the bridge between the renderer result
+        and the user-visible side: it interprets ``target`` (None →
+        return the value, path/file-like/callable → consume the
+        value). ``finalize_method`` is a class attribute on the
+        concrete renderer; ``finalize_raw`` is the default shape
+        (string-to-target) defined on this base class.
+        """
+        method = getattr(self, f"finalize_{self.finalize_method}")
+        return method(result, target)
+
+    def finalize_raw(self, result: Any, target: Any) -> Any:
+        """Default finalize: ``result`` is a ready-to-write string.
+
+        Accepted ``target`` shapes:
 
         - ``None`` → return the text;
-        - ``str`` or ``pathlib.Path`` → treat as filesystem path, create parent
-          directories if missing, write text with UTF-8 encoding;
-        - object with ``.write`` callable → write to file-like;
-        - plain callable → invoke with the text.
+        - ``str`` or ``pathlib.Path`` → treat as filesystem path,
+          create parent directories if missing, write text with UTF-8
+          encoding, return ``None``;
+        - object with ``.write`` callable → write to file-like,
+          return ``None``;
+        - plain callable → invoke with the text, return ``None``.
         """
-        if render_target is None:
-            return text
-        if isinstance(render_target, (str, Path)):
-            path = Path(render_target)
+        if target is None:
+            return result
+        if isinstance(target, (str, Path)):
+            path = Path(target)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8")
+            path.write_text(result, encoding="utf-8")
             return None
-        write = getattr(render_target, "write", None)
+        write = getattr(target, "write", None)
         if callable(write):
-            write(text)
+            write(result)
             return None
-        if callable(render_target):
-            render_target(text)
+        if callable(target):
+            target(result)
             return None
         raise TypeError(
-            f"render_target {render_target!r} is neither a path "
+            f"render target {target!r} is neither a path "
             "(str/Path), writable (.write), nor callable",
         )
+
+    # ------------------------------------------------------------------
+    # Shared escape helpers (used by concrete dialects)
+    # ------------------------------------------------------------------
 
     def _escape_text(self, value: Any) -> str:
         """Escape a text value for safe inclusion in XML/HTML body."""
@@ -237,6 +286,12 @@ class RendererBase:
         """Escape an attribute value (also escapes double quotes)."""
         return str(value).translate(_ATTR_ESCAPE)
 
+    # Backwards-compat shim: ``CssRenderer`` (kept on the legacy walk
+    # for now) still uses this name internally. Aliased to
+    # ``finalize_raw`` so the contract is identical.
+    def _write_or_return(self, text: str, render_target: Any) -> Any:
+        return self.finalize_raw(text, render_target)
+
 
 class XmlRenderer(RendererBase):
     """Renderer of the shared ``xml`` mode.
@@ -245,23 +300,43 @@ class XmlRenderer(RendererBase):
     serve ``xml`` without declaring its own renderer. Concrete dialects
     that want a custom XML walk override ``renderer_xml`` on their
     builder to return a different renderer class.
+
+    XML serialization is delegated to ``Bag.to_xml`` because pretty
+    indentation and ``doc_header`` already live there. ``render`` is
+    overridden to call ``Bag.to_xml`` on the node's containing bag
+    (or the wrapper-root bag for top-level rendering) and forward
+    the result to finalize.
     """
 
-    def render_xml(
+    def render(
         self,
-        source: Bag,
-        render_target: Any = None,
+        source: Any,
         *,
         pretty: bool = False,
         doc_header: bool | str | None = None,
-    ) -> str | None:
-        """Serialize ``source`` as XML via ``Bag.to_xml``.
+        **_opts: Any,
+    ) -> str:
+        """Override the universal walk: XML reuses ``Bag.to_xml``.
 
-        - ``pretty`` formats with indentation;
-        - ``doc_header`` is forwarded verbatim: ``True`` emits the
-          standard ``<?xml version='1.0' encoding='UTF-8'?>`` declaration,
-          a string is prepended verbatim, ``False``/``None`` omit it.
+        Accepts a Bag (serialized directly) or a single BagNode
+        (wrapped in an ephemeral Bag so indentation and doc_header
+        match the legacy ``render_xml`` behavior).
         """
-        text = source.to_xml(pretty=pretty, doc_header=doc_header)
-        assert text is not None  # to_xml returns None only with filename=
-        return self._write_or_return(text, render_target)
+        if isinstance(source, Bag):
+            text = source.to_xml(pretty=pretty, doc_header=doc_header)
+        else:
+            node = source
+            tag = node.node_tag or node.label
+            wrapper = Bag()
+            wrapper.set_item(tag, node.value, _attributes=dict(node.attr or {}))
+            text = wrapper.to_xml(pretty=pretty, doc_header=doc_header)
+        assert text is not None
+        return text
+
+    def _format_attrs(self, attrs: dict[str, Any]) -> str:
+        if not attrs:
+            return ""
+        parts = []
+        for name, value in attrs.items():
+            parts.append(f' {name}="{self._escape_attr(value)}"')
+        return "".join(parts)

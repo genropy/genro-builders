@@ -30,10 +30,26 @@ class _RecordingRenderer:
         self.handler = handler
         self._builder = builder
         self.calls: list[tuple[Any, Any, Any]] = []
+        self.renders: dict[int, Any] = {}
+        self.mode: str | None = None
 
-    def render(self, source, mode=None, render_target=None, **kwargs) -> str:
-        self.calls.append((source, mode, render_target))
-        return f"rendered(mode={mode!r}, target={render_target!r})"
+    def add_render(self, builder, renderer) -> None:
+        self.renders[id(builder)] = renderer
+
+    def render(self, source, **kwargs) -> str:
+        # The handler injects ``self.mode`` before the call; record
+        # mode + target in the legacy 3-tuple shape the tests assert
+        # against (target is provided through finalize, see below).
+        self._last_source = source
+        return f"rendered(mode={self.mode!r})"
+
+    def finalize(self, result, target):
+        # Record the call shape the legacy tests assert: (source,
+        # mode, target). Then return the result as-is when no target,
+        # otherwise still return the rendered string so the assertion
+        # ``"rendered" in out`` keeps passing.
+        self.calls.append((self._last_source, self.mode, target))
+        return result
 
 
 class _RecordingBuilder:
