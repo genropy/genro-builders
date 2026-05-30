@@ -116,9 +116,9 @@ class HtmlRenderer(RendererBase):
         depth: int,
     ) -> None:
         # @subbuilder polymorphism (decision 2, P5): if the node carries
-        # a foreign dialect on its _builder slot, hand the whole subtree
-        # off to that dialect's renderer.
-        node_builder = getattr(node, "_builder", None)
+        # a foreign dialect, hand the whole subtree off to that dialect's
+        # renderer. ``node.builder`` resolves slot + ancestor walk.
+        node_builder = node.builder
         if node_builder is not None and node_builder is not self.builder:
             self._render_subbuilder(node, emit, node_builder, pretty=pretty, depth=depth)
             return

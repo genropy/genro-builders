@@ -71,6 +71,17 @@ class _BuilderBagNodeMixin:
         parent = self.parent_bag
         return getattr(parent, "_builder", None) if parent is not None else None
 
+    @property
+    def builder(self) -> Any:
+        """Active builder for this node, resolved via slot + ancestor walk.
+
+        Public façade of ``_resolve_builder``: returns the node's own
+        ``_builder`` slot if set, otherwise the closest ancestor's. The
+        renderer-side chain relies on this to dispatch a node to the
+        renderer of its owning builder during the walk.
+        """
+        return self._resolve_builder()
+
     def _resolve_handler(self) -> Any:
         """Return the handler that owns this tree, falling back to the parent bag."""
         try:

@@ -69,8 +69,9 @@ class SvgRenderer(RendererBase):
         # foreign-dialect subtree to the appropriate renderer. If the
         # host schema declares a wrap_tag (e.g. SVG html-subbuilder
         # wrapped in foreignObject) the host emits the envelope while
-        # the sub-renderer fills the body.
-        node_builder = getattr(node, "_builder", None)
+        # the sub-renderer fills the body. ``node.builder`` resolves
+        # slot + ancestor walk.
+        node_builder = node.builder
         if node_builder is not None and node_builder is not self.builder:
             self._render_subbuilder(node, emit, node_builder)
             return
