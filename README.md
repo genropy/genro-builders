@@ -1,6 +1,8 @@
 # genro-builders
 
-Builder system for [genro-bag](https://github.com/genropy/genro-bag) — grammar, validation, reactive data binding, and computed data infrastructure.
+Builder system for [genro-bag](https://github.com/genropy/genro-bag) —
+domain-specific grammars, rendering, and runtime data binding via
+pointers, built on top of bag data structures.
 
 ## Installation
 
@@ -11,158 +13,165 @@ pip install genro-builders
 ## Quick start
 
 ```python
-from genro_builders.contrib.html import HtmlBuilder
+from genro_builders.contrib.html import HtmlBuilderHandler
 
-builder = HtmlBuilder()
-body = builder.source.body()
-body.div(id='main').p('Hello, world!')
 
-builder.build()
-print(builder.render())
-```
+class HelloPage(HtmlBuilderHandler):
+    def main(self, root):
+        body = root.body()
+        body.h1("Hello World")
+        body.p("My first page with genro-builders.")
 
-### The manager pattern — `store()` and `main()`
 
-A builder is a machine. To define *what* to build, use a `BuilderManager`:
-
-```python
-from genro_builders.contrib.html import HtmlBuilder
-from genro_builders.manager import BuilderManager
-
-class HtmlManager(BuilderManager):
-    def __init__(self):
-        self.page = self.set_builder('page', HtmlBuilder)
-
-    def render(self):
-        return self.page.render()
-
-class MyPage(HtmlManager):
-    def __init__(self):
-        super().__init__()
-        self.setup()       # store -> main
-        self.build()       # source -> built
-
-    def store(self, data):
-        data['title'] = 'Hello, world!'
-
-    def main(self, source):
-        body = source.body()
-        body.h1(value='^title')
-        self.footer(source)
-
-    def footer(self, source):
-        source.footer().p('(c) 2026')
-
-page = MyPage()
+page = HelloPage()
+page.create()
 print(page.render())
 ```
 
-## Features
+The lifecycle is two-phase:
 
-- **Domain-specific grammars** — Define elements, validation rules, and components via decorators (`@element`, `@abstract`, `@component`)
-- **Data infrastructure** — `@data_element` decorator for `data_setter`, `data_formula`, and `data_controller` — write, compute, and act on the reactive data store directly from the source Bag
-- **Reactive formulas** — `data_formula` with `^pointer` dependencies re-executes automatically when sources change, in topological order (dependencies first, cycles detected)
-- **Computed attributes** — Callable attributes with `^pointer` defaults are resolved just-in-time during render/compile
-- **Debounce and periodic** — `_delay` for debounced formula re-execution, `_interval` for periodic polling
-- **Output suspension** — `suspend_output()` / `resume_output()` to batch data changes and trigger a single render
-- **Pointer formali** — The built Bag retains `^pointer` strings; resolution happens just-in-time during render/compile, not during build
-- **Named slots** — Components can declare insertion points (`slots=['left', 'right']`) for user content injection
-- **Contributed builders** — HTML5, Markdown, SVG, XSD in `genro_builders.contrib` (optional, not loaded unless imported)
-- **Multi-builder coordination** — `BuilderManager` coordinates multiple builders with a shared data store
-- **Renderers and compilers** — `@renderer` for serialized output (HTML, Markdown), `@compiler` for live objects (widgets, workbooks)
-- **Node identification** — `node_id` attribute for O(1) lookup via `node_by_id()`
-- **Validation** — `sub_tags` cardinality, `parent_tags` constraints, typed attribute validation via `Annotated`
+- **`create()`** invokes the user-defined `main(self, source)` that
+  populates the source Bag through the dialect's grammar API.
+- **`render(mode=None, target=None, **opts)`** drives the universal
+  walk on the source and produces the dialect's output. Default
+  `mode` comes from the handler or the builder; default `target`
+  returns the string.
 
-## Architecture
+## Dialects (contrib)
 
-A builder is a machine that materializes a source Bag into a built Bag.
-A `BuilderManager` mixin orchestrates population and lifecycle:
+The package ships with four reference dialects, each as a
+`<Dialect>BuilderHandler` pre-bound to its grammar:
 
-```text
-setup()           ->  build()              ->  subscribe()     ->  render() / compile()
-store + main          two-pass walk:           activate            output
-(populate)            1. data elements         reactivity
-                      2. normal elements
-```
+- **HTML5** — `genro_builders.contrib.html.HtmlBuilderHandler`
+  (HTML5 grammar with CSS kwargs and Genro macros)
+- **SVG** — `genro_builders.contrib.svg.SvgBuilderHandler`
+- **CSS** — `genro_builders.contrib.css.CssBuilderHandler`
+- **XSD** — `genro_builders.contrib.xsd` (codegen, schema-only)
 
-- **`setup()`** — on manager: calls `store(data)` then `main(source)`
-- **`build()`** — two-pass materialize:
-  - **Pass 1**: process data elements (data_setter writes values, data_formula computes, data_controller executes side effects)
-  - **Pass 2**: materialize normal elements and components into the built Bag, register `^pointer` bindings
-  - After both passes: topological sort of formulas, fire `_onBuilt` hooks
-- **`subscribe()`** — optional: activate reactive bindings. Data changes trigger formula re-execution and automatic re-render. Starts `_interval` timers.
-- **`render()`** — produce serialized output via `BagRendererBase` (just-in-time `^pointer` resolution)
-- **`compile()`** — produce live objects via `BagCompilerBase` (just-in-time `^pointer` resolution)
-
-## Data infrastructure
-
-Data elements let you define computed and reactive data directly in the source Bag:
+Mixed-dialect documents are supported via sub-builder polymorphism:
+attach a different dialect under a node and the render walk picks
+the right renderer per builder. The standard SVG-hosting-HTML case
+wraps the HTML subtree in `<foreignObject xmlns="...">` automatically.
 
 ```python
-from genro_builders.contrib.html import HtmlBuilder
+from genro_builders.contrib.svg import SvgBuilderHandler
 
-builder = HtmlBuilder()
-s = builder.source
 
-# Static data
-s.data_setter('greeting', value='Hello')
+class Badge(SvgBuilderHandler):
+    def main(self, root):
+        svg = root.svg(viewBox="0 0 200 80", width=200, height=80)
+        svg.rect(x=0, y=0, width=200, height=80, fill="#2c3e50")
+        # HTML subtree wrapped in <foreignObject> by the renderer.
+        fo = svg.html(x=20, y=20, width=160, height=40)
+        fo.div("Mixed content", style="color: white")
 
-# Computed data (re-executes when ^greeting changes)
-s.data_formula('message', func=lambda greeting: f'{greeting}, World!',
-               greeting='^greeting')
 
-# Controller (side effect, no output path)
-s.data_controller(func=lambda message: print(f'Message: {message}'),
-                   message='^message')
-
-# UI bound to computed data
-s.body().h1(value='^message')
-
-builder.build()
-builder.subscribe()
-print(builder.output)
-# <body><h1>Hello, World!</h1></body>
-
-# Change source data -> formula re-executes -> re-render
-builder.data['greeting'] = 'Ciao'
-print(builder.output)
-# <body><h1>Ciao, World!</h1></body>
+page = Badge()
+page.create()
+print(page.render())
 ```
 
-### Debounce and periodic execution
+## Architecture (one-paragraph map)
+
+A **builder** declares the grammar of a dialect (decorators
+`@element`, `@abstract`, `@subbuilder`, `@data_element`) and exposes
+its renderers as `renderer_<mode>` properties. A **handler** drives
+the lifecycle for a single builder instance: it owns the source bag,
+the data bag, the pointer map and the render target registry. A
+**renderer** is responsible for one mode: the universal walk on
+`RendererBase.render` produces fragments via dialect-specific
+`rendered_item(node, item, runtime_attrs, **opts)`, then `finalize`
+ships the result to the target.
+
+## Runtime data binding (pull-based)
+
+Attribute values and node text can carry pointers and templates that
+are resolved at render time, on the node itself:
+
+- `^path` — lazy pointer (re-evaluated on every read)
+- `=path` — eager pointer (resolved once, value cached)
+- `${name}` — template token inside a string attribute or node value
 
 ```python
-# Re-execute at most once every 500ms (debounce)
-s.data_formula('search_results', func=do_search,
-               query='^search.query', _delay=0.5)
+class Page(HtmlBuilderHandler):
+    def main(self, root):
+        # The value '^greeting' is resolved at render time.
+        root.body().h1("^greeting")
 
-# Re-execute every 10 seconds (polling)
-s.data_formula('clock', func=lambda: time.strftime('%H:%M:%S'),
-               _interval=10.0)
+
+page = Page()
+page.create()
+page.data.set_item("greeting", "Hello")
+print(page.render())
+# <body><h1>Hello</h1></body>
+
+# Mutate the data bag and re-render: pull-based, no auto-render yet.
+page.data.set_item("greeting", "Ciao")
+print(page.render())
+# <body><h1>Ciao</h1></body>
 ```
 
-### Output suspension
+Push reactivity (`subscribe`/auto-render on data change) is on the
+roadmap (`RX`); the pull-based slice above is the current contract.
+
+The companion API on each node:
+
+- `node.runtime_values()` — return `(value, attrs)` after pointer
+  and template resolution
+- `node.abs_datapath(path)` — turn a relative path into an absolute
+  one in the data bag
+- `node.get_relative_data(path, autocreate=False, default=None)` —
+  read from the data bag
+- `node.set_relative_data(path, value, attributes=None, fired=False,
+  reason=None)` — write to the data bag
+- `node.fire_event(path, value=True, ...)` — shortcut for
+  `set_relative_data(..., fired=True)`
+
+## Render target
 
 ```python
-builder.suspend_output()     # pause rendering
-builder.data['a'] = 1
-builder.data['b'] = 2
-builder.data['c'] = 3        # no render triggered yet
-builder.resume_output()       # single render with all 3 changes
+page = HelloPage()
+page.create()
+
+# Return a string (default)
+text = page.render()
+
+# Write to a path (parent dirs created)
+page.render(target="out.html")
+
+# Push to a file-like
+import io
+buf = io.StringIO()
+page.render(target=buf)
+
+# Invoke a callable
+page.render(target=print)
+
+# Register a default target per mode
+page.set_render_target("html", "out.html", default=True)
+page.render()
 ```
+
+## Examples
+
+Runnable tutorials under
+[`src/genro_builders/contrib/<dialect>/examples/`](src/genro_builders/contrib/):
+
+- HTML — `01_introduction`, `02_inline_styling`, `03_subbuilders`
+- SVG — `01_introduction` ... `06_*`, plus `badge_sheet`
+- CSS — `01_introduction`
+
+Each example ships three views: a runnable `.py`, an annotated
+notebook `.ipynb`, and the resulting `.html` output.
 
 ## Documentation
 
-User-facing documentation lives in [docs/](docs/):
-
-- [Getting Started](docs/getting-started.md) — Build your first page in 5 minutes
-- [Builders overview](docs/builders/overview.md) — Lifecycle, handler/builder/renderer split
+- [Getting Started](docs/getting-started.md) — first page in 5 minutes
+- [Builders overview](docs/builders/overview.md) — handler/builder/renderer split
 - [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, `@subbuilder`, `@component`, `@data_element`
 - [Common patterns](docs/builders/patterns.md) — `._` chaining, `node_by_id`, render targets
 - Per-grammar references: [HTML](docs/grammars/html.md), [SVG](docs/grammars/svg.md), [CSS](docs/grammars/css.md)
-
-In-flight design documents (architectural contract, data model
-proposal, roadmap) live in [roadmap/](roadmap/) at the repo root.
+- Architectural contract and roadmap: [`roadmap/`](roadmap/)
 
 ## License
 
