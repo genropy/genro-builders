@@ -1,7 +1,7 @@
 # CSS grammar (level 1)
 
 **Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 **Maintainer**: subtask `css_builder/` (closed 2026-05-12).
 
 CSS level 1 grammar. Covers rules, selectors, custom properties,
@@ -117,7 +117,14 @@ input.
 
 ## Render
 
-`CssRenderer.render_css(built, render_target=None)`.
+CSS rendering does not use the universal `rendered_item` walk
+because CSS needs top-level composition (cssvar grouping,
+`@import` ordering, nested `@media`/`@supports` blocks). The CSS
+renderer overrides `RendererBase.render(source, **opts)` with a
+top-level dispatch that calls into internal helpers
+(`_render_top_sequence`, `_render_top_node`, ...) and emits a
+stylesheet. The result is still finalized through the standard
+`finalize_raw` flow.
 
 The only mode is `css`. Output is multi-line, indented with two
 spaces, one property per line. No minification mode yet.
@@ -158,4 +165,3 @@ properties, and `@media` kwargs.
 - Schema: `src/genro_builders/contrib/css/css_elements.py`.
 - Reverse parser: `src/genro_builders/contrib/css/_reverse.py`.
 - Contract: `roadmap/architecture-contract.md`.
-- Subtask handoff: `temp/subtask/css_builder/finaldoc.md` (internal).

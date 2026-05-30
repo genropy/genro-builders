@@ -1,7 +1,7 @@
 # Common patterns
 
 **Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 
 Cross-grammar idioms. These work the same way on HTML, SVG, CSS, or
 any user-defined dialect built on `BagBuilderBase`.
@@ -134,19 +134,6 @@ A render target may be:
 
 The renderer rejects any other type with `TypeError`.
 
-### Shortcut: `render_<mode>(target=None)`
-
-For every mode in the builder's renderer registry the handler
-exposes an auto-generated shortcut:
-
-```python
-page.render_html('out.html')          # == page.render(target='out.html', mode='html')
-page.render_xml()                     # == page.render(mode='xml')
-```
-
-The shortcut accepts only `target` positionally; further kwargs go
-through `**kwargs` like in the canonical `render()` call.
-
 ## `node_id` and lookup
 
 Assign a stable identifier to a node to retrieve it later:
@@ -164,22 +151,25 @@ source_h1 = page.node_by_id("header")
 `node_id` is unique per handler. Collisions raise `ValueError`
 during `create()`.
 
-The `node_by_id` index is used internally to resolve symbolic
-pointers (`^#node_id.field`) once the data layer ships. See
-`roadmap/data-architecture.md` §10.
+The `node_by_id` lookup walks the source bag and stops at the first
+match. It is used internally to resolve symbolic pointers
+(`^#node_id.field`); see `roadmap/data-architecture.md` §10.
 
 ## Render modes
 
-A grammar's renderer can expose multiple `render_<mode>` methods.
-The handler dispatches via `mode`:
+A builder declares the modes it supports by exposing
+`renderer_<mode>` properties (e.g. `renderer_html` on `HtmlBuilder`,
+`renderer_xml` on `BagBuilderBase` so every dialect can serve
+`xml`). The handler dispatches via `mode`:
 
 ```python
-print(page.render())              # default mode (set by builder, or via set_render_target(..., default=True))
-print(page.render(mode="xml"))    # XML mode (Bag.to_xml under the hood)
-print(page.render(mode="html"))   # HTML mode (HtmlRenderer.render_html)
+print(page.render())              # default mode (handler/builder default)
+print(page.render(mode="xml"))    # XML mode
+print(page.render(mode="html"))   # HTML mode
 print(page.render(pretty=True))   # mode-specific kwarg
 ```
 
-Mode-specific kwargs are filtered against the method's signature:
-unknown kwargs are silently ignored. This lets the same call site
-work across grammars with different kwarg sets.
+Mode-specific kwargs are passed verbatim through the walk to the
+dialect's `rendered_item(node, item, runtime_attrs, **opts)`;
+unknown kwargs are tolerated and propagated to children (each
+dialect picks the ones it understands).

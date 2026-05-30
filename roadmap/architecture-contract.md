@@ -4,7 +4,7 @@
 **Sostituisce**: v0.4.0 (archiviata in
 `roadmap/outdated_versions/architecture-contract-v0.4.md`).
 
-**Stato del codice di riferimento**: `develop @ be072fb` (= `origin/develop`),
+**Stato del codice di riferimento**: `develop @ 0baa919` (1 commit avanti su `origin/develop`),
 suite **345 test verdi**, coverage 83%. A questa versione il codice è
 allineato al contratto sui punti chiave dell'identità dei nodi, del
 render subsystem e del data binding pull-based:
@@ -577,9 +577,16 @@ con 7 domande aperte. Citato qui per dare orizzonte.
 
 # PARTE III — DISCUSSIONI APERTE
 
-Eredità da v0.4.0 (restano aperte): `@struct_method` sull'handler — tag
-custom in mixin separati — `requires` sulla pagina — manifest dei widget
-JS — `schema_export` / `from_grammar` — orchestratore multi-handler.
+Eredità da v0.4.0 (restano aperte): tag custom in mixin separati —
+`requires` sulla pagina — manifest dei widget JS — `from_grammar`
+Python loader (companion del producer `to_grammar`, già implementato) —
+orchestratore multi-handler (= `SUITE`).
+
+Chiuse da v0.4.0 a oggi (cite per memoria): `@struct_method`
+sull'handler (commit `d77db1a`/`c7d0991`/`aea3115`/`c0742ee`,
+2026-05-18/19) — `schema_export` producer
+(`BagBuilderBase.to_grammar(path)`, formato in
+`src/genro_builders/builder/GRAMMAR_FORMAT.md`).
 
 Nuove di v0.5.0:
 
@@ -617,8 +624,10 @@ v0.4.0 (in vigore dal 2026-05-15, archiviato). Contesto:
 - `roadmap/architecture-contract.md` (v0.4.0) — base delle aree BLD/HND/BAG.
 - `genro-textual/temp/subtask/upgrade_to_v0.4.0/REACTIVE_MODEL_JS.md`
   §1bis/§10/§11 — analisi legacy JS, fonte di HND.2, RX.2, RX.4, DAT.2.
-- `temp/subtask/data_binding/startdoc.md`,
-  `temp/subtask/builder_suite/startdoc.md` — workspace di discussione.
+- `temp/subtask/builder_suite/startdoc.md` — workspace di
+  discussione vivo (SUITE).
+- `temp/subtask/reactivity/startdoc.md` — workspace di discussione
+  vivo (RX).
 - `temp/handoff_coordinator_2026-05-26.md` — handoff coordinatore.
 - Memorie: `feedback_no_fallback_no_silent_recovery`,
   `feedback_use_existing_apis`, `project_contract_v0_3_0_validated`.

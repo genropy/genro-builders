@@ -1,7 +1,7 @@
 # Decorators
 
 **Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 
 The framework provides four decorators for declaring a grammar.
 They live in
@@ -85,13 +85,11 @@ class HtmlBuilder(BagBuilderBase):
 
 From `<svg>` down, the active builder becomes `SvgBuilder`. The
 sub-builder governs its own `sub_tags`; the host only declares
-`parent_tags` (where the sub-builder may appear).
-
-> **Status**: the decorator and schema collection are in place. The
-> attach-time switch of the active `_builder` is under active
-> development (see `temp/subtask/subbuilder/`). Until that lands,
-> the framework raises `NotImplementedError` when a subbuilder tag
-> is encountered.
+`parent_tags` (where the sub-builder may appear). At render time
+the polymorphic dispatch picks the sub-builder's `renderer_<mode>`
+(see contract `BLD.3` / `HND.3`); the host can wrap the foreign
+fragment in a dialect-specific envelope via `wrapper_<sub_name>`
+(e.g. SVG hosting HTML in `<foreignObject xmlns="...">`).
 
 ## `@data_element`
 

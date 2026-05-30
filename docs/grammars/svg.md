@@ -1,7 +1,7 @@
 # SVG grammar
 
 **Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 **Maintainer**: core team.
 
 SVG 1.1 grammar. 56 elements covering shapes, paths, text,
@@ -92,11 +92,12 @@ serialize unchanged.
 
 ## Render
 
-`SvgRenderer.render_svg(built, render_target=None)`.
-
-The only mode is `svg`. Void tags emit with a space before the
-close (`<rect />`), in line with SVG convention. Pretty printing is
-not yet implemented.
+`SvgRenderer` produces SVG markup through the universal walk:
+`RendererBase.render(source, **opts)` recurses on the source bag,
+and `SvgRenderer.rendered_item(node, item, runtime_attrs, **opts)`
+emits the fragment for each node. Void tags emit with a space
+before the close (`<rect />`), in line with SVG convention. Pretty
+printing is not yet implemented for SVG.
 
 ## Validation rules
 
@@ -124,8 +125,6 @@ Examples under
 
 - Pretty printing is not implemented for SVG. `pretty=True` is
   ignored.
-- `@subbuilder(SvgBuilder)` from HTML is declared but not yet
-  active (see `temp/subtask/subbuilder/`).
 - No automatic xmlns declarations. The user adds
   `xmlns="http://www.w3.org/2000/svg"` on the root `<svg>` if the
   output is consumed standalone.

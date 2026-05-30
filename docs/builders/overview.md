@@ -1,7 +1,7 @@
 # Builders overview
 
 **Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 
 A builder is a Python class that defines a grammar for a structured
 document: HTML, SVG, CSS, or any user-defined dialect.
@@ -93,10 +93,12 @@ This separation is fixed by the architecture contract (sections
 
 The following features are designed but not yet implemented:
 
-- **Data and pointers** (`handler.data`, `^pointer`, `datapath`).
-  See `roadmap/data-architecture.md`.
-- **Reactivity** — automatic re-render when data changes. See
-  `roadmap/implementation-roadmap.md`.
-- **Sub-builders** (`@subbuilder(OtherBuilder)`). Decorator
-  registers in the schema; attach logic is under active development
-  (see `temp/subtask/subbuilder/`).
+- **Push reactivity** — automatic re-render when data changes. The
+  pull-based slice (`^pointer` / `=pointer` / `${name}` resolved at
+  render time) is already in; what's missing is the dispatch that
+  re-runs `render()` automatically. See `RX` area of the contract.
+- **Data elements** (`@data_element` body-bearing decorator —
+  `data_setter`, `data_formula`, ...). The decorator registers
+  declarations; the consumption is pending.
+- **Multi-builder orchestration** (`BuilderSuite`). See `SUITE`
+  area of the contract.

@@ -1,7 +1,7 @@
 # HTML grammar
 
 **Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro la catena renderer-side.
+**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 **Maintainer**: core team.
 
 HTML5 grammar generated from the W3C schema. 112 elements, full
@@ -112,15 +112,19 @@ See [../builders/patterns.md](../builders/patterns.md).
 
 ## Render
 
-`HtmlRenderer.render_html(built, render_target=None, *, xml=True,
-pretty=False)`.
+`HtmlRenderer` produces HTML5 markup through the universal walk:
+`RendererBase.render(source, **opts)` recurses on the source bag,
+and `HtmlRenderer.rendered_item(node, item, runtime_attrs, **opts)`
+emits the fragment for each node.
+
+Mode-specific kwargs available at `handler.render(...)`:
 
 | Kwarg | Default | Effect |
 |-------|---------|--------|
 | `xml` | `True` | Void tags as `<img/>` (XHTML). `False` → `<img>` (HTML5). |
 | `pretty` | `False` | Two-space indentation and trailing newline per node. |
 
-`render_xml` (inherited from `RendererBase`) is also available; it
+The `xml` mode is inherited from `BagBuilderBase.renderer_xml`: it
 delegates to `Bag.to_xml(pretty=...)` and produces stable XML.
 
 ## Validation rules
@@ -136,18 +140,18 @@ Validation errors raise `ValueError` at `create()` time.
 
 ## Worked examples
 
-Two ready-to-run examples live under
-[../../src/genro_builders/contrib/html/examples/](../../src/genro_builders/contrib/html/examples/):
+Three ready-to-run examples live under
+[../../src/genro_builders/contrib/html/examples/](../../src/genro_builders/contrib/html/examples/),
+each in the three-view format (`.py`, `.ipynb`, rendered `.html`):
 
-- `01_introduction/` — minimal page (three-view: `.py`, `.ipynb`,
-  `.html`).
+- `01_introduction/` — minimal HtmlBuilderHandler page.
 - `02_inline_styling/` — CSS kwarg machinery, macros, escape
   syntax.
+- `03_subbuilders/` — HTML hosting SVG and SVG hosting HTML via
+  `<foreignObject>`.
 
 ## Known limitations
 
-- `<svg>` as a sub-builder boundary is declared in the schema but
-  not yet active (see `temp/subtask/subbuilder/`).
 - The grammar covers HTML5 but not yet HTML5 templates,
   custom-element semantics, or shadow DOM.
 - No automatic doctype prepend. The user adds `<!DOCTYPE html>` by
