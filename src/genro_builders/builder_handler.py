@@ -40,7 +40,7 @@ from typing import Any
 from genro_bag import Bag
 
 from .builder import BagBuilderBase
-from .builder_bag import BuilderBagNode
+from .builder_bag import BuilderBag, BuilderBagNode
 from .source_bag import BuilderSource
 
 
@@ -110,8 +110,12 @@ class BuilderHandler:
                 "(decision 9: handler subclasses bind a specific builder).",
             )
         self.builder = self.builder_class()
-        self._sourceroot: Bag = Bag()
-        self._dataroot: Bag = Bag()
+        self._sourceroot: BuilderBag = BuilderBag(
+            builder=self.builder, handler=self,
+        )
+        self._dataroot: BuilderBag = BuilderBag(
+            builder=self.builder, handler=self,
+        )
         self._sourceroot["main"] = BuilderSource(builder=self.builder, handler=self)
         self._dataroot["main"] = Bag()
         self.source: BuilderSource = self._sourceroot["main"]
