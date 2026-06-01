@@ -1,0 +1,197 @@
+# Data elements — `data`, `data_formula`, `data_controller`
+
+**Version**: 0.1.0
+**Last Updated**: 2026-06-01
+**Status**: 🔴 DA REVISIONARE — modello teorico, non ancora approvato né implementato
+
+> Documento di design dei tre data-element e del loro ciclo di esecuzione.
+> È il "documento separato sul dispatch" annunciato da `data-architecture.md`
+> §1/§13.1. Compagno di `data-architecture.md` (modello dati statico) e di
+> `reactivity/contract.md` (reattività livello 0). Tutto è proposta finché
+> non approvato.
+
+---
+
+## 1. I tre data-element
+
+Elementi della grammar che **non producono markup**: sono trasparenti al
+renderer. Vivono nel source tree (marcati `_is_data_element`), portano
+informazione, e sono **eseguiti** durante il ciclo di mutazione (§4). Nome
+storico ancorato a GenroPy (`GnrDomSrc.data`): l'elemento base è `data`, non
+`data_setter`.
+
+| Element | Ruolo nel grafo | Azione |
+| --- | --- | --- |
+| `data` | foglia-input | scrive un valore (server→client) nella data bag; `dict`→`Bag` |
+| `data_formula` | nodo intermedio | calcola da pointer-input dichiarati e scrive il risultato |
+| `data_controller` | foglia-uscita | side-effect leggendo i suoi input; nessun output-path |
+
+Si dichiarano vicino alla struttura, dentro `main()`:
+
+```python
+def main(self, root):
+    body = root.body(datapath="x")
+    body.data("price", 100)
+    body.data("tax", 0.22)
+    body.data_formula("total",
+        func=lambda price, tax: price * (1 + tax),
+        price="^price", tax="^tax")
+    body.p("^total")
+```
+
+`data` è anche il portatore d'informazione per il futuro **browser-store**:
+lo stesso nodo che oggi scrive nella bag server-side, domani (target ws-web)
+sarà *trasmesso* allo store del client. Per questo resta un nodo nel source,
+non un effetto imperativo che sparisce.
+
+---
+
+## 2. Dipendenze esplicite, niente magia
+
+Le dipendenze di una formula/controller sono i suoi **pointer-argomento
+dichiarati**, non un'analisi del codice di `func`. `total` dichiara
+`price="^price"`, `tax="^tax"` → dipende dai path `price` e `tax`. Una formula
+può dipendere da un'altra (`quadrupled` legge `^doubled`, prodotto da un'altra
+formula): l'arco è "X dipende da Y se X legge un path che Y produce".
+
+Conseguenza: le dipendenze sono **esigibili** e ispezionabili. Nessuna
+inferenza dal corpo della funzione.
+
+---
+
+## 3. Niente resolver
+
+Il modello **non usa** `BagResolver` né la sua modalità `reactive`. Un
+resolver lazy ha senso solo se il valore può non essere ricalcolato (lazy +
+cache). Nel modello qui (vedi §4), ad ogni mutazione le derivazioni dipendenti
+sono **rieseguite subito** e il loro risultato **scritto** nella bag come dato
+concreto. La formula è *codice eseguito*, non un oggetto installato.
+
+Vantaggi: niente threading async, niente scheduling sul tick, niente
+distinzione push/pull (vedi §5). Il valore derivato è un dato normale nella
+bag — visibile nel data-tree, trasmissibile al browser-store come gli altri.
+
+---
+
+## 4. Il ciclo di mutazione
+
+### Concorrenza: tutto sync sotto lock
+
+Dopo `create()`, **ogni** mutazione di dato o source passa dal context manager
+`live` (generalizzazione dell'attuale `live()`, RLock già presente). Chi muta
+prende il lock ed esegue **sincronamente** l'intero ciclo, *indipendentemente*
+dal fatto che il contesto esterno sia sync o async. Non esiste concorrenza
+*dentro* la sezione: niente thread-safety da gestire, niente marshalling verso
+un loop. Async/sync è solo il contorno esterno.
+
+(Questo evolve `HND.5`: il lock diventa intrinseco al ciclo di mutazione, non
+più "a carico dello sviluppatore". Da riflettere nel contratto.)
+
+### Il grafo di dipendenze
+
+Costruito leggendo i pointer-input dichiarati in ogni `data_formula` /
+`data_controller` (§2). Nodi: i path prodotti/consumati. Archi: la relazione
+"dipende da". Costruito una volta (a `create()` / apertura sezione), riusato
+ad ogni mutazione.
+
+### Due piani con cadenze diverse
+
+**Piano dati — ad OGNI mutazione (dentro la sezione):**
+- una mutazione cambia un path P;
+- nel grafo si trovano i dipendenti di P e si **rieseguono in ordine
+  topologico** (formule ricalcolano e scrivono, controller eseguono);
+- la cascata prosegue sui dipendenti dei dipendenti;
+- al termine di ogni mutazione, data bag e source sono **coerenti**. Le
+  derivazioni non "saltano" mai una mutazione.
+
+**Piano markup — all'USCITA della sezione (una volta):**
+- il render *totale* si produce una volta, sullo stato finale coerente. Non
+  a ogni mutazione: durante la sezione i dati ballano, il markup si fa alla
+  fine.
+
+### Render iniziale (a `create()`)
+
+Il primo ciclo (build) è lo stesso meccanismo: `setup()` → `main()`
+costruiscono source + dichiarano i data-element; poi una **data pass** esegue
+il grafo (foglie `data`, poi formule, poi controller) in ordine topologico;
+poi il render totale. Da quel momento la mutazione passa solo da `live`.
+
+---
+
+## 5. Push/pull: la distinzione collassa
+
+Storicamente formula e controller erano **push** (cascata attiva alla
+mutazione), poi spostati a **pull** per problemi di threading. Nel modello qui
+la distinzione **sparisce**: sotto il lock sync c'è solo "muta → riesegui i
+dipendenti del path mutato → scrivi". È push nell'effetto (la cascata si
+propaga subito, per-mutazione) ma senza i problemi del push concorrente
+(perché tutto è sync sotto lock). Non c'è un pull lazy separato: il valore
+derivato è sempre già scritto e coerente.
+
+---
+
+## 6. Uscita della sezione: due target
+
+Il **piano dati** (§4) è identico per tutti i target. Cambia solo il consumo
+all'uscita:
+
+- **full re-render (core `genro-builders`, sync/batch)**: render totale, una
+  volta, sullo stato finale. Una stringa di markup.
+- **render parziale (`genro-ws-web`, async)**: invece del render totale, le
+  mutazioni prodotte durante la sezione sono **spinte al client
+  istantaneamente** come patch (stream), via WebSocket. Niente render totale
+  finale; il client patcha il DOM man mano.
+
+In entrambi i casi il core *produce* gli eventi di cambiamento; l'**adattatore
+del target** decide come consumarli (accumula e rende tutto | spinge ogni
+patch). È la separazione core-generico / adattatore già individuata per il
+render parziale (RX.2/RX.4).
+
+---
+
+## 7. Ambito
+
+Tutto **core** (`genro-builders`):
+- i tre data-element nella grammar (`@data_element`);
+- la costruzione del grafo e la data pass sync;
+- il ciclo di mutazione sotto lock via `live`;
+- il full re-render all'uscita.
+
+`genro-ws-web` **riusa** il grafo e il ciclo, sostituendo solo il consumo
+d'uscita (patch streaming invece di render totale). Non reimplementa il
+meccanismo dati.
+
+`data` e `data_formula` chiudono in builders (sync, deterministici).
+`data_controller` (side-effect) è dichiarabile e ordinabile nel grafo già in
+builders; il suo valore pieno emerge col target reattivo.
+
+---
+
+## 8. Decisioni da confermare / aperte
+
+- **D1** — nome `data` (non `data_setter`): confermato dal lessico storico.
+- **D2** — dipendenze dai pointer-input dichiarati, non dall'analisi della
+  `func`: confermato (§2).
+- **D3** — niente resolver nel modello (§3): confermato in linea teorica.
+- **D4** — `live` come unico cancello di mutazione post-create: confermato.
+- **D5** — derivazioni per-mutazione, render/patch a fine sezione: confermato.
+- **D6 (aperta)** — firma esatta di `data_formula`/`data_controller` (come si
+  passano `func` e i pointer-input; nome del kwarg per la funzione).
+- **D7 (aperta)** — gestione dei cicli nel grafo (dipendenza circolare →
+  errore rumoroso, niente fallback silenzioso).
+- **D8 (aperta)** — quando la **source** cambia dentro la sezione (non solo i
+  dati): il grafo va ricostruito? (i data-element nuovi vanno integrati.)
+- **D9 (aperta)** — interazione con il contratto: aggiornare `HND.5` (lock
+  intrinseco), `DR3` (render a fine sezione, non per-mutazione), area `DAT`.
+
+---
+
+## 9. Riferimenti
+
+- `data-architecture.md` — modello dati statico (storage, pointer, datapath).
+- `reactivity/contract.md` — reattività livello 0 (DR1-DR9, `live()`, RLock).
+- `architecture-contract.md` — aree HND/DAT/RX, scenari S1-S7.
+- Lessico storico `data`: GenroPy `gnr/web/gnrwebstruct/base.py` `GnrDomSrc.data`.
+- Sessione Claude Code locale che ha generato questo documento:
+  `-Users-gporcari-Sviluppo-genro-ng-meta-genro-modules-sub-projects-genro-builders`
+  (2026-06-01).
