@@ -145,6 +145,26 @@ def test_html_render_attribute_quote_escape():
     assert out == '<div class="he said &quot;hi&quot;">x</div>'
 
 
+def test_html_render_dialect_escape_emits_literal_attribute():
+    """``html_<x>`` emits the literal HTML attribute ``<x>``."""
+    _, out = _render(lambda root: root.input(html_type="email"))
+    assert out == '<input type="email"/>'
+
+
+def test_html_render_dialect_escape_bypasses_css_root():
+    """``html_width`` is the HTML attribute; bare ``width`` is still CSS."""
+    _, attr = _render(lambda root: root.img(html_width=50))
+    _, css = _render(lambda root: root.img(width=50))
+    assert attr == '<img width="50"/>'
+    assert css == '<img style="width: 50"/>'
+
+
+def test_html_render_dialect_escape_value_is_escaped():
+    """The escape acts on the name; the value still gets entity-escaped."""
+    _, out = _render(lambda root: root.div("x", html_title="a & b"))
+    assert out == '<div title="a &amp; b">x</div>'
+
+
 def test_html_render_nested():
     def build(root):
         d = root.div(_class="x")

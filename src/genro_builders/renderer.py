@@ -233,6 +233,18 @@ class RendererBase:
             f"{type(self).__name__} does not implement _format_attrs",
         )
 
+    def adapt(self, what: str) -> str:
+        """Strip this dialect's own ``<name>_`` prefix from ``what``.
+
+        ``what`` unchanged unless it starts with ``f"{builder._name}_"``,
+        in which case the prefix is removed. This is the explicit escape a
+        dialect offers for attribute names that would otherwise be
+        intercepted (CSS roots, macros) or shadow a Python builtin:
+        ``html_type`` -> ``type``, ``html_width`` -> ``width``.
+        """
+        prefix = f"{self.builder._name}_"
+        return what[len(prefix):] if what.startswith(prefix) else what
+
     # ------------------------------------------------------------------
     # Finalize (target side)
     # ------------------------------------------------------------------

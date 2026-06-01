@@ -169,6 +169,16 @@ class HtmlRenderer(RendererBase):
         html_parts: list[str] = []
 
         for raw_name, value in attrs.items():
+            # 0. Dialect escape: ``html_<x>`` means "emit the literal HTML
+            #    attribute ``<x>``", bypassing every interpretation below
+            #    (CSS roots, macros, collision map). Lets ``html_type`` set
+            #    ``type`` without shadowing the builtin, or ``html_width``
+            #    set the HTML attribute instead of the CSS property.
+            if raw_name.startswith(f"{self.builder._name}_"):
+                name = self.adapt(raw_name)
+                html_parts.append(f' {name}="{self._html_attr_value(value)}"')
+                continue
+
             # 1. Bag-internal underscore keys (e.g. ``_tag``) — skip
             #    unless they are part of the keyword-collision map.
             if raw_name.startswith("_") and raw_name not in _ATTR_MAP:
