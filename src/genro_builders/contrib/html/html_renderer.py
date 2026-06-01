@@ -50,6 +50,11 @@ _VOID_TAGS = frozenset({
     "input", "link", "meta", "source", "track", "wbr",
 })
 
+#: Raw text elements: their content is CSS/JS, not HTML, so per the spec
+#: it is emitted verbatim (no entity escaping). A ``>`` in a CSS combinator
+#: or ``&&`` in JavaScript must survive unchanged.
+_RAW_TEXT_TAGS = frozenset({"style", "script"})
+
 #: Root names that classify a kwarg as a CSS property. The rule is:
 #: a kwarg is CSS if its name equals a root, or starts with a root +
 #: ``"_"``. Underscore→dash conversion then yields the CSS property.
@@ -121,9 +126,10 @@ class HtmlRenderer(RendererBase):
             return f"{indent}<{tag}{attrs}>{newline}{body}{indent}</{tag}>{newline}"
         if item is None:
             return f"{indent}<{tag}{attrs}></{tag}>{newline}"
+        text = item if tag in _RAW_TEXT_TAGS else self._escape_text(item)
         return (
             f"{indent}<{tag}{attrs}>"
-            f"{self._escape_text(item)}"
+            f"{text}"
             f"</{tag}>{newline}"
         )
 

@@ -42,6 +42,28 @@ def test_render_xml_mode_matches_source_to_xml():
     assert h.render(mode="xml") == h.source.to_xml()
 
 
+class _AnchoredPage(HtmlBuilderHandler):
+    def main(self, root):
+        root.div("hello", node_id="greeting")
+
+
+def test_node_id_absent_from_rendered_markup():
+    """``node_id`` is framework metadata: it must not leak into the render."""
+    h = _AnchoredPage()
+    h.create()
+    out = h.render()
+    assert "node_id" not in out
+    # The anchor still works: the node is reachable by id.
+    assert h.node_by_id("greeting").node_tag == "div"
+
+
+def test_node_id_present_in_raw_xml_view():
+    """The xml mode is the structural source view: ``node_id`` shows there."""
+    h = _AnchoredPage()
+    h.create()
+    assert 'node_id="greeting"' in h.render(mode="xml")
+
+
 def test_render_xml_pretty_produces_multiline_output():
     """``pretty=True`` on xml mode produces a multi-line indented string."""
     h = _Page()

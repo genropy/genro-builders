@@ -128,6 +128,18 @@ def test_html_render_text_escape():
     assert out == "<div>a &amp; b &lt; c &gt; d</div>"
 
 
+def test_html_render_style_content_not_escaped():
+    """``<style>`` is a raw text element: CSS combinators survive verbatim."""
+    _, out = _render(lambda root: root.style("h1 > span { color: red; }"))
+    assert out == "<style>h1 > span { color: red; }</style>"
+
+
+def test_html_render_script_content_not_escaped():
+    """``<script>`` is a raw text element: JS operators survive verbatim."""
+    _, out = _render(lambda root: root.script("if (a && b > c) { x(); }"))
+    assert out == "<script>if (a && b > c) { x(); }</script>"
+
+
 def test_html_render_attribute_quote_escape():
     _, out = _render(lambda root: root.div("x", _class='he said "hi"'))
     assert out == '<div class="he said &quot;hi&quot;">x</div>'
