@@ -134,6 +134,9 @@ class BuilderHandler:
         # ``abs_datapath``); valore = dict ``{id(node): node}`` (BuilderBagNode
         # non è hashable, indicizziamo per ``id`` per add/remove O(1)).
         self.pointer_map: dict[str, dict[int, BuilderBagNode]] = {}
+        # RX livello 0 — lifecycle flag: True dopo create(). live() lo
+        # esige (DR5) per separare costruzione e modalità reattiva.
+        self._lifecycle_started: bool = False
 
     def _ensure_mode(self, mode: str) -> dict[str, Any]:
         """Return the ``self.renderers[mode]`` entry, creating it lazily.
@@ -172,17 +175,17 @@ class BuilderHandler:
             1. ``self.main(self.source)`` builds the document. Subscribes
                are not active yet, so the inserts from the builder API
                do NOT dispatch to ``on_source_change``.
-            2. ``register_pointer`` walks the resulting subtree and
-               populates ``self.pointer_map`` once. Skipped silently if
-               ``main`` did not produce any top-level node.
+            2. ``register_pointer`` walks the subtree rooted at the
+               source wrapper node (``self.source.parent_node``) and
+               populates ``self.pointer_map`` once.
             3. ``_sourceroot``/``_dataroot`` are subscribed: from here on
                every mutation flows to ``on_source_change`` /
                ``on_data_change``.
+            4. ``_lifecycle_started`` is set: ``live()`` is now allowed
+               (DR5).
         """
         self.main(self.source)
-        first = self.source.node(0)
-        if first is not None:
-            self.register_pointer(first)
+        self.register_pointer(self.source.parent_node)
         self._sourceroot.subscribe(
             "builder_handler_source",
             insert=self._on_source_event,
@@ -195,6 +198,7 @@ class BuilderHandler:
             update=self._on_data_event,
             delete=self._on_data_event,
         )
+        self._lifecycle_started = True
 
     def render(
         self,
