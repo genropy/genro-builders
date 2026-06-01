@@ -82,8 +82,12 @@ def server() -> AsgiServer:
     Each test gets a fresh app, so command order across tests does not
     matter.
     """
+    app = LiveDemoApp()
+    # Select 'basic' explicitly so these tests do not depend on which demo
+    # sorts first among the auto-discovered pages.
+    app.select("basic")
     srv = AsgiServer(host="localhost", port=0)
-    srv.mount(MOUNT, LiveDemoApp())
+    srv.mount(MOUNT, app)
     return srv
 
 

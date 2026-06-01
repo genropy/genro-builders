@@ -25,8 +25,14 @@ from genro_builders.contrib.live import LiveDemoApp
 
 @pytest.fixture
 def app() -> LiveDemoApp:
-    """Fresh app; the current demo is ``basic`` seeded with ``Hello``/``Scrivi…``."""
-    return LiveDemoApp()
+    """Fresh app, current demo set to ``basic`` (seeded ``Hello``/``Scrivi…``).
+
+    Selected explicitly so these tests do not depend on which demo happens
+    to sort first among the auto-discovered pages.
+    """
+    instance = LiveDemoApp()
+    instance.select("basic")
+    return instance
 
 
 # ---------------------------------------------------------------------------

@@ -118,6 +118,7 @@ ignore = [
 # ``bag.keys()`` yields the *string keys* the loop needs. The two are NOT
 # equivalent here, so the rewrite would break ``bag.get_item(key)``.
 "**/contrib/live/app.py" = ["SIM118"]
+"**/contrib/live/pages/*.py" = ["SIM118"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["genro_builders"]

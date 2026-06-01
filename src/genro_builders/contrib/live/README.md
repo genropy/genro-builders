@@ -29,9 +29,17 @@ genro-live --port 9000 --open    # custom port, open the browser
 ```
 
 Options: `--host`, `--port`, `--open`. The SPA is served at
-`http://<host>:<port>/live/index`. Layout: rendered HTML on the left;
-on the right a demo selector, the SOURCE and DATA trees, a history pane,
-and the Python editor.
+`http://<host>:<port>/live/index`. Layout: a three-tab view on the left —
+**Rendered** (the HTML in an iframe), **Raw** (the document as XML, the
+structural source view), **Source** (the demo's Python); on the right a
+demo selector, the SOURCE and DATA trees, a history pane, and the Python
+editor.
+
+The **Rendered** and **Raw** tabs are complementary: Rendered shows the
+*result* (pointers resolved, framework metadata gone); Raw shows the
+*source* (pointers like `^.title` left unresolved, `node_id` anchors still
+on their nodes). A `node_id` is an internal anchor — it never reaches the
+rendered markup, only the raw view.
 
 ## The REPL
 
@@ -68,9 +76,12 @@ Shipped pages (in `pages/`):
 
 | key | title | shows |
 | --- | --- | --- |
+| `australia` | Australia | states loaded from a CSV in `setup()`, one row per state via `@struct_method` |
 | `basic` | Basic page | heading + paragraph bound to data |
-| `dashboard` | Dashboard | header, nav, stat panels, buttons |
+| `dashboard` | Dashboard | header, nav, stat panels; `node_id` vs `node_label` |
 | `signup` | Signup form | form with inputs, select, textarea |
+| `styled` | Styled (inline CSS) | a self-contained page carrying its own `<style>` |
+| `svg` | SVG shapes | vector graphics built inside the HTML page |
 
 ### Adding a demo
 
@@ -84,17 +95,30 @@ from ..interactive_demo import InteractiveDemo
 DEMO_TITLE = "My demo"
 
 class Demo(InteractiveDemo):
+    def setup(self):                      # optional initial data, runs before main
+        self.set_data("x.title", "Hi")
+
     def main(self, root):
         body = root.body(datapath="x", node_id="body")
         body.h1("^.title", node_id="h1")
-
-    def seed(self):                       # optional initial data
-        self.set_data("x.title", "Hi")
 ```
 
 The file name (without `.py`) becomes the demo key. See
 `pages/__init__.py` for how discovery works (dynamic import — a
 documented, intentional bit of magic).
+
+Name a node only when something looks it up later — naming is opt-in,
+and the two ways differ:
+
+- **`node_id`** — an absolute anchor, reached by `page.node_by_id("h1")`
+  (this is what the REPL uses). The `basic` demo names `body` and `h1`
+  for exactly that reason.
+- **`node_label`** — a readable key in the source bag, reached by *path*
+  via subscript at any depth: `source["body.panels.users"]` (segments may
+  also be positional `#n`, mixed freely). The `dashboard` demo shows this.
+
+Neither shows up in the rendered HTML. A node nothing reaches stays
+anonymous — `signup` names nothing.
 
 ## Caveats
 
@@ -108,8 +132,8 @@ documented, intentional bit of magic).
 - **Full re-render per mutation** (RX level 0,
   `roadmap/reactivity/contract.md`) — fine for a demo, not an
   optimization target.
-- **`out.html` is generated** at runtime in `resources/` and is
-  git-ignored.
+- **`out.html` and `out.xml` are generated** at runtime in `resources/`
+  (the Rendered and Raw tabs read them) and are git-ignored.
 - **No `<label>` tag** in the shipped demos: it collides with the
   `BagNode.label` property (tracked in issue #29). Other HTML5 tags work.
 - **CodeMirror is optional.** The editor upgrades to CodeMirror when the

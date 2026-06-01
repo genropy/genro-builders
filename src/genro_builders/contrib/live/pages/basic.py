@@ -9,7 +9,13 @@ DEMO_TITLE = "Basic page"
 
 
 class Demo(InteractiveDemo):
-    """A heading and a paragraph, both bound to data under ``page``."""
+    """A heading and a paragraph, both bound to data under ``page``.
+
+    Only ``body`` and ``h1`` carry a ``node_id``: those are the nodes the
+    REPL reaches by name (``page.node_by_id("h1").set_attr(...)``). A
+    ``node_id`` is an explicit anchor — give one *only* when something will
+    look the node up later. The paragraph needs none, so it has none.
+    """
 
     def setup(self):
         self.set_data("page.title", "Hello")
@@ -19,4 +25,4 @@ class Demo(InteractiveDemo):
         body = root.body(datapath="page", node_id="body")
         body.link(rel="stylesheet", href="demo_css")
         body.h1("^.title", node_id="h1")
-        body.p("^.message", node_id="msg")
+        body.p("^.message")

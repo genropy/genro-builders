@@ -41,11 +41,6 @@ class InteractiveDemo(HtmlBuilderHandler):
     is a harmless no-op (returns a string, writes nowhere).
     """
 
-    def seed(self) -> None:
-        """Seed initial data. Override to populate ``self.data`` after
-        ``create()``. Default is a no-op (the page starts with empty data).
-        """
-
     def set_data(self, path: str, value: Any) -> None:
         """Shortcut for ``self.data.set_item(path, value)``."""
         self.data.set_item(path, value)

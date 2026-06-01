@@ -12,6 +12,20 @@ class Demo(InteractiveDemo):
     """A header bar, a nav, and two stat panels with action buttons.
 
     Data lives under ``ui``: ``ui.title``, ``ui.users``, ``ui.revenue``.
+
+    Naming a node is opt-in, and the two ways differ in purpose. Here the
+    structural nodes carry a ``node_label`` — a readable key in the source
+    bag — so a panel can be reached by *path* via subscript, at any depth:
+
+        source["body.panels.users"]
+
+    Each path segment may also be positional — ``#n`` selects the n-th child
+    — and the two forms mix freely in one path (``#0.panels.users``). (A
+    ``node_id``, by contrast, is an absolute anchor: ``node_by_id("x")``,
+    used by the REPL — see ``basic``.) Neither label nor id shows up in the
+    rendered HTML, and the page renders fine without either; they exist only
+    for code that wants to find the node again. Nodes never looked up — the
+    nav buttons, the footer — stay anonymous.
     """
 
     def setup(self):
@@ -20,27 +34,27 @@ class Demo(InteractiveDemo):
         self.set_data("ui.revenue", "€ 84,500")
 
     def main(self, root):
-        body = root.body(datapath="ui", node_id="body")
+        body = root.body(datapath="ui", node_label="body")
         body.link(rel="stylesheet", href="demo_css")
 
-        header = body.header(node_id="hdr", _class="bar")
-        header.h1("^.title", node_id="title")
-        nav = header.nav(node_id="nav")
-        nav.button("Overview", node_id="nav_overview", _type="button")
-        nav.button("Reports", node_id="nav_reports", _type="button")
-        nav.button("Settings", node_id="nav_settings", _type="button")
+        header = body.header(_class="bar")
+        header.h1("^.title")
+        nav = header.nav()
+        nav.button("Overview", _type="button")
+        nav.button("Reports", _type="button")
+        nav.button("Settings", _type="button")
 
-        main = body.main(node_id="main", _class="panels")
+        panels = body.main(node_label="panels", _class="panels")
 
-        users = main.section(node_id="panel_users", _class="panel")
+        users = panels.section(node_label="users", _class="panel")
         users.h2("Users")
-        users.p("^.users", node_id="users_value")
-        users.button("Refresh", node_id="users_refresh", _type="button")
+        users.p("^.users")
+        users.button("Refresh", _type="button")
 
-        revenue = main.section(node_id="panel_revenue", _class="panel")
+        revenue = panels.section(node_label="revenue", _class="panel")
         revenue.h2("Revenue")
-        revenue.p("^.revenue", node_id="revenue_value")
-        revenue.button("Export", node_id="revenue_export", _type="button")
+        revenue.p("^.revenue")
+        revenue.button("Export", _type="button")
 
-        footer = body.footer(node_id="footer")
+        footer = body.footer()
         footer.span("genro-builders live demo")

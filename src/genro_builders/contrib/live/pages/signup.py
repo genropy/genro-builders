@@ -11,8 +11,12 @@ DEMO_TITLE = "Signup form"
 class Demo(InteractiveDemo):
     """A form with text inputs, a select and a textarea, bound to data.
 
-    Data lives under ``form``: ``form.name``, ``form.email``,
-    ``form.role``, ``form.bio``.
+    Data lives under ``form``: ``form.name``, ``form.email``, ``form.bio``.
+    The point here is the variety of form controls, each bound to data with
+    a ``^`` pointer. No node is named: nothing looks one up afterwards, so
+    none carries a ``node_id`` or ``node_label`` (see ``dashboard`` for when
+    you would). The ``<select>`` is the one structural subtree — its
+    ``<option>`` children carry the values the select will offer.
     """
 
     def setup(self):
@@ -22,21 +26,19 @@ class Demo(InteractiveDemo):
         self.set_data("form.bio", "")
 
     def main(self, root):
-        body = root.body(datapath="form", node_id="body")
+        body = root.body(datapath="form")
         body.link(rel="stylesheet", href="demo_css")
-        body.h1("^.heading", node_id="heading")
+        body.h1("^.heading")
 
-        f = body.form(node_id="form")
+        f = body.form()
 
-        f.input(value="^.name", node_id="name", _type="text",
-                placeholder="Name")
-        f.input(value="^.email", node_id="email", _type="email",
-                placeholder="Email")
+        f.input(value="^.name", _type="text", placeholder="Name")
+        f.input(value="^.email", _type="email", placeholder="Email")
 
-        role = f.select(node_id="role")
+        role = f.select()
         role.option("Viewer", value="viewer")
         role.option("Editor", value="editor")
         role.option("Admin", value="admin")
 
-        f.textarea("^.bio", node_id="bio", placeholder="Short bio")
-        f.button("Sign up", node_id="submit", _type="submit")
+        f.textarea("^.bio", placeholder="Short bio")
+        f.button("Sign up", _type="submit")
