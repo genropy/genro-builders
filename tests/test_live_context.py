@@ -1,10 +1,11 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for the RX livello 0 reactive context manager ``handler.live(target)``.
+"""Tests for the RX livello 0 reactive context manager ``handler.live()``.
 
 Validates the test contract of ``roadmap/reactivity/contract.md``:
 
-    1. ``live(None)`` -> ValueError (DR2).
-    2. ``live("...")`` before ``create()`` -> RuntimeError (DR5).
+    1. ``live()`` before ``create()`` -> RuntimeError (DR5).
+    2. ``live()`` with no explicit target uses the handler's default
+       target registered via ``set_render_target(..., default=True)`` (DR2).
     3. Without ``with``: a ``data.set_item`` does NOT write the target (DR6).
     4. Inside ``with live(out)``: ``data.set_item`` re-renders to the file (DR3).
     5. Inside ``with live(out)``: ``node.set_attr`` re-renders to the file (DR3).
@@ -27,17 +28,21 @@ class Page(HtmlBuilderHandler):
         body.h1("^.title", node_id="h1")
 
 
-def test_live_none_target_raises() -> None:
-    page = Page()
-    page.create()
-    with pytest.raises(ValueError), page.live(None):
-        pass
-
-
 def test_live_before_create_raises() -> None:
     page = Page()
-    with pytest.raises(RuntimeError), page.live("ignored.html"):
+    with pytest.raises(RuntimeError), page.live():
         pass
+
+
+def test_live_uses_default_target(tmp_path) -> None:
+    page = Page()
+    page.create()
+    out = tmp_path / "out.html"
+    page.set_render_target("html", str(out), default=True)
+    with page.live():
+        page.data.set_item("page.title", "Default")
+    assert out.exists()
+    assert "Default" in out.read_text()
 
 
 def test_no_render_without_with(tmp_path) -> None:

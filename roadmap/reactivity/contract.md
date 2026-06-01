@@ -40,13 +40,18 @@ class MyPage(HtmlBuilderHandler):
 
 page = MyPage()
 page.create()                                  # subscribe armata, pull only
+page.set_render_target("html", "/tmp/out.html", default=True)
 
-with page.live("/tmp/out.html"):               # apre sezione critica
+with page.live():                              # usa il target di default
     page.data.set_item("page.title", "Hello")  # scrive /tmp/out.html
     page.data.set_item("page.title", "World")  # riscrive /tmp/out.html
 # fuori dal with: il file resta come l'ultima scrittura
 
 page.data.set_item("page.title", "Quiet")      # NIENTE auto-render
+
+# Un target esplicito sovrascrive il default per la sezione:
+with page.live("/tmp/other.html"):
+    page.data.set_item("page.title", "Elsewhere")
 ```
 
 Caratteristiche:
@@ -63,12 +68,14 @@ Caratteristiche:
 
 ## Decisioni
 
-### DR1 — API: context manager `handler.live(target)`
+### DR1 — API: context manager `handler.live(target=None)`
 
 Il punto di ingresso unico è un context manager sincrono:
 
 ```python
-with handler.live(target) as h:
+with handler.live() as h:          # usa il target di default
+    ...
+with handler.live(target) as h:    # target esplicito per la sezione
     ...
 ```
 
@@ -76,17 +83,29 @@ Non esiste un `async with` né una property `auto_render`. La forma
 "sezione di codice live" è esplicita e auto-documentata: vedi le
 righe dentro il `with`, sai che lì la reattività è attiva.
 
-### DR2 — Target esplicito, niente fallback
+### DR2 — Target dal default dell'handler, errore se nessuno
 
-`target=None` solleva `ValueError`. Niente default, niente
-"ricordo dell'ultimo target", niente lettura da config.
+Una pagina nasce con il suo target naturale: quello registrato con
+`set_render_target(mode, target, default=True)`. `live()` lo usa
+quando non gli si passa un target esplicito. Un target passato a
+`live(target)` sovrascrive il default per la durata della sezione.
 
 ```python
-with handler.live(None):     # ValueError
-with handler.live("out.html"):  # ok, target esplicito
+handler.set_render_target("html", "out.html", default=True)
+with handler.live():            # ok, usa "out.html"
+with handler.live("other.html"):  # ok, override per la sezione
 ```
 
-Conforme a `feedback_no_fallback_no_silent_recovery`.
+L'errore non sparisce, si sposta: `ValueError` se, all'attivazione,
+non esiste **alcun** target risolvibile — né esplicito né di default.
+Nessun fallback silenzioso, nessun "ricordo dell'ultimo target",
+nessuna lettura da config. Conforme a
+`feedback_no_fallback_no_silent_recovery`.
+
+L'implementazione si appoggia a `render()`: quando `_live_target` è
+``None`` gli hook chiamano `render(target=None)`, che già risolve sul
+target registrato del mode di default. `live()` non duplica la
+risoluzione del target.
 
 ### DR3 — Re-render totale per ogni mutazione
 
@@ -119,11 +138,24 @@ l'event loop si blocca durante la sezione critica — è esattamente
 il comportamento voluto dall'utente: dentro `live`, **nessuno
 muta altro**.
 
-### DR5 — `create()` deve essere stato chiamato prima
+### DR5 — `create()` abilita la reattività; `live()` la esige
 
-`live(...)` fallisce con `RuntimeError` se `create()` non è stato
-invocato. Lifecycle e reattività sono separati: prima si costruisce
-(`create()`), poi si entra in modalità reattiva (`live()`).
+`create()`, dopo aver armato le subscribe, **abilita** esplicitamente la
+reattività accendendo il flag `_live_enabled`. `live(...)` lo esige:
+fallisce con `RuntimeError` se `_live_enabled` è spento.
+
+La ragione è concreta, non teorica: senza `create()` non c'è un errore
+naturale, c'è un **silenzio**. Le subscribe non sono armate (le arma
+`create()`), quindi una mutazione dentro `live()` non scatena alcun
+hook; e `render()` su un documento non costruito ritorna stringa vuota.
+Il check trasforma quel silenzio in un errore parlante — conforme a
+`feedback_no_fallback_no_silent_recovery`.
+
+Il flag si chiama `_live_enabled` (non `_lifecycle_started`): il nome
+dice il *perché* — `live()` non chiede "hai fatto create?" ma "la
+reattività è abilitata?". È la realizzazione di `RX.3` del contratto
+principale (flag `_subscriptions_enabled` per attivazione per handler),
+acceso da `create()` quando arma le subscribe.
 
 ### DR6 — Default: niente reattività
 
@@ -182,39 +214,40 @@ class BuilderHandler:
     _live_target: Any
     _live_active: bool
     _live_lock: threading.RLock
-    _lifecycle_started: bool
+    _live_enabled: bool
 
     def __init__(self) -> None:
         # ... __init__ esistente ...
         self._live_target = None
         self._live_active = False
         self._live_lock = threading.RLock()
-        self._lifecycle_started = False
+        self._live_enabled = False
 
     def create(self) -> None:
-        # ... corpo esistente ...
-        self._lifecycle_started = True
+        # ... corpo esistente: build + register_pointer + subscribe ...
+        self._live_enabled = True   # abilita la reattività (DR5)
 
     @contextmanager
-    def live(self, target: Any) -> Iterator["BuilderHandler"]:
+    def live(self, target: Any = None) -> Iterator["BuilderHandler"]:
         """Open a critical section where every source/data mutation
-        triggers a fresh render to ``target``.
+        triggers a fresh full render.
+
+        With an explicit ``target`` the render goes there; without one
+        (``target=None``) the hooks call ``render(target=None)``, which
+        falls back to the default target registered via
+        ``set_render_target(..., default=True)`` (DR2).
 
         Args:
-            target: Render target. Must be non-None. Accepts everything
-                ``RendererBase.finalize_raw`` accepts: a filesystem path
-                (str or Path), a writable file-like with .write(),
-                or a callable.
+            target: Optional render target. Accepts whatever
+                ``RendererBase.finalize`` accepts (path, file-like,
+                callable). None → use the handler's default target.
 
         Raises:
-            ValueError: target is None.
-            RuntimeError: create() not called.
+            RuntimeError: reactivity not enabled (create() not run, DR5).
         """
-        if target is None:
-            raise ValueError("live() requires a non-None target")
-        if not self._lifecycle_started:
+        if not self._live_enabled:
             raise RuntimeError(
-                "live() called before create(); call create() first"
+                "live() called before create(); reactivity not enabled",
             )
         with self._live_lock:
             prev_active = self._live_active
@@ -267,12 +300,15 @@ successivi:
 
 Validati da `tests/test_live_context.py`:
 
-1. `handler.live(None)` → `ValueError`.
-2. `handler.live("...")` prima di `create()` → `RuntimeError`.
+1. `handler.live()` prima di `create()` → `RuntimeError`
+   (reattività non abilitata, DR5).
+2. `live()` senza target esplicito, con un default registrato via
+   `set_render_target(..., default=True)`: una mutazione dentro il
+   `with` scrive il file di default.
 3. Senza `with`: una mutazione `data.set_item(...)` non scrive il
    target.
-4. Dentro `with live("out.html")`: `data.set_item("page.title", "X")`
-   → il file `out.html` esiste e contiene "X" nel render.
+4. Dentro `with live("out.html")` (target esplicito):
+   `data.set_item("page.title", "X")` → il file esiste e contiene "X".
 5. Dentro `with live("out.html")`: `node.set_attr({"style": "color:red"})`
    → il file contiene il nuovo attributo.
 6. Re-entry: dentro `with live(t1)` chiamo un metodo che a sua volta

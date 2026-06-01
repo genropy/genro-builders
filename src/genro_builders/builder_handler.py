@@ -137,9 +137,11 @@ class BuilderHandler:
         # ``abs_datapath``); valore = dict ``{id(node): node}`` (BuilderBagNode
         # non è hashable, indicizziamo per ``id`` per add/remove O(1)).
         self.pointer_map: dict[str, dict[int, BuilderBagNode]] = {}
-        # RX livello 0 — lifecycle flag: True dopo create(). live() lo
-        # esige (DR5) per separare costruzione e modalità reattiva.
-        self._lifecycle_started: bool = False
+        # RX livello 0 — flag di abilitazione reattività: acceso da
+        # create() dopo aver armato le subscribe. live() lo esige (DR5):
+        # senza, una mutazione resterebbe muta (subscribe non armate) e
+        # render() su un documento non costruito darebbe stringa vuota.
+        self._live_enabled: bool = False
         # RX livello 0 — stato della sezione live (DR4/DR6/DR7). Privati,
         # non parte dell'API: l'unico accesso pubblico è il context
         # manager live(). Il lock serializza le sezioni (sync, re-entry).
@@ -190,8 +192,8 @@ class BuilderHandler:
             3. ``_sourceroot``/``_dataroot`` are subscribed: from here on
                every mutation flows to ``on_source_change`` /
                ``on_data_change``.
-            4. ``_lifecycle_started`` is set: ``live()`` is now allowed
-               (DR5).
+            4. ``_live_enabled`` is set: reactivity is now armed and
+               ``live()`` is allowed (DR5).
         """
         self.main(self.source)
         self.register_pointer(self.source.parent_node)
@@ -207,35 +209,35 @@ class BuilderHandler:
             update=self._on_data_event,
             delete=self._on_data_event,
         )
-        self._lifecycle_started = True
+        self._live_enabled = True
 
     @contextmanager
-    def live(self, target: Any) -> Iterator[BuilderHandler]:
+    def live(self, target: Any = None) -> Iterator[BuilderHandler]:
         """Open a critical section where every source/data mutation
-        triggers a fresh full render to ``target`` (RX livello 0, DR1-DR7).
+        triggers a fresh full render (RX livello 0, DR1-DR7).
 
         Inside the ``with`` block, each mutation routed through
         ``_on_source_event`` / ``_on_data_event`` re-renders the whole
-        document to ``target`` (DR3). Outside the block the handler stays
-        pull-only: no auto-render (DR6). The section is synchronous and
-        serialized by an ``RLock`` (DR4); re-entry on the same thread is
-        allowed and the parent state is restored on exit.
+        document (DR3). With an explicit ``target`` the render goes there;
+        without one the hooks call ``render(target=None)``, which falls
+        back to the default target registered via ``set_render_target``
+        (DR2). Outside the block the handler stays pull-only: no
+        auto-render (DR6). The section is synchronous and serialized by an
+        ``RLock`` (DR4); re-entry on the same thread is allowed and the
+        parent state is restored on exit.
 
         Args:
-            target: Render target. Must be non-None (DR2). Accepts whatever
+            target: Optional render target. Accepts whatever
                 ``RendererBase.finalize`` accepts: a filesystem path
                 (str or Path), a writable file-like with ``.write()``,
-                or a callable.
+                or a callable. ``None`` uses the handler's default target.
 
         Raises:
-            ValueError: target is None (DR2).
-            RuntimeError: create() not called yet (DR5).
+            RuntimeError: reactivity not enabled — create() not run (DR5).
         """
-        if target is None:
-            raise ValueError("live() requires a non-None target")
-        if not self._lifecycle_started:
+        if not self._live_enabled:
             raise RuntimeError(
-                "live() called before create(); call create() first",
+                "live() called before create(); reactivity not enabled",
             )
         with self._live_lock:
             prev_active = self._live_active
