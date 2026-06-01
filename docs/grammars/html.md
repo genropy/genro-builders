@@ -4,8 +4,8 @@
 **Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 **Maintainer**: core team.
 
-HTML5 grammar generated from the W3C schema. 112 elements, full
-parent/child validation.
+HTML5 grammar originally derived from the W3C schema. 113 elements,
+full parent/child validation.
 
 ## Purpose
 
@@ -34,11 +34,16 @@ print(p.render(pretty=True))
 
 ## Elements
 
-The grammar is auto-generated from the W3C HTML5 Validator schema
-([html5_elements.py](../../src/genro_builders/contrib/html/html5_elements.py),
-**do not edit manually**). It contains 112 tags grouped by content
-category (flow content, phrasing content, etc.) plus their parent
-and sub-tag constraints.
+The grammar was originally derived from the W3C HTML5 Validator schema
+([html5_elements.py](../../src/genro_builders/contrib/html/html5_elements.py)).
+It contains 113 tags grouped by content category (flow content,
+phrasing content, etc.) plus their parent and sub-tag constraints.
+
+> **Note**: the file is no longer fully auto-generated. It was seeded
+> from the W3C schema but is now **hand-maintained**: edits and
+> additions go in directly. The schema-diff utility in
+> `importer/html5_schema_builder.py` exists to spot W3C drift on
+> demand, not to regenerate the file.
 
 Highlights:
 

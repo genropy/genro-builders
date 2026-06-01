@@ -3,14 +3,15 @@
 **Last Updated**: 2026-05-30
 **Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 
-The framework provides four decorators for declaring a grammar.
+The framework provides six decorators for declaring a grammar.
 They live in
 [src/genro_builders/builder/_decorators.py](../../src/genro_builders/builder/_decorators.py)
 and are imported as:
 
 ```python
 from genro_builders.builder import (
-    element, abstract, subbuilder, data_element,
+    element, abstract, subbuilder,
+    data, data_formula, data_controller,
 )
 ```
 
@@ -21,7 +22,9 @@ from genro_builders.builder import (
 | `@element` | Declare a tag in the grammar. | Ignored (declarative). |
 | `@abstract` | Declare an abstract base for inheritance. | Ignored (declarative). |
 | `@subbuilder` | Open a sub-grammar from this tag down. | Ignored (declarative). |
-| `@data_element` | Declare a transparent data-handling element. | Required. |
+| `@data` | Declare a transparent leaf-input data-element. | Ignored (declarative). |
+| `@data_formula` | Declare a transparent computed data-element. | Ignored (declarative). |
+| `@data_controller` | Declare a transparent side-effect data-element. | Ignored (declarative). |
 
 ## `@element`
 
@@ -91,31 +94,72 @@ the polymorphic dispatch picks the sub-builder's `renderer_<mode>`
 fragment in a dialect-specific envelope via `wrapper_<sub_name>`
 (e.g. SVG hosting HTML in `<foreignObject xmlns="...">`).
 
-## `@data_element`
+## Data-elements: `@data`, `@data_formula`, `@data_controller`
 
-Declares a transparent element used for data-handling (writers,
-formulas). The body is a preprocessor returning `(path,
-attrs_dict)`. Data elements live in the source tree but emit no
-markup at render time.
+Three decorators declare **transparent** elements: they live in the
+source tree but emit **no markup** at render time. They carry data
+behaviour (writing the data bag, computing, side effects) that runs
+in the handler — not at definition. Like `@subbuilder`, the body is
+**ignored** (autonomous): only `__name__`/`__doc__` are read; each
+returns a wrapper that calls the grammar's `_attach_data_element`
+when the element is written.
+
+The three differ by graph role and output:
+
+| Element | Signature | Role |
+|---------|-----------|------|
+| `@data` | `data(path, value)` | leaf input — writes `value` at `path` (a `dict` becomes a `Bag`); written at create, always |
+| `@data_formula` | `data_formula(path, func, **bindings)` | computed — writes the return of `func` at `path` |
+| `@data_controller` | `data_controller(func, **bindings)` | side effect / free writer — `func` may write any number of bag paths itself; no declared output `path` |
 
 ```python
-@data_element()
-def data_setter(self, path, value=None, **kwargs):
-    return path, dict(value=value, **kwargs)
+class MyBuilder(BagBuilderBase):
+
+    @data
+    def data(self): ...
+
+    @data_formula
+    def data_formula(self): ...
+
+    @data_controller
+    def data_controller(self): ...
 ```
 
-> **Status**: the decorator is registered. Consumption is pending
-> until the data layer ships (see `roadmap/data-architecture.md`).
+Used near the structure, inside `main()`:
 
-## Declarative vs body-bearing
+```python
+def main(self, root):
+    body = root.body(datapath="x")
+    body.data("price", 100)
+    body.data("tax", 0.22)
+    body.data_formula("total", func="compute_total",
+                      price="^price", tax="^tax")
+    body.p("^total")
+```
 
-The four decorators split into two families:
+- **`path`** (1st positional of `data`/`data_formula`) — where the
+  result goes, absolute or relative (`".total"` is composed via
+  `abs_datapath`, like a pointer). `data_controller` has no `path`.
+- **`func`** — canonical form is a **handler-method name**
+  (`func="compute_total"`, resolved via `getattr(self, ...)`); an
+  inline callable/lambda is also accepted (handy, but makes the page
+  non-serializable).
+- **`bindings`** (kwargs) — the `^pointer` inputs, always explicit,
+  passed to `func` **by name** (`func(price=..., tax=...)`).
+- **`_on_start`** (formula/controller) — requests execution at the
+  first render; plain `data` always writes at create.
 
-- **Declarative**: `@element`, `@abstract`, `@subbuilder` — the
-  framework only reads the signature and metadata. The function
-  body is discarded; if you write a non-empty body, a warning is
-  emitted at class definition time. Use `...` (ellipsis) as the
-  body to suppress the warning.
-- **Body-bearing**: `@data_element` — the body **must** be real
-  code (ellipsis raises `ValueError`). The framework invokes it
-  when data elements are consumed (see the status callout above).
+> **Status**: the three data-elements run at **first render** (during
+> `create()`). The cascade that re-fires dependent data-elements on a
+> later mutation is not yet implemented — see the `RX` area of the
+> contract and `roadmap/reactivity/data-elements.md`.
+
+## Declarative bodies
+
+All six decorators are **declarative**: the framework only reads the
+signature and metadata, the function body is discarded. For
+`@element`/`@abstract`/`@subbuilder`, a non-empty body emits a warning
+at class definition time — use `...` (ellipsis) as the body to
+suppress it. The three data-elements (`@data`, `@data_formula`,
+`@data_controller`) are autonomous in the same way: the body is
+ignored, the behaviour lives in the handler's data-pass.

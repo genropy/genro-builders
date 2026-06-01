@@ -1,22 +1,13 @@
-# Architecture contract — genro-builders — v0.6.0
+# Architecture contract — genro-builders — v0.5.0
 
-**Status**: 🟢 IN VIGORE dal 2026-06-01.
-**Sostituisce**: v0.5.0 (archiviata in
-`roadmap/outdated_versions/architecture-contract-v0.5.0.md`).
+**Status**: 🟢 IN VIGORE dal 2026-05-27.
+**Sostituisce**: v0.4.0 (archiviata in
+`roadmap/outdated_versions/architecture-contract-v0.4.md`).
 
-**Cosa cambia da v0.5.0**: il decoratore unico `@data_element`
-(preprocessore `(path, attrs_dict)`) è sostituito dai **tre decoratori
-autonomi** `@data` / `@data_formula` / `@data_controller` (corpo
-ignorato, modello `@subbuilder`), **implementati al primo render**
-(commit `6dca55f`/`33826ee`, HEAD `4348f0f`). Aggiornati glossario
-(`BLD`) e `BAG.4` di conseguenza. La cascata reattiva su mutazione
-resta in `RX` (non implementata).
-
-**Stato del codice di riferimento**: `develop @ 4348f0f`, suite
-**398 test verdi**. A questa versione il codice è allineato al
-contratto sui punti chiave dell'identità dei nodi, del render
-subsystem, del data binding pull-based e dei data-element al primo
-render:
+**Stato del codice di riferimento**: `develop @ 0baa919` (1 commit avanti su `origin/develop`),
+suite **345 test verdi**, coverage 83%. A questa versione il codice è
+allineato al contratto sui punti chiave dell'identità dei nodi, del
+render subsystem e del data binding pull-based:
 
 - subtask `handler_wrapper_root` (commit `82f4630`..`5086c7e`): wrapper-root,
   subscribe sui wrapper, hook reattivi → `HND.2`, `RX`;
@@ -65,18 +56,8 @@ render:
   `raw`, ereditano `finalize_raw` dalla base). Wrapper subbuilder
   (es. `<foreignObject>` per HTML dentro SVG) gestito da R₀ tramite
   `wrapper_<sub_name>` del builder host. → `BLD.3`, `HND.3`.
-- data-element al primo render (commit `6dca55f`, `33826ee`): tre
-  decoratori autonomi `@data`/`@data_formula`/`@data_controller`
-  (corpo ignorato, modello `@subbuilder`), nodi trasparenti
-  `_is_data_element` fuori dallo schema; `BuilderHandler.data_elements()`
-  in `create()` (dopo `register_pointer`, prima di `subscribe`):
-  `data` scrive sempre, formula/controller eseguono con `_on_start`,
-  `func` per nome o callable, binding `^pointer` per nome. Più id HTML
-  auto (`id=relative_path`) sui nodi pointer-bound sotto
-  `include_datapath`, per il futuro patch parziale. → `BLD.1`, `DAT.2`.
 
-Restano da implementare: reattività push (`RX`) — inclusa la cascata
-dei data-element su mutazione —, BuilderSuite
+Restano da implementare: reattività push (`RX`), BuilderSuite
 (`SUITE`).
 
 ---
@@ -103,9 +84,8 @@ si conserva la versione superata in `roadmap/outdated_versions/`.
 
 - **Builder**: la grammar pura di un dialetto (`HtmlBuilder`,
   `MarkdownBuilder`, `SvgBuilder`, `XsdBuilder`). Definisce `@element`,
-  `@abstract`, `@subbuilder`, i data-element (`@data`, `@data_formula`,
-  `@data_controller`), lo schema di validazione, le regole di
-  serializzazione. Solo dichiarazione, nessun engine.
+  `@abstract`, `@subbuilder`, `@data_element`, lo schema di validazione,
+  le regole di serializzazione. Solo dichiarazione, nessun engine.
 - **BuilderHandler**: la macchina che consuma un builder. Possiede i
   wrapper-root `_sourceroot` / `_dataroot`, le due fasi `create`/`render`,
   il dict `renderers: mode → {target, instance}`.
@@ -408,7 +388,7 @@ aspetti hanno però trattamento diverso a runtime:
 
 - **Unicità → controllo attivo.** Alla creazione del nodo da grammar
   (in `_command_on_node`, il punto di dispatch unico: copre element di
-  schema, data-element e tag fuori schema), se l'attr `node_id` è presente
+  schema, data_element e tag fuori schema), se l'attr `node_id` è presente
   si verifica via `BAG.5` che non esista già un nodo con lo stesso id; in
   caso contrario errore esplicito. Motivo: l'unicità è un **presupposto di
   funzionamento** di `node_by_id` (con due id uguali il lookup sarebbe

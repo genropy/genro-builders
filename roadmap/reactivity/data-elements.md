@@ -1,8 +1,9 @@
 # Data elements — `data`, `data_formula`, `data_controller`
 
-**Version**: 0.1.0
+**Version**: 0.2.0
 **Last Updated**: 2026-06-01
-**Status**: 🔴 DA REVISIONARE — modello teorico, non ancora approvato né implementato
+**Status**: 🔴 DA REVISIONARE — primo render IMPLEMENTATO (commit `6dca55f`/`33826ee`);
+cascata su mutazione ancora da implementare; modello non ancora approvato
 
 > Documento di design dei tre data-element e del loro ciclo di esecuzione.
 > È il "documento separato sul dispatch" annunciato da `data-architecture.md`
@@ -24,7 +25,7 @@ storico ancorato a GenroPy (`GnrDomSrc.data`): l'elemento base è `data`, non
 | --- | --- | --- |
 | `data` | foglia-input | scrive un valore (server→client) nella data bag; `dict`→`Bag` |
 | `data_formula` | nodo intermedio | calcola da pointer-input dichiarati e scrive il risultato |
-| `data_controller` | foglia-uscita | side-effect leggendo i suoi input; nessun output-path |
+| `data_controller` | foglia-uscita | side-effect leggendo i suoi input; produttore libero: PUÒ scrivere la bag (0..N path non dichiarati) |
 
 Si dichiarano vicino alla struttura, dentro `main()`:
 
@@ -87,20 +88,29 @@ un loop. Async/sync è solo il contorno esterno.
 (Questo evolve `HND.5`: il lock diventa intrinseco al ciclo di mutazione, non
 più "a carico dello sviluppatore". Da riflettere nel contratto.)
 
-### Il grafo di dipendenze
+### La cascata, non un grafo topologico
 
-Costruito leggendo i pointer-input dichiarati in ogni `data_formula` /
-`data_controller` (§2). Nodi: i path prodotti/consumati. Archi: la relazione
-"dipende da". Costruito una volta (a `create()` / apertura sezione), riusato
-ad ogni mutazione.
+Il modello **non** costruisce un grafo statico né riesegue in ordine
+topologico. La propagazione è la **cascata** del client JS GenroPy (collaudata
+da 20 anni): si **scrive un dato → fira le `subscribe` armate → chi dipende da
+quel path scatta → propaga ai suoi dipendenti**. Le dipendenze restano i
+pointer-input dichiarati (§2), ma sono consumate via le subscribe sui path, non
+via un grafo precompilato. Nessun ordinamento globale da mantenere.
+
+**`reason` = il nodo ORIGINE della cascata.** Si propaga **invariato** lungo
+tutta la catena. Serve da anti-ciclo: quando la propagazione ricapita su un
+data-element il cui evento ha `reason is self`, la cascata si **ferma** lì (es.
+si scrive `peso`; se la catena tornasse a riscrivere `peso`, stop). Niente
+fallback silenzioso: un ciclo non auto-terminante resta un errore rumoroso (D7).
 
 ### Due piani con cadenze diverse
 
 **Piano dati — ad OGNI mutazione (dentro la sezione):**
-- una mutazione cambia un path P;
-- nel grafo si trovano i dipendenti di P e si **rieseguono in ordine
-  topologico** (formule ricalcolano e scrivono, controller eseguono);
-- la cascata prosegue sui dipendenti dei dipendenti;
+- una mutazione cambia un path P, con `reason` = nodo origine;
+- le subscribe sui dipendenti di P scattano (formule ricalcolano e scrivono,
+  controller eseguono leggendo i loro input);
+- la cascata prosegue sui dipendenti dei dipendenti, `reason` invariato,
+  fermandosi su `reason is self`;
 - al termine di ogni mutazione, data bag e source sono **coerenti**. Le
   derivazioni non "saltano" mai una mutazione.
 
@@ -109,12 +119,17 @@ ad ogni mutazione.
   a ogni mutazione: durante la sezione i dati ballano, il markup si fa alla
   fine.
 
-### Render iniziale (a `create()`)
+### Render iniziale (a `create()`) — IMPLEMENTATO
 
-Il primo ciclo (build) è lo stesso meccanismo: `setup()` → `main()`
-costruiscono source + dichiarano i data-element; poi una **data pass** esegue
-il grafo (foglie `data`, poi formule, poi controller) in ordine topologico;
-poi il render totale. Da quel momento la mutazione passa solo da `live`.
+Il primo render **non** usa la cascata: `setup()` → `main()` costruiscono
+source + dichiarano i data-element; poi `BuilderHandler.data_elements()` (dopo
+`register_pointer`, **prima** di `subscribe` — le scritture di seed non firano
+la reattività) esegue lineare: `data` scrive **sempre** il proprio valore;
+`data_formula`/`data_controller` eseguono **solo** se marcati `_on_start`
+(altrimenti dormienti, reagiranno alla cascata). `func` è risolta per nome sul
+handler o usata come callable; i binding `^pointer` sono risolti via
+`abs_datapath` e passati per nome. Da quel momento la mutazione passa solo da
+`live` e innesca la cascata (da implementare).
 
 ---
 
@@ -152,12 +167,13 @@ render parziale (RX.2/RX.4).
 ## 7. Ambito
 
 Tutto **core** (`genro-builders`):
-- i tre data-element nella grammar (`@data_element`);
-- la costruzione del grafo e la data pass sync;
+- i tre data-element nella grammar (`@data`, `@data_formula`,
+  `@data_controller`) — **implementati** al primo render;
+- la cascata sync su mutazione (subscribe + `reason`) — da implementare;
 - il ciclo di mutazione sotto lock via `live`;
 - il full re-render all'uscita.
 
-`genro-ws-web` **riusa** il grafo e il ciclo, sostituendo solo il consumo
+`genro-ws-web` **riusa** la cascata e il ciclo, sostituendo solo il consumo
 d'uscita (patch streaming invece di render totale). Non reimplementa il
 meccanismo dati.
 
@@ -181,12 +197,13 @@ builders; il suo valore pieno emerge col target reattivo.
   | --- | --- |
   | `data` | `data(path, value)` |
   | `data_formula` | `data_formula(path, func, **bindings)` |
-  | `data_controller` | `data_controller(func, **bindings)` — no output path |
+  | `data_controller` | `data_controller(func, **bindings)` — nessun path dichiarato; `func` PUÒ scrivere la bag liberamente (0..N path) |
 
   - **path** (1° posizionale di `data`/`data_formula`): dove va il risultato,
     assoluto o relativo (`".total"` relativo al datapath del nodo, composto da
-    `abs_datapath` come i pointer). `data_controller` non ha path (side-effect,
-    non scrive un risultato).
+    `abs_datapath` come i pointer). `data_controller` non ha path **dichiarato**:
+    è un produttore libero che può scrivere la bag su 0..N path scelti da
+    `func` (il grafo guarda solo gli INPUT/binding, non gli output).
   - **func** (posizionale: 2° per la formula, 1° per il controller): un
     callable. **Forma canonica suggerita: il nome di un metodo dell'handler**
     (`func="compute_total"`), risolto a runtime via `getattr(self, ...)` — come
@@ -218,12 +235,16 @@ builders; il suo valore pieno emerge col target reattivo.
   Idealmente, una pagina con `func` inline che si tenti di persistere produce un
   **errore rumoroso** (non un salvataggio silenziosamente incompleto). Vedi
   l'analisi di scala/durabilità in genro-ws-web `roadmap/scalability.md` §8.
-- **D7 (aperta)** — gestione dei cicli nel grafo (dipendenza circolare →
-  errore rumoroso, niente fallback silenzioso).
+- **D7 (aperta)** — gestione dei cicli nella cascata: l'anti-ciclo è
+  `reason is self → stop`; un ciclo che non si auto-termina resta un errore
+  rumoroso, niente fallback silenzioso.
 - **D8 (aperta)** — quando la **source** cambia dentro la sezione (non solo i
-  dati): il grafo va ricostruito? (i data-element nuovi vanno integrati.)
-- **D9 (aperta)** — interazione con il contratto: aggiornare `HND.5` (lock
-  intrinseco), `DR3` (render a fine sezione, non per-mutazione), area `DAT`.
+  dati): i data-element nuovi vanno integrati (nuove subscribe da armare).
+- **D9 (parziale)** — interazione con il contratto: il bump a **v0.6.0**
+  (2026-06-01) ha registrato i tre decoratori autonomi e il primo render
+  (glossario `BLD`, `BAG.4`, blocco stato-codice → `DAT.2`). Restano da
+  riflettere quando la cascata sarà implementata: `HND.5` (lock intrinseco al
+  ciclo di mutazione) e il render a fine sezione (area `RX`).
 
 ---
 
