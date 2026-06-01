@@ -14,8 +14,14 @@ class Demo(InteractiveDemo):
     Data lives under ``ui``: ``ui.title``, ``ui.users``, ``ui.revenue``.
     """
 
+    def setup(self):
+        self.set_data("ui.title", "Dashboard")
+        self.set_data("ui.users", "1 248 active")
+        self.set_data("ui.revenue", "€ 84,500")
+
     def main(self, root):
         body = root.body(datapath="ui", node_id="body")
+        body.link(rel="stylesheet", href="demo_css")
 
         header = body.header(node_id="hdr", _class="bar")
         header.h1("^.title", node_id="title")
@@ -38,8 +44,3 @@ class Demo(InteractiveDemo):
 
         footer = body.footer(node_id="footer")
         footer.span("genro-builders live demo")
-
-    def seed(self):
-        self.set_data("ui.title", "Dashboard")
-        self.set_data("ui.users", "1 248 active")
-        self.set_data("ui.revenue", "€ 84,500")

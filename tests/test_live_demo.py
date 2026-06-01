@@ -131,6 +131,28 @@ def test_select_unknown_demo_returns_error(app: LiveDemoApp) -> None:
     assert "nope" in result["error"]
 
 
+def test_out_xml_is_raw_source_view(app: LiveDemoApp) -> None:
+    """``out_xml`` returns the document as raw XML: indented, pointers
+    unresolved (the structural view, distinct from the rendered HTML)."""
+    xml = app.out_xml()
+    assert "^.title" in xml          # pointer shown raw, not resolved
+    assert "Hello" not in xml         # the resolved value lives in HTML, not here
+
+
+def test_repl_source_mutation_updates_out_xml(app: LiveDemoApp) -> None:
+    """A snippet that mutates the source updates out_xml (via on_live_exit)."""
+    app.repl('page.node["body"].p("added", node_id="extra")')
+    assert "extra" in app.out_xml()
+
+
+def test_source_code_returns_current_demo_module(app: LiveDemoApp) -> None:
+    """``source_code`` returns the Python source of the current demo."""
+    code = app.source_code()["source_code"]
+    assert "class Demo" in code
+    app.select("dashboard")
+    assert "Dashboard demo" in app.source_code()["source_code"]
+
+
 def test_repl_namespace_is_per_demo(app: LiveDemoApp) -> None:
     """Variables defined under one demo do not leak into another."""
     app.select("dashboard")
@@ -155,15 +177,19 @@ def test_repl_response_includes_trees(app: LiveDemoApp) -> None:
 
 
 def test_source_tree_walks_the_document(app: LiveDemoApp) -> None:
-    """The source tree exposes body → h1, p with the right shape."""
+    """The source tree exposes body → link, h1, p with the right shape.
+
+    The leading ``link`` is the shared-stylesheet link added by
+    ``link_stylesheet`` at the top of every demo's ``main()``.
+    """
     src = app.tree_source()["source"]
     assert src["kind"] == "root"
     body = src["children"][0]
     assert body["tag"] == "body"
     assert body["value"]["kind"] == "bag"
     tags = [child["tag"] for child in body["children"]]
-    assert tags == ["h1", "p"]
-    h1 = body["children"][0]
+    assert tags == ["link", "h1", "p"]
+    h1 = next(c for c in body["children"] if c["tag"] == "h1")
     assert h1["value"]["kind"] == "pointer"
     assert h1["value"]["raw"] == "^.title"
     assert h1["value"]["pointer_kind"] == "caret"

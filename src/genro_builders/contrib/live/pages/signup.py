@@ -15,8 +15,15 @@ class Demo(InteractiveDemo):
     ``form.role``, ``form.bio``.
     """
 
+    def setup(self):
+        self.set_data("form.heading", "Create your account")
+        self.set_data("form.name", "")
+        self.set_data("form.email", "")
+        self.set_data("form.bio", "")
+
     def main(self, root):
         body = root.body(datapath="form", node_id="body")
+        body.link(rel="stylesheet", href="demo_css")
         body.h1("^.heading", node_id="heading")
 
         f = body.form(node_id="form")
@@ -33,9 +40,3 @@ class Demo(InteractiveDemo):
 
         f.textarea("^.bio", node_id="bio", placeholder="Short bio")
         f.button("Sign up", node_id="submit", _type="submit")
-
-    def seed(self):
-        self.set_data("form.heading", "Create your account")
-        self.set_data("form.name", "")
-        self.set_data("form.email", "")
-        self.set_data("form.bio", "")

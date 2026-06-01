@@ -11,11 +11,12 @@ DEMO_TITLE = "Basic page"
 class Demo(InteractiveDemo):
     """A heading and a paragraph, both bound to data under ``page``."""
 
-    def main(self, root):
-        body = root.body(datapath="page", node_id="body")
-        body.h1("^.title", node_id="h1")
-        body.p("^.message", node_id="msg")
-
-    def seed(self):
+    def setup(self):
         self.set_data("page.title", "Hello")
         self.set_data("page.message", "Scrivi codice Python nella REPL.")
+
+    def main(self, root):
+        body = root.body(datapath="page", node_id="body")
+        body.link(rel="stylesheet", href="demo_css")
+        body.h1("^.title", node_id="h1")
+        body.p("^.message", node_id="msg")

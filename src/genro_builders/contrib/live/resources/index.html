@@ -31,17 +31,54 @@
       min-width: 0;
       border-right: 2px solid #333;
     }
-    #render-header {
-      padding: 6px 12px;
+    #render-tabs {
+      display: flex;
       background: #252526;
-      color: #999;
-      font-size: 12px;
+      border-bottom: 1px solid #333;
     }
+    #render-tabs .tab {
+      font: inherit;
+      font-size: 12px;
+      padding: 6px 16px;
+      border: none;
+      background: transparent;
+      color: #999;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    #render-tabs .tab.active { color: #fff; border-bottom-color: #007acc; }
     #render-iframe {
       flex: 1;
       border: none;
       background: #ffffff;
     }
+    #raw-view, #source-view {
+      flex: 1;
+      display: none;
+      border: none;
+      margin: 0;
+      padding: 12px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      resize: none;
+      outline: none;
+      white-space: pre;
+      overflow: auto;
+    }
+    /* One view at a time. Default (no class): rendered iframe.
+       Each textarea (and its CodeMirror, if upgraded) shows only under
+       the matching class. */
+    #render.show-raw #render-iframe,
+    #render.show-source #render-iframe { display: none; }
+    #render.show-raw #raw-view,
+    #render.show-source #source-view { display: block; }
+    /* CodeMirror instances: hidden unless their view is active. */
+    #render .CodeMirror { display: none; }
+    #render.show-raw .cm-raw,
+    #render.show-source .cm-source { display: block; }
 
     /* Right pane: trees, history, input — stacked, input pinned at the bottom. */
     #right {
@@ -199,8 +236,14 @@
 </head>
 <body>
   <div id="render">
-    <div id="render-header">Rendered HTML</div>
+    <div id="render-tabs">
+      <button id="tab-rendered" class="tab active" type="button">Rendered</button>
+      <button id="tab-raw" class="tab" type="button">Raw</button>
+      <button id="tab-source" class="tab" type="button">Source</button>
+    </div>
     <iframe id="render-iframe" src="out"></iframe>
+    <textarea id="raw-view" readonly spellcheck="false"></textarea>
+    <textarea id="source-view" readonly spellcheck="false"></textarea>
   </div>
   <div id="right">
     <div id="demo-bar">

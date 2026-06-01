@@ -27,6 +27,7 @@ developer tool. Do not expose it on a public interface.
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,7 @@ from .interactive_demo import InteractiveDemo
 
 _PACKAGE_DIR = Path(__file__).parent
 _OUT_HTML = _PACKAGE_DIR / "resources" / "out.html"
+_OUT_XML = _PACKAGE_DIR / "resources" / "out.xml"
 
 #: Builtins exposed to REPL snippets. Reduced for clarity (an honest,
 #: guided surface), NOT a security boundary.
@@ -100,14 +102,19 @@ class LiveDemoApp(AsgiApplication):
         self.namespaces: dict[str, dict[str, Any]] = {}
         for key, (title, demo_class) in discovered.items():
             page = demo_class()
-            page.create()
             page.set_render_target("html", str(_OUT_HTML), default=True)
-            page.seed()
+            page.set_render_target("xml", str(_OUT_XML))
+            page.create()   # runs setup() then main(); data ready for main
             self.demos[key] = page
             self.titles[key] = title
             self.namespaces[key] = {"__builtins__": _REPL_BUILTINS, "page": page}
         self.current: str = next(iter(self.demos))
-        self.demos[self.current].render()
+        self._render_current()
+
+    def _render_current(self) -> None:
+        """Render the current demo to both targets: html (iframe) and xml (raw)."""
+        self.page.render()
+        self.page.render(mode="xml", pretty=True)
 
     @property
     def page(self) -> InteractiveDemo:
@@ -128,6 +135,11 @@ class LiveDemoApp(AsgiApplication):
         """Return the SPA client JavaScript."""
         return self._load_text("app.js")
 
+    @route(meta_mime_type="text/css")
+    def demo_css(self) -> str:
+        """Return the shared demo stylesheet (linked by every demo body)."""
+        return self._load_text("demo.css")
+
     @route(meta_mime_type="text/html")
     def out(self, **_ignored: Any) -> str:
         """Return the current rendered document (the live target file).
@@ -136,6 +148,11 @@ class LiveDemoApp(AsgiApplication):
         ``?t=<timestamp>`` cache-buster when reloading the iframe).
         """
         return self._load_text("out.html")
+
+    @route(meta_mime_type="text/plain")
+    def out_xml(self, **_ignored: Any) -> str:
+        """Return the current document as raw XML (the live xml target)."""
+        return self._load_text("out.xml")
 
     # ------------------------------------------------------------------
     # Demo selection + REPL — reachable via WSX
@@ -155,7 +172,7 @@ class LiveDemoApp(AsgiApplication):
         if key not in self.demos:
             return {"ok": False, "error": f"unknown demo: {key}"}
         self.current = key
-        self.page.render()
+        self._render_current()
         return {
             "ok": True,
             "current": key,
@@ -183,6 +200,12 @@ class LiveDemoApp(AsgiApplication):
             "source": self._source_tree(),
             "data": self._data_tree(),
         }
+
+    @route()
+    def source_code(self) -> dict[str, Any]:
+        """Return the Python source of the current demo's module."""
+        module = inspect.getmodule(type(self.page))
+        return {"source_code": inspect.getsource(module)}
 
     @route()
     def tree_source(self) -> dict[str, Any]:

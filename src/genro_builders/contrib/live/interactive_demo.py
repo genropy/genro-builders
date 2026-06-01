@@ -31,7 +31,15 @@ class _NodeAccessor:
 
 
 class InteractiveDemo(HtmlBuilderHandler):
-    """HtmlBuilderHandler + REPL shortcuts. Subclass and override ``main``."""
+    """HtmlBuilderHandler + REPL shortcuts. Subclass and override ``main``.
+
+    Beyond the shortcuts, this overrides :meth:`on_live_exit` to emit a
+    second, raw rendering of the document (mode ``xml``, pretty) at the end
+    of every live section — a structural view that shows the source markup
+    (pointers unresolved, indented), next to the resolved HTML. The app
+    registers the ``xml`` render target; if none is registered the render
+    is a harmless no-op (returns a string, writes nowhere).
+    """
 
     def seed(self) -> None:
         """Seed initial data. Override to populate ``self.data`` after
@@ -46,3 +54,12 @@ class InteractiveDemo(HtmlBuilderHandler):
     def node(self) -> _NodeAccessor:
         """Subscript accessor: ``page.node["body"]`` -> source node by id."""
         return _NodeAccessor(self)
+
+    def on_live_exit(self) -> None:
+        """Emit the raw (xml, pretty) rendering at the end of a live section.
+
+        Uses the ``xml`` render target registered by the app. The HTML is
+        already kept current by the per-mutation render (DR3); this adds the
+        structural raw view once per section (DR9).
+        """
+        self.render(mode="xml", pretty=True)

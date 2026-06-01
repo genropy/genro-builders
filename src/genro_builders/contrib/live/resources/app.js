@@ -19,6 +19,12 @@
   const $run = document.getElementById("run");
   const $status = document.getElementById("status");
   const $demoSelect = document.getElementById("demo-select");
+  const $render = document.getElementById("render");
+  const $tabRendered = document.getElementById("tab-rendered");
+  const $tabRaw = document.getElementById("tab-raw");
+  const $tabSource = document.getElementById("tab-source");
+  const $rawView = document.getElementById("raw-view");
+  const $sourceView = document.getElementById("source-view");
 
   // The SPA shell is served by the mounted app at GET /<mount>/index, so
   // location.pathname is "/<mount>/index". Stripping "/index" leaves the
@@ -97,6 +103,56 @@
       "Ctrl-Enter": runSnippet,
       "Cmd-Enter": runSnippet,
     });
+  }
+
+  // Read-only viewers: 'raw' (current document as XML) and 'source' (the
+  // demo's Python). Upgrade to CodeMirror when available; otherwise the
+  // readonly <textarea>s show the text. The CodeMirror wrapper gets a
+  // cm-raw/cm-source class so the stylesheet can show one at a time.
+  let rawCm = null;
+  let sourceCm = null;
+
+  function _enhance(textarea, mode, cssClass) {
+    if (typeof window.CodeMirror !== "function") return null;
+    const cm = window.CodeMirror.fromTextArea(textarea, {
+      mode: mode, lineNumbers: true, readOnly: true, theme: "default",
+    });
+    cm.setSize("100%", "100%");
+    cm.getWrapperElement().classList.add(cssClass);
+    return cm;
+  }
+
+  function tryEnhanceViewers() {
+    rawCm = _enhance($rawView, "xml", "cm-raw");
+    sourceCm = _enhance($sourceView, "python", "cm-source");
+  }
+
+  function setRawText(text) {
+    if (rawCm) { rawCm.setValue(text); if ($render.classList.contains("show-raw")) rawCm.refresh(); }
+    else $rawView.value = text;
+  }
+
+  function setSourceText(text) {
+    if (sourceCm) { sourceCm.setValue(text); if ($render.classList.contains("show-source")) sourceCm.refresh(); }
+    else $sourceView.value = text;
+  }
+
+  // Fetch the current document as raw XML (out_xml route) and show it.
+  function fetchRaw() {
+    fetch(APP_PREFIX + "out_xml?t=" + Date.now())
+      .then(function (r) { return r.text(); })
+      .then(setRawText)
+      .catch(function () { /* offline / route missing: leave as-is */ });
+  }
+
+  function showTab(which) {
+    $render.classList.toggle("show-raw", which === "raw");
+    $render.classList.toggle("show-source", which === "source");
+    $tabRendered.classList.toggle("active", which === "rendered");
+    $tabRaw.classList.toggle("active", which === "raw");
+    $tabSource.classList.toggle("active", which === "source");
+    if (which === "raw" && rawCm) rawCm.refresh();
+    if (which === "source" && sourceCm) sourceCm.refresh();
   }
 
   // -----------------------------------------------------------
@@ -237,6 +293,7 @@
 
   function reloadIframe() {
     $iframe.src = APP_PREFIX + "out?t=" + Date.now();
+    fetchRaw();
   }
 
   // -----------------------------------------------------------
@@ -298,9 +355,14 @@
       appendEntry('<span class="entry-err">! ' + escapeHtml(err) + "</span>");
       return;
     }
-    // A menu response carries the demo list; everything else carries trees.
+    // A menu response carries the demo list.
     if (data && data.demos) {
       populateMenu(data);
+      return;
+    }
+    // A source_code response carries the current demo's Python source.
+    if (data && typeof data.source_code === "string") {
+      setSourceText(data.source_code);
       return;
     }
     applyTrees(data);
@@ -316,10 +378,11 @@
       setStatus("connected", true);
       seedDefaultExpansion();
       reloadIframe();
-      // Populate the demo menu and pull the current demo's trees.
+      // Populate the demo menu, the current demo's trees and source.
       sendCommand("menu");
       sendCommand("tree_source");
       sendCommand("tree_data");
+      sendCommand("source_code");
     };
     ws.onclose = function () {
       setStatus("disconnected — retrying in 2s", false);
@@ -342,12 +405,19 @@
     };
   }
 
-  // Demo selector: switching re-renders the chosen demo and refreshes trees.
+  // Demo selector: switching re-renders the chosen demo and refreshes
+  // trees and source.
   $demoSelect.addEventListener("change", function () {
     sendCommand("select", { key: $demoSelect.value });
+    sendCommand("source_code");
     appendEntry('<span class="entry-meta">— switched to ' +
       escapeHtml($demoSelect.value) + " —</span>");
   });
+
+  // Left-pane tabs: Rendered (iframe) | Source (read-only Python).
+  $tabRendered.addEventListener("click", function () { showTab("rendered"); });
+  $tabRaw.addEventListener("click", function () { showTab("raw"); });
+  $tabSource.addEventListener("click", function () { showTab("source"); });
 
   // Run button + Ctrl/Cmd+Enter on the plain textarea.
   $run.addEventListener("click", runSnippet);
@@ -359,5 +429,6 @@
   });
 
   tryEnhanceEditor();
+  tryEnhanceViewers();
   connect();
 })();
