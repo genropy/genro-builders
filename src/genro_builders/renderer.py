@@ -140,6 +140,10 @@ class RendererBase:
         if isinstance(source, Bag):
             return "".join(self.render(child, **opts) for child in source)
         node = source
+        # Data-elements are transparent to every renderer: they carry data
+        # infrastructure (write/compute/side-effect), not markup.
+        if node.attr.get("_is_data_element"):
+            return ""
         node_builder = node.builder
         if node_builder is None or node_builder is self.builder:
             item, ra = node.runtime_values()

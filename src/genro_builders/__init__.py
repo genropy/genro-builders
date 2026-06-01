@@ -2,12 +2,13 @@
 """Builder system for genro-bag — grammar and bag layering.
 
 Builders declare a domain-specific grammar via decorators
-(@element, @abstract, @subbuilder, @data_element); BuilderHandlers
-drive the create/render lifecycle on top of the grammar.
+(@element, @abstract, @subbuilder, and the data-elements @data /
+@data_formula / @data_controller); BuilderHandlers drive the
+create/render lifecycle on top of the grammar.
 
 Core classes:
     BagBuilderBase: Grammar base — @element, @abstract,
-        @subbuilder, @data_element.
+        @subbuilder, @data / @data_formula / @data_controller.
     BuilderBag / BuilderBagNode: level 1 of the bag/node layering
         (decision 12). Contain the slots ``_builder`` and ``_handler``
         and the grammar-aware attribute resolution shared between

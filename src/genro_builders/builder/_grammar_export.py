@@ -178,13 +178,6 @@ def _element_form(node: Any) -> dict[str, Any]:
     }
 
 
-def _data_element_form(node: Any) -> dict[str, Any]:
-    """JSON form of a data_element node."""
-    return {
-        "doc": node.get_attr("documentation"),
-    }
-
-
 def _section_topologically_sorted(
     raw_items: dict[str, dict[str, Any]],
     insertion_order: list[str],
@@ -243,18 +236,12 @@ def _class_schema_to_grammar_document(cls: type) -> dict[str, Any]:
     subbuilders_order = list(subbuilders_raw.keys())
     elements_raw: dict[str, dict[str, Any]] = {}
     elements_order: list[str] = []
-    data_elements_raw: dict[str, dict[str, Any]] = {}
-    data_elements_order: list[str] = []
 
     for node in schema.get_nodes(
         condition=lambda n: not n.label.startswith("_")
     ):
-        if node.get_attr("is_data_element"):
-            data_elements_raw[node.label] = _data_element_form(node)
-            data_elements_order.append(node.label)
-        else:
-            elements_raw[node.label] = _element_form(node)
-            elements_order.append(node.label)
+        elements_raw[node.label] = _element_form(node)
+        elements_order.append(node.label)
 
     document: dict[str, Any] = {
         "document_format": {
@@ -276,8 +263,9 @@ def _class_schema_to_grammar_document(cls: type) -> dict[str, Any]:
         "elements": _section_topologically_sorted(
             elements_raw, elements_order
         ),
-        "data_elements": _section_topologically_sorted(
-            data_elements_raw, data_elements_order
-        ),
+        # Data-elements (data/data_formula/data_controller) are autonomous and
+        # never enter the schema, so the grammar document lists none. The
+        # section is kept (empty) for format stability.
+        "data_elements": {},
     }
     return document

@@ -463,12 +463,21 @@ class _BuilderBagNodeMixin:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
+        # Data-elements take precedence over the schema: ``data`` is both a
+        # core data-element and a (marginal) W3C HTML tag — the data-element
+        # wins. The HTML ``<data>`` tag stays reachable via the ``html_data``
+        # escape (same convention as ``html_label``). Data-elements take
+        # positional args (path, value, func), so forward *args too (unlike
+        # subbuilders, which are kwargs-only).
+        builder_method = getattr(type(builder), name, None)
+        if getattr(builder_method, "_data_element_meta", None) is not None:
+            return lambda *args, **attrs: builder_method(builder, self, *args, **attrs)
+
         original_tag = builder._schema_tag_names.get(name.lower())
         if original_tag is None:
             struct = _dispatch_struct_method(self._resolve_handler(), self, name)
             if struct is not None:
                 return struct
-            builder_method = getattr(type(builder), name, None)
             if getattr(builder_method, "_subbuilder_meta", None) is not None:
                 return lambda **attrs: builder_method(builder, self, **attrs)
             raise AttributeError(

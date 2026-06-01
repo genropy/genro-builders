@@ -35,16 +35,6 @@ class _GrammarMixin:
 
         Precondition: name is in self._schema.
         """
-        info = self._get_schema_info(name)
-        if info.get("is_data_element"):
-            handler = getattr(self, info["handler_name"])
-
-            def data_element_call(*args: Any, **kwargs: Any) -> None:
-                path, attrs_dict = handler(*args, **kwargs)
-                return self._add_data_element(bag, name, path, attrs_dict)
-
-            return data_element_call
-
         handler = self.__getattr__(name)
         return lambda node_value=None, node_label=None, node_position=None, **attr: handler(
             bag,
@@ -69,12 +59,6 @@ class _GrammarMixin:
                 info = self._get_schema_info(node_tag)
             except KeyError as err:
                 raise AttributeError(f"'{type(self).__name__}' has no element '{node_tag}'") from err
-
-            # Data element: multi-positional args, bypass validation
-            if info.get("is_data_element"):
-                handler = getattr(self, info["handler_name"])
-                path, attrs_dict = handler(*args, **kwargs)
-                return self._add_data_element(destination_bag, node_tag, path, attrs_dict)
 
             # Validate original kwargs BEFORE the method call
             node_value = args[0] if args else kwargs.get("node_value")
@@ -108,26 +92,65 @@ class _GrammarMixin:
         """
         return self.set_child(build_where, node_tag, node_value, node_label=node_label, **attr)
 
-    def _add_data_element(
-        self, build_where: Bag, node_tag: str,
-        path: str | None, attrs_dict: dict[str, Any],
-    ) -> None:
-        """Add a data element node to the source bag.
+    def _attach_data_element(
+        self, node: BuilderBagNode, kind: str, tag_name: str,
+        *args: Any, **attrs: Any,
+    ) -> BagNode:
+        """Create a transparent data-element child of ``node``.
 
-        The node lives in the source tree but is transparent to the
-        renderer: it emits no markup. Its consumption (side effects on
-        ``handler.data``) is part of the pending data layer.
-        Bypasses set_child() validation -- data elements are transparent.
+        Autonomous (like ``_attach_subbuilder``): bypasses ``set_child``
+        validation. The node emits no markup (``value=None``); its
+        execution (write / compute / side effect) happens later in the
+        handler's data-pass / reactivity, reading the markers stored here.
+
+        Signatures (positional ``*args``, by kind):
+            data            -> (path, value)
+            data_formula    -> (path, func)   + bindings as ``^`` kwargs
+            data_controller -> (func,)        + bindings as ``^`` kwargs
+
+        ``_on_start`` (formula/controller) is popped from ``attrs``.
+        Each binding kwarg (``price="^price"``) is stored as a flat ``^``
+        string attr keyed by its kwarg name, so ``pointers()`` /
+        ``register_pointer`` index it like any other pointer; the data-pass
+        reconstructs the name->pointer map from those ``^`` attrs.
         """
-        label = self._auto_label(build_where, node_tag)
-        build_where.set_item(
-            label, None,
-            _attributes={
-                **attrs_dict,
-                "_is_data_element": True,
-                "_data_path": path,
-            },
-            node_tag=node_tag,
+        if not isinstance(node.value, Bag):
+            parent_bag = node.parent_bag
+            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
+            node.value = sub_bag_cls(
+                builder=node._resolve_builder(),
+                handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
+            )
+
+        on_start = attrs.pop("_on_start", False)
+        de_attrs: dict[str, Any] = {
+            "_is_data_element": True,
+            "_de_kind": kind,
+            "_on_start": on_start,
+        }
+        if kind == "data":
+            path, value = args
+            de_attrs["_de_path"] = path
+            de_attrs["_de_value"] = value
+        elif kind == "data_formula":
+            path, func = args
+            de_attrs["_de_path"] = path
+            de_attrs["_de_func"] = func
+        elif kind == "data_controller":
+            (func,) = args
+            de_attrs["_de_path"] = None
+            de_attrs["_de_func"] = func
+        else:  # pragma: no cover - guarded by the three decorators
+            raise ValueError(f"unknown data-element kind: {kind!r}")
+
+        # bindings: flat ^-string attrs keyed by kwarg name (visible to
+        # pointers()/register_pointer and to the data-pass).
+        de_attrs.update(attrs)
+
+        return node.value.set_item(
+            self._auto_label(node.value, tag_name), None,
+            _attributes=de_attrs,
+            node_tag=tag_name,
         )
 
     def set_child(
@@ -244,12 +267,6 @@ class _GrammarMixin:
         node._check_unique_id(attrs.get("node_id"))
 
         if child_tag in self._schema:
-            info = self._get_schema_info(child_tag)
-            if info.get("is_data_element"):
-                handler = getattr(self, info["handler_name"])
-                args = (node_value,) if node_value is not None else ()
-                path, attrs_dict = handler(*args, **attrs)
-                return self._add_data_element(node.value, child_tag, path, attrs_dict)
             callable_handler = self._bag_call(node.value, child_tag)
             return callable_handler(
                 node_value=node_value,
@@ -440,8 +457,7 @@ class _GrammarMixin:
 
             sub_tags, sub_tags_compiled, parent_tags, parent_tags_compiled,
             call_args_validations, _meta, documentation,
-            handler_name, is_data_element, is_subbuilder,
-            subbuilder_name, wrap_tag.
+            is_subbuilder, subbuilder_name, wrap_tag.
 
         Results are cached on the schema node after first access.
 

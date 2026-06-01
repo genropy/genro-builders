@@ -202,6 +202,7 @@ class BuilderHandler:
         self.setup()
         self.main(self.source)
         self.register_pointer(self.source.parent_node)
+        self.data_elements()
         self._sourceroot.subscribe(
             "builder_handler_source",
             insert=self._on_source_event,
@@ -449,6 +450,88 @@ class BuilderHandler:
     # ------------------------------------------------------------------
     # Pointer map (DAT.2)
     # ------------------------------------------------------------------
+
+    def data_elements(self) -> None:
+        """Run the data-element pass once, before the first render.
+
+        Called by :meth:`create` after ``register_pointer`` (so binding
+        pointers are already in ``pointer_map``) and before the subscribes
+        are armed (so the writes here do not fire the reactive pipeline:
+        the first render is the seed, not a reactive cascade).
+
+        Walks the source subtree; for every data-element node:
+
+        - ``data``: always writes its ``_de_value`` at ``_de_path``
+          (``dict`` becomes a ``Bag``).
+        - ``data_formula`` / ``data_controller``: executed ONLY when the
+          node carries ``_on_start`` truthy; otherwise dormant (they will
+          react when their inputs change, in the reactive block). A formula
+          writes the return of its ``func`` at ``_de_path``; a controller
+          calls its ``func`` for its side effect (it may write the bag
+          itself; no declared output path).
+
+        ``func`` is resolved on the handler when given as a method-name
+        string (canonical, serializable form), else used as-is when a
+        callable. Bindings are the node's ``^`` attrs (excluding the
+        ``_de_*``/``_on_start`` markers), passed to ``func`` by kwarg name.
+        """
+        for node in self._walk_data_elements(self.source.parent_node):
+            self._run_data_element(node)
+
+    def _walk_data_elements(self, node: BuilderBagNode) -> Iterator[BuilderBagNode]:
+        """Yield data-element nodes in the subtree, in document order."""
+        value = node.value
+        if isinstance(value, Bag):
+            for child in value:
+                if child.attr.get("_is_data_element"):
+                    yield child
+                else:
+                    yield from self._walk_data_elements(child)
+
+    def _data_element_bindings(self, node: BuilderBagNode) -> dict[str, Any]:
+        """Resolve the node's binding pointers to current data values.
+
+        Bindings are the ``^`` string attrs whose name is not an internal
+        marker (``_de_*``/``_on_start``). Each is keyed by its kwarg name
+        and resolved against ``handler.data`` via ``abs_datapath``.
+        """
+        bindings: dict[str, Any] = {}
+        for name, value in node.attr.items():
+            if name.startswith("_"):
+                continue
+            if isinstance(value, str) and value.startswith("^"):
+                bindings[name] = self.data.get_item(node.abs_datapath(value))
+        return bindings
+
+    def _resolve_data_func(self, func: Any) -> Any:
+        """Return the callable for ``func`` (handler-method name or callable)."""
+        if callable(func):
+            return func
+        method = getattr(self, func, None)
+        if method is None:
+            raise AttributeError(
+                f"data-element func '{func}' is not a method of "
+                f"{type(self).__name__}"
+            )
+        return method
+
+    def _run_data_element(self, node: BuilderBagNode) -> None:
+        """Execute a single data-element node according to its kind."""
+        kind = node.attr.get("_de_kind")
+        if kind == "data":
+            value = node.attr.get("_de_value")
+            if isinstance(value, dict):
+                value = Bag(value)
+            node.set_relative_data(node.attr["_de_path"], value)
+            return
+        if not node.attr.get("_on_start"):
+            return
+        func = self._resolve_data_func(node.attr.get("_de_func"))
+        bindings = self._data_element_bindings(node)
+        if kind == "data_formula":
+            node.set_relative_data(node.attr["_de_path"], func(**bindings))
+        elif kind == "data_controller":
+            func(**bindings)
 
     def register_pointer(self, node: BuilderBagNode, unregister: bool = False) -> None:
         """Update ``self.pointer_map`` for the subtree rooted at ``node``.

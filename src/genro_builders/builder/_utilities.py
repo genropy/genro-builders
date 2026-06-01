@@ -259,18 +259,8 @@ def _decorated_method_info(
         )
     if decorator_info.get("abstract"):
         return [name], None, obj, decorator_info
-    elif decorator_info.get("data_element"):
-        tag_list: list[str] = [] if name.startswith("_") else [name]
-        tags_raw = decorator_info.get("tags")
-        if tags_raw:
-            if isinstance(tags_raw, str):
-                tag_list.extend(t.strip() for t in tags_raw.split(",") if t.strip())
-            else:
-                tag_list.extend(tags_raw)
-        handler_name = f"_dtel_{tag_list[0]}"
-        return tag_list, handler_name, obj, decorator_info
     else:
-        tag_list = [] if name.startswith("_") else [name]
+        tag_list: list[str] = [] if name.startswith("_") else [name]
         tags_raw = decorator_info.get("tags")
         if tags_raw:
             if isinstance(tags_raw, str):
@@ -306,13 +296,10 @@ def _pop_decorated_methods(cls: type, builder_base: type):
         if base is cls or base is object:
             continue
         if base is builder_base:
-            # Collect @data_element methods from BagBuilderBase
-            for name, obj in list(base.__dict__.items()):
-                if name in seen:
-                    continue
-                if hasattr(obj, "_decorator") and obj._decorator.get("data_element"):
-                    seen.add(name)
-                    yield _decorated_method_info(name, obj)
+            # BagBuilderBase contributes no schema elements. Its data-elements
+            # (data/data_formula/data_controller) are autonomous (carry
+            # ``_data_element_meta``, not ``_decorator``) and dispatch via the
+            # node __getattr__ branch, never through the schema.
             continue
         if issubclass(base, builder_base):
             continue

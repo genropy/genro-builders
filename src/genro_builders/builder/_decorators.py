@@ -7,8 +7,11 @@ function body: they replace the decorated function with an inert
 (``__name__``, ``__doc__``, ``_decorator``). Any body the user wrote
 is therefore unreachable.
 
-Body-bearing decorators (``@subbuilder``, ``@data_element``) keep the
-original function so the framework can call it later.
+Autonomous decorators (``@subbuilder``, ``@data``, ``@data_formula``,
+``@data_controller``) also ignore the body: they return a wrapper that
+calls a dedicated grammar method (``_attach_subbuilder`` /
+``_attach_data_element``) and carry their own meta (``_subbuilder_meta`` /
+``_data_element_meta``), dispatched via the node ``__getattr__``.
 
 Internal:
     _DeclarativeMarker -- inert wrapper for declarative decorators.
@@ -89,8 +92,7 @@ def _warn_if_body_present(func: Callable, decorator_name: str) -> None:
     if not _is_empty_body(func):
         warnings.warn(
             f"@{decorator_name} '{func.__name__}': the function body "
-            "is ignored. Declarative decorators only read the signature; "
-            "if you need a body, use @data_element or @subbuilder instead.",
+            "is ignored. Declarative decorators only read the signature.",
             stacklevel=3,
         )
 
@@ -284,36 +286,74 @@ def subbuilder(
 
 
 # ---------------------------------------------------------------------------
-# @data_element
+# Data-elements: data, data_formula, data_controller
 # ---------------------------------------------------------------------------
+#
+# Autonomous like @subbuilder: the decorated body is IGNORED (only
+# ``__name__``/``__doc__`` are read). Each returns a wrapper that, when the
+# element is written via the builder API, calls the grammar method
+# ``_attach_data_element`` to create a transparent source node (no markup).
+# The element's behaviour (writing the data bag, computing, side effects) is
+# NOT in the body: it runs later, in the handler's data-pass / reactivity.
+#
+# The three differ by graph role and output:
+#   data            -- leaf input: writes a literal value at ``path``.
+#   data_formula    -- writes the RETURN of ``func`` at ``path``.
+#   data_controller -- side effect / free writer: ``func`` writes the bag
+#                      itself (0..N paths), no declared ``path``.
+#
+# ``func`` is the canonical form a method-name string (resolved on the
+# handler) or any callable. Bindings (``^pointer`` kwargs) are the declared
+# inputs. ``_on_start`` (formula/controller) requests execution at the first
+# render; plain ``data`` always writes at create.
 
-def data_element(
-    tags: str | tuple[str, ...] | None = None,
-) -> Callable:
-    """Decorator for data infrastructure elements.
 
-    Data elements have a preprocessor body that returns (path, attrs_dict).
-    They are transparent in sub_tags validation and emit no markup at render time.
+def _make_data_element(kind: str, func: Callable) -> Callable:
+    """Build the autonomous wrapper for a data-element method (kind-tagged)."""
+    tag_name = func.__name__
 
-    The handler body receives the raw arguments and returns a tuple:
-        (path, attrs_dict) where path is the data path (None for controllers)
-        and attrs_dict is a dict of attributes.
+    def wrapper(self, node, *args, **attrs):
+        return self._attach_data_element(node, kind, tag_name, *args, **attrs)
 
-    Args:
-        tags: Tag names this method handles. If None, uses method name.
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
+    wrapper._data_element_meta = {  # type: ignore[attr-defined]
+        "kind": kind,
+        "tag_name": tag_name,
+    }
+    return wrapper
+
+
+def data(func: Callable) -> Callable:
+    """Declare a ``data`` leaf-input element: ``data(path, value)``.
+
+    Writes ``value`` into the data bag at ``path`` (relative or absolute);
+    a ``dict`` value becomes a ``Bag``. Written at create, always.
+    Body ignored (autonomous, like ``@subbuilder``).
     """
-    def decorator(func: Callable) -> Callable:
-        if _is_empty_body(func):
-            raise ValueError(
-                f"@data_element '{func.__name__}' must have a body"
-            )
-        func._decorator = {  # type: ignore[attr-defined]
-            "data_element": True,
-            "tags": tags,
-        }
-        return func
+    return _make_data_element("data", func)
 
-    return decorator
+
+def data_formula(func: Callable) -> Callable:
+    """Declare a ``data_formula`` element: ``data_formula(path, func, **bindings)``.
+
+    Writes the RETURN of ``func`` at ``path``. ``func`` is a handler-method
+    name (canonical) or a callable; ``bindings`` are ``^pointer`` kwargs
+    passed to ``func`` by name. Runs at start only with ``_on_start=True``;
+    otherwise reacts when its inputs change. Body ignored (autonomous).
+    """
+    return _make_data_element("data_formula", func)
+
+
+def data_controller(func: Callable) -> Callable:
+    """Declare a ``data_controller`` element: ``data_controller(func, **bindings)``.
+
+    Side effect / free writer: ``func`` reads its declared ``bindings`` and
+    may write any number of bag paths itself (no declared output ``path``).
+    Runs at start only with ``_on_start=True``; otherwise reacts when its
+    inputs change. Body ignored (autonomous).
+    """
+    return _make_data_element("data_controller", func)
 
 
 def struct_method(func_or_name):
@@ -331,7 +371,7 @@ def struct_method(func_or_name):
         @struct_method('alias')
         def some_internal_name(self, pane, ...): ...  # dispatch name: 'alias'
 
-    Body must not be empty (ellipsis); same convention as @data_element.
+    Body must not be empty (ellipsis): a struct-method carries real logic.
     """
     def _mark(func: Callable, explicit_name: str | None) -> Callable:
         if _is_empty_body(func):

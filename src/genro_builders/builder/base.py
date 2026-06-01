@@ -2,7 +2,8 @@
 """BagBuilderBase — grammar base class for Bag builders.
 
 A builder declares the grammar of a dialect via decorators
-(@element, @abstract, @subbuilder, @data_element) and the schema of
+(@element, @abstract, @subbuilder, and the data-elements @data /
+@data_formula / @data_controller) and the schema of
 valid tag placements (sub_tags, parent_tags). Engine responsibilities
 — source, the create/render phases, render_target, node_id index —
 live on the BuilderHandler (decisions 1, 8, 9).
@@ -23,6 +24,7 @@ from genro_bag import Bag
 
 from ..renderer import XmlRenderer
 from ..source_bag import BuilderSource
+from ._decorators import data, data_controller, data_formula
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
@@ -37,13 +39,13 @@ class BagBuilderBase(
     A builder declares the dialect via decorators:
         - @element: Pure schema elements (body MUST be empty)
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
-        - @data_element: Data-infrastructure elements.
 
-    Plus @subbuilder, which is **autonomous**: it does not pass through
-    ``__init_subclass__`` and does not appear in ``_class_schema``. Its
-    wrapper lives on the builder class as a regular method; dispatch is
+    Plus the **autonomous** decorators @subbuilder and the data-elements
+    (@data, @data_formula, @data_controller): they do not pass through
+    ``__init_subclass__`` and do not appear in ``_class_schema``. Their
+    wrappers live on the builder class as regular methods; dispatch is
     handled by ``_BuilderBagNodeMixin.__getattr__`` falling through to
-    ``_attach_subbuilder``.
+    ``_attach_subbuilder`` / ``_attach_data_element``.
 
     Engine concerns (source, lifecycle phases, render_target,
     node_id) belong to the BuilderHandler.
@@ -81,8 +83,8 @@ class BagBuilderBase(
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Build _class_schema Bag from decorated methods (@element,
-        @abstract, @data_element). @subbuilder is autonomous and is
-        not collected here."""
+        @abstract). @subbuilder and the data-elements are autonomous and
+        are not collected here."""
         super().__init_subclass__(**kwargs)
 
         parent_schema = None
@@ -104,7 +106,6 @@ class BagBuilderBase(
                 setattr(cls, method_name, obj)
 
             is_abstract = decorator_info.get("abstract", False)
-            is_data_element = decorator_info.get("data_element", False)
             sub_tags = decorator_info.get("sub_tags", "")
             parent_tags = decorator_info.get("parent_tags")
             inherits_from = decorator_info.get("inherits_from", "")
@@ -120,13 +121,6 @@ class BagBuilderBase(
                         parent_tags=parent_tags,
                         inherits_from=inherits_from,
                         _meta=meta,
-                        documentation=documentation,
-                    )
-                elif is_data_element:
-                    cls._class_schema.set_item(
-                        tag, None,
-                        handler_name=method_name,
-                        is_data_element=True,
                         documentation=documentation,
                     )
                 else:
@@ -274,6 +268,21 @@ class BagBuilderBase(
         root = BuilderSource(builder=self, handler=None)
         root.set_backref()
         return root
+
+    # -----------------------------------------------------------------------
+    # Data-elements (core, every dialect inherits them). Autonomous like
+    # @subbuilder: bodies ignored, dispatched via the node __getattr__ branch
+    # for ``_data_element_meta`` into ``_attach_data_element``.
+    # -----------------------------------------------------------------------
+
+    @data
+    def data(self): ...
+
+    @data_formula
+    def data_formula(self): ...
+
+    @data_controller
+    def data_controller(self): ...
 
     #: Default rendering mode used when ``render(mode=None)`` is called.
     #: Concrete dialects override this (e.g. ``"html"`` for HtmlBuilder).
