@@ -119,6 +119,7 @@ class HtmlRenderer(RendererBase):
         tag = node.node_tag or node.label
         attrs = self._format_attrs(runtime_attrs)
         if include_datapath:
+            attrs += self._auto_id_attr(node, runtime_attrs)
             attrs += self._datapath_attrs(node)
         depth = self._node_depth(node)
         indent = "  " * depth if pretty else ""
@@ -242,6 +243,33 @@ class HtmlRenderer(RendererBase):
             html_parts.append(f' style="{style_text}"')
 
         return "".join(html_parts)
+
+    def _auto_id_attr(self, node: Any, runtime_attrs: dict[str, Any]) -> str:
+        """Emit ``id="<struct-path>"`` for a pointer-bound node, if needed.
+
+        A node that carries at least one pointer (value or attribute) is
+        potentially reactive: it may later receive a value change pushed
+        from the server. To address it on the client (the future WebSocket
+        patch channel: "node <id> changed"), it needs a stable per-node DOM
+        identity. We use its structural path relative to the source root
+        (``Bag.relative_path``) — unique by construction, stable while the
+        structure does not change.
+
+        No-op when the node has no pointer (static node), or when an ``id``
+        is already present (the author's id wins). Only emitted under
+        ``include_datapath`` (the reactive render mode).
+        """
+        if "id" in runtime_attrs:
+            return ""
+        if not node.pointers():
+            return ""
+        handler = node._resolve_handler()
+        if handler is None:
+            return ""
+        path = handler.source.relative_path(node)
+        if path is None:
+            return ""
+        return f' id="{self._html_attr_value(path)}"'
 
     def _datapath_attrs(self, node: Any) -> str:
         """Emit ``data-<name>-pointer`` for every pointer-bound attribute.
