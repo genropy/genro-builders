@@ -1,21 +1,28 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""LiveDemoApp — AsgiApplication hosting a live HtmlBuilderHandler.
+"""LiveDemoApp — AsgiApplication hosting several live demo pages.
 
-Mounts on an ``AsgiServer`` and exposes a single-page app at ``/`` plus
-a set of ``@route()`` commands reachable both via HTTP and via WSX
-(WebSocket eXtended). The page held by ``self.page`` survives across
-calls; each command mutates it through the canonical builder API and
-the route returns the freshly-rendered HTML in ``data.html``. The
-browser updates the top panel from that value.
+Mounts on an ``AsgiServer`` and exposes a single-page app at ``/`` plus a
+Python REPL over WSX. Several demo pages (auto-discovered from ``pages/``)
+are instantiated up front and kept alive in parallel; one is "current".
+Selecting another demo only switches the pointer — each page keeps its own
+state and its own persistent REPL namespace.
 
-The route handlers are the **integration surface** of the demo: they
-exercise ``HtmlBuilderHandler`` (lifecycle, render), ``genro_routes``
-(dispatch via ``@route()``), ``genro_asgi`` (mount, HTTP and WSX
-dispatch in one router) all together.
+Each REPL snippet runs inside ``current_page.live()``, so every mutation
+re-renders the current page to the default target ``resources/out.html``,
+which the browser reloads in an ``<iframe>``.
 
-Replace ``DemoPage`` (or subclass ``LiveDemoApp`` overriding the
-``page_class`` attribute) to drive the demo against a different
-document.
+The REPL is the integration surface of the demo: it exercises
+``InteractiveDemo`` (an ``HtmlBuilderHandler`` with shortcuts),
+``genro_routes`` (``@route()`` dispatch) and ``genro_asgi`` (mount, HTTP
+and WSX) together.
+
+The snippet namespace exposes a single name, ``page`` (the current demo).
+From it you reach ``page.data``, ``page.set_data(...)``, ``page.node[id]``,
+etc.
+
+Security note: the REPL runs ``exec`` on code received over the socket.
+The builtins are reduced for clarity, NOT as a sandbox — this is a local
+developer tool. Do not expose it on a public interface.
 """
 
 from __future__ import annotations
@@ -26,9 +33,23 @@ from typing import Any
 from genro_asgi import AsgiApplication
 from genro_routes import route
 
-from .demo_page import DemoPage
+from . import pages
+from .interactive_demo import InteractiveDemo
 
 _PACKAGE_DIR = Path(__file__).parent
+_OUT_HTML = _PACKAGE_DIR / "resources" / "out.html"
+
+#: Builtins exposed to REPL snippets. Reduced for clarity (an honest,
+#: guided surface), NOT a security boundary.
+_REPL_BUILTINS = {
+    name: __builtins__[name] if isinstance(__builtins__, dict)
+    else getattr(__builtins__, name)
+    for name in (
+        "len", "range", "enumerate", "zip", "map", "filter", "sorted",
+        "str", "int", "float", "bool", "list", "dict", "tuple", "set",
+        "print", "repr", "abs", "min", "max", "sum", "any", "all",
+    )
+}
 
 
 def _pointer_kind(text: str) -> str | None:
@@ -46,44 +67,55 @@ def _pointer_kind(text: str) -> str | None:
 class LiveDemoApp(AsgiApplication):
     """Live HTML demo mounted as an ASGI application.
 
-    HTTP endpoints serve the SPA shell (``index.html``, ``app.js``).
-    WSX endpoints (same methods, reached via WebSocket) mutate the
-    page and return its current HTML.
+    HTTP endpoints serve the SPA shell (``index.html``, ``app.js``) and the
+    rendered document (``out.html``). WSX endpoints switch the current demo
+    (``select``), run snippets (``repl``) and return tree snapshots; the
+    rendered HTML travels through ``out.html``.
     """
 
     openapi_info = {
         "title": "Genro Builders Live Demo",
         "version": "0.1.0",
-        "description": "Interactive HTML builder over WebSocket.",
+        "description": "Interactive HTML builder REPL over WebSocket.",
     }
 
-    #: Override on a subclass to drive the demo against a different page.
-    page_class: type[DemoPage] = DemoPage
-
     def __init__(self, **kwargs: Any) -> None:
-        """Wire ``base_dir`` to the package directory by default.
-
-        ``AsgiApplication`` reads ``base_dir`` to locate ``resources/``
-        (where ``index.html`` and ``app.js`` live). Defaulting it to
-        the package directory makes the demo work out of the box: the
-        caller does not need to know where the resources are stored.
-        """
+        """Wire ``base_dir`` to the package directory by default."""
         kwargs.setdefault("base_dir", _PACKAGE_DIR)
         super().__init__(**kwargs)
 
     def on_init(self, **kwargs: Any) -> None:
-        """Build the initial page and seed its data.
+        """Discover and instantiate all demo pages, render the current one.
 
-        Called by ``AsgiApplication.__init__``. The page is created
-        once and lives for the whole server lifetime.
+        Every page is created, seeded, given ``out.html`` as default render
+        target, and rendered once. ``self.demos`` maps key → handler,
+        ``self.titles`` key → title, ``self.namespaces`` key → persistent
+        REPL namespace. ``self.current`` is the selected key (the first one
+        by sort order). The initial ``render()`` makes ``out.html`` exist
+        before the browser's iframe loads it.
         """
-        self.page = self.page_class()
-        self.page.create()
-        self.page.data.set_item("page.title", "Hello")
-        self.page.data.set_item("page.message", "Modifica i dati dalla REPL.")
+        discovered = pages.discover()
+        self.demos: dict[str, InteractiveDemo] = {}
+        self.titles: dict[str, str] = {}
+        self.namespaces: dict[str, dict[str, Any]] = {}
+        for key, (title, demo_class) in discovered.items():
+            page = demo_class()
+            page.create()
+            page.set_render_target("html", str(_OUT_HTML), default=True)
+            page.seed()
+            self.demos[key] = page
+            self.titles[key] = title
+            self.namespaces[key] = {"__builtins__": _REPL_BUILTINS, "page": page}
+        self.current: str = next(iter(self.demos))
+        self.demos[self.current].render()
+
+    @property
+    def page(self) -> InteractiveDemo:
+        """The current demo handler."""
+        return self.demos[self.current]
 
     # ------------------------------------------------------------------
-    # Static SPA shell — served via HTTP only (no payload via WSX)
+    # Static SPA shell + rendered document — served via HTTP
     # ------------------------------------------------------------------
 
     @route(meta_mime_type="text/html")
@@ -96,124 +128,78 @@ class LiveDemoApp(AsgiApplication):
         """Return the SPA client JavaScript."""
         return self._load_text("app.js")
 
-    # ------------------------------------------------------------------
-    # Commands — reachable via WSX (and via HTTP for poking with curl)
-    # ------------------------------------------------------------------
+    @route(meta_mime_type="text/html")
+    def out(self, **_ignored: Any) -> str:
+        """Return the current rendered document (the live target file).
 
-    @route()
-    def render(self) -> dict[str, Any]:
-        """Return the current rendered HTML and a snapshot of both trees."""
-        return self._respond()
-
-    @route()
-    def set_data(self, path: str, value: Any) -> dict[str, Any]:
-        """Set a value into ``page.data`` and re-render."""
-        self.page.data.set_item(path, value)
-        return self._respond(ok=True)
-
-    @route()
-    def get_data(self, path: str) -> dict[str, Any]:
-        """Read a value from ``page.data``."""
-        return {"value": self.page.data.get_item(path)}
-
-    @route()
-    def keys(self, path: str = "") -> dict[str, Any]:
-        """List keys of ``page.data`` at ``path`` (root if empty)."""
-        bag = self.page.data.get_item(path) if path else self.page.data
-        return {"keys": list(bag.keys()) if hasattr(bag, "keys") else []}
-
-    @route()
-    def set_attr(self, node_id: str, attr: str, value: Any) -> dict[str, Any]:
-        """Set one attribute on the node identified by ``node_id``."""
-        node = self.page.node_by_id(node_id)
-        node.set_attr({attr: value})
-        return self._respond(ok=True)
-
-    @route()
-    def set_value(self, node_id: str, value: Any) -> dict[str, Any]:
-        """Replace ``node.value`` on the node identified by ``node_id``."""
-        node = self.page.node_by_id(node_id)
-        node.set_value(value)
-        return self._respond(ok=True)
-
-    @route()
-    def add_child(
-        self,
-        parent_id: str,
-        tag: str,
-        text: Any = None,
-        **attrs: Any,
-    ) -> dict[str, Any]:
-        """Append a new ``<tag>`` child under ``parent_id``.
-
-        ``text`` becomes the node's value when present. Any other kwarg
-        is forwarded to the grammar element as an attribute.
+        Accepts and ignores extra query params (the browser appends a
+        ``?t=<timestamp>`` cache-buster when reloading the iframe).
         """
-        parent = self.page.node_by_id(parent_id)
-        method = getattr(parent, tag)
-        if text is not None:
-            method(text, **attrs)
-        else:
-            method(**attrs)
-        return self._respond(ok=True)
+        return self._load_text("out.html")
+
+    # ------------------------------------------------------------------
+    # Demo selection + REPL — reachable via WSX
+    # ------------------------------------------------------------------
 
     @route()
-    def remove_child(self, parent_id: str, label: str) -> dict[str, Any]:
-        """Remove the child identified by ``label`` under ``parent_id``."""
-        parent_bag = self.page.node_by_id(parent_id).value
-        parent_bag.pop_node(label)
-        return self._respond(ok=True)
+    def menu(self) -> dict[str, Any]:
+        """Return the demo menu and the current selection."""
+        return {
+            "demos": [{"key": k, "title": self.titles[k]} for k in self.demos],
+            "current": self.current,
+        }
+
+    @route()
+    def select(self, key: str) -> dict[str, Any]:
+        """Switch the current demo to ``key`` and re-render it to out.html."""
+        if key not in self.demos:
+            return {"ok": False, "error": f"unknown demo: {key}"}
+        self.current = key
+        self.page.render()
+        return {
+            "ok": True,
+            "current": key,
+            "source": self._source_tree(),
+            "data": self._data_tree(),
+        }
+
+    @route()
+    def repl(self, source: str) -> dict[str, Any]:
+        """Run a Python ``source`` snippet against the current demo.
+
+        The snippet runs inside ``page.live()``, so every mutation
+        re-renders to ``out.html``. Uses the current demo's persistent
+        namespace (variables survive across runs, per demo). Returns the
+        source/data tree snapshots; the HTML is picked up by the browser
+        reloading ``out.html``. On error returns the exception text.
+        """
+        try:
+            with self.page.live():
+                exec(source, self.namespaces[self.current])
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        return {
+            "ok": True,
+            "source": self._source_tree(),
+            "data": self._data_tree(),
+        }
 
     @route()
     def tree_source(self) -> dict[str, Any]:
-        """Return only the source tree snapshot (no HTML, no data tree)."""
+        """Return only the current demo's source tree snapshot."""
         return {"source": self._source_tree()}
 
     @route()
     def tree_data(self) -> dict[str, Any]:
-        """Return only the data tree snapshot (no HTML, no source tree)."""
+        """Return only the current demo's data tree snapshot."""
         return {"data": self._data_tree()}
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _respond(self, ok: bool | None = None) -> dict[str, Any]:
-        """Build a standard response: html + source tree + data tree.
-
-        Used by every mutator route and by ``render`` so that the
-        browser can update all three panels from a single message.
-        """
-        payload: dict[str, Any] = {
-            "html": self.page.render(),
-            "source": self._source_tree(),
-            "data": self._data_tree(),
-        }
-        if ok is not None:
-            payload["ok"] = ok
-        return payload
-
     def _source_tree(self) -> dict[str, Any]:
-        """Build a JSON-safe snapshot of the source bag.
-
-        Top-level shape::
-
-            {"kind": "root", "children": [node, node, ...]}
-
-        Each node has::
-
-            {
-                "label": <bag label, e.g. "h1_0">,
-                "tag":   <node_tag or label>,
-                "attrs": { ... user attributes ... },
-                "value": {
-                    "kind": "literal"|"pointer"|"bag"|"none",
-                    "raw":  <text>  # only when kind != "bag"
-                    "pointer_kind": "caret"|"equals"  # only when kind == "pointer"
-                },
-                "children": [ ... only when value.kind == "bag" ... ]
-            }
-        """
+        """Build a JSON-safe snapshot of the current demo's source bag."""
         roots: list[dict[str, Any]] = []
         for node in self.page.source:
             roots.append(self._serialize_source_node(node))
@@ -251,21 +237,7 @@ class LiveDemoApp(AsgiApplication):
         return node_info
 
     def _data_tree(self) -> dict[str, Any]:
-        """Build a JSON-safe snapshot of the data bag.
-
-        Top-level shape::
-
-            {"kind": "root", "children": [entry, entry, ...]}
-
-        Each entry has::
-
-            {
-                "key":   <bag key>,
-                "kind":  "bag" | "scalar",
-                "value": <repr>           # only when kind == "scalar"
-                "children": [ ... ]       # only when kind == "bag"
-            }
-        """
+        """Build a JSON-safe snapshot of the current demo's data bag."""
         return {"kind": "root", "children": self._serialize_bag(self.page.data)}
 
     def _serialize_bag(self, bag: Any) -> list[dict[str, Any]]:
@@ -298,9 +270,7 @@ class LiveDemoApp(AsgiApplication):
 def _scalar(value: Any) -> Any:
     """Return a JSON-safe representation of ``value``.
 
-    Primitive types pass through. Anything else is stringified so the
-    response can be serialised even when a node holds an opaque Python
-    object.
+    Primitive types pass through. Anything else is stringified.
     """
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
@@ -309,4 +279,4 @@ def _scalar(value: Any) -> Any:
 
 if __name__ == "__main__":
     app = LiveDemoApp()
-    print(f"page rendered:\n{app.page.render()}")
+    print(f"current demo: {app.current}\n{app.page.render()}")

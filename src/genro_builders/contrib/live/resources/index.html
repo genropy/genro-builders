@@ -4,6 +4,12 @@
 <head>
   <meta charset="UTF-8">
   <title>Genro Builders Live Demo</title>
+  <!-- CodeMirror is a progressive enhancement: if these fail to load
+       (offline, CDN down), app.js falls back to the plain <textarea>. -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -44,6 +50,27 @@
       display: flex;
       flex-direction: column;
       background: #1e1e1e;
+    }
+
+    /* Demo selector bar at the top of the right pane. */
+    #demo-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: #252526;
+      border-bottom: 1px solid #333;
+    }
+    #demo-label { color: #9cdcfe; font-size: 11px; text-transform: uppercase; }
+    #demo-select {
+      flex: 1;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border: 1px solid #444;
+      padding: 4px 6px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
     }
 
     /* Top of right pane: two trees side by side. */
@@ -118,29 +145,47 @@
     #history .entry-err { color: #f48771; }
     #history .entry-meta { color: #777; font-size: 11px; }
 
-    /* Input row pinned at the very bottom. */
-    #input-row {
+    /* Editor area pinned at the bottom: a Python snippet + Run button. */
+    #editor-row {
       display: flex;
-      padding: 6px 8px;
+      flex-direction: column;
+      height: 34%;
+      min-height: 140px;
       background: #252526;
       border-top: 1px solid #333;
     }
-    #prompt {
-      color: #4ec9b0;
-      padding: 6px 6px 6px 0;
-      user-select: none;
-    }
-    #cmd {
+    #editor {
       flex: 1;
+      width: 100%;
       background: #1e1e1e;
       color: #d4d4d4;
-      border: 1px solid #444;
-      padding: 6px 8px;
-      font-family: inherit;
-      font-size: inherit;
+      border: none;
+      padding: 8px;
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.45;
+      resize: none;
       outline: none;
     }
-    #cmd:focus { border-color: #007acc; }
+    /* CodeMirror, when present, fills the same box. */
+    #editor-row .CodeMirror { flex: 1; height: auto; font-size: 13px; }
+    #editor-actions {
+      display: flex;
+      justify-content: flex-end;
+      padding: 6px 8px;
+      border-top: 1px solid #333;
+    }
+    #run {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 6px 16px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #run:hover { background: #1b8fd6; }
+    #hint { color: #777; font-size: 11px; margin-right: auto; padding-top: 7px; }
 
     #status {
       padding: 3px 12px;
@@ -155,9 +200,13 @@
 <body>
   <div id="render">
     <div id="render-header">Rendered HTML</div>
-    <iframe id="render-iframe" srcdoc=""></iframe>
+    <iframe id="render-iframe" src="out"></iframe>
   </div>
   <div id="right">
+    <div id="demo-bar">
+      <span id="demo-label">Demo:</span>
+      <select id="demo-select"></select>
+    </div>
     <div id="trees">
       <div class="tree-pane">
         <div class="tree-header">Source bag</div>
@@ -168,16 +217,18 @@
         <div id="data-tree" class="tree tree-body"></div>
       </div>
     </div>
-    <div id="history"><span class="entry-meta">Type a command and press Enter. Examples:
-  render
-  set_data page.title "Live!"
-  set_attr h1 style "color:red"
-  add_child body p text="aggiunto"
-  remove_child body p_0</span></div>
-    <div id="input-row">
-      <span id="prompt">&gt;</span>
-      <input id="cmd" type="text" autocomplete="off" spellcheck="false"
-             placeholder="set_data page.title &quot;ciao&quot;">
+    <div id="history"><span class="entry-meta">Write a Python snippet and Run (Ctrl/Cmd+Enter).
+The namespace exposes `page` and persists across runs (per demo). Examples:
+  page.set_data("page.title", "Live!")
+  page.node["h1"].set_attr({"style": "color:red"})
+  body = page.node["body"]; body.p("a new paragraph")</span></div>
+    <div id="editor-row">
+      <textarea id="editor" spellcheck="false" autocomplete="off"
+                placeholder='page.data.set_item("page.title", "Ciao")'></textarea>
+      <div id="editor-actions">
+        <span id="hint">Ctrl/Cmd+Enter to run</span>
+        <button id="run" type="button">Run</button>
+      </div>
     </div>
     <div id="status">connecting…</div>
   </div>

@@ -104,44 +104,69 @@ def _path(cmd: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _title_in_data_tree(resp: dict[str, Any]) -> Any:
+    """Pull page.title out of a repl response's data-tree snapshot."""
+    page_entry = resp["data"]["data"]["children"][0]
+    title = next(c for c in page_entry["children"] if c["key"] == "title")
+    return title["value"]
+
+
 @pytest.mark.asyncio
-async def test_render_returns_initial_html(server: AsgiServer) -> None:
-    """``render`` over WSX returns the initial seeded HTML."""
-    msg = build_wsx_message(id="r1", method="POST", path=_path("render"))
+async def test_tree_source_returns_initial_shape(server: AsgiServer) -> None:
+    """``tree_source`` over WSX returns the initial document shape."""
+    msg = build_wsx_message(id="r1", method="POST", path=_path("tree_source"))
     responses = await _send(server, [msg])
     assert len(responses) == 1
     resp = responses[0]
     assert resp["id"] == "r1"
     assert resp["status"] == 200
-    assert "Hello" in resp["data"]["html"]
+    body = resp["data"]["source"]["children"][0]
+    assert body["tag"] == "body"
 
 
 @pytest.mark.asyncio
-async def test_set_data_then_render_reflects_change(server: AsgiServer) -> None:
-    """A ``set_data`` followed by a ``render`` shows the new value."""
-    set_msg = build_wsx_message(
-        id="s1", method="POST", path=_path("set_data"),
-        query={"path": "page.title", "value": "Live!"},
+async def test_repl_set_data_reflected_in_data_tree(server: AsgiServer) -> None:
+    """A repl snippet writing page.title shows up in the returned data tree."""
+    snippet = 'page.data.set_item("page.title", "Live!")'
+    msg = build_wsx_message(
+        id="s1", method="POST", path=_path("repl"),
+        query={"source": snippet},
     )
-    render_msg = build_wsx_message(id="r1", method="POST", path=_path("render"))
-    responses = await _send(server, [set_msg, render_msg])
+    responses = await _send(server, [msg])
     by_id = {r["id"]: r for r in responses}
     assert by_id["s1"]["status"] == 200
     assert by_id["s1"]["data"]["ok"] is True
-    assert "Live!" in by_id["s1"]["data"]["html"]
-    assert "Live!" in by_id["r1"]["data"]["html"]
+    assert _title_in_data_tree(by_id["s1"]) == "Live!"
 
 
 @pytest.mark.asyncio
-async def test_add_child_via_wsx(server: AsgiServer) -> None:
-    """``add_child`` over WSX appends a node visible in the next render."""
+async def test_repl_add_child_via_wsx(server: AsgiServer) -> None:
+    """A repl snippet appending a node shows it in the returned source tree."""
+    snippet = 'page.node_by_id("body").p("WSX!", node_id="extra")'
     msg = build_wsx_message(
-        id="a1", method="POST", path=_path("add_child"),
-        query={"parent_id": "body", "tag": "p", "text": "WSX!"},
+        id="a1", method="POST", path=_path("repl"),
+        query={"source": snippet},
     )
     responses = await _send(server, [msg])
     assert responses[0]["status"] == 200
-    assert "WSX!" in responses[0]["data"]["html"]
+    body = responses[0]["data"]["source"]["children"][0]
+    child_ids = [c["attrs"].get("node_id") for c in body["children"]]
+    assert "extra" in child_ids
+
+
+@pytest.mark.asyncio
+async def test_repl_error_returns_envelope(server: AsgiServer) -> None:
+    """A failing snippet returns a well-formed envelope with ok=False."""
+    msg = build_wsx_message(
+        id="e1", method="POST", path=_path("repl"),
+        query={"source": "1 / 0"},
+    )
+    responses = await _send(server, [msg])
+    assert len(responses) == 1
+    assert responses[0]["id"] == "e1"
+    assert responses[0]["status"] == 200
+    assert responses[0]["data"]["ok"] is False
+    assert "ZeroDivisionError" in responses[0]["data"]["error"]
 
 
 @pytest.mark.asyncio

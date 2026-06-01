@@ -1,10 +1,12 @@
 // Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 // SPA client for the live HTML demo.
 //
-// Opens a WebSocket to the same server, parses REPL commands into WSX
-// messages, sends them, and updates the right-hand iframe whenever the
-// server's response includes an "html" field. It also renders the
-// "source" and "data" trees as expand/collapse views.
+// Opens a WebSocket to the same server, sends the editor's Python snippet
+// to the `repl` route, and on each successful response reloads the
+// rendered document in the left iframe (served as out.html) and redraws
+// the source/data trees. The editor is a plain <textarea>, optionally
+// upgraded to CodeMirror when that library is reachable (progressive
+// enhancement with a clean fallback).
 
 (function () {
   "use strict";
@@ -13,27 +15,26 @@
   const $sourceTree = document.getElementById("source-tree");
   const $dataTree = document.getElementById("data-tree");
   const $history = document.getElementById("history");
-  const $cmd = document.getElementById("cmd");
+  const $editor = document.getElementById("editor");
+  const $run = document.getElementById("run");
   const $status = document.getElementById("status");
+  const $demoSelect = document.getElementById("demo-select");
 
-  // The SPA shell is served by the mounted app at
-  //   GET /<mount>/index
-  // so location.pathname is "/<mount>/index". Stripping "/index" leaves
-  // the URL prefix we need to talk to the same app's routes (HTTP and
-  // WebSocket alike). Defaults to "/" when no /index segment is present.
+  // The SPA shell is served by the mounted app at GET /<mount>/index, so
+  // location.pathname is "/<mount>/index". Stripping "/index" leaves the
+  // URL prefix to talk to the same app's routes (HTTP and WebSocket).
   const APP_PREFIX = (function () {
     const p = location.pathname.replace(/\/index\/?$/, "");
     return p.endsWith("/") ? p : p + "/";
   })();
 
-  // Pending WSX requests indexed by id, so we can label responses with
-  // the original command line in the history pane.
   const pending = new Map();
   let ws = null;
   let nextId = 1;
 
-  // Expanded-state sets keyed by stable tree-path strings. Survive
-  // re-renders so a mutation does not collapse every open node.
+  // CodeMirror instance, set if the enhancement loads. Null → use textarea.
+  let cm = null;
+
   const sourceExpanded = new Set();
   const dataExpanded = new Set();
 
@@ -67,103 +68,42 @@
   }
 
   // -----------------------------------------------------------
-  // Command line parser
-  //
-  // Token rules:
-  //   - whitespace separates tokens
-  //   - "..." groups a single token (\\\" inside escapes the quote)
-  //   - foo=bar makes a named argument; quoted RHS allowed (foo="x y")
-  //   - bare 42 / true / false / null are coerced to their literals
+  // Editor — textarea, optionally upgraded to CodeMirror
   // -----------------------------------------------------------
 
-  function tokenize(line) {
-    const tokens = [];
-    let i = 0;
-    while (i < line.length) {
-      while (i < line.length && /\s/.test(line[i])) i++;
-      if (i >= line.length) break;
-      let token = "";
-      if (line[i] === '"') {
-        i++;
-        while (i < line.length && line[i] !== '"') {
-          if (line[i] === "\\" && i + 1 < line.length) { token += line[i + 1]; i += 2; }
-          else { token += line[i]; i++; }
-        }
-        i++; // closing "
-        tokens.push({ raw: token, quoted: true });
-      } else {
-        while (i < line.length && !/\s/.test(line[i])) { token += line[i]; i++; }
-        tokens.push({ raw: token, quoted: false });
-      }
-    }
-    return tokens;
+  function editorValue() {
+    return cm ? cm.getValue() : $editor.value;
   }
 
-  function coerce(tok) {
-    if (tok.quoted) return tok.raw;
-    const s = tok.raw;
-    if (s === "true") return true;
-    if (s === "false") return false;
-    if (s === "null") return null;
-    if (/^-?\d+$/.test(s)) return parseInt(s, 10);
-    if (/^-?\d+\.\d+$/.test(s)) return parseFloat(s);
-    return s;
+  function clearEditor() {
+    if (cm) cm.setValue("");
+    else $editor.value = "";
   }
 
-  function parseLine(line) {
-    const tokens = tokenize(line);
-    if (tokens.length === 0) return null;
-    const cmd = tokens[0].raw;
-    const positional = [];
-    const named = {};
-    for (let i = 1; i < tokens.length; i++) {
-      const tok = tokens[i];
-      const eq = tok.quoted ? -1 : tok.raw.indexOf("=");
-      if (eq > 0) {
-        const k = tok.raw.slice(0, eq);
-        const rest = tok.raw.slice(eq + 1);
-        named[k] = coerce({ raw: rest, quoted: false });
-      } else {
-        positional.push(coerce(tok));
-      }
-    }
-    return { cmd, positional, named };
-  }
-
-  // Map positional args to named parameters so `set_data page.title "ciao"`
-  // works without remembering keyword names. Unknown commands forward
-  // positional args under p1/p2/... so the server can return a clean 404.
-  const POSITIONAL_SCHEMAS = {
-    render:        [],
-    set_data:      ["path", "value"],
-    get_data:      ["path"],
-    keys:          ["path"],
-    set_attr:      ["node_id", "attr", "value"],
-    set_value:     ["node_id", "value"],
-    add_child:     ["parent_id", "tag", "text"],
-    remove_child:  ["parent_id", "label"],
-    tree_source:   [],
-    tree_data:     [],
-  };
-
-  function buildQuery(parsed) {
-    const schema = POSITIONAL_SCHEMAS[parsed.cmd];
-    const query = Object.assign({}, parsed.named);
-    if (schema) {
-      parsed.positional.forEach(function (val, i) {
-        if (i < schema.length) query[schema[i]] = val;
-      });
-    } else {
-      parsed.positional.forEach(function (val, i) { query["p" + (i + 1)] = val; });
-    }
-    return query;
+  // Try to upgrade the textarea to CodeMirror. If the library is not
+  // present (CDN unreachable, offline), this is a no-op and the plain
+  // textarea keeps working.
+  function tryEnhanceEditor() {
+    if (typeof window.CodeMirror !== "function") return;
+    cm = window.CodeMirror.fromTextArea($editor, {
+      mode: "python",
+      lineNumbers: true,
+      indentUnit: 4,
+      theme: "default",
+    });
+    cm.setSize("100%", "100%");
+    // Ctrl/Cmd+Enter runs from inside CodeMirror.
+    cm.setOption("extraKeys", {
+      "Ctrl-Enter": runSnippet,
+      "Cmd-Enter": runSnippet,
+    });
   }
 
   // -----------------------------------------------------------
   // Tree renderer (source and data share the same building blocks)
   //
-  // Expand/collapse state is keyed by a stable path string built from
-  // the tree structure. Re-rendering keeps the open nodes open.
+  // Expand/collapse state is keyed by a stable path string built from the
+  // tree structure. Re-rendering keeps the open nodes open.
   // -----------------------------------------------------------
 
   function renderSourceTree(container, root) {
@@ -195,7 +135,6 @@
       caret.addEventListener("click", function () {
         if (openSet.has(path)) openSet.delete(path);
         else openSet.add(path);
-        // Local rebuild only — full re-render would lose user scroll.
         const newLi = buildSourceNode(node, path, openSet);
         li.replaceWith(newLi);
       });
@@ -292,50 +231,80 @@
   }
 
   // -----------------------------------------------------------
+  // Iframe reload — the rendered HTML lives in out.html, which
+  // page.live() rewrites on every mutation. We just reload it.
+  // -----------------------------------------------------------
+
+  function reloadIframe() {
+    $iframe.src = APP_PREFIX + "out?t=" + Date.now();
+  }
+
+  // -----------------------------------------------------------
   // WebSocket lifecycle and message handlers
   // -----------------------------------------------------------
 
-  function send(line) {
+  function runSnippet() {
+    const source = editorValue();
+    if (!source.trim()) return;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       appendEntry('<span class="entry-err">not connected</span>');
       return;
     }
-    const parsed = parseLine(line);
-    if (!parsed) return;
     const id = String(nextId++);
     const wsx = {
       id: id,
       method: "POST",
-      path: APP_PREFIX + parsed.cmd,
-      query: buildQuery(parsed),
+      path: APP_PREFIX + "repl",
+      query: { source: source },
     };
-    pending.set(id, { cmd: parsed.cmd, line: line });
+    pending.set(id, { source: source });
     ws.send("WSX://" + JSON.stringify(wsx));
-    appendEntry('<span class="entry-cmd">&gt; ' + escapeHtml(line) + "</span>");
+    appendEntry('<span class="entry-cmd">&gt; ' +
+      escapeHtml(source) + "</span>");
+    clearEditor();
   }
 
-  function applyResponseData(data) {
+  // Fire-and-track a WSX command (menu/select/tree_*) with no editor echo.
+  function sendCommand(cmd, query) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    const id = String(nextId++);
+    ws.send("WSX://" + JSON.stringify({
+      id: id, method: "POST", path: APP_PREFIX + cmd, query: query || {},
+    }));
+  }
+
+  function applyTrees(data) {
     if (!data || typeof data !== "object") return;
-    if (typeof data.html === "string") $iframe.srcdoc = data.html;
     if (data.source) renderSourceTree($sourceTree, data.source);
     if (data.data) renderDataTree($dataTree, data.data);
+  }
+
+  function populateMenu(data) {
+    $demoSelect.innerHTML = "";
+    (data.demos || []).forEach(function (d) {
+      const opt = document.createElement("option");
+      opt.value = d.key;
+      opt.textContent = d.title;
+      if (d.key === data.current) opt.selected = true;
+      $demoSelect.appendChild(opt);
+    });
   }
 
   function handleResponse(msg) {
     pending.delete(msg.id);
     const data = msg.data;
-    if (msg.status !== 200) {
+    if (msg.status !== 200 || (data && data.ok === false)) {
       const err = data && data.error ? data.error : "status " + msg.status;
       appendEntry('<span class="entry-err">! ' + escapeHtml(err) + "</span>");
       return;
     }
-    applyResponseData(data);
-    const summary = Object.keys(data || {})
-      .filter(function (k) { return k !== "html" && k !== "source" && k !== "data"; })
-      .map(function (k) { return k + "=" + JSON.stringify(data[k]); })
-      .join(" ");
-    appendEntry('<span class="entry-ok">' +
-      (summary ? escapeHtml(summary) : "ok") + "</span>");
+    // A menu response carries the demo list; everything else carries trees.
+    if (data && data.demos) {
+      populateMenu(data);
+      return;
+    }
+    applyTrees(data);
+    reloadIframe();
   }
 
   function connect() {
@@ -346,8 +315,11 @@
     ws.onopen = function () {
       setStatus("connected", true);
       seedDefaultExpansion();
-      // Pull initial state so the iframe and trees are populated.
-      send("render");
+      reloadIframe();
+      // Populate the demo menu and pull the current demo's trees.
+      sendCommand("menu");
+      sendCommand("tree_source");
+      sendCommand("tree_data");
     };
     ws.onclose = function () {
       setStatus("disconnected — retrying in 2s", false);
@@ -370,13 +342,22 @@
     };
   }
 
-  $cmd.addEventListener("keydown", function (e) {
-    if (e.key !== "Enter") return;
-    const line = $cmd.value.trim();
-    $cmd.value = "";
-    if (line) send(line);
+  // Demo selector: switching re-renders the chosen demo and refreshes trees.
+  $demoSelect.addEventListener("change", function () {
+    sendCommand("select", { key: $demoSelect.value });
+    appendEntry('<span class="entry-meta">— switched to ' +
+      escapeHtml($demoSelect.value) + " —</span>");
   });
 
-  $cmd.focus();
+  // Run button + Ctrl/Cmd+Enter on the plain textarea.
+  $run.addEventListener("click", runSnippet);
+  $editor.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      runSnippet();
+    }
+  });
+
+  tryEnhanceEditor();
   connect();
 })();

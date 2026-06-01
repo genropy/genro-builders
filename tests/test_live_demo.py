@@ -3,8 +3,12 @@
 
 Route methods are plain sync methods of ``LiveDemoApp`` — they can be
 called directly in tests with no asyncio, no fake transport, no server
-on a real socket. We invoke each one on a fresh app instance and check
-that the returned ``html`` reflects the requested mutation.
+on a real socket. We invoke ``repl(...)`` / ``out()`` / the tree routes
+on a fresh app instance and check the observable result: the rendered
+``out.html`` and the tree snapshots.
+
+The REPL namespace exposes a single name, ``page``; snippets mutate the
+document through the canonical builder API.
 
 End-to-end routing (the ``@route()`` decorator + ``WsxHandler``
 dispatch) is covered in ``test_live_demo_e2e.py``.
@@ -21,7 +25,7 @@ from genro_builders.contrib.live import LiveDemoApp
 
 @pytest.fixture
 def app() -> LiveDemoApp:
-    """Fresh app with the default DemoPage seeded with ``Hello``/``Modifica…``."""
+    """Fresh app; the current demo is ``basic`` seeded with ``Hello``/``Scrivi…``."""
     return LiveDemoApp()
 
 
@@ -30,98 +34,111 @@ def app() -> LiveDemoApp:
 # ---------------------------------------------------------------------------
 
 
-def test_initial_render_contains_seed_data(app: LiveDemoApp) -> None:
-    """The factory page renders the seeded title and message."""
-    html = app.render()["html"]
+def test_out_contains_seed_data(app: LiveDemoApp) -> None:
+    """``on_init`` renders the seeded title and message to out.html."""
+    html = app.out()
     assert "Hello" in html
-    assert "Modifica i dati dalla REPL." in html
+    assert "Scrivi codice Python nella REPL." in html
 
 
-def test_initial_data_keys(app: LiveDemoApp) -> None:
+def test_initial_data_tree_keys(app: LiveDemoApp) -> None:
     """``page.data`` exposes the two seeded keys under ``page``."""
-    keys = app.keys(path="page")["keys"]
-    assert "title" in keys
-    assert "message" in keys
+    page_entry = app.tree_data()["data"]["children"][0]
+    keys = {child["key"] for child in page_entry["children"]}
+    assert {"title", "message"} <= keys
 
 
 # ---------------------------------------------------------------------------
-# Data mutations
+# REPL — data mutations
 # ---------------------------------------------------------------------------
 
 
-def test_set_data_updates_render(app: LiveDemoApp) -> None:
-    """``set_data`` writes through and the new value shows up in HTML."""
-    result = app.set_data(path="page.title", value="Live!")
+def test_repl_set_data_updates_out(app: LiveDemoApp) -> None:
+    """A snippet writing into page.data re-renders out.html."""
+    result = app.repl('page.data.set_item("page.title", "Live!")')
     assert result["ok"] is True
-    assert "Live!" in result["html"]
-    assert "Hello" not in result["html"]
+    html = app.out()
+    assert "Live!" in html
+    assert "Hello" not in html
 
 
-def test_get_data_round_trip(app: LiveDemoApp) -> None:
-    """``set_data`` then ``get_data`` returns the value written."""
-    app.set_data(path="page.title", value="Round")
-    assert app.get_data(path="page.title")["value"] == "Round"
+def test_repl_namespace_persists_across_runs(app: LiveDemoApp) -> None:
+    """Variables defined in one snippet survive into the next (real REPL)."""
+    app.repl("x = 7")
+    result = app.repl('page.data.set_item("page.title", str(x * 6))')
+    assert result["ok"] is True
+    assert "42" in app.out()
 
 
-def test_set_data_into_fresh_path(app: LiveDemoApp) -> None:
-    """A new path under ``page.data`` becomes addressable."""
-    app.set_data(path="page.custom", value=42)
-    assert app.get_data(path="page.custom")["value"] == 42
-    assert "custom" in app.keys(path="page")["keys"]
+def test_repl_error_is_returned_not_raised(app: LiveDemoApp) -> None:
+    """A failing snippet returns ``ok=False`` + error text, does not raise."""
+    result = app.repl("1 / 0")
+    assert result["ok"] is False
+    assert "ZeroDivisionError" in result["error"]
 
 
 # ---------------------------------------------------------------------------
-# Attribute mutations
+# REPL — attribute and structure mutations
 # ---------------------------------------------------------------------------
 
 
-def test_set_attr_applies_to_html(app: LiveDemoApp) -> None:
-    """``set_attr`` on a node id ends up in the rendered tag.
+def test_repl_set_attr_applies_to_out(app: LiveDemoApp) -> None:
+    """A snippet setting an attribute ends up in the rendered tag.
 
-    The renderer normalises CSS declarations (``color:red`` →
-    ``color: red``) when emitting the ``style`` attribute.
+    The renderer normalises CSS (``color:red`` → ``color: red``).
     """
-    result = app.set_attr(node_id="h1", attr="style", value="color:red")
-    assert result["ok"] is True
-    assert "color: red" in result["html"]
-
-
-def test_set_value_replaces_node_value(app: LiveDemoApp) -> None:
-    """``set_value`` replaces ``node.value`` (overriding the pointer)."""
-    result = app.set_value(node_id="msg", value="Sostituito")
-    assert "Sostituito" in result["html"]
-
-
-# ---------------------------------------------------------------------------
-# Structure mutations
-# ---------------------------------------------------------------------------
-
-
-def test_add_child_appends_tag(app: LiveDemoApp) -> None:
-    """``add_child`` appends a new node under the parent and re-renders."""
-    result = app.add_child(parent_id="body", tag="p", text="aggiunto")
-    assert result["ok"] is True
-    assert "<p" in result["html"]
-    assert "aggiunto" in result["html"]
-
-
-def test_add_child_with_attrs(app: LiveDemoApp) -> None:
-    """Extra kwargs are forwarded to the grammar element as attributes."""
-    result = app.add_child(
-        parent_id="body", tag="span", text="hi", _class="badge",
+    result = app.repl(
+        'page.node_by_id("h1").set_attr({"style": "color:red"})',
     )
-    assert "<span" in result["html"]
-    assert 'class="badge"' in result["html"]
+    assert result["ok"] is True
+    assert "color: red" in app.out()
 
 
-def test_remove_child_drops_it_from_html(app: LiveDemoApp) -> None:
-    """``remove_child`` removes the node by its bag label."""
-    # The seeded body has h1_0 and p_0 as nested children (labels follow
-    # the BagBuilder convention <tag>_<index>).
-    before = app.render()["html"]
-    assert "Modifica i dati dalla REPL." in before
-    result = app.remove_child(parent_id="body", label="p_0")
-    assert "Modifica i dati dalla REPL." not in result["html"]
+def test_repl_add_child_appends_tag(app: LiveDemoApp) -> None:
+    """A snippet appending a child re-renders out.html with the new node."""
+    result = app.repl('page.node_by_id("body").p("aggiunto", _class="note")')
+    assert result["ok"] is True
+    html = app.out()
+    assert "aggiunto" in html
+    assert 'class="note"' in html
+
+
+# ---------------------------------------------------------------------------
+# Multi-demo: menu, select, per-demo namespace
+# ---------------------------------------------------------------------------
+
+
+def test_menu_lists_discovered_demos(app: LiveDemoApp) -> None:
+    """``menu`` lists every auto-discovered demo plus the current key."""
+    m = app.menu()
+    keys = {d["key"] for d in m["demos"]}
+    assert {"basic", "dashboard", "signup"} <= keys
+    assert m["current"] in keys
+
+
+def test_select_switches_current_demo(app: LiveDemoApp) -> None:
+    """``select`` switches the current demo and re-renders it to out.html."""
+    result = app.select("dashboard")
+    assert result["ok"] is True
+    assert result["current"] == "dashboard"
+    assert "Dashboard" in app.out()
+
+
+def test_select_unknown_demo_returns_error(app: LiveDemoApp) -> None:
+    """Selecting an unknown demo returns ``ok=False`` (does not raise)."""
+    result = app.select("nope")
+    assert result["ok"] is False
+    assert "nope" in result["error"]
+
+
+def test_repl_namespace_is_per_demo(app: LiveDemoApp) -> None:
+    """Variables defined under one demo do not leak into another."""
+    app.select("dashboard")
+    app.repl("marker = 123")
+    app.select("basic")
+    result = app.repl('page.set_data("page.title", str(marker))')
+    assert result["ok"] is False
+    assert "NameError" in result["error"]
 
 
 # ---------------------------------------------------------------------------
@@ -129,16 +146,16 @@ def test_remove_child_drops_it_from_html(app: LiveDemoApp) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_render_response_includes_trees(app: LiveDemoApp) -> None:
-    """``render`` returns html + source tree + data tree in one payload."""
-    result = app.render()
-    assert "html" in result
+def test_repl_response_includes_trees(app: LiveDemoApp) -> None:
+    """``repl`` returns source + data tree snapshots (no html field)."""
+    result = app.repl('page.data.set_item("page.title", "X")')
     assert "source" in result
     assert "data" in result
+    assert "html" not in result
 
 
 def test_source_tree_walks_the_document(app: LiveDemoApp) -> None:
-    """The source tree exposes body → h1, msg with the right shape."""
+    """The source tree exposes body → h1, p with the right shape."""
     src = app.tree_source()["source"]
     assert src["kind"] == "root"
     body = src["children"][0]
@@ -146,7 +163,6 @@ def test_source_tree_walks_the_document(app: LiveDemoApp) -> None:
     assert body["value"]["kind"] == "bag"
     tags = [child["tag"] for child in body["children"]]
     assert tags == ["h1", "p"]
-    # The h1 carries a pointer in its value.
     h1 = body["children"][0]
     assert h1["value"]["kind"] == "pointer"
     assert h1["value"]["raw"] == "^.title"
@@ -163,20 +179,20 @@ def test_data_tree_walks_the_bag(app: LiveDemoApp) -> None:
     keys = {child["key"]: child for child in page_entry["children"]}
     assert keys["title"]["kind"] == "scalar"
     assert keys["title"]["value"] == "Hello"
-    assert keys["message"]["value"] == "Modifica i dati dalla REPL."
+    assert keys["message"]["value"] == "Scrivi codice Python nella REPL."
 
 
-def test_mutator_response_refreshes_trees(app: LiveDemoApp) -> None:
-    """After ``set_data`` the data tree carries the new value."""
-    result = app.set_data(path="page.title", value="Tree!")
+def test_repl_refreshes_data_tree(app: LiveDemoApp) -> None:
+    """After a snippet the returned data tree carries the new value."""
+    result = app.repl('page.data.set_item("page.title", "Tree!")')
     page_entry = result["data"]["children"][0]
     title = next(c for c in page_entry["children"] if c["key"] == "title")
     assert title["value"] == "Tree!"
 
 
-def test_add_child_updates_source_tree(app: LiveDemoApp) -> None:
-    """``add_child`` makes the new node visible in the next source tree."""
-    result = app.add_child(parent_id="body", tag="span", text="extra")
+def test_repl_add_child_updates_source_tree(app: LiveDemoApp) -> None:
+    """A snippet adding a node makes it visible in the returned source tree."""
+    result = app.repl('page.node_by_id("body").span("extra")')
     body = result["source"]["children"][0]
     child_tags = [c["tag"] for c in body["children"]]
     assert "span" in child_tags

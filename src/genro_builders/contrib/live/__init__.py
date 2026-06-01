@@ -1,15 +1,14 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Live demo — interactive HTML builder driven over WebSocket.
+"""Live demo — interactive HTML builder REPL driven over WebSocket.
 
-A single-page app served by ``genro-asgi`` that hosts an
-``HtmlBuilderHandler`` and exposes its mutation API over WSX.
-Commands typed in the page's REPL panel travel as WebSocket messages
-through ``WsxHandler``, are dispatched to ``@route()`` methods on
-``LiveDemoApp``, and the resulting HTML is sent back and shown in the
-top panel.
+A single-page app served by ``genro-asgi`` that hosts several
+``InteractiveDemo`` pages (auto-discovered from ``pages/``) and exposes a
+Python REPL over WSX. Snippets typed in the page's editor run inside
+``page.live()`` on the current demo; the rendered HTML is written to
+``out.html`` and shown in an iframe.
 
-Useful as both a developer demo and an end-to-end integration test of
-``genro-builders`` + ``genro-asgi`` + ``genro-routes`` + ``WsxHandler``
+Useful as both a developer playground and an end-to-end integration test
+of ``genro-builders`` + ``genro-asgi`` + ``genro-routes`` + ``WsxHandler``
 working together.
 
 The package requires the ``live`` extra::
@@ -33,6 +32,6 @@ Example::
 from __future__ import annotations
 
 from .app import LiveDemoApp
-from .demo_page import DemoPage
+from .interactive_demo import InteractiveDemo
 
-__all__ = ["DemoPage", "LiveDemoApp"]
+__all__ = ["InteractiveDemo", "LiveDemoApp"]
