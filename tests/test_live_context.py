@@ -92,3 +92,50 @@ def test_reentry_restores_outer_target(tmp_path) -> None:
         assert page._live_target == t1
         assert page._live_active is True
     assert page._live_active is False
+
+
+def test_setup_runs_before_main() -> None:
+    """create() calls setup() before main(); main can read the seeded data."""
+    class SeededPage(HtmlBuilderHandler):
+        def setup(self) -> None:
+            self.data.set_item("rows.a.name", "Alpha")
+            self.data.set_item("rows.b.name", "Beta")
+
+        def main(self, root) -> None:
+            body = root.body(datapath="rows", node_id="body")
+            codes = list(self.data["rows"].keys())
+            for code in codes:
+                body.div(f"^.{code}.name", node_id=f"row_{code}")
+
+    page = SeededPage()
+    page.create()
+    html = page.render(target=False)
+    assert "Alpha" in html
+    assert "Beta" in html
+
+
+def test_live_enter_exit_hooks_fire_once_per_section() -> None:
+    """on_live_enter/on_live_exit fire once per section, exit even on error."""
+    events: list[str] = []
+
+    class HookedPage(HtmlBuilderHandler):
+        def main(self, root) -> None:
+            root.body(datapath="page", node_id="body").h1("^.t", node_id="h1")
+
+        def on_live_enter(self) -> None:
+            events.append("enter")
+
+        def on_live_exit(self) -> None:
+            events.append("exit")
+
+    page = HookedPage()
+    page.create()
+    with page.live():
+        page.data.set_item("page.t", "A")
+        page.data.set_item("page.t", "B")
+    assert events == ["enter", "exit"]
+
+    events.clear()
+    with pytest.raises(ValueError), page.live():
+        raise ValueError("boom")
+    assert events == ["enter", "exit"]

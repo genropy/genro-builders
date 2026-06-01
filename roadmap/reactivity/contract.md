@@ -173,6 +173,25 @@ eccezione, niente stato condiviso fra parti di codice).
 Variabili interne `_live_active`/`_live_target` esistono come
 private; non sono parte dell'API.
 
+### DR9 — Hook di sezione `on_live_enter` / `on_live_exit`
+
+Il context manager espone due override-point, chiamati **una volta per
+sezione** (non per mutazione):
+
+- `on_live_enter()` — quando la sezione si apre, dopo che `_live_active`
+  è True;
+- `on_live_exit()` — quando la sezione si chiude, dal `finally` di
+  `live()` (quindi scatta **anche su eccezione**), mentre la sezione è
+  ancora attiva (lo stato del padre viene ripristinato subito dopo).
+
+Default no-op. Servono al setup/teardown per-sezione: il caso d'uso che
+li motiva è emettere un rendering **aggiuntivo** alla fine di un batch di
+mutazioni (es. una vista XML raw del documento, accanto all'HTML che
+`live()` riemette a ogni mutazione via DR3). La distinzione è netta:
+DR3 = render del target a **ogni mutazione**; DR9 = hook a **inizio/fine
+sezione**. Chi vuole un secondo output per-sezione lo emette in
+`on_live_exit`, senza che `live()` debba gestire multi-target.
+
 ### DR8 — Allineamento col contratto principale
 
 **Vs `RX.2`** (capability del base, scheduling sync vs async): il

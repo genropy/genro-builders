@@ -183,18 +183,23 @@ class BuilderHandler:
         """Run the construction phase, then arm the reactive subscribes.
 
         Sequence:
-            1. ``self.main(self.source)`` builds the document. Subscribes
+            1. ``self.setup()`` populates initial data (override point;
+               no-op by default). Runs first so ``main`` can read
+               ``self.data`` — e.g. loop over keys to build repeated
+               structure.
+            2. ``self.main(self.source)`` builds the document. Subscribes
                are not active yet, so the inserts from the builder API
                do NOT dispatch to ``on_source_change``.
-            2. ``register_pointer`` walks the subtree rooted at the
+            3. ``register_pointer`` walks the subtree rooted at the
                source wrapper node (``self.source.parent_node``) and
                populates ``self.pointer_map`` once.
-            3. ``_sourceroot``/``_dataroot`` are subscribed: from here on
+            4. ``_sourceroot``/``_dataroot`` are subscribed: from here on
                every mutation flows to ``on_source_change`` /
                ``on_data_change``.
-            4. ``_live_enabled`` is set: reactivity is now armed and
+            5. ``_live_enabled`` is set: reactivity is now armed and
                ``live()`` is allowed (DR5).
         """
+        self.setup()
         self.main(self.source)
         self.register_pointer(self.source.parent_node)
         self._sourceroot.subscribe(
@@ -232,6 +237,12 @@ class BuilderHandler:
                 (str or Path), a writable file-like with ``.write()``,
                 or a callable. ``None`` uses the handler's default target.
 
+        Extension points: :meth:`on_live_enter` runs once when the section
+        opens, :meth:`on_live_exit` once when it closes (also on exception,
+        from the ``finally``). Subclasses override them for per-section
+        setup/teardown — e.g. emitting an extra raw rendering at the end of
+        a batch of mutations. Both default to no-ops.
+
         Raises:
             RuntimeError: reactivity not enabled — create() not run (DR5).
         """
@@ -244,11 +255,29 @@ class BuilderHandler:
             prev_target = self._live_target
             self._live_active = True
             self._live_target = target
+            self.on_live_enter()
             try:
                 yield self
             finally:
+                self.on_live_exit()
                 self._live_active = prev_active
                 self._live_target = prev_target
+
+    def on_live_enter(self) -> None:
+        """Override point: runs once when a ``live()`` section opens.
+
+        Default no-op. Subclasses use it for per-section setup. The section
+        is already active (``_live_active`` is True) when this runs.
+        """
+
+    def on_live_exit(self) -> None:
+        """Override point: runs once when a ``live()`` section closes.
+
+        Default no-op. Runs from the ``finally`` of ``live()``, so it fires
+        even if the body raised. The section is still active when this runs
+        (the parent state is restored right after). Subclasses use it for
+        per-section teardown — e.g. a final extra rendering.
+        """
 
     def render(
         self,
@@ -593,8 +622,17 @@ class BuilderHandler:
         """
 
     # ------------------------------------------------------------------
-    # User hook
+    # User hooks
     # ------------------------------------------------------------------
+
+    def setup(self) -> None:
+        """Override point: populate initial data before ``main`` runs.
+
+        Called first by :meth:`create`, before :meth:`main`. Default no-op.
+        Use it to seed ``self.data`` so ``main`` can read it — e.g. loop
+        over data keys to generate repeated structure. Keeps the data
+        (setup) and the structure (main) as two clearly separate steps.
+        """
 
     def main(self, root: BuilderSource) -> None:
         """Override in subclass to populate the source bag."""

@@ -308,12 +308,17 @@ mode del builder primario).
 
 ```python
 page = CustomerPage()
-page.create()                                # main(source) → popola la source
+page.create()                                # setup() → main(source)
 page.set_render_target('html', 'out.html', default=True)
 page.render()                                # serializza la source sul target
 ```
 
-- `create()` chiama `self.main(self.source)`.
+- `create()` chiama prima `self.setup()`, poi `self.main(self.source)`.
+- `setup()` è un override-point (no-op di default): popola i dati
+  iniziali **prima** che `main` costruisca la struttura, così `main`
+  può leggere `self.data` (es. ciclare sulle chiavi per generare
+  struttura ripetuta). Tiene i dati (setup) e la struttura (main) come
+  due passi nettamente separati.
 - `render(target, mode, **kwargs)` dispatcha al renderer del mode e gli
   affida la source.
 
