@@ -35,6 +35,9 @@ Subclasses (typically ``HtmlBuilderHandler``, etc.) set
 """
 from __future__ import annotations
 
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from genro_bag import Bag
@@ -137,6 +140,12 @@ class BuilderHandler:
         # RX livello 0 — lifecycle flag: True dopo create(). live() lo
         # esige (DR5) per separare costruzione e modalità reattiva.
         self._lifecycle_started: bool = False
+        # RX livello 0 — stato della sezione live (DR4/DR6/DR7). Privati,
+        # non parte dell'API: l'unico accesso pubblico è il context
+        # manager live(). Il lock serializza le sezioni (sync, re-entry).
+        self._live_target: Any = None
+        self._live_active: bool = False
+        self._live_lock: threading.RLock = threading.RLock()
 
     def _ensure_mode(self, mode: str) -> dict[str, Any]:
         """Return the ``self.renderers[mode]`` entry, creating it lazily.
@@ -199,6 +208,45 @@ class BuilderHandler:
             delete=self._on_data_event,
         )
         self._lifecycle_started = True
+
+    @contextmanager
+    def live(self, target: Any) -> Iterator[BuilderHandler]:
+        """Open a critical section where every source/data mutation
+        triggers a fresh full render to ``target`` (RX livello 0, DR1-DR7).
+
+        Inside the ``with`` block, each mutation routed through
+        ``_on_source_event`` / ``_on_data_event`` re-renders the whole
+        document to ``target`` (DR3). Outside the block the handler stays
+        pull-only: no auto-render (DR6). The section is synchronous and
+        serialized by an ``RLock`` (DR4); re-entry on the same thread is
+        allowed and the parent state is restored on exit.
+
+        Args:
+            target: Render target. Must be non-None (DR2). Accepts whatever
+                ``RendererBase.finalize`` accepts: a filesystem path
+                (str or Path), a writable file-like with ``.write()``,
+                or a callable.
+
+        Raises:
+            ValueError: target is None (DR2).
+            RuntimeError: create() not called yet (DR5).
+        """
+        if target is None:
+            raise ValueError("live() requires a non-None target")
+        if not self._lifecycle_started:
+            raise RuntimeError(
+                "live() called before create(); call create() first",
+            )
+        with self._live_lock:
+            prev_active = self._live_active
+            prev_target = self._live_target
+            self._live_active = True
+            self._live_target = target
+            try:
+                yield self
+            finally:
+                self._live_active = prev_active
+                self._live_target = prev_target
 
     def render(
         self,
@@ -320,6 +368,8 @@ class BuilderHandler:
         hook :meth:`on_source_change`. Mapkeep is structural, not
         user-facing: it MUST happen even if the user does not override
         the public hook (and overriding the hook does NOT bypass it).
+        Finally, when inside a ``live(...)`` section, re-renders the
+        whole document to the live target (RX livello 0, DR3).
         """
         if evt == "ins":
             self.register_pointer(node)
@@ -334,11 +384,15 @@ class BuilderHandler:
             if detail in ("attrs", "value_attr"):
                 self._on_upd_attrs(node, kw.get("attrs_diff") or {})
             self.on_source_change(node, "upd", evt_detail=detail, **kw)
+        if self._live_active:
+            self.render(target=self._live_target)
 
     def _on_data_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
         """Internal dispatcher for events on ``_dataroot``.
 
-        Forwards a normalized event to :meth:`on_data_change`.
+        Forwards a normalized event to :meth:`on_data_change`, then,
+        when inside a ``live(...)`` section, re-renders the whole
+        document to the live target (RX livello 0, DR3).
         """
         if evt == "ins":
             self.on_data_change(node, "ins", evt_detail=None, **kw)
@@ -347,6 +401,8 @@ class BuilderHandler:
         else:
             detail = evt[4:] if evt.startswith("upd_") else evt
             self.on_data_change(node, "upd", evt_detail=detail, **kw)
+        if self._live_active:
+            self.render(target=self._live_target)
 
     def node_by_id(self, node_id: str) -> BuilderBagNode:
         """Return the source node carrying ``node_id``.
