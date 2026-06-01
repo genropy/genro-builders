@@ -175,8 +175,49 @@ builders; il suo valore pieno emerge col target reattivo.
 - **D3** — niente resolver nel modello (§3): confermato in linea teorica.
 - **D4** — `live` come unico cancello di mutazione post-create: confermato.
 - **D5** — derivazioni per-mutazione, render/patch a fine sezione: confermato.
-- **D6 (aperta)** — firma esatta di `data_formula`/`data_controller` (come si
-  passano `func` e i pointer-input; nome del kwarg per la funzione).
+- **D6** — firma dei data-element. *Confermato:*
+
+  | element | firma |
+  | --- | --- |
+  | `data` | `data(path, value)` |
+  | `data_formula` | `data_formula(path, func, **bindings)` |
+  | `data_controller` | `data_controller(func, **bindings)` — no output path |
+
+  - **path** (1° posizionale di `data`/`data_formula`): dove va il risultato,
+    assoluto o relativo (`".total"` relativo al datapath del nodo, composto da
+    `abs_datapath` come i pointer). `data_controller` non ha path (side-effect,
+    non scrive un risultato).
+  - **func** (posizionale: 2° per la formula, 1° per il controller): un
+    callable. **Forma canonica suggerita: il nome di un metodo dell'handler**
+    (`func="compute_total"`), risolto a runtime via `getattr(self, ...)` — come
+    `@struct_method` lega un nome a un metodo. La lambda inline e la funzione
+    modulo restano **ammesse** (comode per formule brevi), ma non sono
+    equivalenti: vedi la nota di serializzabilità sotto.
+  - **bindings** (kwargs): i pointer-input, **sempre espliciti** (mai dedotti
+    dai nomi-parametro — §2, "niente magia"). Passati al callable **per nome**:
+    `func(price=<val di ^price>, tax=<val di ^tax>)`. Quindi i nomi dei
+    binding-kwarg devono corrispondere ai nomi dei parametri del callable. Con
+    un metodo `self.xxx`, `self` è già legato (metodo bound) e i binding
+    riempiono gli altri parametri per nome.
+
+  **Nota di serializzabilità (suggerimento, non vincolo).** Il *corpo* di una
+  funzione non si serializza mai: né in XML (non può salvare il corpo di una
+  lambda), né con pickle (la lambda è rifiutata; un metodo salva solo un
+  riferimento qualificato, il cui corpo deve già esistere nel processo che
+  ricarica). Conseguenza:
+
+  - **`func` = nome di metodo dell'handler** → la pagina è **serializzabile**
+    (il nome è una stringa nel source; il corpo vive nel codice della classe).
+    Regge la persistenza su Redis e la ricostruzione dopo riavvio/crash del
+    processo. È la forma **suggerita** per pagine durature.
+  - **`func` = lambda / callable inline** → **ammessa**, ma rende la pagina
+    **non-serializzabile**: non sopravvive a un riavvio del processo, non è
+    ricostruibile, non adatta a scenari multi-processo con durabilità. Va bene
+    per pagine effimere, demo, sviluppo, single-process.
+
+  Idealmente, una pagina con `func` inline che si tenti di persistere produce un
+  **errore rumoroso** (non un salvataggio silenziosamente incompleto). Vedi
+  l'analisi di scala/durabilità in genro-ws-web `roadmap/scalability.md` §8.
 - **D7 (aperta)** — gestione dei cicli nel grafo (dipendenza circolare →
   errore rumoroso, niente fallback silenzioso).
 - **D8 (aperta)** — quando la **source** cambia dentro la sezione (non solo i
