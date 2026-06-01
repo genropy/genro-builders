@@ -40,21 +40,21 @@ class Demo(InteractiveDemo):
         header = body.header(_class="bar")
         header.h1("^.title")
         nav = header.nav()
-        nav.button("Overview", _type="button")
-        nav.button("Reports", _type="button")
-        nav.button("Settings", _type="button")
+        nav.button("Overview", html_type="button")
+        nav.button("Reports", html_type="button")
+        nav.button("Settings", html_type="button")
 
         panels = body.main(node_label="panels", _class="panels")
 
         users = panels.section(node_label="users", _class="panel")
         users.h2("Users")
         users.p("^.users")
-        users.button("Refresh", _type="button")
+        users.button("Refresh", html_type="button")
 
         revenue = panels.section(node_label="revenue", _class="panel")
         revenue.h2("Revenue")
         revenue.p("^.revenue")
-        revenue.button("Export", _type="button")
+        revenue.button("Export", html_type="button")
 
         footer = body.footer()
         footer.span("genro-builders live demo")

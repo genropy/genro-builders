@@ -32,8 +32,8 @@ class Demo(InteractiveDemo):
 
         f = body.form()
 
-        f.input(value="^.name", _type="text", placeholder="Name")
-        f.input(value="^.email", _type="email", placeholder="Email")
+        f.input(value="^.name", placeholder="Name")
+        f.input(value="^.email", html_type="email", placeholder="Email")
 
         role = f.select()
         role.option("Viewer", value="viewer")
@@ -41,4 +41,4 @@ class Demo(InteractiveDemo):
         role.option("Admin", value="admin")
 
         f.textarea("^.bio", placeholder="Short bio")
-        f.button("Sign up", _type="submit")
+        f.button("Sign up", html_type="submit")
