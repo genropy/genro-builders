@@ -100,6 +100,7 @@ class HtmlRenderer(RendererBase):
         *,
         xml: bool = True,
         pretty: bool = False,
+        include_datapath: bool = False,
         **_extra: Any,
     ) -> str:
         """Emit the HTML5 fragment for ``node``.
@@ -111,9 +112,14 @@ class HtmlRenderer(RendererBase):
           ``<br>``).
         - ``pretty`` enables multi-line indented output (2 spaces per
           level).
+        - ``include_datapath`` emits, next to each pointer-bound
+          attribute, a ``data-<name>-pointer`` carrying its absolute
+          datapath — the hook client-side code uses to write back.
         """
         tag = node.node_tag or node.label
         attrs = self._format_attrs(runtime_attrs)
+        if include_datapath:
+            attrs += self._datapath_attrs(node)
         depth = self._node_depth(node)
         indent = "  " * depth if pretty else ""
         newline = "\n" if pretty else ""
@@ -236,6 +242,23 @@ class HtmlRenderer(RendererBase):
             html_parts.append(f' style="{style_text}"')
 
         return "".join(html_parts)
+
+    def _datapath_attrs(self, node: Any) -> str:
+        """Emit ``data-<name>-pointer`` for every pointer-bound attribute.
+
+        Reads the node's *original* attrs (``^``/``=`` strings, before
+        resolution) and resolves each to its absolute datapath. The HTML
+        name passes through ``_ATTR_MAP`` so ``_class`` becomes ``class``.
+        These are the write-back hooks client code reads on input events.
+        """
+        parts: list[str] = []
+        for raw_name, value in node.attr.items():
+            if not (isinstance(value, str) and value and value[0] in ("^", "=")):
+                continue
+            html_name = _ATTR_MAP.get(raw_name, self.adapt(raw_name))
+            path = node.abs_datapath(value)
+            parts.append(f' data-{html_name}-pointer="{self._html_attr_value(path)}"')
+        return "".join(parts)
 
     def _html_attr_value(self, value: Any) -> str:
         """Render a non-CSS attribute value (three-state booleans + escape)."""

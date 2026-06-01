@@ -296,6 +296,27 @@
     fetchRaw();
   }
 
+  // Two-way binding. The rendered document carries data-<name>-pointer
+  // attributes (emitted when include_datapath is on). On `change` of an
+  // edited control we read the pointer holding the absolute data path and
+  // write the new value back via the set_value route. `change` (not
+  // `input`) fires on blur, so the iframe reload does not steal focus
+  // mid-typing. Re-bound on every reload because the iframe swaps document.
+  function bindIframeInputs() {
+    const doc = $iframe.contentDocument;
+    if (!doc) return;
+    doc.addEventListener("change", function (e) {
+      const el = e.target;
+      const ds = el.dataset || {};
+      if (ds.checkedPointer) {
+        sendCommand("set_value", { path: ds.checkedPointer, value: el.checked });
+      } else if (ds.valuePointer) {
+        sendCommand("set_value", { path: ds.valuePointer, value: el.value });
+      }
+    });
+  }
+  $iframe.addEventListener("load", bindIframeInputs);
+
   // -----------------------------------------------------------
   // WebSocket lifecycle and message handlers
   // -----------------------------------------------------------

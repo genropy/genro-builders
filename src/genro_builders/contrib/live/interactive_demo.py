@@ -45,6 +45,22 @@ class InteractiveDemo(HtmlBuilderHandler):
         """Shortcut for ``self.data.set_item(path, value)``."""
         self.data.set_item(path, value)
 
+    def render(self, startnode=None, mode=None, target=None, **opts):
+        """Render with datapath hooks turned on for the HTML view.
+
+        The demo's HTML carries ``data-<name>-pointer`` attributes so the
+        browser can write user input back to the matching data path. The
+        raw ``xml`` view is left untouched (it shows the structural source,
+        pointers unresolved). Applies to the live re-renders too, since
+        those route through this method.
+        """
+        effective_mode = (
+            mode or self._default_render_mode or self.builder._default_render_mode
+        )
+        if effective_mode == "html":
+            opts.setdefault("include_datapath", True)
+        return super().render(startnode, mode=mode, target=target, **opts)
+
     @property
     def node(self) -> _NodeAccessor:
         """Subscript accessor: ``page.node["body"]`` -> source node by id."""

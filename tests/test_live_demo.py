@@ -76,6 +76,23 @@ def test_repl_namespace_persists_across_runs(app: LiveDemoApp) -> None:
     assert "42" in app.out()
 
 
+def test_set_value_writes_data_and_rerenders(app: LiveDemoApp) -> None:
+    """set_value writes the absolute path into data and re-renders out.html."""
+    result = app.set_value(path="page.title", value="Edited")
+    assert result["ok"] is True
+    assert app.page.data.get_item("page.title") == "Edited"
+    assert "Edited" in app.out()
+
+
+def test_render_emits_datapath_hooks_for_bound_inputs(app: LiveDemoApp) -> None:
+    """The HTML the browser loads carries the write-back pointer attribute
+    on inputs whose ``value`` is pointer-bound (signup's form fields)."""
+    app.select("signup")
+    out = app.out()
+    assert 'data-value-pointer="form.name"' in out
+    assert 'data-value-pointer="form.email"' in out
+
+
 def test_repl_error_is_returned_not_raised(app: LiveDemoApp) -> None:
     """A failing snippet returns ``ok=False`` + error text, does not raise."""
     result = app.repl("1 / 0")

@@ -165,6 +165,33 @@ def test_html_render_dialect_escape_value_is_escaped():
     assert out == '<div title="a &amp; b">x</div>'
 
 
+class _BoundPage(HtmlBuilderHandler):
+    def setup(self):
+        self.data.set_item("states.NSW.name", "New South Wales")
+        self.data.set_item("ui.theme", "dark")
+
+    def main(self, root):
+        row = root.body(datapath="states").div(datapath=".NSW")
+        row.input(value="^.name", _class="=ui.theme")
+
+
+def test_datapath_off_by_default():
+    """No ``data-*-pointer`` unless include_datapath is requested."""
+    page = _BoundPage()
+    page.create()
+    assert "data-" not in page.render()
+
+
+def test_datapath_emits_absolute_path_for_each_pointer():
+    """Each pointer attribute gets a data-<name>-pointer with its abs path."""
+    page = _BoundPage()
+    page.create()
+    out = page.render(include_datapath=True)
+    assert 'data-value-pointer="states.NSW.name"' in out
+    assert 'data-class-pointer="ui.theme"' in out          # _class -> class
+    assert 'value="New South Wales"' in out                # resolved value stays
+
+
 def test_html_render_nested():
     def build(root):
         d = root.div(_class="x")

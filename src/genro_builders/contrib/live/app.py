@@ -202,6 +202,24 @@ class LiveDemoApp(AsgiApplication):
         }
 
     @route()
+    def set_value(self, path: str, value: Any) -> dict[str, Any]:
+        """Write ``value`` into the current demo's data at ``path``.
+
+        The write-back endpoint for two-way binding: the browser sends the
+        absolute path (read from a ``data-<name>-pointer`` attribute) and
+        the edited value when an input changes. Runs inside ``page.live()``
+        so the document re-renders. ``path`` is absolute, as resolved at
+        render time — no relative composition here.
+        """
+        with self.page.live():
+            self.page.data.set_item(path, value)
+        return {
+            "ok": True,
+            "source": self._source_tree(),
+            "data": self._data_tree(),
+        }
+
+    @route()
     def source_code(self) -> dict[str, Any]:
         """Return the Python source of the current demo's module."""
         module = inspect.getmodule(type(self.page))
