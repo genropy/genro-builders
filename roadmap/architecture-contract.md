@@ -564,6 +564,13 @@ chiave (dall'analisi del legacy JS): **SourceDispatcher** (mutazioni della
 topology → mount/unmount/rebuild) e **DataDispatcher** (mutazioni di
 valore → aggiornamento proprietà) restano **macchine distinte**, non fuse.
 
+**Specifica di dettaglio in lavorazione**:
+`roadmap/reactivity/contract.md` — Livello 0 (re-render totale verso
+target via context manager `handler.live(target)`). Status 🔴 DA
+REVISIONARE. Compromesso esplicito vs la separazione SRC/DATA descritta
+in questa sezione: il Livello 0 fonde i due dispatch in un unico
+re-render; la granularità è obiettivo dei livelli successivi.
+
 ---
 
 ## Area SUITE — Orchestratore multi-handler (in discussione)
