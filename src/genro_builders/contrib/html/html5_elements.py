@@ -25,7 +25,7 @@ class Html5Elements:
     def abbr(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def address(self): ...
 
@@ -33,12 +33,12 @@ class Html5Elements:
     def area(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def article(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def aside(self): ...
 
@@ -64,12 +64,12 @@ class Html5Elements:
     def bdo(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def blockquote(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def body(self): ...
 
@@ -85,7 +85,7 @@ class Html5Elements:
     def canvas(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def caption(self): ...
 
@@ -116,7 +116,7 @@ class Html5Elements:
     def datalist(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def dd(self): ...
 
@@ -132,12 +132,12 @@ class Html5Elements:
     def dfn(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def dialog(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def div(self): ...
 
@@ -145,7 +145,7 @@ class Html5Elements:
     def dl(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def dt(self): ...
 
@@ -161,22 +161,22 @@ class Html5Elements:
     def fieldset(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def figcaption(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def figure(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def footer(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def form(self): ...
 
@@ -214,7 +214,7 @@ class Html5Elements:
     def head(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def header(self): ...
 
@@ -260,7 +260,7 @@ class Html5Elements:
     def legend(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def li(self): ...
 
@@ -268,7 +268,7 @@ class Html5Elements:
     def link(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def main(self): ...
 
@@ -292,7 +292,7 @@ class Html5Elements:
     def meter(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def nav(self): ...
 
@@ -366,12 +366,12 @@ class Html5Elements:
     def script(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def search(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def section(self): ...
 
@@ -424,7 +424,7 @@ class Html5Elements:
     def tbody(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def td(self): ...
 
@@ -440,7 +440,7 @@ class Html5Elements:
     def tfoot(self): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def th(self): ...
 
