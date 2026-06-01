@@ -66,8 +66,11 @@ reverse = [
     "tree-sitter>=0.25",
     "tree-sitter-css>=0.25",
 ]
+live = [
+    "genro-asgi>=0.5.0",
+]
 all = [
-    "genro-builders[dev,docs,xsd,jupyter,reverse]",
+    "genro-builders[dev,docs,xsd,jupyter,reverse,live]",
 ]
 
 [project.scripts]
@@ -110,6 +113,11 @@ ignore = [
 # Example notebooks favour compact one-liners (e.g. ``p = Page(); p.create()``)
 # for didactic density. Multi-statement-on-one-line is intentional there.
 "**/examples/**/*.ipynb" = ["E702"]
+# SIM118 ("key in dict" over "key in dict.keys()") is a false positive on
+# genro_bag Bags: ``for key in bag`` iterates the *nodes*, while
+# ``bag.keys()`` yields the *string keys* the loop needs. The two are NOT
+# equivalent here, so the rewrite would break ``bag.get_item(key)``.
+"**/contrib/live/app.py" = ["SIM118"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["genro_builders"]
