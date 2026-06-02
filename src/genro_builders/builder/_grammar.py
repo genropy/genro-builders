@@ -140,7 +140,7 @@ class _GrammarMixin:
             (func,) = args
             de_attrs["_de_path"] = None
             de_attrs["_de_func"] = func
-        else:  # pragma: no cover - guarded by the three decorators
+        else:  # pragma: no cover - guarded by @data_element method names
             raise ValueError(f"unknown data-element kind: {kind!r}")
 
         # bindings: flat ^-string attrs keyed by kwarg name (visible to

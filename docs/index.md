@@ -28,7 +28,7 @@ user-facing dialect.
 - **[Builders overview](builders/overview.md)** — what a builder is,
   how the lifecycle works.
 - **[Decorators](builders/decorators.md)** — `@element`, `@abstract`,
-  `@subbuilder`, `@data`, `@data_formula`, `@data_controller`.
+  `@subbuilder`, `@data_element`.
 - **[Common patterns](builders/patterns.md)** — `._` chaining,
   `node_by_id`, render targets.
 - **Grammars** — per-grammar reference:

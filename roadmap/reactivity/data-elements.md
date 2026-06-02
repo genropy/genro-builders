@@ -167,8 +167,9 @@ render parziale (RX.2/RX.4).
 ## 7. Ambito
 
 Tutto **core** (`genro-builders`):
-- i tre data-element nella grammar (`@data`, `@data_formula`,
-  `@data_controller`) — **implementati** al primo render;
+- i tre data-element nella grammar (decoratore unico `@data_element`
+  sui metodi `data`/`data_formula`/`data_controller`) — **implementati**
+  al primo render;
 - la cascata sync su mutazione (subscribe + `reason`) — da implementare;
 - il ciclo di mutazione sotto lock via `live`;
 - il full re-render all'uscita.
@@ -241,7 +242,7 @@ builders; il suo valore pieno emerge col target reattivo.
 - **D8 (aperta)** — quando la **source** cambia dentro la sezione (non solo i
   dati): i data-element nuovi vanno integrati (nuove subscribe da armare).
 - **D9 (parziale)** — interazione con il contratto: il bump a **v0.6.0**
-  (2026-06-01) ha registrato i tre decoratori autonomi e il primo render
+  (2026-06-01) ha registrato il decoratore unico `@data_element` e il primo render
   (glossario `BLD`, `BAG.4`, blocco stato-codice → `DAT.2`). Restano da
   riflettere quando la cascata sarà implementata: `HND.5` (lock intrinseco al
   ciclo di mutazione) e il render a fine sezione (area `RX`).

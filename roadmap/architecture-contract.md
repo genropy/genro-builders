@@ -4,13 +4,15 @@
 **Sostituisce**: v0.5.0 (archiviata in
 `roadmap/outdated_versions/architecture-contract-v0.5.0.md`).
 
-**Cosa cambia da v0.5.0**: il decoratore unico `@data_element`
-(preprocessore `(path, attrs_dict)`) è sostituito dai **tre decoratori
-autonomi** `@data` / `@data_formula` / `@data_controller` (corpo
-ignorato, modello `@subbuilder`), **implementati al primo render**
-(commit `6dca55f`/`33826ee`, HEAD `4348f0f`). Aggiornati glossario
-(`BLD`) e `BAG.4` di conseguenza. La cascata reattiva su mutazione
-resta in `RX` (non implementata).
+**Cosa cambia da v0.5.0**: il decoratore `@data_element` resta **unico**
+ma cambia natura — da preprocessore body-bearing `(path, attrs_dict)` a
+**autonomo** (corpo ignorato, modello `@subbuilder`). Decora i tre
+metodi-grammar `data` / `data_formula` / `data_controller`: il **kind è
+il nome del metodo decorato** (nessun decoratore separato per kind). I
+data-element sono **implementati al primo render** (commit
+`6dca55f`/`33826ee`, HEAD `4348f0f`). Aggiornati glossario (`BLD`) e
+`BAG.4` di conseguenza. La cascata reattiva su mutazione resta in `RX`
+(non implementata).
 
 **Stato del codice di riferimento**: `develop @ 4348f0f`, suite
 **398 test verdi**. A questa versione il codice è allineato al
@@ -65,9 +67,10 @@ render:
   `raw`, ereditano `finalize_raw` dalla base). Wrapper subbuilder
   (es. `<foreignObject>` per HTML dentro SVG) gestito da R₀ tramite
   `wrapper_<sub_name>` del builder host. → `BLD.3`, `HND.3`.
-- data-element al primo render (commit `6dca55f`, `33826ee`): tre
-  decoratori autonomi `@data`/`@data_formula`/`@data_controller`
-  (corpo ignorato, modello `@subbuilder`), nodi trasparenti
+- data-element al primo render (commit `6dca55f`, `33826ee`): decoratore
+  unico `@data_element` autonomo (corpo ignorato, modello `@subbuilder`)
+  sui tre metodi `data`/`data_formula`/`data_controller` — kind dal nome
+  del metodo; nodi trasparenti
   `_is_data_element` fuori dallo schema; `BuilderHandler.data_elements()`
   in `create()` (dopo `register_pointer`, prima di `subscribe`):
   `data` scrive sempre, formula/controller eseguono con `_on_start`,
@@ -103,9 +106,10 @@ si conserva la versione superata in `roadmap/outdated_versions/`.
 
 - **Builder**: la grammar pura di un dialetto (`HtmlBuilder`,
   `MarkdownBuilder`, `SvgBuilder`, `XsdBuilder`). Definisce `@element`,
-  `@abstract`, `@subbuilder`, i data-element (`@data`, `@data_formula`,
-  `@data_controller`), lo schema di validazione, le regole di
-  serializzazione. Solo dichiarazione, nessun engine.
+  `@abstract`, `@subbuilder`, `@data_element` (per i tre data-element
+  `data` / `data_formula` / `data_controller`), lo schema di
+  validazione, le regole di serializzazione. Solo dichiarazione, nessun
+  engine.
 - **BuilderHandler**: la macchina che consuma un builder. Possiede i
   wrapper-root `_sourceroot` / `_dataroot`, le due fasi `create`/`render`,
   il dict `renderers: mode → {target, instance}`.

@@ -2,8 +2,8 @@
 """BagBuilderBase — grammar base class for Bag builders.
 
 A builder declares the grammar of a dialect via decorators
-(@element, @abstract, @subbuilder, and the data-elements @data /
-@data_formula / @data_controller) and the schema of
+(@element, @abstract, @subbuilder, and @data_element for the three
+data-elements data / data_formula / data_controller) and the schema of
 valid tag placements (sub_tags, parent_tags). Engine responsibilities
 — source, the create/render phases, render_target, node_id index —
 live on the BuilderHandler (decisions 1, 8, 9).
@@ -24,7 +24,7 @@ from genro_bag import Bag
 
 from ..renderer import XmlRenderer
 from ..source_bag import BuilderSource
-from ._decorators import data, data_controller, data_formula
+from ._decorators import data_element
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
 from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
@@ -40,8 +40,8 @@ class BagBuilderBase(
         - @element: Pure schema elements (body MUST be empty)
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
 
-    Plus the **autonomous** decorators @subbuilder and the data-elements
-    (@data, @data_formula, @data_controller): they do not pass through
+    Plus the **autonomous** decorators @subbuilder and @data_element
+    (for data / data_formula / data_controller): they do not pass through
     ``__init_subclass__`` and do not appear in ``_class_schema``. Their
     wrappers live on the builder class as regular methods; dispatch is
     handled by ``_BuilderBagNodeMixin.__getattr__`` falling through to
@@ -275,13 +275,13 @@ class BagBuilderBase(
     # for ``_data_element_meta`` into ``_attach_data_element``.
     # -----------------------------------------------------------------------
 
-    @data
+    @data_element
     def data(self): ...
 
-    @data_formula
+    @data_element
     def data_formula(self): ...
 
-    @data_controller
+    @data_element
     def data_controller(self): ...
 
     #: Default rendering mode used when ``render(mode=None)`` is called.

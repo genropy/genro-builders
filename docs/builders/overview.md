@@ -97,10 +97,11 @@ The following features are designed but not yet implemented:
   pull-based slice (`^pointer` / `=pointer` / `${name}` resolved at
   render time) is already in; what's missing is the dispatch that
   re-runs `render()` automatically. See `RX` area of the contract.
-- **Data-element cascade on mutation** — the three data-element
-  decorators (`@data`, `@data_formula`, `@data_controller`) already
-  run at first render (during `create()`); what's missing is the
-  re-firing of dependent data-elements when a datum mutates inside a
-  live section. See [Decorators](decorators.md) and the `RX` area.
+- **Data-element cascade on mutation** — the three data-elements
+  declared via `@data_element` (`data`, `data_formula`,
+  `data_controller`) already run at first render (during `create()`);
+  what's missing is the re-firing of dependent data-elements when a
+  datum mutates inside a live section. See [Decorators](decorators.md)
+  and the `RX` area.
 - **Multi-builder orchestration** (`BuilderSuite`). See `SUITE`
   area of the contract.

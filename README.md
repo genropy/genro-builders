@@ -74,9 +74,8 @@ print(page.render())
 ## Architecture (one-paragraph map)
 
 A **builder** declares the grammar of a dialect (decorators
-`@element`, `@abstract`, `@subbuilder`, `@data`, `@data_formula`,
-`@data_controller`) and exposes its renderers as `renderer_<mode>`
-properties. A **handler** drives
+`@element`, `@abstract`, `@subbuilder`, `@data_element`) and exposes
+its renderers as `renderer_<mode>` properties. A **handler** drives
 the lifecycle for a single builder instance: it owns the source bag,
 the data bag, the pointer map and the render target registry. A
 **renderer** is responsible for one mode: the universal walk on
@@ -169,7 +168,7 @@ notebook `.ipynb`, and the resulting `.html` output.
 
 - [Getting Started](docs/getting-started.md) — first page in 5 minutes
 - [Builders overview](docs/builders/overview.md) — handler/builder/renderer split
-- [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, `@subbuilder`, `@data`, `@data_formula`, `@data_controller`
+- [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, `@subbuilder`, `@data_element`
 - [Common patterns](docs/builders/patterns.md) — `._` chaining, `node_by_id`, render targets
 - Per-grammar references: [HTML](docs/grammars/html.md), [SVG](docs/grammars/svg.md), [CSS](docs/grammars/css.md)
 - Architectural contract and roadmap: [`roadmap/`](roadmap/)

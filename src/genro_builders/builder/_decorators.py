@@ -7,11 +7,12 @@ function body: they replace the decorated function with an inert
 (``__name__``, ``__doc__``, ``_decorator``). Any body the user wrote
 is therefore unreachable.
 
-Autonomous decorators (``@subbuilder``, ``@data``, ``@data_formula``,
-``@data_controller``) also ignore the body: they return a wrapper that
-calls a dedicated grammar method (``_attach_subbuilder`` /
-``_attach_data_element``) and carry their own meta (``_subbuilder_meta`` /
-``_data_element_meta``), dispatched via the node ``__getattr__``.
+Autonomous decorators (``@subbuilder`` and ``@data_element``, the
+latter on the three methods ``data``/``data_formula``/``data_controller``)
+also ignore the body: they return a wrapper that calls a dedicated
+grammar method (``_attach_subbuilder`` / ``_attach_data_element``) and
+carry their own meta (``_subbuilder_meta`` / ``_data_element_meta``),
+dispatched via the node ``__getattr__``.
 
 Internal:
     _DeclarativeMarker -- inert wrapper for declarative decorators.
@@ -286,21 +287,24 @@ def subbuilder(
 
 
 # ---------------------------------------------------------------------------
-# Data-elements: data, data_formula, data_controller
+# Data-elements: one decorator, three kinds keyed by method name
 # ---------------------------------------------------------------------------
 #
-# Autonomous like @subbuilder: the decorated body is IGNORED (only
-# ``__name__``/``__doc__`` are read). Each returns a wrapper that, when the
-# element is written via the builder API, calls the grammar method
-# ``_attach_data_element`` to create a transparent source node (no markup).
-# The element's behaviour (writing the data bag, computing, side effects) is
-# NOT in the body: it runs later, in the handler's data-pass / reactivity.
+# A single ``@data_element`` decorates the three grammar methods. The KIND is
+# the decorated method's name — there is no separate decorator per kind, and
+# the name already carries the distinction:
 #
-# The three differ by graph role and output:
 #   data            -- leaf input: writes a literal value at ``path``.
 #   data_formula    -- writes the RETURN of ``func`` at ``path``.
 #   data_controller -- side effect / free writer: ``func`` writes the bag
 #                      itself (0..N paths), no declared ``path``.
+#
+# Autonomous like ``@subbuilder``: the decorated body is IGNORED (only
+# ``__name__``/``__doc__`` are read). The wrapper, when the element is written
+# via the builder API, calls the grammar method ``_attach_data_element`` to
+# create a transparent source node (no markup). The element's behaviour
+# (writing the data bag, computing, side effects) is NOT in the body: it runs
+# later, in the handler's data-pass / reactivity.
 #
 # ``func`` is the canonical form a method-name string (resolved on the
 # handler) or any callable. Bindings (``^pointer`` kwargs) are the declared
@@ -308,52 +312,28 @@ def subbuilder(
 # render; plain ``data`` always writes at create.
 
 
-def _make_data_element(kind: str, func: Callable) -> Callable:
-    """Build the autonomous wrapper for a data-element method (kind-tagged)."""
-    tag_name = func.__name__
+def data_element(func: Callable) -> Callable:
+    """Declare a data-element grammar method; the kind is the method name.
+
+    Decorate ``data`` (leaf input — ``data(path, value)``),
+    ``data_formula`` (computed — ``data_formula(path, func, **bindings)``)
+    or ``data_controller`` (side-effect / free writer —
+    ``data_controller(func, **bindings)``). The decorated body is ignored
+    (autonomous, like ``@subbuilder``); the kind is taken from
+    ``func.__name__``.
+    """
+    kind = func.__name__
 
     def wrapper(self, node, *args, **attrs):
-        return self._attach_data_element(node, kind, tag_name, *args, **attrs)
+        return self._attach_data_element(node, kind, kind, *args, **attrs)
 
-    wrapper.__name__ = func.__name__
+    wrapper.__name__ = kind
     wrapper.__doc__ = func.__doc__
     wrapper._data_element_meta = {  # type: ignore[attr-defined]
         "kind": kind,
-        "tag_name": tag_name,
+        "tag_name": kind,
     }
     return wrapper
-
-
-def data(func: Callable) -> Callable:
-    """Declare a ``data`` leaf-input element: ``data(path, value)``.
-
-    Writes ``value`` into the data bag at ``path`` (relative or absolute);
-    a ``dict`` value becomes a ``Bag``. Written at create, always.
-    Body ignored (autonomous, like ``@subbuilder``).
-    """
-    return _make_data_element("data", func)
-
-
-def data_formula(func: Callable) -> Callable:
-    """Declare a ``data_formula`` element: ``data_formula(path, func, **bindings)``.
-
-    Writes the RETURN of ``func`` at ``path``. ``func`` is a handler-method
-    name (canonical) or a callable; ``bindings`` are ``^pointer`` kwargs
-    passed to ``func`` by name. Runs at start only with ``_on_start=True``;
-    otherwise reacts when its inputs change. Body ignored (autonomous).
-    """
-    return _make_data_element("data_formula", func)
-
-
-def data_controller(func: Callable) -> Callable:
-    """Declare a ``data_controller`` element: ``data_controller(func, **bindings)``.
-
-    Side effect / free writer: ``func`` reads its declared ``bindings`` and
-    may write any number of bag paths itself (no declared output ``path``).
-    Runs at start only with ``_on_start=True``; otherwise reacts when its
-    inputs change. Body ignored (autonomous).
-    """
-    return _make_data_element("data_controller", func)
 
 
 def struct_method(func_or_name):

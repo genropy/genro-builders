@@ -3,15 +3,14 @@
 **Last Updated**: 2026-05-30
 **Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
 
-The framework provides six decorators for declaring a grammar.
+The framework provides five decorators for declaring a grammar.
 They live in
 [src/genro_builders/builder/_decorators.py](../../src/genro_builders/builder/_decorators.py)
 and are imported as:
 
 ```python
 from genro_builders.builder import (
-    element, abstract, subbuilder,
-    data, data_formula, data_controller,
+    element, abstract, subbuilder, data_element,
 )
 ```
 
@@ -22,9 +21,7 @@ from genro_builders.builder import (
 | `@element` | Declare a tag in the grammar. | Ignored (declarative). |
 | `@abstract` | Declare an abstract base for inheritance. | Ignored (declarative). |
 | `@subbuilder` | Open a sub-grammar from this tag down. | Ignored (declarative). |
-| `@data` | Declare a transparent leaf-input data-element. | Ignored (declarative). |
-| `@data_formula` | Declare a transparent computed data-element. | Ignored (declarative). |
-| `@data_controller` | Declare a transparent side-effect data-element. | Ignored (declarative). |
+| `@data_element` | Declare a transparent data-element (`data` / `data_formula` / `data_controller`, by method name). | Ignored (declarative). |
 
 ## `@element`
 
@@ -94,34 +91,35 @@ the polymorphic dispatch picks the sub-builder's `renderer_<mode>`
 fragment in a dialect-specific envelope via `wrapper_<sub_name>`
 (e.g. SVG hosting HTML in `<foreignObject xmlns="...">`).
 
-## Data-elements: `@data`, `@data_formula`, `@data_controller`
+## `@data_element`
 
-Three decorators declare **transparent** elements: they live in the
+A single decorator declares **transparent** elements: they live in the
 source tree but emit **no markup** at render time. They carry data
 behaviour (writing the data bag, computing, side effects) that runs
 in the handler — not at definition. Like `@subbuilder`, the body is
-**ignored** (autonomous): only `__name__`/`__doc__` are read; each
-returns a wrapper that calls the grammar's `_attach_data_element`
-when the element is written.
+**ignored** (autonomous): only `__name__`/`__doc__` are read; the
+wrapper calls the grammar's `_attach_data_element` when the element is
+written.
 
-The three differ by graph role and output:
+The **kind is the decorated method's name** — there is no separate
+decorator per kind. The three kinds differ by graph role and output:
 
-| Element | Signature | Role |
-|---------|-----------|------|
-| `@data` | `data(path, value)` | leaf input — writes `value` at `path` (a `dict` becomes a `Bag`); written at create, always |
-| `@data_formula` | `data_formula(path, func, **bindings)` | computed — writes the return of `func` at `path` |
-| `@data_controller` | `data_controller(func, **bindings)` | side effect / free writer — `func` may write any number of bag paths itself; no declared output `path` |
+| Method | Signature | Role |
+|--------|-----------|------|
+| `data` | `data(path, value)` | leaf input — writes `value` at `path` (a `dict` becomes a `Bag`); written at create, always |
+| `data_formula` | `data_formula(path, func, **bindings)` | computed — writes the return of `func` at `path` |
+| `data_controller` | `data_controller(func, **bindings)` | side effect / free writer — `func` may write any number of bag paths itself; no declared output `path` |
 
 ```python
 class MyBuilder(BagBuilderBase):
 
-    @data
+    @data_element
     def data(self): ...
 
-    @data_formula
+    @data_element
     def data_formula(self): ...
 
-    @data_controller
+    @data_element
     def data_controller(self): ...
 ```
 
@@ -156,10 +154,10 @@ def main(self, root):
 
 ## Declarative bodies
 
-All six decorators are **declarative**: the framework only reads the
+All five decorators are **declarative**: the framework only reads the
 signature and metadata, the function body is discarded. For
 `@element`/`@abstract`/`@subbuilder`, a non-empty body emits a warning
 at class definition time — use `...` (ellipsis) as the body to
-suppress it. The three data-elements (`@data`, `@data_formula`,
-`@data_controller`) are autonomous in the same way: the body is
-ignored, the behaviour lives in the handler's data-pass.
+suppress it. The data-elements declared via `@data_element` are
+autonomous in the same way: the body is ignored, the behaviour lives
+in the handler's data-pass.
