@@ -18,11 +18,6 @@ from __future__ import annotations
 
 from genro_builders.contrib.html import HtmlBuilderHandler
 
-
-def _calc_area(base, altezza):
-    return base * altezza / 2
-
-
 # ---------------------------------------------------------------------------
 # data — always written at create
 # ---------------------------------------------------------------------------
@@ -34,8 +29,8 @@ def test_data_writes_seed_values():
     class P(HtmlBuilderHandler):
         def main(self, root) -> None:
             body = root.body(datapath="tri")
-            body.data(".altezza", 6)
-            body.data(".base", 10)
+            body.data_setter(".altezza", 6)
+            body.data_setter(".base", 10)
 
     page = P()
     page.create()
@@ -52,12 +47,16 @@ def test_formula_not_computed_without_on_start():
     """A formula without ``_on_start`` does NOT run at create: area is absent."""
 
     class P(HtmlBuilderHandler):
+        @staticmethod
+        def calc_area(base, altezza):
+            return base * altezza / 2
+
         def main(self, root) -> None:
             body = root.body(datapath="tri")
-            body.data(".altezza", 6)
-            body.data(".base", 10)
+            body.data_setter(".altezza", 6)
+            body.data_setter(".base", 10)
             body.data_formula(
-                ".area", _calc_area, base="^.base", altezza="^.altezza",
+                ".area", "calc_area", base="^.base", altezza="^.altezza",
             )
 
     page = P()
@@ -72,12 +71,16 @@ def test_formula_computed_with_on_start():
     """A formula with ``_on_start=True`` runs at create: area is computed."""
 
     class P(HtmlBuilderHandler):
+        @staticmethod
+        def calc_area(base, altezza):
+            return base * altezza / 2
+
         def main(self, root) -> None:
             body = root.body(datapath="tri")
-            body.data(".altezza", 6)
-            body.data(".base", 10)
+            body.data_setter(".altezza", 6)
+            body.data_setter(".base", 10)
             body.data_formula(
-                ".area", _calc_area, base="^.base", altezza="^.altezza",
+                ".area", "calc_area", base="^.base", altezza="^.altezza",
                 _on_start=True,
             )
 
@@ -95,13 +98,14 @@ def test_formula_func_by_name():
     """``func`` given as a handler-method name resolves and computes."""
 
     class P(HtmlBuilderHandler):
-        def calc_area(self, base, altezza):
+        @staticmethod
+        def calc_area(base, altezza):
             return base * altezza / 2
 
         def main(self, root) -> None:
             body = root.body(datapath="tri")
-            body.data(".altezza", 6)
-            body.data(".base", 10)
+            body.data_setter(".altezza", 6)
+            body.data_setter(".base", 10)
             body.data_formula(
                 ".area", "calc_area", base="^.base", altezza="^.altezza",
                 _on_start=True,
@@ -121,12 +125,16 @@ def test_data_elements_are_transparent_to_render():
     """Data-elements produce no markup in the rendered HTML."""
 
     class P(HtmlBuilderHandler):
+        @staticmethod
+        def calc_area(base, altezza):
+            return base * altezza / 2
+
         def main(self, root) -> None:
             body = root.body(datapath="tri")
-            body.data(".base", 10)
-            body.data(".altezza", 6)
+            body.data_setter(".base", 10)
+            body.data_setter(".altezza", 6)
             body.data_formula(
-                ".area", _calc_area, base="^.base", altezza="^.altezza",
+                ".area", "calc_area", base="^.base", altezza="^.altezza",
                 _on_start=True,
             )
 

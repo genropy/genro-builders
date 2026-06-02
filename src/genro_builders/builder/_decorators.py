@@ -292,55 +292,6 @@ def subbuilder(
     return decorator
 
 
-# ---------------------------------------------------------------------------
-# Data-elements: one decorator, three kinds keyed by method name
-# ---------------------------------------------------------------------------
-#
-# A single ``@data_element`` decorates the three grammar methods. The KIND is
-# the decorated method's name — there is no separate decorator per kind, and
-# the name already carries the distinction:
-#
-#   data            -- leaf input: writes a literal value at ``path``.
-#   data_formula    -- writes the RETURN of ``func`` at ``path``.
-#   data_controller -- side effect / free writer: ``func`` writes the bag
-#                      itself (0..N paths), no declared ``path``.
-#
-# Autonomous like ``@subbuilder``: the decorated body is IGNORED (only
-# ``__name__``/``__doc__`` are read). The wrapper, when the element is written
-# via the builder API, calls the grammar method ``_attach_data_element`` to
-# create a transparent source node (no markup). The element's behaviour
-# (writing the data bag, computing, side effects) is NOT in the body: it runs
-# later, in the handler's data-pass / reactivity.
-#
-# ``func`` is the canonical form a method-name string (resolved on the
-# handler) or any callable. Bindings (``^pointer`` kwargs) are the declared
-# inputs. ``_on_start`` (formula/controller) requests execution at the first
-# render; plain ``data`` always writes at create.
-
-
-def data_element(func: Callable) -> Callable:
-    """Declare a data-element grammar method; the kind is the method name.
-
-    Decorate ``data`` (leaf input — ``data(path, value)``),
-    ``data_formula`` (computed — ``data_formula(path, func, **bindings)``)
-    or ``data_controller`` (side-effect / free writer —
-    ``data_controller(func, **bindings)``). The decorated body is ignored
-    (autonomous, like ``@subbuilder``); the kind is taken from
-    ``func.__name__``.
-    """
-    kind = func.__name__
-
-    def wrapper(self, node, *args, **attrs):
-        return self._attach_data_element(node, kind, kind, *args, **attrs)
-
-    wrapper.__name__ = kind
-    wrapper.__doc__ = func.__doc__
-    wrapper._data_element_meta = {  # type: ignore[attr-defined]
-        "kind": kind,
-        "tag_name": kind,
-    }
-    return wrapper
-
 
 def struct_method(func_or_name):
     """Decorator: mark a handler method as a callable block invocable

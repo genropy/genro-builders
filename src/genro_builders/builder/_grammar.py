@@ -92,67 +92,6 @@ class _GrammarMixin:
         """
         return self.set_child(build_where, node_tag, node_value, node_label=node_label, **attr)
 
-    def _attach_data_element(
-        self, node: BuilderBagNode, kind: str, tag_name: str,
-        *args: Any, **attrs: Any,
-    ) -> BagNode:
-        """Create a transparent data-element child of ``node``.
-
-        Autonomous (like ``_attach_subbuilder``): bypasses ``set_child``
-        validation. The node emits no markup (``value=None``); its
-        execution (write / compute / side effect) happens later in the
-        handler's data-pass / reactivity, reading the markers stored here.
-
-        Signatures (positional ``*args``, by kind):
-            data            -> (path, value)
-            data_formula    -> (path, func)   + bindings as ``^`` kwargs
-            data_controller -> (func,)        + bindings as ``^`` kwargs
-
-        ``_on_start`` (formula/controller) is popped from ``attrs``.
-        Each binding kwarg (``price="^price"``) is stored as a flat ``^``
-        string attr keyed by its kwarg name, so ``pointers()`` /
-        ``register_pointer`` index it like any other pointer; the data-pass
-        reconstructs the name->pointer map from those ``^`` attrs.
-        """
-        if not isinstance(node.value, Bag):
-            parent_bag = node.parent_bag
-            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
-            node.value = sub_bag_cls(
-                builder=node._resolve_builder(),
-                handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
-            )
-
-        on_start = attrs.pop("_on_start", False)
-        de_attrs: dict[str, Any] = {
-            "_is_data_element": True,
-            "_de_kind": kind,
-            "_on_start": on_start,
-        }
-        if kind == "data":
-            path, value = args
-            de_attrs["_de_path"] = path
-            de_attrs["_de_value"] = value
-        elif kind == "data_formula":
-            path, func = args
-            de_attrs["_de_path"] = path
-            de_attrs["_de_func"] = func
-        elif kind == "data_controller":
-            (func,) = args
-            de_attrs["_de_path"] = None
-            de_attrs["_de_func"] = func
-        else:  # pragma: no cover - guarded by @data_element method names
-            raise ValueError(f"unknown data-element kind: {kind!r}")
-
-        # bindings: flat ^-string attrs keyed by kwarg name (visible to
-        # pointers()/register_pointer and to the data-pass).
-        de_attrs.update(attrs)
-
-        return node.value.set_item(
-            self._auto_label(node.value, tag_name), None,
-            _attributes=de_attrs,
-            node_tag=tag_name,
-        )
-
     def set_child(
         self,
         build_where: Bag,

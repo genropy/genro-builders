@@ -35,8 +35,9 @@ Subclasses (typically ``HtmlBuilderHandler``, etc.) set
 """
 from __future__ import annotations
 
+import inspect
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
@@ -148,6 +149,10 @@ class BuilderHandler:
         self._live_target: Any = None
         self._live_active: bool = False
         self._live_lock: threading.RLock = threading.RLock()
+        # RX — sorgenti di risoluzione delle ``func`` dei data-element
+        # (property ``data_logic``, lazy + cached). None = non ancora
+        # costruita; ``_build_data_logic`` la popola al primo accesso.
+        self._data_logic: list[Any] | None = None
 
     def _ensure_mode(self, mode: str) -> dict[str, Any]:
         """Return the ``self.renderers[mode]`` entry, creating it lazily.
@@ -193,16 +198,30 @@ class BuilderHandler:
             3. ``register_pointer`` walks the subtree rooted at the
                source wrapper node (``self.source.parent_node``) and
                populates ``self.pointer_map`` once.
-            4. ``_sourceroot``/``_dataroot`` are subscribed: from here on
+            4. First calculation: query the source for the data-elements to
+               run at start — every ``data_setter`` (it seeds the data) plus
+               any ``data_formula`` / ``data_controller`` flagged
+               ``_on_start`` — and run them through :meth:`compute_logic`.
+               Subscribes are not armed yet, so these writes seed the data
+               without firing a reactive cascade.
+            5. ``_sourceroot``/``_dataroot`` are subscribed: from here on
                every mutation flows to ``on_source_change`` /
                ``on_data_change``.
-            5. ``_live_enabled`` is set: reactivity is now armed and
+            6. ``_live_enabled`` is set: reactivity is now armed and
                ``live()`` is allowed (DR5).
         """
         self.setup()
         self.main(self.source)
         self.register_pointer(self.source.parent_node)
-        self.data_elements()
+        self.compute_logic(
+            self.source.query(
+                what="#n", deep=True,
+                condition=lambda n: bool(
+                    n.attr.get("_is_data_element")
+                    and (n.node_tag == "data_setter" or n.attr.get("_on_start"))
+                ),
+            )
+        )
         self._sourceroot.subscribe(
             "builder_handler_source",
             insert=self._on_source_event,
@@ -422,16 +441,37 @@ class BuilderHandler:
     def _on_data_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
         """Internal dispatcher for events on ``_dataroot``.
 
-        Forwards a normalized event to :meth:`on_data_change`, then,
-        when inside a ``live(...)`` section, re-renders the whole
-        document to the live target (RX livello 0, DR3).
+        Runs :meth:`compute_logic` for the mutated path FIRST (so dependent
+        data-elements are recomputed before the user hook and the live
+        re-render see the new state), then forwards a normalized event to
+        :meth:`on_data_change`. Finally, when inside a ``live(...)`` section,
+        re-renders the whole document (RX livello 0, DR3).
+
+        Path derivation differs by event kind (genro_bag ``pathlist``
+        convention): for ``upd`` the pathlist already includes the node, so
+        ``pathlist[1:]``; for ``ins`` the pathlist stops at the parent, so the
+        node's own ``label`` is appended. This makes a data-element born from a
+        chained formula (``base = x + y`` written for the first time) propagate
+        to its dependents (``area = base * h``). ``del`` is out of scope.
+
+        On ``ins`` the compute is skipped when ``reason == "autocreate"``: that
+        marks the structural birth of an intermediate container (e.g. ``tri``
+        born when ``tri.x`` is first written), which must not run dependents
+        while the leaves are still absent. genro_bag tags these events
+        (genro-bag #53); the leaf-datum insert carries no such reason. This
+        mirrors the legacy ``gnrdomsource.js`` ``getTriggerReason`` early-out.
         """
         if evt == "ins":
+            if kw.get("reason") != "autocreate":
+                path = ".".join([*kw["pathlist"][1:], node.label])
+                self.compute_logic(self._nodes_to_compute(path))
             self.on_data_change(node, "ins", evt_detail=None, **kw)
         elif evt == "del":
             self.on_data_change(node, "del", evt_detail=None, **kw)
         else:
             detail = evt[4:] if evt.startswith("upd_") else evt
+            path = ".".join(kw["pathlist"][1:])
+            self.compute_logic(self._nodes_to_compute(path))
             self.on_data_change(node, "upd", evt_detail=detail, **kw)
         if self._live_active:
             self.render(target=self._live_target)
@@ -448,90 +488,160 @@ class BuilderHandler:
         return node
 
     # ------------------------------------------------------------------
-    # Pointer map (DAT.2)
+    # Reactive cascade (compute)
     # ------------------------------------------------------------------
 
-    def data_elements(self) -> None:
-        """Run the data-element pass once, before the first render.
+    def _nodes_to_compute(self, path: str) -> list[BuilderBagNode]:
+        """Collect the data-element nodes that depend on a mutated ``path``.
 
-        Called by :meth:`create` after ``register_pointer`` (so binding
-        pointers are already in ``pointer_map``) and before the subscribes
-        are armed (so the writes here do not fire the reactive pipeline:
-        the first render is the seed, not a reactive cascade).
+        Three matches against ``pointer_map`` (whose keys are absolute data
+        paths, optionally suffixed ``?attr``), comparing the path part
+        ``kp = key.split("?", 1)[0]`` with the mutated ``path``:
 
-        Walks the source subtree; for every data-element node:
+        - node    — ``kp == path``: reads exactly the mutated datum;
+        - container — ``kp.startswith(path + ".")``: reads a leaf inside the
+          mutated container;
+        - child   — ``path.startswith(kp + ".")``: reads a container whose
+          child changed.
 
-        - ``data``: always writes its ``_de_value`` at ``_de_path``
-          (``dict`` becomes a ``Bag``).
-        - ``data_formula`` / ``data_controller``: executed ONLY when the
-          node carries ``_on_start`` truthy; otherwise dormant (they will
-          react when their inputs change, in the reactive block). A formula
-          writes the return of its ``func`` at ``_de_path``; a controller
-          calls its ``func`` for its side effect (it may write the bag
-          itself; no declared output path).
-
-        ``func`` is resolved on the handler when given as a method-name
-        string (canonical, serializable form), else used as-is when a
-        callable. Bindings are the node's ``^`` attrs (excluding the
-        ``_de_*``/``_on_start`` markers), passed to ``func`` by kwarg name.
+        Only data-element nodes are kept (``_is_data_element``): plain view
+        nodes that happen to read the same path are not recomputed. Data-setters
+        carry no ``^`` pointer, so they never appear in ``pointer_map`` and are
+        excluded by construction. Deduped by ``id(node)`` (a node may match
+        from several keys).
         """
-        for node in self._walk_data_elements(self.source.parent_node):
-            self._run_data_element(node)
+        seen: dict[int, BuilderBagNode] = {}
+        for key, inner in self.pointer_map.items():
+            kp = key.split("?", 1)[0]
+            if kp == path or kp.startswith(path + ".") or path.startswith(kp + "."):
+                for node_id, node in inner.items():
+                    if node.attr.get("_is_data_element"):
+                        seen[node_id] = node
+        return list(seen.values())
 
-    def _walk_data_elements(self, node: BuilderBagNode) -> Iterator[BuilderBagNode]:
-        """Yield data-element nodes in the subtree, in document order."""
-        value = node.value
-        if isinstance(value, Bag):
-            for child in value:
-                if child.attr.get("_is_data_element"):
-                    yield child
-                else:
-                    yield from self._walk_data_elements(child)
+    def compute_logic(self, nodes: Iterable[BuilderBagNode]) -> None:
+        """Execute a list of data-element nodes.
 
-    def _data_element_bindings(self, node: BuilderBagNode) -> dict[str, Any]:
-        """Resolve the node's binding pointers to current data values.
+        The single executor, shared by both entry points: the first
+        calculation in :meth:`create` (nodes from a source query) and the
+        reactive cascade (nodes from :meth:`_nodes_to_compute`). The caller
+        does the collection; this only runs each node through
+        :meth:`_compute_node`.
 
-        Bindings are the ``^`` string attrs whose name is not an internal
-        marker (``_de_*``/``_on_start``). Each is keyed by its kwarg name
-        and resolved against ``handler.data`` via ``abs_datapath``.
+        Slice 1 — first collect only: no queue, no second wave. The writes
+        performed by each :meth:`_compute_node` re-fire ``_on_data_event``
+        synchronously (genro_bag is re-entrant), but the nested collect filters
+        ``_is_data_element`` and, in this slice's scope (writes touch only
+        rendered values, no data-element downstream), returns an empty list —
+        the nested pass is inert by construction.
         """
-        bindings: dict[str, Any] = {}
-        for name, value in node.attr.items():
-            if name.startswith("_"):
-                continue
-            if isinstance(value, str) and value.startswith("^"):
-                bindings[name] = self.data.get_item(node.abs_datapath(value))
-        return bindings
+        for node in nodes:
+            self._compute_node(node)
 
-    def _resolve_data_func(self, func: Any) -> Any:
-        """Return the callable for ``func`` (handler-method name or callable)."""
-        if callable(func):
-            return func
-        method = getattr(self, func, None)
-        if method is None:
-            raise AttributeError(
-                f"data-element func '{func}' is not a method of "
-                f"{type(self).__name__}"
+    def _compute_node(self, node: BuilderBagNode) -> None:
+        """Execute a single data-element node according to its kind.
+
+        ``kind`` is the node tag (``data_formula`` / ``data_controller``).
+        Bindings are resolved ALWAYS through the node's :meth:`runtime_values`
+        — the single resolution point for ``^``/``=`` pointers, ``${}``
+        templates and (future) defaults that every reader uses (a div reading
+        ``^.title`` no less than a formula reading ``^.base``). The resolved
+        attrs are then stripped of the schema fields (``destination`` /
+        ``func`` / ``value``) and the internal markers (``_...``); what remains
+        are the bindings. ``func`` is a name resolved to a ``@staticmethod``
+        through :meth:`_resolve_logic_func`.
+
+        - ``data_formula`` is pure: ``func(**bindings)`` -> written at
+          ``destination``;
+        - ``data_controller`` has side effects: ``func(node, **bindings)``
+          (``node`` explicit; the func is static, so no ``self``).
+        """
+        match node.node_tag:
+            case "data_setter":
+                # First-calculation seed: write the setter's value (held as a
+                # flat attr, may be a Bag) at its destination. No func, no
+                # bindings.
+                node.set_relative_data(node.attr["destination"], node.attr["value"])
+            case "data_formula":
+                func = self._resolve_logic_func(node.attr["func"])
+                node.set_relative_data(
+                    node.attr["destination"], func(**self._bindings(node)),
+                )
+            case "data_controller":
+                func = self._resolve_logic_func(node.attr["func"])
+                func(node, **self._bindings(node))
+
+    def _bindings(self, node: BuilderBagNode) -> dict[str, Any]:
+        """Resolve a data-element node's bindings via :meth:`runtime_values`.
+
+        The single resolution point (``^``/``=`` pointers, ``${}`` templates,
+        defaults) shared with every reader. The resolved attrs are stripped of
+        the schema fields (``destination`` / ``func`` / ``value``) and the
+        internal markers (``_...``); what remains are the bindings passed to
+        the func by kwarg name.
+        """
+        info = self.builder._get_schema_info(node.node_tag)
+        fields = set(info.get("call_args_validations") or {})
+        _, resolved = node.runtime_values()
+        return {
+            name: value
+            for name, value in resolved.items()
+            if not name.startswith("_") and name not in fields
+        }
+
+    @property
+    def data_logic(self) -> list[Any]:
+        """Sources searched (left-to-right) to resolve a data-element ``func``.
+
+        Lazy + cached on ``_data_logic``. Default is ``[self]`` (the handler
+        itself, zero-config). Subclasses override :meth:`_build_data_logic`
+        to return a dedicated logic object or a list of them.
+        """
+        if self._data_logic is None:
+            built = self._build_data_logic()
+            self._data_logic = (
+                list(built) if isinstance(built, (list, tuple)) else [built]
             )
-        return method
+        return self._data_logic
 
-    def _run_data_element(self, node: BuilderBagNode) -> None:
-        """Execute a single data-element node according to its kind."""
-        kind = node.attr.get("_de_kind")
-        if kind == "data":
-            value = node.attr.get("_de_value")
-            if isinstance(value, dict):
-                value = Bag(value)
-            node.set_relative_data(node.attr["_de_path"], value)
-            return
-        if not node.attr.get("_on_start"):
-            return
-        func = self._resolve_data_func(node.attr.get("_de_func"))
-        bindings = self._data_element_bindings(node)
-        if kind == "data_formula":
-            node.set_relative_data(node.attr["_de_path"], func(**bindings))
-        elif kind == "data_controller":
-            func(**bindings)
+    def _build_data_logic(self) -> Any:
+        """Override point: return the data_logic source(s). Default ``self``.
+
+        A subclass may return a single instance or a list; both are
+        normalized to a list by the :attr:`data_logic` property.
+        """
+        return self
+
+    def _resolve_logic_func(self, name: str) -> Any:
+        """Resolve ``name`` to a ``@staticmethod`` over ``data_logic`` sources.
+
+        Left-to-right, first-wins. A source that does not own the name is
+        skipped. A source that owns the name but NOT as a ``staticmethod``
+        raises ``TypeError`` (the name is found but malformed — no silent
+        fall-through). Miss on every source raises ``AttributeError``.
+        ``inspect.getattr_static`` is used so the check ignores any
+        ``__getattr__`` dispatch and sees the real attribute.
+        """
+        for source in self.data_logic:
+            try:
+                attr = inspect.getattr_static(source, name)
+            except AttributeError:
+                continue
+            if not isinstance(attr, staticmethod):
+                raise TypeError(
+                    f"data-element func {name!r} on {type(source).__name__} "
+                    "must be a @staticmethod",
+                )
+            return getattr(source, name)
+        sources = ", ".join(type(s).__name__ for s in self.data_logic)
+        raise AttributeError(
+            f"data-element func {name!r} not found on any data_logic "
+            f"source ({sources})",
+        )
+
+    # ------------------------------------------------------------------
+    # Pointer map (DAT.2)
+    # ------------------------------------------------------------------
 
     def register_pointer(self, node: BuilderBagNode, unregister: bool = False) -> None:
         """Update ``self.pointer_map`` for the subtree rooted at ``node``.
@@ -563,7 +673,11 @@ class BuilderHandler:
         propagated.
         """
         self._update_pointer_map(node, node.pointers(), unregister)
-        if isinstance(node.value, Bag):
+        # Recurse only into builder structure (BuilderBag), never into a plain
+        # Bag value: that is data payload (e.g. a data_setter whose value is a
+        # Bag), whose children are plain BagNodes without ``pointers()``. The
+        # source tree to index is made of BuilderBag/BuilderSourceNode.
+        if isinstance(node.value, BuilderBag):
             for child in node.value:
                 self.register_pointer(child, unregister=unregister)
 

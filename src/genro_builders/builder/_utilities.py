@@ -303,10 +303,9 @@ def _pop_decorated_methods(cls: type, builder_base: type):
         if base is cls or base is object:
             continue
         if base is builder_base:
-            # BagBuilderBase contributes no schema elements. Its data-elements
-            # (data/data_formula/data_controller) are autonomous (carry
-            # ``_data_element_meta``, not ``_decorator``) and dispatch via the
-            # node __getattr__ branch, never through the schema.
+            # BagBuilderBase contributes no schema elements via this path:
+            # the three data-elements it declares are injected into every
+            # subclass schema by BagBuilderBase._add_data_elements.
             continue
         if issubclass(base, builder_base):
             continue
@@ -316,3 +315,25 @@ def _pop_decorated_methods(cls: type, builder_base: type):
             if hasattr(obj, "_decorator"):
                 seen.add(name)
                 yield _decorated_method_info(name, obj)
+
+
+def _iter_data_element_methods(builder_base: type):
+    """Yield (tag_list, obj, decorator_info) for the data-element stubs.
+
+    Data-elements are ordinary ``@element`` declared on ``builder_base``
+    and marked with ``_meta['data_element']``. ``_pop_decorated_methods``
+    skips ``builder_base``, so these stubs never reach a subclass schema
+    through the normal path; ``__init_subclass__`` injects them into every
+    subclass via this iterator. Discovery is dynamic: any ``@element`` on
+    the base carrying the ``data_element`` marker is picked up, so adding a
+    new data-element needs no change here.
+    """
+    for name, obj in builder_base.__dict__.items():
+        decorator = getattr(obj, "_decorator", None)
+        if decorator is None:
+            continue
+        meta = decorator.get("_meta") or {}
+        if "data_element" not in meta:
+            continue
+        tag_list, _method_name, _obj, decorator_info = _decorated_method_info(name, obj)
+        yield tag_list, obj, decorator_info

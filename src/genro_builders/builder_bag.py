@@ -211,6 +211,11 @@ class _BuilderBagNodeMixin:
         with ``.``. Stops at the first ancestor whose ``datapath`` is
         absolute. Raises ``ValueError`` if the chain ends while
         ``path`` is still relative.
+
+        A bare ``"."`` denotes the current datapath itself (no child
+        segment) — used by ``.?attr`` paths that read an attribute of the
+        datapath node. It resolves to the datapath alone, without a dangling
+        trailing dot (so ``.?b`` -> ``triangolo?b``, not ``triangolo.?b``).
         """
         # ``current`` typed as Any: the mixin is combined with BagNode
         # at runtime to form BuilderBagNode, but pyright analyses the
@@ -219,7 +224,7 @@ class _BuilderBagNodeMixin:
         while current is not None and path.startswith("."):
             dp = current.attr.get("datapath")
             if dp is not None:
-                path = dp + path
+                path = dp if path == "." else dp + path
             current = current.parent_node
         if path.startswith("."):
             raise ValueError(f"unresolved relative datapath: {raw!r}")
@@ -414,7 +419,10 @@ class _BuilderBagNodeMixin:
         ``fired`` and ``reason`` are forwarded to ``Bag.set_item`` as
         the corresponding underscore-prefixed parameters. ``reason``
         is polymorphic (DB-D8): the subscriber receives whatever
-        object is passed here, unchanged.
+        object is passed here. Legacy parity (``gnrdomsource.js`` ``reason
+        == null ? true``): an omitted ``reason`` (``None``) becomes ``True``,
+        so a plain write declares itself as the origin of the change; pass an
+        explicit ``reason`` (e.g. ``False`` for ``PUT``) to override.
         """
         handler = self._resolve_handler()
         abs_path = self.abs_datapath(path)
@@ -423,7 +431,7 @@ class _BuilderBagNodeMixin:
             value,
             _attributes=attributes,
             _fired=fired,
-            _reason=reason,
+            _reason=True if reason is None else reason,
         )
 
     def fire_event(
@@ -445,6 +453,48 @@ class _BuilderBagNodeMixin:
             path, value, attributes=attributes, fired=True, reason=reason,
         )
 
+    # ------------------------------------------------------------------
+    # Reactive DSL macros (uppercase by design) — legacy gnrlang.js parity
+    # ------------------------------------------------------------------
+    #
+    # SET/GET/PUT/FIRE are the reactive write/read vocabulary a data-element
+    # func uses on its ``node`` (e.g. ``node.SET(".total", x)``). They are thin
+    # aliases of set_relative_data/get_relative_data with the reason/fired
+    # constants pre-wired. The UPPERCASE is deliberate (not a style slip): the
+    # node carries dozens of lowercase methods, and these few must stand out as
+    # the DSL operations that drive the reactive cascade — continuity with the
+    # legacy JS where developers recognise ``SET .x = ...`` / ``FIRE``.
+
+    def SET(self, path: str, value: Any) -> None:
+        """Reactive write: ``set_relative_data`` with the default reason.
+
+        The omitted reason becomes ``True`` (the write is its own origin),
+        per :meth:`set_relative_data` legacy parity.
+        """
+        self.set_relative_data(path, value)
+
+    def GET(self, path: str) -> Any:
+        """Reactive read: ``get_relative_data(path)``."""
+        return self.get_relative_data(path)
+
+    def PUT(self, path: str, value: Any) -> None:
+        """Quiet write: ``set_relative_data`` with ``reason=False``.
+
+        Unlike :meth:`SET`, ``PUT`` declares itself NOT the origin of the
+        change (legacy ``reason=False``), so an originating widget would not
+        bounce back on its own write.
+        """
+        self.set_relative_data(path, value, reason=False)
+
+    def FIRE(self, path: str, value: Any = True) -> None:
+        """Event write: ``set_relative_data`` with ``fired=True``.
+
+        Value defaults to ``True``; the ``_fired`` flag flows through the bag
+        subscribe pipeline so downstream consumers can tell triggers from
+        ordinary value updates.
+        """
+        self.set_relative_data(path, value, fired=True)
+
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attribute access to the active builder.
 
@@ -463,16 +513,7 @@ class _BuilderBagNodeMixin:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
-        # Data-elements take precedence over the schema: ``data`` is both a
-        # core data-element and a (marginal) W3C HTML tag — the data-element
-        # wins. The HTML ``<data>`` tag stays reachable via the ``html_data``
-        # escape (same convention as ``html_label``). Data-elements take
-        # positional args (path, value, func), so forward *args too (unlike
-        # subbuilders, which are kwargs-only).
         builder_method = getattr(type(builder), name, None)
-        if getattr(builder_method, "_data_element_meta", None) is not None:
-            return lambda *args, **attrs: builder_method(builder, self, *args, **attrs)
-
         original_tag = builder._schema_tag_names.get(name.lower())
         if original_tag is None:
             struct = _dispatch_struct_method(self._resolve_handler(), self, name)
@@ -483,10 +524,34 @@ class _BuilderBagNodeMixin:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
-        return lambda node_value=None, node_position=None, **attrs: builder._command_on_node(
-            self, original_tag,
-            node_position=node_position, node_value=node_value, **attrs,
-        )
+        def element_call(*args: Any, node_position: Any = None, **attrs: Any) -> Any:
+            # Data-elements take named positional fields (e.g.
+            # data_setter(destination, node_value)); map the positionals onto
+            # the field names declared in the schema so they reach the named
+            # parameters instead of collapsing into node_value/node_position.
+            # Plain elements keep the single-positional node_value behaviour.
+            schema_info = getattr(builder, "_get_schema_info", None)
+            info = schema_info(original_tag) if schema_info is not None else {}
+            if "data_element" in (info.get("_meta") or {}):
+                fields = list(info.get("call_args_validations") or {})
+                for field_name, field_value in zip(fields, args, strict=False):
+                    attrs[field_name] = field_value
+                # Flag the node as a data-element so renderer (skip markup),
+                # walk and sub_tags validation recognise it. The signature
+                # fields (incl. ``value``, which may be a Bag) stay as flat
+                # attrs: an attribute holding a Bag is not traversed by the
+                # source walk, so the data payload is not captured into the
+                # source tree (no backref capture of the caller's Bag).
+                attrs["_is_data_element"] = True
+                node_value = None
+            else:
+                node_value = args[0] if args else None
+            return builder._command_on_node(
+                self, original_tag,
+                node_position=node_position, node_value=node_value, **attrs,
+            )
+
+        return element_call
 
     def __dir__(self) -> list[str]:
         """Expose schema tag names for autocompletion (original case)."""

@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 import json
 from abc import ABC
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -24,10 +25,14 @@ from genro_bag import Bag
 
 from ..renderer import XmlRenderer
 from ..source_bag import BuilderSource
-from ._decorators import data_element
+from ._decorators import element
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
-from ._utilities import _extract_validators_from_signature, _pop_decorated_methods
+from ._utilities import (
+    _extract_validators_from_signature,
+    _iter_data_element_methods,
+    _pop_decorated_methods,
+)
 
 
 class BagBuilderBase(
@@ -40,12 +45,17 @@ class BagBuilderBase(
         - @element: Pure schema elements (body MUST be empty)
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
 
-    Plus the **autonomous** decorators @subbuilder and @data_element
-    (for data / data_formula / data_controller): they do not pass through
-    ``__init_subclass__`` and do not appear in ``_class_schema``. Their
-    wrappers live on the builder class as regular methods; dispatch is
-    handled by ``_BuilderBagNodeMixin.__getattr__`` falling through to
-    ``_attach_subbuilder`` / ``_attach_data_element``.
+    The three data-elements (data_setter / data_formula / data_controller)
+    are ordinary @element declared on this base and marked with
+    ``_meta['data_element']``. ``__init_subclass__`` injects them into every
+    dialect's schema (see ``_iter_data_element_methods``), so they are
+    available everywhere without each dialect re-declaring them.
+
+    @subbuilder remains **autonomous**: it does not pass through
+    ``__init_subclass__`` and does not appear in ``_class_schema``; its
+    wrapper lives on the builder class as a regular method, dispatched by
+    ``_BuilderBagNodeMixin.__getattr__`` falling through to
+    ``_attach_subbuilder``.
 
     Engine concerns (source, lifecycle phases, render_target,
     node_id) belong to the BuilderHandler.
@@ -133,6 +143,24 @@ class BagBuilderBase(
                         documentation=documentation,
                         call_args_validations=call_args_validations,
                     )
+
+        # Inject the data-element stubs declared on BagBuilderBase into this
+        # subclass schema. They are @element marked with _meta['data_element'];
+        # _pop_decorated_methods skips the base, so they reach every dialect
+        # only here. Injected AFTER the dialect's own elements so a data-element
+        # (e.g. ``data``) overrides a same-named dialect tag (e.g. HTML <data>).
+        for tag_list, obj, decorator_info in _iter_data_element_methods(BagBuilderBase):
+            call_args_validations = _extract_validators_from_signature(obj)
+            for tag in tag_list:
+                cls._class_schema.set_item(
+                    tag, None,
+                    sub_tags=decorator_info.get("sub_tags", ""),
+                    parent_tags=decorator_info.get("parent_tags"),
+                    inherits_from=decorator_info.get("inherits_from", ""),
+                    _meta=decorator_info.get("_meta"),
+                    documentation=obj.__doc__,
+                    call_args_validations=call_args_validations,
+                )
 
         # Validate `inherits_from` references: each name in the
         # comma-separated list must exist among the abstracts. Errors
@@ -275,14 +303,14 @@ class BagBuilderBase(
     # for ``_data_element_meta`` into ``_attach_data_element``.
     # -----------------------------------------------------------------------
 
-    @data_element
-    def data(self): ...
+    @element(_meta={"data_element": True})
+    def data_setter(self, destination: str, value: Any): ...
 
-    @data_element
-    def data_formula(self): ...
+    @element(_meta={"data_element": True})
+    def data_formula(self, destination: str, func: str | Callable, **kwargs): ...
 
-    @data_element
-    def data_controller(self): ...
+    @element(_meta={"data_element": True})
+    def data_controller(self, func: str | Callable, **kwargs): ...
 
     #: Default rendering mode used when ``render(mode=None)`` is called.
     #: Concrete dialects override this (e.g. ``"html"`` for HtmlBuilder).
