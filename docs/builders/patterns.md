@@ -1,7 +1,7 @@
 # Common patterns
 
-**Last Updated**: 2026-05-30
-**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
+**Last Updated**: 2026-06-02
+**Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
 
 Cross-grammar idioms. These work the same way on HTML, SVG, CSS, or
 any user-defined dialect built on `BagBuilderBase`.

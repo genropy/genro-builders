@@ -20,9 +20,12 @@ builder as `renderer_<mode>` properties. Concrete dialects under
 CSS (`CssBuilderHandler`), XSD (schema codegen).
 
 Pull-based data binding is in (`^pointer` / `=pointer` / `${name}`
-templates, `node.runtime_values`, `handler.pointer_map`). Push
-reactivity is on the roadmap (`RX` area of the contract). The
-authoritative document is `roadmap/architecture-contract.md` v0.5.0.
+templates, `node.runtime_values`, `handler.pointer_map`), together with
+the data-element compute (slice 1) and push reactivity Level 0
+(`handler.live(target)`). Later push-reactivity levels (data-element
+cascade slice 2, SRC/DATA granularity) are on the roadmap (`RX` area of
+the contract). The authoritative document is
+`roadmap/architecture-contract.md` v0.7.0.
 
 ---
 

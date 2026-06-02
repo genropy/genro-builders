@@ -230,9 +230,13 @@ class RendererBase:
         return f"<{wrap_tag}{framework_attrs}{user_attrs}>{fragment}</{wrap_tag}>"
 
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
-        """Hook used by ``_wrap_fragment``. Override in dialects that
-        host sub-builders with wrap_tag (e.g. ``HtmlRenderer`` ospitando
-        SVG, ``SvgRenderer`` ospitando HTML)."""
+        """Serialize an attribute dict to a markup string.
+
+        Abstract on the base: each concrete renderer implements its own
+        dialect formatting (``XmlRenderer`` here, ``HtmlRenderer`` /
+        ``SvgRenderer`` in contrib). Used both when emitting a node and
+        when wrapping a sub-builder fragment (``wrap_tag``).
+        """
         raise NotImplementedError(
             f"{type(self).__name__} does not implement _format_attrs",
         )

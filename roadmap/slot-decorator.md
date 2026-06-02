@@ -129,8 +129,8 @@ l'autore crea dentro fa scattare gli altri `@slot`.
 - `@element` / `@abstract` — dichiarano **tag** della grammar (cosa si può
   scrivere nel source).
 - `@subbuilder` — un tag che apre un altro dialetto da quel nodo in giù.
-- `@data_element` — nodi dati trasparenti (`data`/`data_formula`/
-  `data_controller`).
+- i data-element — nodi dati trasparenti (`data_setter`/`data_formula`/
+  `data_controller`), `@element` marcati `_meta['data_element']`.
 - `@struct_method` — un blocco riusabile di costruzione, invocabile da un nodo.
 - **`@slot`** — non dichiara un tag né un blocco: lega un metodo a un `node_id` e
   lo invoca alla nascita di quel nodo. È riempimento per id, non grammatica.

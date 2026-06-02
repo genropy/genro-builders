@@ -500,9 +500,13 @@ class _BuilderBagNodeMixin:
 
         ``node.div('hello')`` becomes ``builder._command_on_node(...)``
         when the active builder carries a tag named ``div`` in its
-        schema. If no grammar tag matches, fall back to a
-        ``@struct_method`` dispatched via the owning handler (legacy
-        gnrwebstruct parity).
+        schema. For a data-element tag (``_meta['data_element']``) the
+        positional args are mapped onto the schema field names
+        (``data_setter('x', 1)`` → ``destination='x', value=1``) and the
+        node is flagged ``_is_data_element``; a plain element keeps the
+        single-positional ``node_value`` behaviour. If no grammar tag
+        matches, fall back to a ``@struct_method`` dispatched via the
+        owning handler (legacy gnrwebstruct parity).
         """
         if name.startswith("_"):
             raise AttributeError(

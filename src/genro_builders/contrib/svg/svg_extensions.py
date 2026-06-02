@@ -24,7 +24,12 @@ class SvgExtensions:
     """Mixin layering Genro-specific decorators above the SVG grammar."""
 
     @subbuilder("html")
-    def html(self): ...
+    def html(self):
+        """Switch to the HTML dialect from this node down (BLD.2).
+
+        Rendered inside an SVG ``<foreignObject>`` envelope via
+        :meth:`wrapper_html`.
+        """
 
     def wrapper_html(self) -> dict:
         """Boundary markup emitted around an embedded HTML subtree.

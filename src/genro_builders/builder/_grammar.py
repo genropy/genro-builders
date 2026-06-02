@@ -2,9 +2,11 @@
 """Grammar mixin: element dispatch, validation, schema access.
 
 Interprets the schema defined by decorators to create and validate nodes.
-Handles ``__getattr__`` lookup, element/data_element/subbuilder creation,
-child placement, all validation checks (call_args, sub_tags, parent_tags),
-and schema introspection (``__contains__``, ``_get_schema_info``, ``__iter__``).
+Handles ``__getattr__`` lookup, element and subbuilder creation (the
+three data-elements are ordinary elements marked ``_meta['data_element']``,
+created through the same path), child placement, all validation checks
+(call_args, sub_tags, parent_tags), and schema introspection
+(``__contains__``, ``_get_schema_info``, ``__iter__``).
 """
 
 from __future__ import annotations

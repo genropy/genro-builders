@@ -22,4 +22,5 @@ class Html5Extensions:
     """Mixin layering Genro-specific decorators above the W3C grammar."""
 
     @subbuilder("svg")
-    def svg(self): ...
+    def svg(self):
+        """Switch to the SVG dialect from this node down (BLD.2)."""

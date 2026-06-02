@@ -1,16 +1,16 @@
 # Decorators
 
-**Last Updated**: 2026-05-30
-**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
+**Last Updated**: 2026-06-02
+**Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
 
-The framework provides five decorators for declaring a grammar.
-They live in
+The framework provides three grammar decorators, plus a marker that
+turns ordinary elements into data-elements. They live in
 [src/genro_builders/builder/_decorators.py](../../src/genro_builders/builder/_decorators.py)
 and are imported as:
 
 ```python
 from genro_builders.builder import (
-    element, abstract, subbuilder, data_element,
+    element, abstract, subbuilder,
 )
 ```
 
@@ -21,7 +21,10 @@ from genro_builders.builder import (
 | `@element` | Declare a tag in the grammar. | Ignored (declarative). |
 | `@abstract` | Declare an abstract base for inheritance. | Ignored (declarative). |
 | `@subbuilder` | Open a sub-grammar from this tag down. | Ignored (declarative). |
-| `@data_element` | Declare a transparent data-element (`data` / `data_formula` / `data_controller`, by method name). | Ignored (declarative). |
+
+The **data-elements** (`data_setter`, `data_formula`, `data_controller`)
+are not a separate decorator: they are ordinary `@element` declarations
+marked `_meta={"data_element": True}`. See the dedicated section below.
 
 ## `@element`
 
@@ -49,6 +52,10 @@ The element can only appear under one of these tags.
 `inherits_from` — name of an abstract element whose `sub_tags` are
 inherited.
 
+`_meta` (optional) — a dict of metadata attached to the schema entry.
+The framework reads `_meta["data_element"]` to recognise a data-element
+(see below); dialects may carry their own keys.
+
 ## `@abstract`
 
 Declares a base for inheritance. Never instantiated directly.
@@ -62,9 +69,9 @@ def p(self): ...
 ```
 
 Abstracts live in a dedicated `_abstracts` sub-bag of the class
-schema, separate from the top-level elements / subbuilders /
-data_elements. Labels are bare names — no `@` prefix. The concrete
-element references them via `inherits_from='<name>'`.
+schema, separate from the top-level elements / subbuilders. Labels are
+bare names — no `@` prefix. The concrete element references them via
+`inherits_from='<name>'`.
 
 If `inherits_from` names an abstract that does not exist (including
 typos in comma-separated lists like `'phrasing,flow'`), a
@@ -91,73 +98,83 @@ the polymorphic dispatch picks the sub-builder's `renderer_<mode>`
 fragment in a dialect-specific envelope via `wrapper_<sub_name>`
 (e.g. SVG hosting HTML in `<foreignObject xmlns="...">`).
 
-## `@data_element`
+## Data-elements
 
-A single decorator declares **transparent** elements: they live in the
-source tree but emit **no markup** at render time. They carry data
-behaviour (writing the data bag, computing, side effects) that runs
-in the handler — not at definition. Like `@subbuilder`, the body is
-**ignored** (autonomous): only `__name__`/`__doc__` are read; the
-wrapper calls the grammar's `_attach_data_element` when the element is
-written.
-
-The **kind is the decorated method's name** — there is no separate
-decorator per kind. The three kinds differ by graph role and output:
-
-| Method | Signature | Role |
-|--------|-----------|------|
-| `data` | `data(path, value)` | leaf input — writes `value` at `path` (a `dict` becomes a `Bag`); written at create, always |
-| `data_formula` | `data_formula(path, func, **bindings)` | computed — writes the return of `func` at `path` |
-| `data_controller` | `data_controller(func, **bindings)` | side effect / free writer — `func` may write any number of bag paths itself; no declared output `path` |
+Three **transparent** elements live in the source tree but emit **no
+markup** at render time. They carry data behaviour (seeding the data
+bag, computing, side effects) that runs in the handler. They are
+declared once on `BagBuilderBase` as ordinary `@element` marked
+`_meta={"data_element": True}` and injected into every dialect's schema
+by `__init_subclass__` — so every builder has them without re-declaring:
 
 ```python
-class MyBuilder(BagBuilderBase):
+class BagBuilderBase(...):
 
-    @data_element
-    def data(self): ...
+    @element(_meta={"data_element": True})
+    def data_setter(self, destination: str, value: Any): ...
 
-    @data_element
-    def data_formula(self): ...
+    @element(_meta={"data_element": True})
+    def data_formula(self, destination: str, func: str | Callable, **kwargs): ...
 
-    @data_element
-    def data_controller(self): ...
+    @element(_meta={"data_element": True})
+    def data_controller(self, func: str | Callable, **kwargs): ...
 ```
+
+The **kind is the tag name** (`node.node_tag`); there is no `kind`
+parameter. The three kinds differ by graph role and output:
+
+| Tag | Signature | Role |
+|-----|-----------|------|
+| `data_setter` | `data_setter(destination, value)` | seed — writes `value` at `destination` (a `dict`/`Bag` is allowed); runs at create, always |
+| `data_formula` | `data_formula(destination, func, **bindings)` | computed — writes the return of `func(**bindings)` at `destination`; pure |
+| `data_controller` | `data_controller(func, **bindings)` | side effect — `func(node, **bindings)` may write any number of bag paths; no declared `destination` |
 
 Used near the structure, inside `main()`:
 
 ```python
 def main(self, root):
     body = root.body(datapath="x")
-    body.data("price", 100)
-    body.data("tax", 0.22)
+    body.data_setter("price", 100)
+    body.data_setter("tax", 0.22)
     body.data_formula("total", func="compute_total",
                       price="^price", tax="^tax")
     body.p("^total")
 ```
 
-- **`path`** (1st positional of `data`/`data_formula`) — where the
-  result goes, absolute or relative (`".total"` is composed via
-  `abs_datapath`, like a pointer). `data_controller` has no `path`.
-- **`func`** — canonical form is a **handler-method name**
-  (`func="compute_total"`, resolved via `getattr(self, ...)`); an
-  inline callable/lambda is also accepted (handy, but makes the page
-  non-serializable).
+- **`destination`** (1st field of `data_setter`/`data_formula`) — where
+  the result goes, absolute or relative (`".total"` is composed via
+  `abs_datapath`, like a pointer). `data_controller` has no
+  `destination`.
+- **`value`** (of `data_setter`) — kept as a flat attribute (not the
+  node value), so a `Bag` payload is not captured into the source tree.
+- **`func`** — the canonical form is a **`@staticmethod` name**
+  (`func="compute_total"`), resolved left-to-right over the handler's
+  `data_logic` sources; a miss raises `AttributeError`, a non-static
+  match raises `TypeError`. An inline callable is also accepted (handy,
+  but makes the page non-serializable and is not cross-language).
 - **`bindings`** (kwargs) — the `^pointer` inputs, always explicit,
-  passed to `func` **by name** (`func(price=..., tax=...)`).
-- **`_on_start`** (formula/controller) — requests execution at the
-  first render; plain `data` always writes at create.
+  resolved via `runtime_values` and passed to `func` **by name**.
+  `data_formula`'s `func` is pure (`func(**bindings)`);
+  `data_controller`'s receives the node first (`func(node, **bindings)`).
+- **`_on_start`** (formula/controller) — requests execution at the first
+  calculation in `create()`; `data_setter` always seeds at create.
 
-> **Status**: the three data-elements run at **first render** (during
-> `create()`). The cascade that re-fires dependent data-elements on a
-> later mutation is not yet implemented — see the `RX` area of the
-> contract and `roadmap/reactivity/data-elements.md`.
+At runtime the dispatch goes through the same `_command_on_node` as any
+element; `element_call` recognises the `_meta['data_element']` mark, maps
+the positional args onto the field names, and flags the node
+`_is_data_element` (which the renderer skips).
+
+> **Status**: the data-elements run at first calculation (during
+> `create()`) and recompute in a single wave when a dependency mutates
+> (contract `DAT.4`, slice 1). The multi-wave cascade (slice 2) is not
+> yet implemented — see the `RX` area of the contract and
+> `roadmap/reactivity/data-elements.md`.
 
 ## Declarative bodies
 
-All five decorators are **declarative**: the framework only reads the
+All three decorators are **declarative**: the framework only reads the
 signature and metadata, the function body is discarded. For
 `@element`/`@abstract`/`@subbuilder`, a non-empty body emits a warning
 at class definition time — use `...` (ellipsis) as the body to
-suppress it. The data-elements declared via `@data_element` are
-autonomous in the same way: the body is ignored, the behaviour lives
-in the handler's data-pass.
+suppress it. The data-elements, being `@element`, follow the same rule;
+their behaviour lives in the handler's compute pass, not in the body.

@@ -1,7 +1,7 @@
 # genro-builders
 
-**Last Updated**: 2026-05-30
-**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0.
+**Last Updated**: 2026-06-02
+**Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
 
 Builder system for [genro-bag](https://github.com/genropy/genro-bag).
 Construct structured documents — HTML, SVG, CSS — through a fluent,
@@ -28,7 +28,7 @@ user-facing dialect.
 - **[Builders overview](builders/overview.md)** — what a builder is,
   how the lifecycle works.
 - **[Decorators](builders/decorators.md)** — `@element`, `@abstract`,
-  `@subbuilder`, `@data_element`.
+  `@subbuilder`, and the data-elements.
 - **[Common patterns](builders/patterns.md)** — `._` chaining,
   `node_by_id`, render targets.
 - **Grammars** — per-grammar reference:
@@ -41,7 +41,7 @@ Documents describing where the project is heading — not yet shipped
 in code — live in `roadmap/` at the repo root:
 
 - `roadmap/architecture-contract.md` — the architectural contract
-  (v0.5.0, in vigore dal 2026-05-27).
+  (v0.7.0, in vigore dal 2026-06-02).
 - `roadmap/data-architecture.md` — the data model proposal (pointers,
   datapath, volumes).
 - `roadmap/implementation-roadmap.md` — open problem framing.
@@ -51,11 +51,12 @@ in code — live in `roadmap/` at the repo root:
 ## Status of the current scaffold
 
 This documentation skeleton describes the framework as it exists
-**today**. Features still under design (push reactivity, data
-elements consumption, multi-handler orchestration) are not
-documented here — they live in `roadmap/` and will move to `docs/`
-when they ship. Data pointers and pull-based binding are already
-in: see [README](../README.md) and the contract section `DAT.2`.
+**today**: pull-based binding (`DAT.2`), data-elements with their
+compute (`DAT.4`), and push reactivity Level 0 (`handler.live`,
+`RX.1`). Features still under design — the data-element cascade
+(slice 2), finer-grained reactivity, multi-handler orchestration —
+are not documented here: they live in `roadmap/` and will move to
+`docs/` when they ship.
 
 ```{toctree}
 :hidden:

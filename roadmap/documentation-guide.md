@@ -31,8 +31,9 @@ Typical contents:
   the handler/builder/renderer triad.
 - `patterns.md` — cross-grammar idioms (e.g. the `._` chaining
   pattern, `node_by_id`, render target registration and dispatch).
-- `decorators.md` — `@element`, `@abstract`, `@subbuilder`,
-  `@data_element`. The framework decorators.
+- `decorators.md` — `@element`, `@abstract`, `@subbuilder`, and the
+  data-elements (plain `@element` marked as data). The framework
+  decorators.
 
 ### 1.2 `docs/grammars/` — per-grammar
 

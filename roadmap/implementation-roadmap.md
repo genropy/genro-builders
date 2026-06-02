@@ -92,9 +92,9 @@ the sub-builder's renderer).
 
 ### 2.3 Data elements
 
-`data_setter`, `data_formula`, and any other `@data_element`. They
-write to or install resolvers on the data store; they emit no
-markup at render time.
+`data_setter`, `data_formula`, `data_controller` — plain `@element`
+marked `_meta['data_element']`. They write to or install resolvers on
+the data store; they emit no markup at render time.
 
 Touches: data (they are the writers); reactivity (data formulas
 are pull-based but trigger reactive cascades when dependencies

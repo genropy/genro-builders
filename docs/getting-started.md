@@ -1,7 +1,7 @@
 # Getting started
 
-**Last Updated**: 2026-05-30
-**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0.
+**Last Updated**: 2026-06-02
+**Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
 
 Build a first page in five minutes.
 

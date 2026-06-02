@@ -74,8 +74,10 @@ print(page.render())
 ## Architecture (one-paragraph map)
 
 A **builder** declares the grammar of a dialect (decorators
-`@element`, `@abstract`, `@subbuilder`, `@data_element`) and exposes
-its renderers as `renderer_<mode>` properties. A **handler** drives
+`@element`, `@abstract`, `@subbuilder`; the three data-elements
+`data_setter` / `data_formula` / `data_controller` are plain
+`@element` marked as data) and exposes its renderers as
+`renderer_<mode>` properties. A **handler** drives
 the lifecycle for a single builder instance: it owns the source bag,
 the data bag, the pointer map and the render target registry. A
 **renderer** is responsible for one mode: the universal walk on
@@ -111,8 +113,10 @@ print(page.render())
 # <body><h1>Ciao</h1></body>
 ```
 
-Push reactivity (`subscribe`/auto-render on data change) is on the
-roadmap (`RX`); the pull-based slice above is the current contract.
+Push reactivity has a first level: inside a `with page.live(target):`
+section every data/source mutation triggers a full re-render to the
+target (contract `RX.1`). Finer-grained reactivity (data-element
+cascade, per-attribute updates) is on the roadmap (`RX`).
 
 The companion API on each node:
 
@@ -168,7 +172,7 @@ notebook `.ipynb`, and the resulting `.html` output.
 
 - [Getting Started](docs/getting-started.md) — first page in 5 minutes
 - [Builders overview](docs/builders/overview.md) — handler/builder/renderer split
-- [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, `@subbuilder`, `@data_element`
+- [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, `@subbuilder`, and the data-elements
 - [Common patterns](docs/builders/patterns.md) — `._` chaining, `node_by_id`, render targets
 - Per-grammar references: [HTML](docs/grammars/html.md), [SVG](docs/grammars/svg.md), [CSS](docs/grammars/css.md)
 - Architectural contract and roadmap: [`roadmap/`](roadmap/)

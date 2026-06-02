@@ -53,8 +53,9 @@ class BuilderHandler:
 
     Holds two wrapper bags (``_sourceroot`` and ``_dataroot``), each with
     the active payload under the key ``"main"``, and exposes the payloads
-    as :attr:`source` and :attr:`data`. Subscribes both wrappers in
-    ``__init__`` and routes every event to the public override points
+    as :attr:`source` and :attr:`data`. ``create()`` subscribes both
+    wrappers (not ``__init__``, so the inserts from ``main`` do not
+    dispatch) and routes every event to the public override points
     :meth:`on_source_change` / :meth:`on_data_change`. See the module
     docstring for the full picture.
     """

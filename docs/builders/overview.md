@@ -1,7 +1,7 @@
 # Builders overview
 
-**Last Updated**: 2026-05-30
-**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
+**Last Updated**: 2026-06-02
+**Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
 
 A builder is a Python class that defines a grammar for a structured
 document: HTML, SVG, CSS, or any user-defined dialect.
@@ -87,21 +87,27 @@ class CustomerPage(HtmlBuilderHandler):
 | Node lookup by id | Handler (`node_by_id`) |
 
 This separation is fixed by the architecture contract (sections
-`BLD.3` / `HND.3`, v0.5.0). See `roadmap/architecture-contract.md`.
+`BLD.3` / `HND.3`). See `roadmap/architecture-contract.md`.
 
-## What is not yet here
+## What is here, and what is next
 
-The following features are designed but not yet implemented:
+Already implemented:
 
-- **Push reactivity** — automatic re-render when data changes. The
-  pull-based slice (`^pointer` / `=pointer` / `${name}` resolved at
-  render time) is already in; what's missing is the dispatch that
-  re-runs `render()` automatically. See `RX` area of the contract.
-- **Data-element cascade on mutation** — the three data-elements
-  declared via `@data_element` (`data`, `data_formula`,
-  `data_controller`) already run at first render (during `create()`);
-  what's missing is the re-firing of dependent data-elements when a
-  datum mutates inside a live section. See [Decorators](decorators.md)
-  and the `RX` area.
-- **Multi-builder orchestration** (`BuilderSuite`). See `SUITE`
-  area of the contract.
+- **Pull-based binding** — `^pointer` / `=pointer` / `${name}` resolved
+  at render time (contract `DAT.2`).
+- **Data-elements** — `data_setter`, `data_formula`, `data_controller`
+  (plain `@element` marked as data) run at first calculation during
+  `create()` and recompute in a single wave when a dependency mutates
+  (`DAT.4`). See [Decorators](decorators.md).
+- **Push reactivity, Level 0** — inside `with handler.live(target):`
+  every mutation triggers a full re-render to the target (`RX.1`).
+
+Designed but not yet implemented:
+
+- **Data-element cascade (slice 2)** — multi-wave re-firing of dependent
+  data-elements. See the `RX` area and
+  `roadmap/reactivity/data-elements.md`.
+- **Finer-grained push reactivity** — per-attribute updates, SRC/DATA
+  granularity (`RX`).
+- **Multi-builder orchestration** (`BuilderSuite`). See `SUITE` area of
+  the contract.

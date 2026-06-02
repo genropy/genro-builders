@@ -2,11 +2,12 @@
 """BagBuilderBase — grammar base class for Bag builders.
 
 A builder declares the grammar of a dialect via decorators
-(@element, @abstract, @subbuilder, and @data_element for the three
-data-elements data / data_formula / data_controller) and the schema of
-valid tag placements (sub_tags, parent_tags). Engine responsibilities
-— source, the create/render phases, render_target, node_id index —
-live on the BuilderHandler (decisions 1, 8, 9).
+(@element, @abstract, @subbuilder) and the schema of valid tag
+placements (sub_tags, parent_tags). The three data-elements
+(data_setter / data_formula / data_controller) are ordinary @element
+declared on this base and marked ``_meta['data_element']``. Engine
+responsibilities — source, the create/render phases, render_target,
+node_id lookup — live on the BuilderHandler (decisions 1, 8, 9).
 
 Exports:
     BagBuilderBase: Base class for all builders.
@@ -50,6 +51,11 @@ class BagBuilderBase(
     ``_meta['data_element']``. ``__init_subclass__`` injects them into every
     dialect's schema (see ``_iter_data_element_methods``), so they are
     available everywhere without each dialect re-declaring them.
+
+    The data-elements are NOT a separate decorator: they are plain
+    @element marked ``_meta['data_element']`` and go through the same
+    ``_command_on_node`` dispatch as any element; ``element_call`` flags
+    the resulting node ``_is_data_element``.
 
     @subbuilder remains **autonomous**: it does not pass through
     ``__init_subclass__`` and does not appear in ``_class_schema``; its
@@ -298,9 +304,12 @@ class BagBuilderBase(
         return root
 
     # -----------------------------------------------------------------------
-    # Data-elements (core, every dialect inherits them). Autonomous like
-    # @subbuilder: bodies ignored, dispatched via the node __getattr__ branch
-    # for ``_data_element_meta`` into ``_attach_data_element``.
+    # Data-elements (core, every dialect inherits them). Plain @element marked
+    # ``_meta['data_element']``: bodies ignored (like every @element), injected
+    # into each dialect schema by __init_subclass__ via
+    # _iter_data_element_methods, and dispatched through the same
+    # _command_on_node as any element (element_call flags _is_data_element).
+    # The signature carries the kind's fields (destination/value/func).
     # -----------------------------------------------------------------------
 
     @element(_meta={"data_element": True})

@@ -7,12 +7,16 @@ function body: they replace the decorated function with an inert
 (``__name__``, ``__doc__``, ``_decorator``). Any body the user wrote
 is therefore unreachable.
 
-Autonomous decorators (``@subbuilder`` and ``@data_element``, the
-latter on the three methods ``data``/``data_formula``/``data_controller``)
-also ignore the body: they return a wrapper that calls a dedicated
-grammar method (``_attach_subbuilder`` / ``_attach_data_element``) and
-carry their own meta (``_subbuilder_meta`` / ``_data_element_meta``),
-dispatched via the node ``__getattr__``.
+``@subbuilder`` is autonomous: it ignores the body too, returns a
+wrapper that calls ``_attach_subbuilder``, carries its own
+``_subbuilder_meta`` and is dispatched via the node ``__getattr__``.
+
+The three data-elements (``data_setter`` / ``data_formula`` /
+``data_controller``) are NOT a separate decorator: they are ordinary
+``@element`` declarations on ``BagBuilderBase`` marked
+``_meta={"data_element": True}``. They flow through the same schema and
+the same ``_command_on_node`` dispatch as plain elements; the node is
+flagged ``_is_data_element`` in ``element_call``.
 
 Internal:
     _DeclarativeMarker -- inert wrapper for declarative decorators.
