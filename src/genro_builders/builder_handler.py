@@ -108,12 +108,17 @@ class BuilderHandler:
             merged[key] = attr_name
         cls._struct_methods = merged
 
-    def __init__(self) -> None:
+    def __init__(self, application: Any = None) -> None:
         if self.builder_class is None:
             raise TypeError(
                 f"{type(self).__name__} must declare a builder_class "
                 "(decision 9: handler subclasses bind a specific builder).",
             )
+        # The Application that owns this handler (dual relationship: the
+        # app passes itself in). ``None`` means the handler is standalone —
+        # sync/pull only. A handler is reactive precisely because it has an
+        # application; reactivity is the relationship, not an internal flag.
+        self.application = application
         self.builder = self.builder_class()
         self._sourceroot: BuilderBag = BuilderBag(
             builder=self.builder, handler=self,
