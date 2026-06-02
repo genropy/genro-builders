@@ -133,7 +133,14 @@ def _check_type(value: Any, tp: Any) -> bool:
 # ---------------------------------------------------------------------------
 
 def _extract_validators_from_signature(fn: Callable) -> dict[str, tuple[Any, list, Any]]:
-    """Extract type hints with validators from function signature."""
+    """Extract type hints with validators from function signature.
+
+    Declarative decorators (@element/@abstract) return an inert
+    ``_DeclarativeMarker`` rather than the function. The marker keeps the
+    original function under ``_func`` for introspection; read the signature
+    from there so call-argument validation survives the decoration.
+    """
+    fn = getattr(fn, "_func", fn)
     skip_params = {
         "self",
         "build_where",

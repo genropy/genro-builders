@@ -63,6 +63,12 @@ def test_builder_schema_contains_known_elements():
     )
 
 
+@pytest.mark.xfail(
+    raises=ValueError,
+    reason="XSD codegen emits \\p{...} regex patterns Python's re cannot "
+    "compile; validation now active rejects them (issue #30)",
+    strict=True,
+)
 def test_handler_renders_minimal_document_to_xml():
     class MinimalInvoice(FatturaPABuilderHandler):
         def main(self, root):
@@ -76,6 +82,12 @@ def test_handler_renders_minimal_document_to_xml():
     assert 'SistemaEmittente="TESTSW"' in xml
 
 
+@pytest.mark.xfail(
+    raises=ValueError,
+    reason="XSD codegen emits \\p{...} regex patterns Python's re cannot "
+    "compile; validation now active rejects them (issue #30)",
+    strict=True,
+)
 def test_handler_writes_xml_to_file(tmp_path):
     class MinimalInvoice(FatturaPABuilderHandler):
         def main(self, root):

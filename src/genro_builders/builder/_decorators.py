@@ -46,10 +46,16 @@ class _DeclarativeMarker:
         name: str,
         doc: str | None,
         decorator: dict[str, Any],
+        func: Callable | None = None,
     ) -> None:
         self.__name__ = name
         self.__doc__ = doc
         self._decorator = decorator
+        # Keep the original function for signature introspection only
+        # (call-argument validation reads it via ``_extract_validators_from_
+        # signature``). The marker stays inert — no ``__call__`` — so direct
+        # invocation of ``cls.<tag>()`` still raises TypeError.
+        self._func = func
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +156,7 @@ def element(
             }.items()
             if v is not None
         }
-        return _DeclarativeMarker(func.__name__, func.__doc__, info)
+        return _DeclarativeMarker(func.__name__, func.__doc__, info, func)
 
     return decorator
 
@@ -200,7 +206,7 @@ def abstract(
             info["parent_tags"] = parent_tags
         if _meta:
             info["_meta"] = _meta
-        return _DeclarativeMarker(func.__name__, func.__doc__, info)
+        return _DeclarativeMarker(func.__name__, func.__doc__, info, func)
 
     return decorator
 
