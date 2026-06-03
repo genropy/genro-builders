@@ -1,8 +1,11 @@
 # XSD support
 
-The XSD contribution is a **codegen** pipeline: given an XSD schema,
-it generates a static Python builder mixin that you commit to your
-repository and import without runtime dependencies on the parser.
+The XSD contribution is a **codegen** pipeline: given an XSD schema, it
+generates a self-contained Python module — a ``<Dialect>Builder`` +
+``<Dialect>Handler`` pair — that you commit to your repository and import
+without runtime dependencies on the parser. The two base classes
+``XsdBuilderBase`` / ``XsdHandler`` (in ``xsd_builder.py``) anchor every
+XSD-born dialect; the XML render is the core's real ``XmlRenderer``.
 
 ## Install
 

@@ -26,11 +26,17 @@ def gen():
     return PythonGenerator()
 
 
-def test_empty_model_yields_a_class_skeleton(gen):
+def test_empty_model_yields_builder_and_handler_classes(gen):
     model = NamespaceModel(target_namespace="http://example.com/x")
     src = gen.render(model, "Demo")
-    assert "class Demo:" in src
+    assert "class DemoBuilder(XsdBuilderBase):" in src
+    assert "class DemoHandler(XsdHandler):" in src
+    assert "builder_class = DemoBuilder" in src
     assert "from genro_builders.builder import element" in src
+    assert (
+        "from genro_builders.contrib.xsd.xsd_builder import "
+        "XsdBuilderBase, XsdHandler" in src
+    )
     assert "GENERATED FILE" in src
 
 
@@ -173,3 +179,32 @@ def test_unknown_tag_names_are_slugged(gen):
     src = gen.render(model, "Demo")
     assert "tags='my-tag'" in src
     assert "def my_tag(self):" in src
+
+
+def test_generated_module_is_executable_and_renders(gen):
+    """The generated source compiles, its handler builds a document, and
+    a real ``xml`` render walks the grammar end to end."""
+    model = NamespaceModel(
+        target_namespace="http://example.com/demo",
+        elements=[
+            ElementModel(
+                name="Greeting",
+                children=[ChildModel(name="Subject", min_occurs=1, max_occurs=1)],
+            ),
+            ElementModel(name="Subject"),
+        ],
+    )
+    src = gen.render(model, "Demo")
+    namespace: dict[str, object] = {}
+    exec(compile(src, "<generated>", "exec"), namespace)
+    handler_class = namespace["DemoHandler"]
+
+    class MyDoc(handler_class):  # type: ignore[valid-type, misc]
+        def main(self, root):
+            root.Greeting().Subject("hi")
+
+    doc = MyDoc()
+    doc.create()
+    assert doc.render(mode="xml", target=False) == (
+        "<Greeting><Subject>hi</Subject></Greeting>"
+    )

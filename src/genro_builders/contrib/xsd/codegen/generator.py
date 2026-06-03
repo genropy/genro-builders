@@ -40,14 +40,23 @@ class PythonGenerator:
     def render(
         self,
         model: NamespaceModel,
-        class_name: str,
+        dialect_name: str,
         module_docstring: str | None = None,
     ) -> str:
-        """Return the full Python source for the generated mixin."""
+        """Return the full Python source for the generated dialect.
+
+        ``dialect_name`` is the dialect's base name (e.g. ``Gpx``,
+        ``FatturaElettronica``); the module declares two classes derived
+        from it: ``<dialect_name>Builder(XsdBuilderBase)`` carrying the
+        ``@element`` grammar, and ``<dialect_name>Handler(XsdHandler)``
+        bound to it via ``builder_class``. The user subclasses the
+        handler and implements ``main``.
+        """
         out = StringIO()
-        self._write_header(out, model, class_name, module_docstring)
+        self._write_header(out, model, dialect_name, module_docstring)
         self._write_imports(out, model)
-        self._write_class(out, model, class_name)
+        self._write_builder(out, model, dialect_name)
+        self._write_handler(out, dialect_name)
         return out.getvalue()
 
     # ------------------------------------------------------------------
@@ -58,15 +67,15 @@ class PythonGenerator:
         self,
         out: StringIO,
         model: NamespaceModel,
-        class_name: str,
+        dialect_name: str,
         module_docstring: str | None,
     ) -> None:
         out.write("# Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0\n")
         out.write("# GENERATED FILE - DO NOT EDIT MANUALLY.\n")
         out.write(
             "# Regenerate with: python -m genro_builders.contrib.xsd.codegen "
-            "--xsd <path> --class-name "
-            f"{class_name} --output <path>\n"
+            "--xsd <path> --dialect-name "
+            f"{dialect_name} --output <path>\n"
         )
         if model.target_namespace:
             out.write(f"# Source targetNamespace: {model.target_namespace}\n")
@@ -74,7 +83,7 @@ class PythonGenerator:
         if module_docstring:
             out.write(module_docstring.strip())
         else:
-            out.write(f"Auto-generated element mixin for {class_name}.")
+            out.write(f"Auto-generated XSD dialect for {dialect_name}.")
         out.write('"""\n\n')
         out.write("from __future__ import annotations\n\n")
 
@@ -110,21 +119,24 @@ class PythonGenerator:
             + (["Range"] if uses_range else [])
         )
         out.write(
-            f"from genro_builders.builder import {', '.join(builder_imports)}\n\n\n"
+            f"from genro_builders.builder import {', '.join(builder_imports)}\n"
+        )
+        out.write(
+            "from genro_builders.contrib.xsd.xsd_builder import "
+            "XsdBuilderBase, XsdHandler\n\n\n"
         )
 
-    def _write_class(
+    def _write_builder(
         self,
         out: StringIO,
         model: NamespaceModel,
-        class_name: str,
+        dialect_name: str,
     ) -> None:
-        out.write(f"class {class_name}:\n")
+        out.write(f"class {dialect_name}Builder(XsdBuilderBase):\n")
         ns = model.target_namespace or "<no namespace>"
         out.write(
-            f'    """Element mixin generated from XSD namespace ``{ns}``.\n\n'
+            f'    """XSD dialect grammar generated from namespace ``{ns}``.\n'
         )
-        out.write("    Pair with ``BagBuilderBase`` in a concrete builder class.\n")
         if model.imports:
             out.write(
                 "\n    NOTE: the source XSD declares additional namespace imports "
@@ -136,6 +148,14 @@ class PythonGenerator:
 
         for element in model.elements:
             self._write_element(out, element)
+
+    def _write_handler(self, out: StringIO, dialect_name: str) -> None:
+        out.write("\n")
+        out.write(f"class {dialect_name}Handler(XsdHandler):\n")
+        out.write(
+            f'    """Preset handler bound to :class:`{dialect_name}Builder`."""\n\n'
+        )
+        out.write(f"    builder_class = {dialect_name}Builder\n")
 
     def _write_element(self, out: StringIO, element: ElementModel) -> None:
         sub_tags = self._build_sub_tags(element.children)
@@ -229,8 +249,10 @@ class PythonGenerator:
         }.get(constraint.base, "str")
 
         validators: list[str] = []
-        if constraint.pattern:
+        if constraint.pattern and _is_python_regex_compatible(constraint.pattern):
             validators.append(f"Regex({constraint.pattern!r})")
+        # An incompatible pattern is NOT emitted here; it surfaces as a
+        # commented-out validator via ``_constraint_notes`` instead.
         if constraint.min_inclusive is not None or constraint.max_inclusive is not None:
             kwargs: list[str] = []
             if constraint.min_inclusive is not None:
@@ -353,6 +375,26 @@ class PythonGenerator:
 # Module-level helpers (no instance state, simple text utilities)
 # ----------------------------------------------------------------------
 
+def _is_python_regex_compatible(pattern: str) -> bool:
+    """True if ``pattern`` compiles under Python's ``re``.
+
+    XSD patterns can use constructs ``re`` does not understand — most
+    notably Unicode *block* properties (``\\p{IsBasicLatin}``, XML Schema /
+    Java / .NET syntax). The codegen does not try to translate them
+    (translation is context-sensitive and easy to get subtly wrong, e.g.
+    a range inside vs. outside a character class): it only checks whether
+    ``re`` accepts the pattern as-is. When it does not, the caller emits
+    the validator **commented out** with a NOTE, leaving the developer to
+    refine the generated base by hand. The grammar is a starting point,
+    not a guaranteed-complete dialect.
+    """
+    try:
+        re.compile(pattern)
+    except re.error:
+        return False
+    return True
+
+
 def _format_sub_tag(name: str, min_o: int, max_o: int | None) -> str:
     """Format a single ``sub_tags`` entry per ``_parse_sub_tags_spec`` syntax."""
     if min_o == 0 and max_o is None:
@@ -377,6 +419,12 @@ def _safe_param_name(name: str) -> str:
 def _constraint_notes(constraint: SimpleConstraint, label: str) -> list[str]:
     """Return human-readable notes for constraints the grammar drops."""
     notes: list[str] = []
+    if constraint.pattern and not _is_python_regex_compatible(constraint.pattern):
+        notes.append(
+            f"{label}: XSD pattern not Python-re-compatible, validation "
+            f"commented out (refine by hand):"
+        )
+        notes.append(f"    Regex({constraint.pattern!r})")
     if constraint.min_length is not None or constraint.max_length is not None:
         lo = constraint.min_length if constraint.min_length is not None else 0
         hi = constraint.max_length if constraint.max_length is not None else "*"
@@ -399,7 +447,7 @@ if __name__ == "__main__":
     from .backend import XmlschemaBackend
 
     if len(sys.argv) != 3:
-        print("Usage: python -m genro_builders.contrib.xsd.codegen.generator <schema.xsd> <ClassName>")
+        print("Usage: python -m genro_builders.contrib.xsd.codegen.generator <schema.xsd> <DialectName>")
         sys.exit(1)
     model = XmlschemaBackend().load(sys.argv[1])
     source = PythonGenerator().render(model, sys.argv[2])

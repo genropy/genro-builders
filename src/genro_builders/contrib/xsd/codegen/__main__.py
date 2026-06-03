@@ -5,8 +5,8 @@ Usage::
 
     python -m genro_builders.contrib.xsd.codegen \\
         --xsd path/to/schema.xsd \\
-        --class-name FatturaPABuilder \\
-        --output path/to/fatturapa_elements.py
+        --dialect-name FatturaElettronica \\
+        --output path/to/fattura_elettronica.py
 
 The CLI is intentionally minimal: parse args, run backend, run
 generator, write file. Anything more elaborate (multi-schema bundles,
@@ -35,9 +35,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to the XSD schema file.",
     )
     parser.add_argument(
-        "--class-name",
+        "--dialect-name",
         required=True,
-        help="Name of the generated mixin class (e.g. FatturaPABuilder).",
+        help=(
+            "Base name of the generated dialect (e.g. FatturaElettronica). "
+            "The module declares <name>Builder and <name>Handler."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -55,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
     model = XmlschemaBackend().load(args.xsd)
     source = PythonGenerator().render(
         model,
-        class_name=args.class_name,
+        dialect_name=args.dialect_name,
         module_docstring=args.module_docstring,
     )
 

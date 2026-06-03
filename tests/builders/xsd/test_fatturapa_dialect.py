@@ -1,8 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Tests for the FatturaPA example dialect.
 
-The generated mixin :class:`FatturaPAElements` is pure Python (no
-xmlschema needed) so the dialect itself is testable on every install.
+The generated dialect (``FatturaElettronicaBuilder`` + ``...Handler``) is
+pure Python (no xmlschema needed), so it is testable on every install.
 The optional regeneration round-trip is gated on ``xmlschema`` being
 available so the suite stays green on a vanilla install.
 """
@@ -13,41 +13,45 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders.contrib.xsd import FatturaPABuilder, FatturaPABuilderHandler
+from genro_builders.contrib.xsd.examples.fatturapa import (
+    FatturaElettronicaBuilder,
+    FatturaElettronicaHandler,
+)
 
-FATTURAPA_XSD = (
+_FATTURAPA_DIR = (
     Path(__file__).resolve().parents[2]
-    / "../src/genro_builders/contrib/xsd/examples/fatturapa/Schema_VFPA12_V1.2.3.xsd"
+    / "../src/genro_builders/contrib/xsd/examples/fatturapa"
 ).resolve()
+FATTURAPA_XSD = _FATTURAPA_DIR / "Schema_VFPA12_V1.2.3.xsd"
+FATTURAPA_GENERATED = _FATTURAPA_DIR / "fattura_elettronica.py"
 
-FATTURAPA_GENERATED = (
-    Path(__file__).resolve().parents[2]
-    / "../src/genro_builders/contrib/xsd/examples/fatturapa/fatturapa_elements.py"
-).resolve()
+_MODULE_DOCSTRING = (
+    "FatturaPA v1.2.3 dialect (Italian PA electronic invoice). Generated "
+    "from the official Schema_VFPA12_V1.2.3.xsd published by Agenzia delle "
+    "Entrate. Some XSD patterns use Unicode block properties that Python re "
+    "cannot compile; those validators are commented out for hand-refinement."
+)
 
 
 def test_dialect_imports_without_xmlschema_dependency():
-    """The generated mixin must not pull xmlschema into the import graph
+    """The generated module must not pull xmlschema into the import graph
     of a downstream consumer."""
     import importlib
     import sys
 
-    # The generated module is already imported above; the assertion is
-    # that *its* import does not in turn import xmlschema. We verify by
-    # re-importing in a controlled way and checking sys.modules.
     pre_state = "xmlschema" in sys.modules
     importlib.import_module(
-        "genro_builders.contrib.xsd.examples.fatturapa.fatturapa_elements"
+        "genro_builders.contrib.xsd.examples.fatturapa.fattura_elettronica"
     )
     post_state = "xmlschema" in sys.modules
     assert post_state == pre_state, (
-        "Importing the generated FatturaPAElements pulled xmlschema into "
-        "sys.modules; the runtime path must stay free of optional deps."
+        "Importing the generated dialect pulled xmlschema into sys.modules; "
+        "the runtime path must stay free of optional deps."
     )
 
 
 def test_builder_schema_contains_known_elements():
-    builder = FatturaPABuilder()
+    builder = FatturaElettronicaBuilder()
     schema_tags = set(builder._schema_tag_names)
     expected = {
         "fatturaelettronica",
@@ -63,14 +67,12 @@ def test_builder_schema_contains_known_elements():
     )
 
 
-@pytest.mark.xfail(
-    raises=ValueError,
-    reason="XSD codegen emits \\p{...} regex patterns Python's re cannot "
-    "compile; validation now active rejects them (issue #30)",
-    strict=True,
-)
 def test_handler_renders_minimal_document_to_xml():
-    class MinimalInvoice(FatturaPABuilderHandler):
+    """A minimal invoice renders to XML. The ``\\p{...}`` patterns are no
+    longer emitted as broken validators (issue #30): the codegen comments
+    them out, so construction succeeds."""
+
+    class MinimalInvoice(FatturaElettronicaHandler):
         def main(self, root):
             root.FatturaElettronica(versione="FPA12", SistemaEmittente="TESTSW")
 
@@ -82,14 +84,8 @@ def test_handler_renders_minimal_document_to_xml():
     assert 'SistemaEmittente="TESTSW"' in xml
 
 
-@pytest.mark.xfail(
-    raises=ValueError,
-    reason="XSD codegen emits \\p{...} regex patterns Python's re cannot "
-    "compile; validation now active rejects them (issue #30)",
-    strict=True,
-)
 def test_handler_writes_xml_to_file(tmp_path):
-    class MinimalInvoice(FatturaPABuilderHandler):
+    class MinimalInvoice(FatturaElettronicaHandler):
         def main(self, root):
             root.FatturaElettronica(versione="FPA12", SistemaEmittente="TESTSW")
 
@@ -102,25 +98,36 @@ def test_handler_writes_xml_to_file(tmp_path):
     assert body.startswith("<FatturaElettronica")
 
 
-def test_generated_signature_documents_enum_values():
-    """The generated mixin documents the XSD enumeration on the
-    ``versione`` parameter via ``Literal['FPA12', 'FPR12']``. This is
-    *documentation only*: the declarative ``@element`` decorator
-    drops the signature, so no runtime type-check is performed.
-    Conformance is enforced later against the XSD itself.
+def test_incompatible_pattern_is_commented_not_emitted():
+    """Issue #30: XSD Unicode-block patterns (``\\p{IsBasicLatin}``) cannot
+    compile under Python ``re``. The codegen must NOT emit them as active
+    ``Regex(...)`` validators (which would raise at construction); they are
+    surfaced as ``# NOTE:`` comments for hand-refinement instead."""
+    source = FATTURAPA_GENERATED.read_text(encoding="utf-8")
+    # No active validator carries an unsupported \p{...} property.
+    for line in source.splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        assert "\\p{" not in line, (
+            f"active line still carries an unsupported \\p{{...}} pattern: {line}"
+        )
+    # The dropped patterns are documented as refinement notes.
+    assert "not Python-re-compatible" in source
 
-    Test pins the documentation contract: regenerating the dialect
-    must keep the Literal in the signature so editors / type checkers
-    surface the allowed values to the user."""
+
+def test_generated_signature_documents_enum_values():
+    """The generated grammar documents the XSD enumeration on the
+    ``versione`` parameter via ``Literal['FPA12', 'FPR12']`` (documentation
+    only: the declarative ``@element`` drops the signature at runtime)."""
     import inspect
 
     from genro_builders.contrib.xsd.examples.fatturapa import (
-        fatturapa_elements as fpe_module,
+        fattura_elettronica as fe_module,
     )
 
-    raw_source = inspect.getsource(fpe_module)
+    raw_source = inspect.getsource(fe_module)
     assert "Literal['FPA12', 'FPR12']" in raw_source, (
-        "Generated mixin must surface enum values via Literal on the signature."
+        "Generated dialect must surface enum values via Literal on the signature."
     )
 
 
@@ -129,11 +136,10 @@ def test_generated_signature_documents_enum_values():
 # -----------------------------------------------------------------------------
 
 
-def test_regeneration_is_byte_identical(tmp_path):
+def test_regeneration_is_byte_identical():
     """Re-running the codegen on the committed XSD must produce the
-    same file already in the repository, byte-for-byte. This protects
-    against accidental drift between the source XSD and the
-    versioned generated module."""
+    file already in the repository, byte-for-byte — guarding against
+    drift between the source XSD and the versioned generated module."""
     pytest.importorskip("xmlschema")
     import warnings
 
@@ -148,19 +154,13 @@ def test_regeneration_is_byte_identical(tmp_path):
         model = XmlschemaBackend().load(FATTURAPA_XSD)
     source = PythonGenerator().render(
         model,
-        class_name="FatturaPAElements",
-        module_docstring=(
-            "Element mixin for the Italian PA electronic invoice "
-            "(FatturaPA v1.2.3). Generated from the official XSD published "
-            "by Agenzia delle Entrate. Pair with BagBuilderBase via "
-            "FatturaPABuilder in builder.py."
-        ),
+        dialect_name="FatturaElettronica",
+        module_docstring=_MODULE_DOCSTRING,
     )
 
     committed = FATTURAPA_GENERATED.read_text(encoding="utf-8")
     assert source == committed, (
-        "Codegen output drifted from the committed file. "
-        f"Regenerate with: python -m genro_builders.contrib.xsd.codegen "
-        f"--xsd {FATTURAPA_XSD} --class-name FatturaPAElements "
-        f"--output {FATTURAPA_GENERATED}"
+        "Codegen output drifted from the committed file. Regenerate with: "
+        f"python -m genro_builders.contrib.xsd.codegen --xsd {FATTURAPA_XSD} "
+        f"--dialect-name FatturaElettronica --output {FATTURAPA_GENERATED}"
     )

@@ -16,7 +16,7 @@ Four working dialects under `genro_builders.contrib`:
 | HTML5 | `genro_builders.contrib.html` | 112 elements from the W3C schema |
 | SVG | `genro_builders.contrib.svg` | 60+ elements |
 | CSS | `genro_builders.contrib.css` | Level 1 (rules, selectors, vars, `@media`/`@supports`/`@import`) |
-| XSD | `genro_builders.contrib.xsd` | Codegen pipeline; bundled FatturaPA example as `FatturaPABuilderHandler` |
+| XSD | `genro_builders.contrib.xsd` | `XsdBuilderBase`/`XsdHandler` + codegen pipeline; bundled Sitemap and FatturaPA example dialects |
 
 `contrib.data` exposes `DataBuilder`, a schema-only builder used as
 infrastructure by the data layer; it has no renderer and is not a
@@ -33,7 +33,7 @@ user-facing dialect.
   `node_by_id`, render targets.
 - **Grammars** — per-grammar reference:
   [HTML](grammars/html.md), [SVG](grammars/svg.md),
-  [CSS](grammars/css.md).
+  [CSS](grammars/css.md), [XSD dialects](grammars/xsd.md).
 
 ## In-flight design
 

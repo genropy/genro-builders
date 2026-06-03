@@ -1,8 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 # GENERATED FILE - DO NOT EDIT MANUALLY.
-# Regenerate with: python -m genro_builders.contrib.xsd.codegen --xsd <path> --class-name FatturaPAElements --output <path>
+# Regenerate with: python -m genro_builders.contrib.xsd.codegen --xsd <path> --dialect-name FatturaElettronica --output <path>
 # Source targetNamespace: http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2
-"""Element mixin for the Italian PA electronic invoice (FatturaPA v1.2.3). Generated from the official XSD published by Agenzia delle Entrate. Pair with BagBuilderBase via FatturaPABuilder in builder.py."""
+"""FatturaPA v1.2.3 dialect (Italian PA electronic invoice). Generated from the official Schema_VFPA12_V1.2.3.xsd published by Agenzia delle Entrate. Some XSD patterns use Unicode block properties that Python re cannot compile; those validators are commented out for hand-refinement."""
 
 from __future__ import annotations
 
@@ -10,21 +10,22 @@ from decimal import Decimal
 from typing import Annotated, Literal
 
 from genro_builders.builder import Range, Regex, element
+from genro_builders.contrib.xsd.xsd_builder import XsdBuilderBase, XsdHandler
 
 
-class FatturaPAElements:
-    """Element mixin generated from XSD namespace ``http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2``.
-
-    Pair with ``BagBuilderBase`` in a concrete builder class.
+class FatturaElettronicaBuilder(XsdBuilderBase):
+    """XSD dialect grammar generated from namespace ``http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2``.
 
     NOTE: the source XSD declares additional namespace imports that are not introspected by the current codegen:
         - http://www.w3.org/2000/09/xmldsig#
     """
 
+    # NOTE: SistemaEmittente: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,10})')
     @element(
         sub_tags='FatturaElettronicaHeader[1],FatturaElettronicaBody[1:],Signature[0:1]',
     )
-    def FatturaElettronica(self, versione: Literal['FPA12', 'FPR12'] | None = None, SistemaEmittente: Annotated[str, Regex('(\\p{IsBasicLatin}{1,10})')] | None = None):
+    def FatturaElettronica(self, versione: Literal['FPA12', 'FPR12'] | None = None, SistemaEmittente: str | None = None):
         """XML schema fatture destinate a PA e privati in forma ordinaria 1.2.3 Args: versione, SistemaEmittente."""
         ...
 
@@ -57,8 +58,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,10})')
     @element()
-    def ProgressivoInvio(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,10})')] | None = None):
+    def ProgressivoInvio(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -78,8 +81,10 @@ class FatturaPAElements:
     def ContattiTrasmittente(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{5,12})')
     @element()
-    def Telefono(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{5,12})')] | None = None):
+    def Telefono(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -124,23 +129,31 @@ class FatturaPAElements:
     def Anagrafica(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,80}')
     @element()
-    def Denominazione(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,80}')] | None = None):
+    def Denominazione(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def Nome(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def Nome(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def Cognome(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def Cognome(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{2,10})')
     @element()
-    def Titolo(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{2,10})')] | None = None):
+    def Titolo(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -150,8 +163,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def AlboProfessionale(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def AlboProfessionale(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -160,8 +175,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,60})')
     @element()
-    def NumeroIscrizioneAlbo(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,60})')] | None = None):
+    def NumeroIscrizioneAlbo(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -181,13 +198,17 @@ class FatturaPAElements:
     def Sede(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def Indirizzo(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def Indirizzo(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,8})')
     @element()
-    def NumeroCivico(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,8})')] | None = None):
+    def NumeroCivico(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -196,8 +217,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def Comune(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def Comune(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -228,8 +251,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def NumeroREA(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def NumeroREA(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -254,13 +279,17 @@ class FatturaPAElements:
     def Contatti(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{5,12})')
     @element()
-    def Fax(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{5,12})')] | None = None):
+    def Fax(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def RiferimentoAmministrazione(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def RiferimentoAmministrazione(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -320,8 +349,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def Numero(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def Numero(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -439,8 +470,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,200}')
     @element()
-    def Causale(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,200}')] | None = None):
+    def Causale(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -460,28 +493,38 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def IdDocumento(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def IdDocumento(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def NumItem(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def NumItem(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')
     @element()
-    def CodiceCommessaConvenzione(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')] | None = None):
+    def CodiceCommessaConvenzione(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,15})')
     @element()
-    def CodiceCUP(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,15})')] | None = None):
+    def CodiceCUP(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,15})')
     @element()
-    def CodiceCIG(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,15})')] | None = None):
+    def CodiceCIG(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -526,8 +569,10 @@ class FatturaPAElements:
     def DatiDDT(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def NumeroDDT(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def NumeroDDT(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -548,18 +593,24 @@ class FatturaPAElements:
     def DatiAnagraficiVettore(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def NumeroLicenzaGuida(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def NumeroLicenzaGuida(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,80}')
     @element()
-    def MezzoTrasporto(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,80}')] | None = None):
+    def MezzoTrasporto(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')
     @element()
-    def CausaleTrasporto(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')] | None = None):
+    def CausaleTrasporto(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -568,13 +619,17 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')
     @element()
-    def Descrizione(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')] | None = None):
+    def Descrizione(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,10})')
     @element()
-    def UnitaMisuraPeso(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,10})')] | None = None):
+    def UnitaMisuraPeso(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -620,8 +675,10 @@ class FatturaPAElements:
     def FatturaPrincipale(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def NumeroFatturaPrincipale(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def NumeroFatturaPrincipale(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -658,8 +715,10 @@ class FatturaPAElements:
     def CodiceArticolo(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,35})')
     @element()
-    def CodiceTipo(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,35})')] | None = None):
+    def CodiceTipo(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -674,8 +733,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,10})')
     @element()
-    def UnitaMisura(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,10})')] | None = None):
+    def UnitaMisura(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -705,13 +766,17 @@ class FatturaPAElements:
     def AltriDatiGestionali(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,10})')
     @element()
-    def TipoDato(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,10})')] | None = None):
+    def TipoDato(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def RiferimentoTesto(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def RiferimentoTesto(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -751,8 +816,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')
     @element()
-    def RiferimentoNormativo(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')] | None = None):
+    def RiferimentoNormativo(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -762,8 +829,10 @@ class FatturaPAElements:
     def DatiVeicoli(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,15})')
     @element()
-    def TotalePercorso(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,15})')] | None = None):
+    def TotalePercorso(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -784,8 +853,10 @@ class FatturaPAElements:
     def DettaglioPagamento(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,200}')
     @element()
-    def Beneficiario(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,200}')] | None = None):
+    def Beneficiario(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -814,18 +885,24 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,20})')
     @element()
-    def CodUfficioPostale(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,20})')] | None = None):
+    def CodUfficioPostale(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def CognomeQuietanzante(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def CognomeQuietanzante(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def NomeQuietanzante(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def NomeQuietanzante(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -834,13 +911,17 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{2,10})')
     @element()
-    def TitoloQuietanzante(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{2,10})')] | None = None):
+    def TitoloQuietanzante(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,80}')
     @element()
-    def IstitutoFinanziario(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,80}')] | None = None):
+    def IstitutoFinanziario(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -884,8 +965,10 @@ class FatturaPAElements:
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,60})')
     @element()
-    def CodicePagamento(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,60})')] | None = None):
+    def CodicePagamento(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -895,23 +978,31 @@ class FatturaPAElements:
     def Allegati(self):
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')
     @element()
-    def NomeAttachment(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,60}')] | None = None):
+    def NomeAttachment(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,10})')
     @element()
-    def AlgoritmoCompressione(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,10})')] | None = None):
+    def AlgoritmoCompressione(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('(\\p{IsBasicLatin}{1,10})')
     @element()
-    def FormatoAttachment(self, node_value: Annotated[str, Regex('(\\p{IsBasicLatin}{1,10})')] | None = None):
+    def FormatoAttachment(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
+    # NOTE: node_value: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
+    # NOTE:     Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')
     @element()
-    def DescrizioneAttachment(self, node_value: Annotated[str, Regex('[\\p{IsBasicLatin}\\p{IsLatin-1Supplement}]{1,100}')] | None = None):
+    def DescrizioneAttachment(self, node_value: str | None = None):
         """Args: node_value."""
         ...
 
@@ -1152,3 +1243,8 @@ class FatturaPAElements:
         """Args: Id, MimeType, Encoding."""
         ...
 
+
+class FatturaElettronicaHandler(XsdHandler):
+    """Preset handler bound to :class:`FatturaElettronicaBuilder`."""
+
+    builder_class = FatturaElettronicaBuilder

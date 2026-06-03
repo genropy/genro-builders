@@ -39,6 +39,29 @@ le consoliderà insieme alla reintroduzione dei sub-builder, all'eliminazione di
 - Conseguenza sul live demo: `out.xml` (vista debug raw) è prodotto da
   `source.to_xml(pretty=True)`, non più da `render(mode="xml")`.
 
+## 3bis. Modello XSD: `XsdBuilderBase` / `XsdHandler` + codegen a due classi
+
+- `XsdBuilderBase(BagBuilderBase)` e `XsdHandler(BuilderHandler)` (in
+  `contrib/xsd/xsd_builder.py`) sono le basi dei dialetti-da-XSD: leggere,
+  perché il render XML vero è nel core. `XsdBuilderBase` fissa `xml` come
+  default mode; gli `@element` di dominio stanno nel figlio generato.
+- La codegen (`PythonGenerator.render(model, dialect_name)`) genera **un
+  modulo per schema con DUE classi**: `<Dialect>Builder(XsdBuilderBase)` +
+  `<Dialect>Handler(XsdHandler)` con `builder_class` esplicito. NIENTE più
+  mixin piatto su `object` accoppiato a mano. Import dal modulo base
+  (`contrib.xsd.xsd_builder`), non dal package (evita ciclo). Il package
+  `contrib.xsd` esporta solo `XsdBuilderBase`/`XsdHandler`; gli esempi si
+  importano dal proprio modulo.
+- CLI: `--dialect-name` (era `--class-name`).
+- #30 risolto: un pattern XSD che Python `re` non compila (proprietà di
+  blocco Unicode `\p{Is...}`) NON è emesso come `Regex` attivo (esploderebbe
+  a costruzione); è **commentato** con `# NOTE: ... refine by hand`. La
+  codegen produce una *base da affinare*, non un dialetto completo.
+- Esempi: `examples/sitemap/` (nuovo, schema modellato sulla spec pubblica
+  Sitemaps 0.9) e `examples/fatturapa/` (riposizionato: `FatturaElettronicaBuilder`/
+  `FatturaElettronicaHandler` in `fattura_elettronica.py`; rimossi il vecchio
+  mixin `fatturapa_elements.py` e il `builder.py` a mano).
+
 ## 3. `_node_depth` sulla base, via `fullpath`
 
 - `_node_depth` promosso da `HtmlRenderer` a `RendererBase` (serve anche a

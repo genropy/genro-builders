@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+           targetNamespace="http://www.sitemaps.org/schemas/sitemap/0.9"
+           elementFormDefault="qualified">
+
+  <xs:annotation>
+    <xs:documentation>
+      XML Sitemap schema, modelled on the public Sitemaps protocol 0.9
+      (https://www.sitemaps.org/protocol.html). Hand-authored from the
+      published specification for use as a small, real-world XSD example
+      in genro-builders. Not the verbatim sitemaps.org file.
+    </xs:documentation>
+  </xs:annotation>
+
+  <xs:element name="urlset">
+    <xs:annotation>
+      <xs:documentation>The root element; encloses the URL entries of the
+      sitemap. Contains one or more url children.</xs:documentation>
+    </xs:annotation>
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="url" type="tUrl" minOccurs="1" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="tUrl">
+    <xs:annotation>
+      <xs:documentation>A single URL entry: its location plus optional
+      metadata hints for crawlers.</xs:documentation>
+    </xs:annotation>
+    <xs:sequence>
+      <xs:element name="loc" type="xs:anyURI" minOccurs="1" maxOccurs="1">
+        <xs:annotation>
+          <xs:documentation>URL of the page. Required.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="lastmod" type="xs:string" minOccurs="0" maxOccurs="1">
+        <xs:annotation>
+          <xs:documentation>Date of last modification (W3C Datetime).</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="changefreq" type="tChangeFreq" minOccurs="0" maxOccurs="1">
+        <xs:annotation>
+          <xs:documentation>How frequently the page is likely to change.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="priority" type="tPriority" minOccurs="0" maxOccurs="1">
+        <xs:annotation>
+          <xs:documentation>Priority of this URL relative to other URLs
+          on the site, from 0.0 to 1.0.</xs:documentation>
+        </xs:annotation>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="tChangeFreq">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="always"/>
+      <xs:enumeration value="hourly"/>
+      <xs:enumeration value="daily"/>
+      <xs:enumeration value="weekly"/>
+      <xs:enumeration value="monthly"/>
+      <xs:enumeration value="yearly"/>
+      <xs:enumeration value="never"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="tPriority">
+    <xs:restriction base="xs:decimal">
+      <xs:minInclusive value="0.0"/>
+      <xs:maxInclusive value="1.0"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>
