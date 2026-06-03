@@ -46,22 +46,15 @@ class BagBuilderBase(
         - @element: Pure schema elements (body MUST be empty)
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
 
-    The three data-elements (data_setter / data_formula / data_controller)
-    are ordinary @element declared on this base and marked with
-    ``_meta['data_element']``. ``__init_subclass__`` injects them into every
-    dialect's schema (see ``_iter_data_element_methods``), so they are
-    available everywhere without each dialect re-declaring them.
-
-    The data-elements are NOT a separate decorator: they are plain
-    @element marked ``_meta['data_element']`` and go through the same
-    ``_command_on_node`` dispatch as any element; ``element_call`` flags
-    the resulting node ``_is_data_element``.
-
-    @subbuilder remains **autonomous**: it does not pass through
-    ``__init_subclass__`` and does not appear in ``_class_schema``; its
-    wrapper lives on the builder class as a regular method, dispatched by
-    ``_BuilderBagNodeMixin.__getattr__`` falling through to
-    ``_attach_subbuilder``.
+    Sub-builders and the three data-elements (data_setter / data_formula /
+    data_controller) are NOT separate decorators: they are ordinary
+    @element marked in their ``_meta`` — ``_meta['subbuilder']`` for a
+    dialect boundary, ``_meta['data_element']`` for a data-element. They go
+    through the same schema and the same ``_command_on_node`` dispatch as
+    any element; the element's ``_meta`` rides onto the node and readers
+    query it via ``node._get_meta(...)``. The data-elements are declared on
+    this base and injected into every dialect's schema by
+    ``__init_subclass__`` (see ``_iter_data_element_methods``).
 
     Engine concerns (source, lifecycle phases, render_target,
     node_id) belong to the BuilderHandler.
@@ -99,8 +92,9 @@ class BagBuilderBase(
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Build _class_schema Bag from decorated methods (@element,
-        @abstract). @subbuilder and the data-elements are autonomous and
-        are not collected here."""
+        @abstract). Sub-builders are @element (marked ``_meta['subbuilder']``)
+        and collected like any element; the data-elements are injected from
+        the base afterwards (see below)."""
         super().__init_subclass__(**kwargs)
 
         parent_schema = None
@@ -341,5 +335,5 @@ class BagBuilderBase(
     #: that introduces a new node-meta extends this set, e.g.
     #: ``_meta_attrs = BagBuilderBase._meta_attrs | {"_my_marker"}``.
     _meta_attrs: frozenset[str] = frozenset(
-        {"node_id", "_is_data_element", "_anchor"},
+        {"node_id", "_meta", "_anchor"},
     )

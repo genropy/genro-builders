@@ -1,14 +1,14 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Builder system for genro-bag — grammar and bag layering.
 
-Builders declare a domain-specific grammar via decorators
-(@element, @abstract, @subbuilder, and @data_element for the three
-data-elements data / data_formula / data_controller); BuilderHandlers
+Builders declare a domain-specific grammar via decorators (@element,
+@abstract). Sub-builders and data-elements are ordinary @element marked
+in their ``_meta`` (``subbuilder`` / ``data_element``); BuilderHandlers
 drive the create/render lifecycle on top of the grammar.
 
 Core classes:
-    BagBuilderBase: Grammar base — @element, @abstract,
-        @subbuilder, @data_element.
+    BagBuilderBase: Grammar base — @element, @abstract (sub-builders and
+        data-elements are @element with the matching ``_meta`` marker).
     BuilderBag / BuilderBagNode: the bag/node pair. Contain the slots
         ``_builder`` and ``_handler`` and the grammar-aware attribute
         resolution. The handler populates a ``BuilderBag`` as

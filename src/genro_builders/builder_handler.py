@@ -197,7 +197,7 @@ class BuilderHandler:
             self.source.query(
                 what="#n", deep=True,
                 condition=lambda n: bool(
-                    n.attr.get("_is_data_element")
+                    n._get_meta("data_element")
                     and (n.node_tag == "data_setter" or n.attr.get("_on_start"))
                 ),
             )
@@ -529,7 +529,7 @@ class BuilderHandler:
             kp = key.split("?", 1)[0]
             if kp == path or kp.startswith(path + ".") or path.startswith(kp + "."):
                 for node_id, node in inner.items():
-                    if node.attr.get("_is_data_element"):
+                    if node._get_meta("data_element"):
                         seen[node_id] = node
         return list(seen.values())
 

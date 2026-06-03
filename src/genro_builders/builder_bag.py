@@ -83,6 +83,24 @@ class _BuilderBagNodeMixin:
         """
         return self._resolve_builder()
 
+    def _get_meta(self, keys: str) -> Any:
+        """Read schema ``_meta`` values carried by this node.
+
+        The element's ``_meta`` dict (declared on the grammar, copied onto
+        the node at creation) holds framework instructions for renderers and
+        compilers: ``subbuilder``, ``data_element``, ``render_tag``,
+        ``render_attributes``, ``compile_*`` … This is the single accessor.
+
+        - one key (``'render_tag'``) → its value, or ``None``;
+        - comma-separated keys (``'render_tag,render_attributes'``) → a list
+          of values in order, ``None`` where a key is absent.
+        """
+        meta = self.attr.get("_meta") or {}
+        names = [k.strip() for k in keys.split(",")]
+        if len(names) == 1:
+            return meta.get(names[0])
+        return [meta.get(n) for n in names]
+
     def _resolve_handler(self) -> Any:
         """Return the handler that owns this tree, falling back to the parent bag."""
         try:
@@ -526,14 +544,11 @@ class _BuilderBagNodeMixin:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
-        builder_method = getattr(type(builder), name, None)
         original_tag = builder._schema_tag_names.get(name.lower())
         if original_tag is None:
             struct = _dispatch_struct_method(self._resolve_handler(), self, name)
             if struct is not None:
                 return struct
-            if getattr(builder_method, "_subbuilder_meta", None) is not None:
-                return lambda **attrs: builder_method(builder, self, **attrs)
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
@@ -545,24 +560,42 @@ class _BuilderBagNodeMixin:
             # Plain elements keep the single-positional node_value behaviour.
             schema_info = getattr(builder, "_get_schema_info", None)
             info = schema_info(original_tag) if schema_info is not None else {}
-            if "data_element" in (info.get("_meta") or {}):
+            meta = info.get("_meta") or {}
+            # The element's schema ``_meta`` rides onto the node as a single
+            # ``_meta`` attribute. Every framework marker (``data_element``,
+            # ``subbuilder``, ``render_tag``, ...) is then read uniformly via
+            # ``node._get_meta(...)`` — no per-marker attribute sprawl. The
+            # ``_meta`` attribute is structural (in ``_meta_attrs``), so it
+            # never leaks into the rendered markup.
+            if meta:
+                attrs["_meta"] = meta
+            if "data_element" in meta:
+                # Map the data-element positional fields (e.g.
+                # data_setter(destination, value)) onto their schema field
+                # names so they reach the named parameters instead of
+                # collapsing into node_value. Fields (incl. a Bag ``value``)
+                # stay flat as attrs; a Bag attribute is not walked, so the
+                # data payload is not captured into the source tree.
                 fields = list(info.get("call_args_validations") or {})
                 for field_name, field_value in zip(fields, args, strict=False):
                     attrs[field_name] = field_value
-                # Flag the node as a data-element so renderer (skip markup),
-                # walk and sub_tags validation recognise it. The signature
-                # fields (incl. ``value``, which may be a Bag) stay as flat
-                # attrs: an attribute holding a Bag is not traversed by the
-                # source walk, so the data payload is not captured into the
-                # source tree (no backref capture of the caller's Bag).
-                attrs["_is_data_element"] = True
                 node_value = None
             else:
                 node_value = args[0] if args else None
-            return builder._command_on_node(
+            child = builder._command_on_node(
                 self, original_tag,
                 node_position=node_position, node_value=node_value, **attrs,
             )
+            # Sub-builder element: ``_meta['subbuilder']`` names the dialect
+            # active from this node down. Switch the child's active builder
+            # (Decision 10: the node carries its own ``_builder``); the
+            # descent then resolves the foreign grammar instead of the host's.
+            sub_name = meta.get("subbuilder")
+            if sub_name is not None:
+                handler = self._resolve_handler()
+                child._builder = handler.get_subbuilder(sub_name)
+                child._handler = handler
+            return child
 
         return element_call
 

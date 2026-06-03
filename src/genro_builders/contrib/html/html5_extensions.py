@@ -15,12 +15,16 @@ regeneration.
 
 from __future__ import annotations
 
-from genro_builders.builder import subbuilder
+from genro_builders.builder import element
 
 
 class Html5Extensions:
     """Mixin layering Genro-specific decorators above the W3C grammar."""
 
-    @subbuilder("svg")
+    @element(_meta={"subbuilder": "svg"})
     def svg(self):
-        """Switch to the SVG dialect from this node down (BLD.2)."""
+        """Switch to the SVG dialect from this node down (BLD.2).
+
+        A sub-builder element: ``_meta['subbuilder']`` switches the active
+        dialect to SVG from this node down. No ``render_tag``: ``<svg>`` is
+        emitted verbatim (HTML5 has a native ``<svg>`` tag)."""

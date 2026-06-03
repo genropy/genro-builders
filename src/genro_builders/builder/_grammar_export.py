@@ -99,72 +99,6 @@ def _abstract_form(node: Any) -> dict[str, Any]:
     }
 
 
-def _wrapper_method_for(cls: type, sub_name: str) -> Any:
-    """Locate a ``wrapper_<sub_name>`` method on ``cls.__mro__``.
-
-    Walks the MRO via ``__dict__`` to bypass ``__getattr__`` (which
-    intercepts unknown attribute access on the builder to dispatch
-    grammar tags). Returns the function (unbound), or ``None`` if no
-    host class in the MRO declares it.
-    """
-    attr_name = f"wrapper_{sub_name}"
-    for klass in cls.__mro__:
-        if attr_name in klass.__dict__:
-            return klass.__dict__[attr_name]
-    return None
-
-
-def _subbuilder_form_from_meta(
-    method: Any,
-    meta: dict[str, Any],
-    host_instance: Any,
-) -> dict[str, Any]:
-    """JSON form of a subbuilder from the decorator's ``_subbuilder_meta``.
-
-    Boundary markup (``wrap_tag`` + ``wrap_attrs``) is harvested by
-    invoking the host's ``wrapper_<sub_name>`` method if declared.
-    """
-    sub_name = meta.get("subbuilder_name")
-    wrap_tag = None
-    wrap_attrs: dict[str, Any] | None = None
-    wrapper_method = _wrapper_method_for(type(host_instance), sub_name) if sub_name else None
-    if wrapper_method is not None:
-        wrapper_spec = wrapper_method(host_instance)
-        wrap_tag = wrapper_spec.get("tag")
-        wrap_attrs = dict(wrapper_spec.get("attrs") or {}) or None
-    return {
-        "doc": method.__doc__,
-        "builder_name": sub_name,
-        "parent_tags": meta.get("parent_tags"),
-        "wrap_tag": wrap_tag,
-        "wrap_attrs": wrap_attrs,
-        "_meta": _meta_copy(meta.get("_meta")),
-    }
-
-
-def _collect_subbuilders(cls: type) -> dict[str, dict[str, Any]]:
-    """Walk ``cls.__mro__`` and collect ``@subbuilder``-decorated methods.
-
-    The subbuilder decorator attaches ``_subbuilder_meta`` on the
-    wrapper it installs on the class; we discover them by attribute
-    inspection rather than via the schema (subbuilders are not part of
-    ``_class_schema`` since the autonomous dispatch refactor).
-
-    Returns a dict ``{tag_name: form}`` in MRO walk order (subclasses
-    win over base classes when tag names collide).
-    """
-    host_instance = cls()
-    collected: dict[str, dict[str, Any]] = {}
-    for klass in reversed(cls.__mro__):
-        for attr_name, obj in klass.__dict__.items():
-            meta = getattr(obj, "_subbuilder_meta", None)
-            if meta is None:
-                continue
-            tag_name = meta.get("tag_name") or attr_name
-            collected[tag_name] = _subbuilder_form_from_meta(obj, meta, host_instance)
-    return collected
-
-
 def _element_form(node: Any) -> dict[str, Any]:
     """JSON form of an element node."""
     inherits_from = node.get_attr("inherits_from") or None
@@ -216,9 +150,12 @@ def _class_schema_to_grammar_document(cls: type) -> dict[str, Any]:
     1. ``document_format``
     2. ``grammar``
     3. ``abstracts``
-    4. ``subbuilders``
-    5. ``elements``
-    6. ``data_elements``
+    4. ``elements``
+
+    Sub-builders and data-elements are ordinary elements marked in their
+    ``_meta`` (``subbuilder`` / ``data_element``, plus ``render_tag`` /
+    ``render_attributes`` for a boundary envelope), so they appear in the
+    ``elements`` section with that ``_meta`` — no separate section.
 
     Within each section, entries are topologically sorted by their
     ``inherits_from`` references (insertion-order on ties).
@@ -232,11 +169,8 @@ def _class_schema_to_grammar_document(cls: type) -> dict[str, Any]:
         abstracts_raw[node.label] = _abstract_form(node)
         abstracts_order.append(node.label)
 
-    subbuilders_raw = _collect_subbuilders(cls)
-    subbuilders_order = list(subbuilders_raw.keys())
     elements_raw: dict[str, dict[str, Any]] = {}
     elements_order: list[str] = []
-
     for node in schema.get_nodes(
         condition=lambda n: not n.label.startswith("_")
     ):
@@ -257,15 +191,8 @@ def _class_schema_to_grammar_document(cls: type) -> dict[str, Any]:
         "abstracts": _section_topologically_sorted(
             abstracts_raw, abstracts_order
         ),
-        "subbuilders": _section_topologically_sorted(
-            subbuilders_raw, subbuilders_order
-        ),
         "elements": _section_topologically_sorted(
             elements_raw, elements_order
         ),
-        # Data-elements (data/data_formula/data_controller) are autonomous and
-        # never enter the schema, so the grammar document lists none. The
-        # section is kept (empty) for format stability.
-        "data_elements": {},
     }
     return document

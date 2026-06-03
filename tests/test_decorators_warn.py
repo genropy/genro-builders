@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import warnings
 
-from genro_builders.builder import abstract, element, subbuilder
+from genro_builders.builder import abstract, element
 from genro_builders.builder._decorators import _DeclarativeMarker
 
 
@@ -55,15 +55,6 @@ def test_abstract_returns_declarative_marker():
     assert isinstance(phrasing, _DeclarativeMarker)
     assert phrasing._decorator["abstract"] is True
     assert phrasing._decorator["sub_tags"] == "span,a"
-
-
-def test_subbuilder_rejects_non_string_target():
-    """Passing a class (or anything non-str) raises TypeError."""
-    import pytest
-
-    with pytest.raises(TypeError):
-        @subbuilder(object)  # type: ignore[arg-type]
-        def switch(self): ...
 
 
 def test_element_warns_when_body_is_clearly_non_empty():

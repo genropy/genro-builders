@@ -144,31 +144,6 @@ class _GrammarMixin:
 
         return child_node
 
-    def _attach_subbuilder(self, node: BuilderBagNode, tag_name: str, builder_name: str, **attrs: Any) -> BagNode:
-        """Create a subbuilder child of ``node``, switching the active dialect.
-
-        Precondition: ``node`` is attached to a tree owned by a handler
-        (its ``_resolve_handler()`` returns the owning ``BuilderHandler``).
-        """
-        if not isinstance(node.value, Bag):
-            parent_bag = node.parent_bag
-            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
-            sub_bag = sub_bag_cls(
-                builder=node._resolve_builder(),
-                handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
-            )
-            node.value = sub_bag
-        sub_attrs: dict[str, Any] = {"_is_subbuilder": True, **attrs}
-        child_node = node.value.set_item(
-            self._auto_label(node.value, tag_name), None,
-            _attributes=sub_attrs,
-            node_tag=tag_name,
-        )
-        handler = node._resolve_handler()
-        child_node._builder = handler.get_subbuilder(builder_name)
-        child_node._handler = handler
-        return child_node
-
     def _auto_label(self, build_where: Bag, node_tag: str) -> str:
         """Generate unique label for a node: tag_0, tag_1, ..."""
         n = 0
@@ -327,7 +302,7 @@ class _GrammarMixin:
             return
 
         # Subbuilder nodes are transparent containers for the embedded dialect.
-        if node.attr.get("_is_subbuilder"):
+        if node._get_meta("subbuilder"):
             node._invalid_reasons = []
             return
 
@@ -347,8 +322,8 @@ class _GrammarMixin:
         # list[str], not list[str | None]).
         children_tags = [
             n.node_tag for n in node.value.nodes
-            if not n.attr.get("_is_data_element")
-            and not n.attr.get("_is_subbuilder")
+            if not n._get_meta("data_element")
+            and not n._get_meta("subbuilder")
             and n.node_tag
         ] if isinstance(node.value, Bag) else []
 

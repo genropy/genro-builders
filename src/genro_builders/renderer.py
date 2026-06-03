@@ -3,37 +3,33 @@
 
 A renderer walks a source bag and produces a textual representation.
 The walk lives on the base class as a single ``render(node, **opts)``
-method that recurses on itself. For each node visited the base
-resolves the renderer responsible for the node (its own builder),
-caches it under ``id(builder)`` on the root renderer (R0), and asks
-that renderer for the local fragment via ``rendered_item``.
+method that recurses through ``render_children``. Each node composes its
+own fragment with the renderer of its active builder (``node.builder``,
+Decision 10), cached under ``id(builder)`` on the root renderer (R0) via
+``get_render`` — so a node across a dialect boundary (``<svg>`` in HTML,
+``<rect>`` under it) is rendered by the foreign dialect's renderer with no
+boundary branch in the walk.
 
-The base also owns ``finalize(result, target)``: a dispatcher that
-looks up ``finalize_<self.finalize_method>`` on the renderer and
-calls it. Concrete renderers declare ``finalize_method`` as a class
-attribute; if their shape is "raw" (a ready-to-write string) they
-inherit ``finalize_raw`` here and need to do nothing else.
+The base also owns ``finalize(result, target, **opts)``: it composes the
+fragment list and consumes the target (path / writable / callable / return).
+Subclasses override it only for a document-level option (``XmlRenderer``
+reads ``doc_header``) or an object-shaped result.
 
-Concrete renderers (HtmlRenderer, SvgRenderer, CssRenderer,
-XmlRenderer) implement ``rendered_item(node, item, runtime_attrs,
-**opts)`` — the dialect-specific fragment for one node, given the
-already-rendered children (``item``) and the runtime attributes
-already resolved from pointers (``runtime_attrs``).
+Concrete renderers (HtmlRenderer, SvgRenderer, CssRenderer, XmlRenderer)
+implement ``rendered_item(node, item, runtime_attrs, **opts)`` — the
+dialect-specific fragment for one node, given the already-rendered children
+(``item``) and the pointer-resolved runtime attributes (``runtime_attrs``).
 
-Sub-builder polymorphism: when R0 sees a node whose builder differs
-from its own, the local fragment is produced by the foreign
-renderer's ``rendered_item`` (cached). If the host builder declares
-a ``wrapper_<sub_name>`` method, R0 wraps the foreign fragment in
-the dialect-specific envelope (e.g. SVG hosting HTML in
-``<foreignObject xmlns="...">``).
+Dialect boundary envelope: a node whose ``_meta`` declares ``render_tag``
+(e.g. ``html`` in SVG) surfaces as that tag (``<foreignObject xmlns="...">``)
+carrying the node's user attributes plus the ``render_attributes`` — read in
+``render`` from the node ``_meta``, no host-side wrapper method.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-
-from genro_bag import Bag
 
 from .builder_bag import BuilderBag, BuilderBagNode
 
@@ -45,15 +41,9 @@ _ATTR_ESCAPE = str.maketrans(
 class RendererBase:
     """Base renderer. Owns the universal walk + cache + finalize.
 
-    Concrete dialects subclass it and add ``rendered_item`` plus,
-    optionally, a non-``raw`` ``finalize_method`` with the matching
-    ``finalize_<shape>`` method.
+    Concrete dialects subclass it and add ``rendered_item``; they override
+    ``finalize`` only for a document-level option or an object-shaped result.
     """
-
-    #: Default finalize shape: ``finalize_raw`` writes a string to the
-    #: target. Concrete renderers override only if their result is not
-    #: already a serialized string.
-    finalize_method: str = "raw"
 
     #: Output type of this renderer: ``"string"`` for markup dialects
     #: (HTML, SVG, CSS, XML) whose fragments are serialized strings,
@@ -125,49 +115,6 @@ class RendererBase:
         self.renders[id(builder)] = rn
         return rn
 
-    def render_old(self, source: Any, **opts: Any) -> Any:
-        """Walk ``source`` and produce its rendered fragment.
-
-        ``source`` may be a Bag or a BagNode. For a Bag the renderer
-        emits the concatenation of each top-level child's fragment.
-        For a node: ``runtime_values`` resolves pointers, children are
-        rendered recursively, and the dialect's ``rendered_item``
-        composes the final fragment. When the node's builder differs
-        from R0's a foreign renderer is fetched via ``get_render``;
-        if the host declares a ``wrapper_<sub_name>`` envelope the
-        sub-builder node itself is replaced by the wrap tag and only
-        its children are emitted by the sub-renderer.
-        """
-        if isinstance(source, Bag):
-            raise RuntimeError(f"render() got a Bag: {type(source).__name__}")
-        node = source
-        # Data-elements are transparent to every renderer: they carry data
-        # infrastructure (write/compute/side-effect), not markup.
-        if node.attr.get("_is_data_element"):
-            return ""
-        node_builder = node.builder
-        if node_builder is not self.builder:
-            # Foreign builder: hand off to its renderer.
-            rn = self.get_render(node_builder)
-            wrapper_spec = self._wrapper_spec_for(node_builder)
-            if wrapper_spec is None:
-                # No envelope: the sub-builder node renders verbatim.
-                return rn.render_old(node, **opts)
-            # Envelope: the wrap tag replaces the sub-builder node, the
-            # sub-renderer emits only the children.
-            value = node.value
-            if isinstance(value, Bag):
-                children_fragment = "".join(rn.render_old(child, **opts) for child in value)
-            elif value is None:
-                children_fragment = ""
-            else:
-                children_fragment = rn._escape_text(value)
-            return self._wrap_fragment(node, children_fragment, wrapper_spec)
-        item, ra = node.runtime_values()
-        if isinstance(node.value, BuilderBag):
-            item = [self.render_old(child, **opts) for child in node.value]
-        return self.rendered_item(node, item, ra, **opts)
-
     def render(self, node: Any, **opts: Any) -> Any:
         """Walk a node and produce its rendered fragment.
 
@@ -180,19 +127,44 @@ class RendererBase:
         fragments from transparent children are dropped); the dialect's
         ``rendered_item`` then composes the fragment.
 
-        Sub-builders are not handled yet — reintroduced after the compose
-        refactoring.
+        Sub-builder boundary: when the node's active builder differs from
+        this renderer's, the node sits across a dialect boundary (e.g.
+        ``<svg>`` inside HTML). From here down the foreign dialect governs,
+        so the fragment is produced by the foreign builder's renderer
+        (resolved and cached via ``get_render``). The host renderer never
+        renders foreign-grammar nodes with its own rules.
         """
         if not isinstance(node, BuilderBagNode):
             raise TypeError(
                 f"render() requires a BuilderBagNode, got {type(node).__name__}",
             )
-        if node.attr.get("_is_data_element"):
+        if node._get_meta("data_element"):
             return None
         item, ra = node.runtime_values()
         if isinstance(node.value, BuilderBag):
             item = self.render_children(node.value, **opts)
-        return self.rendered_item(node, item, ra, **opts)
+        # ``render_tag`` in the node's ``_meta``: the source tag is replaced by
+        # the declared envelope tag carrying ``render_attributes`` (e.g. an
+        # ``html`` boundary in SVG surfaces as
+        # ``<foreignObject xmlns="...">``). The children render in their own
+        # dialect (already in ``item``); only the wrapper tag is overridden.
+        render_tag, render_attributes = node._get_meta(
+            "render_tag,render_attributes",
+        )
+        if render_tag is not None:
+            # The envelope carries the source node's user attributes
+            # (e.g. ``svg.html(x=10, y=20)`` positions the foreignObject)
+            # plus the framework ``render_attributes`` (e.g. the xmlns);
+            # the framework values win on collision.
+            attrs = self._format_attrs({**ra, **(render_attributes or {})})
+            body = "".join(item) if isinstance(item, list) else (item or "")
+            return f"<{render_tag}{attrs}>{body}</{render_tag}>"
+        # Otherwise each node composes its own fragment with the renderer of
+        # its active builder (Decision 10): a node across a dialect boundary
+        # (e.g. ``<svg>`` in HTML, or ``<rect>`` under it) carries its own
+        # builder, so its renderer follows from the node — no boundary branch.
+        renderer = self.get_render(node.builder)
+        return renderer.rendered_item(node, item, ra, **opts)
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
         """Render each node in ``nodes`` and collect the fragments.
@@ -235,48 +207,6 @@ class RendererBase:
         raise NotImplementedError(
             f"{type(self).__name__} does not implement rendered_item",
         )
-
-    # ------------------------------------------------------------------
-    # Sub-builder wrapper (host-dialect envelope)
-    # ------------------------------------------------------------------
-
-    def _wrapper_spec_for(self, node_builder: Any) -> dict[str, Any] | None:
-        """Look up the host builder's ``wrapper_<sub_name>`` method.
-
-        Returns the dict ``{"tag": ..., "attrs": ...}`` if declared,
-        ``None`` if the host does not wrap this sub-dialect. Walks
-        the MRO via ``__dict__`` to bypass the builder's ``__getattr__``
-        (which dispatches grammar tags).
-        """
-        sub_name = getattr(node_builder, "_name", None)
-        if not sub_name:
-            return None
-        host = self.builder
-        attr_name = f"wrapper_{sub_name}"
-        for klass in type(host).__mro__:
-            if attr_name in klass.__dict__:
-                wrapper: dict[str, Any] | None = klass.__dict__[attr_name](host)
-                return wrapper
-        return None
-
-    def _wrap_fragment(
-        self,
-        node: Any,
-        fragment: Any,
-        wrapper_spec: dict[str, Any],
-    ) -> str:
-        """Wrap a sub-renderer fragment in the host envelope.
-
-        Default ``raw`` implementation: the fragment is treated as a
-        string, the user attributes of the wrapper node are formatted
-        with the host renderer and concatenated with the framework
-        attributes (e.g. ``xmlns``) declared by the wrapper spec.
-        """
-        wrap_tag = wrapper_spec["tag"]
-        wrap_attrs = wrapper_spec.get("attrs") or {}
-        user_attrs = self._format_attrs(node.attr)
-        framework_attrs = self._format_attrs(wrap_attrs)
-        return f"<{wrap_tag}{framework_attrs}{user_attrs}>{fragment}</{wrap_tag}>"
 
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
         """Serialize an attribute dict to a markup string.

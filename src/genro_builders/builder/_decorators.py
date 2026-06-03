@@ -7,16 +7,15 @@ function body: they replace the decorated function with an inert
 (``__name__``, ``__doc__``, ``_decorator``). Any body the user wrote
 is therefore unreachable.
 
-``@subbuilder`` is autonomous: it ignores the body too, returns a
-wrapper that calls ``_attach_subbuilder``, carries its own
-``_subbuilder_meta`` and is dispatched via the node ``__getattr__``.
-
-The three data-elements (``data_setter`` / ``data_formula`` /
-``data_controller``) are NOT a separate decorator: they are ordinary
-``@element`` declarations on ``BagBuilderBase`` marked
-``_meta={"data_element": True}``. They flow through the same schema and
-the same ``_command_on_node`` dispatch as plain elements; the node is
-flagged ``_is_data_element`` in ``element_call``.
+There is no separate ``@subbuilder`` or ``@data_element`` decorator.
+Both are ordinary ``@element`` declarations marked in their ``_meta``:
+``_meta={"subbuilder": "<dialect>", ...}`` for a dialect boundary (with
+optional ``render_tag`` / ``render_attributes`` for the envelope), and
+``_meta={"data_element": True}`` for the three data-elements
+(``data_setter`` / ``data_formula`` / ``data_controller``). They flow
+through the same schema and the same ``_command_on_node`` dispatch as
+plain elements; the element's ``_meta`` rides onto the node and every
+reader queries it via ``node._get_meta(...)``.
 
 Internal:
     _DeclarativeMarker -- inert wrapper for declarative decorators.
@@ -32,7 +31,7 @@ from collections.abc import Callable
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# Declarative marker (used by @element, @abstract, @subbuilder)
+# Declarative marker (used by @element, @abstract)
 # ---------------------------------------------------------------------------
 
 class _DeclarativeMarker:
@@ -213,88 +212,6 @@ def abstract(
         return _DeclarativeMarker(func.__name__, func.__doc__, info, func)
 
     return decorator
-
-
-# ---------------------------------------------------------------------------
-# @subbuilder
-# ---------------------------------------------------------------------------
-
-def subbuilder(
-    builder_name: str,
-    tags: str | tuple[str, ...] | None = None,
-    parent_tags: str | None = None,
-    _meta: dict[str, Any] | None = None,
-) -> Callable:
-    """Decorator declaring a tag that opens a sub-builder (decision 2).
-
-    The tag is part of the host dialect (e.g. ``<svg>`` inside HTML5),
-    but from this node down the active builder is the dialect
-    registered under ``builder_name``, not the host. The sub-builder
-    governs its own ``sub_tags``; the host only declares
-    ``parent_tags`` (where the sub-builder may be embedded).
-
-    The target builder is identified by its canonical ``_name`` (see
-    :attr:`BagBuilderBase._registry`). Resolution is lazy: the framework
-    looks the class up via :meth:`BagBuilderBase.get_builder_class`
-    when the sub-builder is actually attached, not at decoration time.
-    This removes import-circularity barriers between mutually-referencing
-    dialect modules (HTML <-> SVG, etc.).
-
-    Unlike ``@element`` and ``@abstract``, ``@subbuilder`` is
-    **autonomous**: it does not pass through the generic decorator
-    pipeline (``_pop_decorated_methods`` / ``__init_subclass__``) and
-    does not appear in ``_class_schema`` / ``_schema_tag_names``. The
-    decorator returns a callable wrapper that lives on the builder
-    class as a regular method; dispatch happens via
-    ``_BuilderBagNodeMixin.__getattr__`` falling through to the
-    builder method lookup, which then calls
-    ``BagBuilderBase._attach_subbuilder(node, tag_name, builder_name,
-    **attrs)``. Metadata (``subbuilder_name``, ``parent_tags``,
-    ``_meta``) are attached on the wrapper as ``_subbuilder_meta``
-    and read by the grammar exporter
-    (``_grammar_export._collect_subbuilders``) and by
-    ``_attach_subbuilder`` itself.
-
-    Boundary markup (host-side wrap tag and framework attributes
-    such as XML namespaces) is declared on the host builder via a
-    ``wrapper_<sub_name>`` method returning a dict
-    ``{"tag": ..., "attrs": {...}}``. See the SVG host of HTML as
-    reference: ``SvgExtensions.wrapper_html`` returns
-    ``foreignObject`` + the XHTML namespace.
-
-    Args:
-        builder_name: Canonical ``_name`` of the Builder dialect active
-            inside the subtree (e.g. ``"svg"``, ``"html"``).
-        tags: Tag names this method handles. If None, uses method name.
-        parent_tags: Valid parent tags in the host dialect.
-        _meta: Dict of metadata for renderers/compilers.
-    """
-    if not isinstance(builder_name, str):
-        raise TypeError(
-            f"@subbuilder expects a builder name (str), got "
-            f"{type(builder_name).__name__}: {builder_name!r}"
-        )
-
-    def decorator(func: Callable) -> Callable:
-        tag_name = tags if isinstance(tags, str) else (
-            tags[0] if isinstance(tags, tuple) and tags else func.__name__
-        )
-
-        def wrapper(self, node, **attrs):
-            return self._attach_subbuilder(node, tag_name, builder_name, **attrs)
-
-        wrapper.__name__ = func.__name__
-        wrapper.__doc__ = func.__doc__
-        wrapper._subbuilder_meta = {  # type: ignore[attr-defined]
-            "subbuilder_name": builder_name,
-            "tag_name": tag_name,
-            "parent_tags": parent_tags,
-            "_meta": _meta,
-        }
-        return wrapper
-
-    return decorator
-
 
 
 def struct_method(func_or_name):

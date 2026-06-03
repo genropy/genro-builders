@@ -47,8 +47,9 @@ def test_html_grammar_export(tmp_path: Path) -> None:
     assert data["elements"]["div"]["sub_tags"]
     assert data["elements"]["br"]["sub_tags"] == ""
 
-    assert "svg" in data["subbuilders"]
-    assert data["subbuilders"]["svg"]["builder_name"] == "svg"
+    # Sub-builders are ordinary elements marked in their ``_meta``.
+    assert "svg" in data["elements"]
+    assert data["elements"]["svg"]["_meta"]["subbuilder"] == "svg"
 
 
 def test_svg_grammar_export_emits_bare_abstract_names(tmp_path: Path) -> None:
@@ -64,13 +65,15 @@ def test_svg_grammar_export_emits_bare_abstract_names(tmp_path: Path) -> None:
     assert "@container_element" not in raw
 
 
-def test_svg_grammar_export_includes_html_subbuilder_with_wrap_tag(tmp_path: Path) -> None:
+def test_svg_grammar_export_includes_html_subbuilder_with_render_tag(tmp_path: Path) -> None:
+    """The ``html`` sub-builder is an element whose ``_meta`` carries the
+    dialect switch and the boundary envelope (foreignObject + xmlns)."""
     data = _dump(SvgBuilder, tmp_path)
 
-    assert "html" in data["subbuilders"]
-    assert data["subbuilders"]["html"]["builder_name"] == "html"
-    assert data["subbuilders"]["html"]["wrap_tag"] == "foreignObject"
-    assert data["subbuilders"]["html"]["wrap_attrs"] == {
+    meta = data["elements"]["html"]["_meta"]
+    assert meta["subbuilder"] == "html"
+    assert meta["render_tag"] == "foreignObject"
+    assert meta["render_attributes"] == {
         "xmlns": "http://www.w3.org/1999/xhtml",
     }
 
@@ -93,17 +96,19 @@ def test_document_format_is_first_key(tmp_path: Path) -> None:
     assert next(iter(data)) == "document_format"
 
 
-def test_four_sections_are_always_present_in_usage_order(tmp_path: Path) -> None:
+def test_sections_are_always_present_in_usage_order(tmp_path: Path) -> None:
+    """Sub-builders and data-elements are ordinary elements (marked in
+    ``_meta``), so the document has just ``abstracts`` then ``elements``."""
     data = _dump(HtmlBuilder, tmp_path)
 
-    for section in ("abstracts", "subbuilders", "elements", "data_elements"):
+    for section in ("abstracts", "elements"):
         assert section in data
         assert isinstance(data[section], dict)
 
     keys = list(data.keys())
-    assert keys.index("abstracts") < keys.index("subbuilders")
-    assert keys.index("subbuilders") < keys.index("elements")
-    assert keys.index("elements") < keys.index("data_elements")
+    assert keys.index("abstracts") < keys.index("elements")
+    assert "subbuilders" not in data
+    assert "data_elements" not in data
 
 
 def test_no_components_section_post_v0_4_0(tmp_path: Path) -> None:
@@ -128,7 +133,7 @@ def test_no_at_prefix_in_labels_or_inherits_from(tmp_path: Path) -> None:
         data = _dump(cls, tmp_path)
 
         # No `@` in any label key, in any section.
-        for section_name in ("abstracts", "subbuilders", "elements", "data_elements"):
+        for section_name in ("abstracts", "elements"):
             for label in data[section_name]:
                 assert "@" not in label, (
                     f"{cls.__name__}: label {label!r} in section "

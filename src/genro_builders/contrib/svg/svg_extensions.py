@@ -17,28 +17,25 @@ hand; in practice the ``html`` subbuilder is the recommended path.
 
 from __future__ import annotations
 
-from genro_builders.builder import subbuilder
+from genro_builders.builder import element
 
 
 class SvgExtensions:
     """Mixin layering Genro-specific decorators above the SVG grammar."""
 
-    @subbuilder("html")
+    @element(
+        _meta={
+            "subbuilder": "html",
+            "render_tag": "foreignObject",
+            "render_attributes": {"xmlns": "http://www.w3.org/1999/xhtml"},
+        },
+    )
     def html(self):
         """Switch to the HTML dialect from this node down (BLD.2).
 
-        Rendered inside an SVG ``<foreignObject>`` envelope via
-        :meth:`wrapper_html`.
+        A sub-builder element: ``_meta['subbuilder']`` switches the active
+        dialect to HTML from this node down. The source tag ``html`` is
+        rendered as ``_meta['render_tag']`` (``<foreignObject>``) carrying
+        ``_meta['render_attributes']`` (the XHTML namespace), required for
+        the document to be XML well-formed at the SVG/HTML boundary.
         """
-
-    def wrapper_html(self) -> dict:
-        """Boundary markup emitted around an embedded HTML subtree.
-
-        The XHTML namespace on the foreignObject envelope is required
-        for the document to be XML well-formed at the SVG/HTML
-        boundary.
-        """
-        return {
-            "tag": "foreignObject",
-            "attrs": {"xmlns": "http://www.w3.org/1999/xhtml"},
-        }

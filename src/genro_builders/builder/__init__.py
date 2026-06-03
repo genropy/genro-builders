@@ -9,7 +9,6 @@ from ._decorators import (
     abstract,
     element,
     struct_method,
-    subbuilder,
 )
 from ._validators import Range, Regex
 from .base import BagBuilderBase
@@ -21,5 +20,4 @@ __all__ = [
     "abstract",
     "element",
     "struct_method",
-    "subbuilder",
 ]
