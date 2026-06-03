@@ -40,13 +40,6 @@ _ATTR_ESCAPE = str.maketrans(
     {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"},
 )
 
-#: Node attributes that are framework metadata, not dialect output. They
-#: stay on the node (``node_id`` is how ``node_by_id`` finds it) but are
-#: dropped from the runtime attrs before any dialect renders them, so they
-#: never leak into the markup.
-_META_ATTRS = frozenset({"node_id"})
-
-
 class RendererBase:
     """Base renderer. Owns the universal walk + cache + finalize.
 
@@ -147,8 +140,6 @@ class RendererBase:
         node_builder = node.builder
         if node_builder is None or node_builder is self.builder:
             item, ra = node.runtime_values()
-            for meta in _META_ATTRS:
-                ra.pop(meta, None)
             if isinstance(node.value, Bag):
                 item = [self.render(child, **opts) for child in node.value]
             return self.rendered_item(node, item, ra, **opts)

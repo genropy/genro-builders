@@ -309,18 +309,37 @@ class BagBuilderBase(
     # into each dialect schema by __init_subclass__ via
     # _iter_data_element_methods, and dispatched through the same
     # _command_on_node as any element (element_call flags _is_data_element).
-    # The signature carries the kind's fields (destination/value/func).
+    # The signature carries the kind's fields (destination/value/func). The
+    # func-bearing kinds (formula/controller) also declare ``_on_start``: a
+    # control flag (compute at first calculation), excluded from the func
+    # bindings because it is part of the element signature, not a kwarg.
     # -----------------------------------------------------------------------
 
     @element(_meta={"data_element": True})
     def data_setter(self, destination: str, value: Any): ...
 
     @element(_meta={"data_element": True})
-    def data_formula(self, destination: str, func: str | Callable, **kwargs): ...
+    def data_formula(
+        self, destination: str, func: str | Callable,
+        _on_start: bool = False, **kwargs,
+    ): ...
 
     @element(_meta={"data_element": True})
-    def data_controller(self, func: str | Callable, **kwargs): ...
+    def data_controller(
+        self, func: str | Callable, _on_start: bool = False, **kwargs,
+    ): ...
 
     #: Default rendering mode used when ``render(mode=None)`` is called.
     #: Concrete dialects override this (e.g. ``"html"`` for HtmlBuilder).
     _default_render_mode: str = "xml"
+
+    #: Structural meta-attributes carried by nodes of this grammar:
+    #: identity and anchors, not domain attributes. ``runtime_values``
+    #: drops them from the actualized attribute view, so they never reach
+    #: a renderer or a data-element binding; their readers (``node_by_id``,
+    #: ``abs_datapath``) take them straight from ``node.attr``. A dialect
+    #: that introduces a new node-meta extends this set, e.g.
+    #: ``_meta_attrs = BagBuilderBase._meta_attrs | {"_my_marker"}``.
+    _meta_attrs: frozenset[str] = frozenset(
+        {"node_id", "_is_data_element", "_anchor"},
+    )

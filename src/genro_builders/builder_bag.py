@@ -292,7 +292,12 @@ class _BuilderBagNodeMixin:
     def runtime_values(self) -> tuple[Any, dict[str, Any]]:
         """Resolve pointers and templates carried by this node.
 
-        Returns ``(runtime_value, runtime_attrs)``. Two-phase pipeline
+        Returns ``(runtime_value, runtime_attrs)`` — the actualized view
+        of the node's *domain* attributes. Structural meta-attributes
+        (``builder._meta_attrs``: ``node_id``, ``_is_data_element``,
+        ``_anchor``) are excluded: they stay on ``node.attr`` for their
+        readers (``node_by_id``, ``abs_datapath``) but never reach a
+        renderer or a data-element binding. Two-phase pipeline
         (DB-D5, DB-D11):
 
         Phase 1 — pointer resolution. Any string starting with ``^`` or
@@ -318,8 +323,11 @@ class _BuilderBagNodeMixin:
         try/except; the caller decides whether ``None`` is meaningful).
         """
         handler = self._resolve_handler()
+        meta_attrs = self._resolve_builder()._meta_attrs
         resolved: dict[str, Any] = {}
         for attrname, v in self.attr.items():
+            if attrname in meta_attrs:
+                continue
             if isinstance(v, str) and v and v[0] in ("^", "="):
                 path = self.abs_datapath(v)
                 resolved[attrname] = handler.data.get_item(path)

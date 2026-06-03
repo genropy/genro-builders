@@ -581,10 +581,11 @@ class BuilderHandler:
         """Resolve a data-element node's bindings via :meth:`runtime_values`.
 
         The single resolution point (``^``/``=`` pointers, ``${}`` templates,
-        defaults) shared with every reader. The resolved attrs are stripped of
-        the schema fields (``destination`` / ``func`` / ``value``) and the
-        internal markers (``_...``); what remains are the bindings passed to
-        the func by kwarg name.
+        defaults) shared with every reader. ``runtime_values`` already drops
+        the structural meta-attributes; here we strip the element's own schema
+        fields — ``destination`` / ``func`` / ``value`` and the control flag
+        ``_on_start``, all declared in the data-element signature — so what
+        remains are the bindings passed to the func by kwarg name.
         """
         info = self.builder._get_schema_info(node.node_tag)
         fields = set(info.get("call_args_validations") or {})
@@ -592,7 +593,7 @@ class BuilderHandler:
         return {
             name: value
             for name, value in resolved.items()
-            if not name.startswith("_") and name not in fields
+            if name not in fields
         }
 
     @property
