@@ -4,7 +4,7 @@
 The handler is the engine that drives a single Builder through the
 create/render lifecycle. These tests exercise:
     - construction binds builder_class to ``self.builder``;
-    - ``self.source`` is a level-2 BuilderSource;
+    - ``self.source`` is a BuilderBag;
     - ``create()`` calls user-defined ``main(source)``;
     - ``render()`` delegates to the builder renderer with source,
       mode and render_target;
@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 from genro_bag import Bag
 
-from genro_builders import BuilderSource
+from genro_builders import BuilderBag
 from genro_builders.builder_handler import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilderHandler
 
@@ -83,10 +83,10 @@ def test_handler_requires_builder_class():
 
 
 def test_handler_instantiates_builder_and_source():
-    """Decisions 4 and 12: handler holds builder + level-2 source."""
+    """Decision 4: handler holds builder + source bag."""
     h = _StubHandler()
     assert isinstance(h.builder, _RecordingBuilder)
-    assert isinstance(h.source, BuilderSource)
+    assert isinstance(h.source, BuilderBag)
 
 
 def test_handler_attaches_itself_to_source():
@@ -112,37 +112,6 @@ def test_main_default_raises_not_implemented_error():
     h = HandlerWithoutMain()
     with pytest.raises(NotImplementedError):
         h.create()
-
-
-def test_render_delegates_to_renderer_with_source_mode_and_target():
-    """Decision 6: handler.render() forwards source, mode and
-    render_target to the dialect renderer."""
-    h = _StubHandler()
-    h.set_render_target("stub", "<file-stub>", default=True)
-    out = h.render(mode="stub")
-    assert len(h.renderer.calls) == 1
-    source_arg, mode_arg, target_arg = h.renderer.calls[0]
-    assert source_arg is h.source
-    assert mode_arg == "stub"
-    assert target_arg == "<file-stub>"
-    assert "rendered" in out
-
-
-def test_set_render_target_round_trip():
-    """Decision 6: set_render_target wires target/default for the mode.
-
-    Observed behavior: a render() with no explicit target uses the one
-    registered under the mode; default=True makes the mode the handler's
-    default for plain render() calls.
-    """
-    h = _StubHandler()
-    h.set_render_target("stub", "x")
-    h.render(mode="stub")
-    assert h.renderer.calls[-1][2] == "x"   # target argument forwarded
-    h.set_render_target("stub", "y", default=True)
-    h.render()                              # no mode → handler default
-    assert h.renderer.calls[-1][1] == "stub"
-    assert h.renderer.calls[-1][2] == "y"
 
 
 def test_node_id_kwarg_round_trip():
@@ -194,11 +163,11 @@ def test_node_id_cleaned_on_delete():
 
 
 def test_handler_has_sourceroot_wrapper():
-    """_sourceroot is a plain Bag holding the BuilderSource under 'main'."""
+    """_sourceroot is a plain Bag holding the source BuilderBag under 'main'."""
     h = _StubHandler()
     assert isinstance(h._sourceroot, Bag)
     assert "main" in h._sourceroot
-    assert isinstance(h._sourceroot["main"], BuilderSource)
+    assert isinstance(h._sourceroot["main"], BuilderBag)
 
 
 def test_handler_has_dataroot_wrapper():

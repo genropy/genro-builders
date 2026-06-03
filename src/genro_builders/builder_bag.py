@@ -12,9 +12,10 @@ Decision 10: every node carries two slots, ``_builder`` and
 at attach time. Immutability is convention-only during the restart
 (see ``feedback_lightweight_nodes.md``).
 
-Decision 12: this module defines only level 1 (base common across
-all role specializations). Level 2 (``BuilderSource`` and future
-``BuilderData``, ...) lives in dedicated modules.
+This module defines the bag/node pair (``BuilderBag`` /
+``BuilderBagNode``): a Bag/BagNode carrying the active builder and
+handler plus grammar-aware attribute resolution. The handler populates
+one as ``self.source``.
 """
 from __future__ import annotations
 
@@ -634,12 +635,7 @@ class _BuilderBagMixin:
 
 
 class BuilderBagNode(BagNode, _BuilderBagNodeMixin):
-    """Level-1 node: BagNode with builder-aware attribute dispatch.
-
-    Level-2 specializations (e.g. ``BuilderSourceNode``, and any
-    future ``BuilderDataNode``) inherit from this. See decision 12
-    of the contract.
-    """
+    """BagNode with builder-aware attribute dispatch."""
 
     __slots__ = ("_builder", "_handler")
 
@@ -651,12 +647,10 @@ class BuilderBagNode(BagNode, _BuilderBagNodeMixin):
 
 
 class BuilderBag(Bag, _BuilderBagMixin):
-    """Level-1 bag: Bag with builder-aware attribute dispatch.
+    """Bag with builder-aware attribute dispatch.
 
-    Level-2 specializations (e.g. ``BuilderSource``, and any future
-    ``BuilderData``) inherit from this. See decision 12 of the
-    contract. Level-1 bags are not instantiated directly in normal
-    flows; the handler uses level-2 subclasses.
+    The handler instantiates one as ``self.source``; ``new_root``
+    returns a detached one for offline subtree building.
     """
 
     _node_class: type[BagNode] = BuilderBagNode

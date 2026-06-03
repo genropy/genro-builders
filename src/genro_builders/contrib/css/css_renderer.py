@@ -58,10 +58,11 @@ class CssRenderer(RendererBase):
     CSS rendering does not fit the universal node-by-node walk of
     ``RendererBase.render`` (cssvar grouping, importcss ordering,
     @media/@supports nested blocks). The renderer overrides ``render``
-    with its own top-level dispatch but participates in the
-    ``finalize`` contract via ``finalize_method = "raw"``: it
-    produces a string and lets the handler call ``finalize`` on it.
+    with its own top-level dispatch; ``CssBuilderHandler.render`` drives
+    it on the whole source. It produces a string consumed by ``finalize``.
     """
+
+    mode = "css"
 
     def render(
         self,

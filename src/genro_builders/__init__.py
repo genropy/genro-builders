@@ -9,18 +9,15 @@ drive the create/render lifecycle on top of the grammar.
 Core classes:
     BagBuilderBase: Grammar base — @element, @abstract,
         @subbuilder, @data_element.
-    BuilderBag / BuilderBagNode: level 1 of the bag/node layering
-        (decision 12). Contain the slots ``_builder`` and ``_handler``
-        and the grammar-aware attribute resolution shared between
-        specializations.
-    BuilderSource / BuilderSourceNode: level 2 source side, the bag
-        the user populates in ``handler.create()`` and that
-        ``handler.render()`` serializes.
+    BuilderBag / BuilderBagNode: the bag/node pair. Contain the slots
+        ``_builder`` and ``_handler`` and the grammar-aware attribute
+        resolution. The handler populates a ``BuilderBag`` as
+        ``self.source`` in ``handler.create()`` and serializes it in
+        ``handler.render()``.
 """
 
 from genro_builders.builder import BagBuilderBase, struct_method
 from genro_builders.builder_bag import BuilderBag, BuilderBagNode
-from genro_builders.source_bag import BuilderSource, BuilderSourceNode
 
 __version__ = "0.16.0"
 
@@ -28,7 +25,5 @@ __all__ = [
     "BagBuilderBase",
     "BuilderBag",
     "BuilderBagNode",
-    "BuilderSource",
-    "BuilderSourceNode",
     "struct_method",
 ]

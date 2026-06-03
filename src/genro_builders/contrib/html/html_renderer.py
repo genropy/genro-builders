@@ -92,6 +92,8 @@ class HtmlRenderer(RendererBase):
     class: children fragments arrive already-rendered via ``item``.
     """
 
+    mode = "html"
+
     def rendered_item(
         self,
         node: Any,

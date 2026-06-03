@@ -24,8 +24,8 @@ from typing import Any, ClassVar
 
 from genro_bag import Bag
 
+from ..builder_bag import BuilderBag
 from ..renderer import XmlRenderer
-from ..source_bag import BuilderSource
 from ._decorators import element
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
@@ -285,8 +285,8 @@ class BagBuilderBase(
         """
         return XmlRenderer(builder=self)
 
-    def new_root(self) -> BuilderSource:
-        """Return a fresh, throw-away ``BuilderSource`` driven by this builder.
+    def new_root(self) -> BuilderBag:
+        """Return a fresh, throw-away ``BuilderBag`` driven by this builder.
 
         The returned source carries this builder (so the grammar API
         works: ``root.div(...)`` etc.) and has backref enabled (so
@@ -299,7 +299,7 @@ class BagBuilderBase(
         on the live source triggers ``register_pointer`` for the new
         subtree. The throw-away root itself is not retained by anything.
         """
-        root = BuilderSource(builder=self, handler=None)
+        root = BuilderBag(builder=self, handler=None)
         root.set_backref()
         return root
 

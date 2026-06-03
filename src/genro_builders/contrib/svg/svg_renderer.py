@@ -59,6 +59,8 @@ class SvgRenderer(RendererBase):
     class: children fragments arrive already-rendered via ``item``.
     """
 
+    mode = "svg"
+
     def rendered_item(
         self,
         node: Any,

@@ -191,7 +191,7 @@ class _GrammarMixin:
         """
         if not isinstance(node.value, Bag):
             # Sub-bag must be the same type as the parent bag (e.g. a
-            # ``BuilderSourceNode`` spawns a ``BuilderSource`` sub-bag).
+            # ``BuilderBagNode`` spawns a ``BuilderBag`` sub-bag).
             # ``_builder`` is resolved via the node itself
             # (its slot if populated, else ancestors): this lets an
             # @subbuilder node (e.g. <svg>) propagate its own dialect

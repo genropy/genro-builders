@@ -35,6 +35,8 @@ from typing import Any
 
 from genro_bag import Bag
 
+from .builder_bag import BuilderBag, BuilderBagNode
+
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
 _ATTR_ESCAPE = str.maketrans(
     {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"},
@@ -53,29 +55,35 @@ class RendererBase:
     #: already a serialized string.
     finalize_method: str = "raw"
 
-    def __init__(self, handler: Any = None, builder: Any = None) -> None:
-        self.handler = handler
-        # When ``builder`` is None the renderer falls back to
-        # ``self.handler.builder``. When the builder property
-        # ``renderer_<mode>`` instantiates this class it passes
-        # ``builder=self`` directly so the renderer is locked to that
-        # dialect even before a handler is attached.
+    #: Output type of this renderer: ``"string"`` for markup dialects
+    #: (HTML, SVG, CSS, XML) whose fragments are serialized strings,
+    #: ``"object"`` for dialects that produce live objects (widgets,
+    #: flowables). Governs whether ``target=False`` (return-as-value) is
+    #: allowed: meaningful for ``"string"``, an error for ``"object"``.
+    render_type: str = "string"
+
+    #: The render mode this renderer serves (``"html"``, ``"svg"``, ...).
+    #: A class attribute: each ``renderer_<mode>`` property maps one mode
+    #: to one renderer class, so the mode is intrinsic, not injected. The
+    #: base has none; concrete dialects set it. Used to look up the mode's
+    #: default target and to resolve sub-builder renderers.
+    mode: str | None = None
+
+    def __init__(self, builder: Any, handler: Any = None) -> None:
+        # A renderer is always bound to a builder at birth (the
+        # ``renderer_<mode>`` property passes ``builder=self``). The
+        # handler is attached afterwards, when it drives a render.
         self._builder = builder
-        # Cache of "renderer instance for builder X". Populated by R0
-        # (the main renderer of a render() call) on first visit of a
-        # node owned by a foreign builder. Keyed by id(builder) because
-        # builders are not always hashable. Each sub-renderer is also
-        # an instance of RendererBase but its own ``renders`` dict
-        # stays empty: only R0 drives the walk.
-        self.renders: dict[int, RendererBase] = {}
-        # The render mode of the active call. Set by the handler on
-        # R0 right after instantiation; ``get_render`` uses it to
-        # resolve sub-builder ``renderer_<mode>`` properties.
-        self.mode: str | None = None
+        self.handler = handler
+        # Cache "renderer instance for builder X", keyed by id(builder)
+        # (builders are not always hashable). The renderer registers
+        # itself for its own builder, so the walk hits the cache for
+        # native nodes and only resolves foreign (sub-builder) nodes.
+        self.renders: dict[int, RendererBase] = {id(builder): self}
 
     @property
     def builder(self) -> Any:
-        return self._builder if self._builder is not None else self.handler.builder
+        return self._builder
 
     # ------------------------------------------------------------------
     # Walk + sub-renderer cache
@@ -117,7 +125,7 @@ class RendererBase:
         self.renders[id(builder)] = rn
         return rn
 
-    def render(self, source: Any, **opts: Any) -> Any:
+    def render_old(self, source: Any, **opts: Any) -> Any:
         """Walk ``source`` and produce its rendered fragment.
 
         ``source`` may be a Bag or a BagNode. For a Bag the renderer
@@ -131,34 +139,84 @@ class RendererBase:
         its children are emitted by the sub-renderer.
         """
         if isinstance(source, Bag):
-            return "".join(self.render(child, **opts) for child in source)
+            raise RuntimeError(f"render() got a Bag: {type(source).__name__}")
         node = source
         # Data-elements are transparent to every renderer: they carry data
         # infrastructure (write/compute/side-effect), not markup.
         if node.attr.get("_is_data_element"):
             return ""
         node_builder = node.builder
-        if node_builder is None or node_builder is self.builder:
-            item, ra = node.runtime_values()
-            if isinstance(node.value, Bag):
-                item = [self.render(child, **opts) for child in node.value]
-            return self.rendered_item(node, item, ra, **opts)
-        # Foreign builder: hand off to its renderer.
-        rn = self.get_render(node_builder)
-        wrapper_spec = self._wrapper_spec_for(node_builder)
-        if wrapper_spec is None:
-            # No envelope: the sub-builder node renders verbatim.
-            return rn.render(node, **opts)
-        # Envelope: the wrap tag replaces the sub-builder node, the
-        # sub-renderer emits only the children.
-        value = node.value
-        if isinstance(value, Bag):
-            children_fragment = "".join(rn.render(child, **opts) for child in value)
-        elif value is None:
-            children_fragment = ""
-        else:
-            children_fragment = rn._escape_text(value)
-        return self._wrap_fragment(node, children_fragment, wrapper_spec)
+        if node_builder is not self.builder:
+            # Foreign builder: hand off to its renderer.
+            rn = self.get_render(node_builder)
+            wrapper_spec = self._wrapper_spec_for(node_builder)
+            if wrapper_spec is None:
+                # No envelope: the sub-builder node renders verbatim.
+                return rn.render_old(node, **opts)
+            # Envelope: the wrap tag replaces the sub-builder node, the
+            # sub-renderer emits only the children.
+            value = node.value
+            if isinstance(value, Bag):
+                children_fragment = "".join(rn.render_old(child, **opts) for child in value)
+            elif value is None:
+                children_fragment = ""
+            else:
+                children_fragment = rn._escape_text(value)
+            return self._wrap_fragment(node, children_fragment, wrapper_spec)
+        item, ra = node.runtime_values()
+        if isinstance(node.value, BuilderBag):
+            item = [self.render_old(child, **opts) for child in node.value]
+        return self.rendered_item(node, item, ra, **opts)
+
+    def render(self, node: Any, **opts: Any) -> Any:
+        """Walk a node and produce its rendered fragment.
+
+        Receives a BagNode and only a BagNode; anything else is a caller
+        error (the caller resolves the bag/node discontinuity, not the
+        renderer). Data-elements are transparent — they return ``None``
+        (the walk never emits strings, so absence of output is ``None``,
+        not ``""``). For a node whose value is a structural BuilderBag the
+        children are rendered recursively into a nested list (``None``
+        fragments from transparent children are dropped); the dialect's
+        ``rendered_item`` then composes the fragment.
+
+        Sub-builders are not handled yet — reintroduced after the compose
+        refactoring.
+        """
+        if not isinstance(node, BuilderBagNode):
+            raise TypeError(
+                f"render() requires a BuilderBagNode, got {type(node).__name__}",
+            )
+        if node.attr.get("_is_data_element"):
+            return None
+        item, ra = node.runtime_values()
+        if isinstance(node.value, BuilderBag):
+            item = self.render_children(node.value, **opts)
+        return self.rendered_item(node, item, ra, **opts)
+
+    def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
+        """Render each node in ``nodes`` and collect the fragments.
+
+        Transparent nodes (data-elements) render to ``None`` and are
+        dropped, so the list holds only real fragments in the dialect's
+        output type.
+        """
+        return [
+            frag
+            for child in nodes
+            if (frag := self.render(child, **opts)) is not None
+        ]
+
+    def preprocess(self, source: Any) -> Any:
+        """Normalize the source bag before the top-level walk.
+
+        Identity by default: the walk renders the source as authored.
+        Dialects whose output is not a 1:1, order-preserving mapping of
+        the source nodes (e.g. CSS grouping cssvars into ``:root`` and
+        hoisting imports) override this to return a normalized copy —
+        never mutating the user's source.
+        """
+        return source
 
     def rendered_item(
         self,
@@ -249,22 +307,11 @@ class RendererBase:
     # ------------------------------------------------------------------
 
     def finalize(self, result: Any, target: Any) -> Any:
-        """Dispatch the finalization to ``finalize_<finalize_method>``.
+        """Turn the render result into the user-visible output.
 
-        The finalize method is the bridge between the renderer result
-        and the user-visible side: it interprets ``target`` (None →
-        return the value, path/file-like/callable → consume the
-        value). ``finalize_method`` is a class attribute on the
-        concrete renderer; ``finalize_raw`` is the default shape
-        (string-to-target) defined on this base class.
-        """
-        method = getattr(self, f"finalize_{self.finalize_method}")
-        return method(result, target)
-
-    def finalize_raw(self, result: Any, target: Any) -> Any:
-        """Default finalize: ``result`` is a ready-to-write string.
-
-        Accepted ``target`` shapes:
+        The default (string dialects) joins the fragments — ``result`` is
+        a list of child fragments from the top-level walk, or a single
+        fragment for a subtree render — and consumes ``target``:
 
         - ``None`` → return the text;
         - ``str`` or ``pathlib.Path`` → treat as filesystem path,
@@ -273,7 +320,12 @@ class RendererBase:
         - object with ``.write`` callable → write to file-like,
           return ``None``;
         - plain callable → invoke with the text, return ``None``.
+
+        Object dialects (widgets, flowables) override this with their own
+        composition and target handling.
         """
+        if isinstance(result, list):
+            result = "".join(result)
         if target is None:
             return result
         if isinstance(target, (str, Path)):
@@ -326,6 +378,8 @@ class XmlRenderer(RendererBase):
     (or the wrapper-root bag for top-level rendering) and forward
     the result to finalize.
     """
+
+    mode = "xml"
 
     def render(
         self,

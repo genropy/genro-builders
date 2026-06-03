@@ -1,9 +1,9 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for level 1 of the bag/node layering (decisions 3, 10, 12).
+"""Tests for ``BuilderBag`` / ``BuilderBagNode``.
 
-Level 1 = ``BuilderBag`` and ``BuilderBagNode`` obtained by combining
-the genro-bag base classes with the builder-aware mixins. These tests
-exercise only the surface implemented in fase 2.2.
+The genro-bag base classes combined with the builder-aware mixins:
+they carry the active builder/handler and grammar-aware attribute
+resolution.
 """
 from __future__ import annotations
 

@@ -45,7 +45,6 @@ from genro_bag import Bag
 
 from .builder import BagBuilderBase
 from .builder_bag import BuilderBag, BuilderBagNode
-from .source_bag import BuilderSource
 
 
 class BuilderHandler:
@@ -126,9 +125,9 @@ class BuilderHandler:
         self._dataroot: BuilderBag = BuilderBag(
             builder=self.builder, handler=self,
         )
-        self._sourceroot["main"] = BuilderSource(builder=self.builder, handler=self)
+        self._sourceroot["main"] = BuilderBag(builder=self.builder, handler=self)
         self._dataroot["main"] = Bag()
-        self.source: BuilderSource = self._sourceroot["main"]
+        self.source: BuilderBag = self._sourceroot["main"]
         self.data: Bag = self._dataroot["main"]
         # HND.2 — wrapper-root strutturale: backref acceso sempre, in modo
         # esplicito. Serve a abs_datapath e alla risalita ancestor in genere.
@@ -137,7 +136,8 @@ class BuilderHandler:
         # struttura).
         self._sourceroot.set_backref()
         self._dataroot.set_backref()
-        self.renderers: dict[str, dict[str, Any]] = {}
+        self.renderers: dict[str, Any] = {}
+        self._default_targets: dict[str, Any] = {}
         self._default_render_mode: str | None = None
         # DAT.2 — mappa delle dipendenze pointer popolata da
         # ``register_pointer``. Chiave esterna = path assoluto (output di
@@ -159,32 +159,6 @@ class BuilderHandler:
         # (property ``data_logic``, lazy + cached). None = non ancora
         # costruita; ``_build_data_logic`` la popola al primo accesso.
         self._data_logic: list[Any] | None = None
-
-    def _ensure_mode(self, mode: str) -> dict[str, Any]:
-        """Return the ``self.renderers[mode]`` entry, creating it lazily.
-
-        Each entry holds ``{"target": ..., "instance": RendererBase}``.
-        The renderer instance is requested from the builder's
-        ``renderer_<mode>`` property the first time the mode is touched
-        (either by ``set_render_target`` or by ``render``). Lookup is
-        on the builder *class* (not the instance) to bypass the grammar
-        ``__getattr__`` that would otherwise intercept every attribute
-        and produce a wrapper function. ``KeyError`` if no property
-        matches the requested mode.
-        """
-        entry = self.renderers.get(mode)
-        if entry is None:
-            prop = getattr(type(self.builder), f"renderer_{mode}", None)
-            if prop is None:
-                raise KeyError(
-                    f"{type(self.builder).__name__} does not expose a "
-                    f"'renderer_{mode}' property",
-                )
-            renderer = prop.__get__(self.builder, type(self.builder))
-            renderer.handler = self
-            entry = {"target": None, "instance": renderer}
-            self.renderers[mode] = entry
-        return entry
 
     # ------------------------------------------------------------------
     # Lifecycle (decision 5)
@@ -341,25 +315,58 @@ class BuilderHandler:
         result through R0's ``finalize`` (which dispatches to the
         renderer's shape-specific finalize method).
         """
-        effective_mode = (
-            mode
-            or self._default_render_mode
-            or self.builder._default_render_mode
-        )
-        entry = self._ensure_mode(effective_mode)
-        if target is False:
-            effective_target = None
-        elif not target:
-            effective_target = entry["target"]
+        main_renderer = self._get_renderer(mode)
+        effective_target = self._get_target(target, main_renderer)
+        if startnode:
+            # live partial render: re-render a single changed subtree
+            result = main_renderer.render(startnode, **opts)
         else:
-            effective_target = target
-        r0 = entry["instance"]
-        r0.mode = effective_mode
-        r0.add_render(self.builder, r0)
-        if startnode is None:
-            startnode = self.source
-        result = r0.render(startnode, **opts)
-        return r0.finalize(result, effective_target)
+            # full render: walk the whole document from the source
+            result = main_renderer.render_children(
+                main_renderer.preprocess(self.source), **opts,
+            )
+        return main_renderer.finalize(result, effective_target)
+
+    def _get_renderer(self, mode: str | None) -> Any:
+        """Resolve the mode (explicit, else handler default, else builder
+        default) and return the renderer for it, created lazily.
+
+        The renderer instance comes from the builder's ``renderer_<mode>``
+        property (looked up on the class to bypass the grammar
+        ``__getattr__``) and is cached in ``self.renderers``. ``KeyError``
+        if no such property exists.
+        """
+        mode = mode or self._default_render_mode or self.builder._default_render_mode
+        renderer = self.renderers.get(mode)
+        if renderer is None:
+            prop = getattr(type(self.builder), f"renderer_{mode}", None)
+            if prop is None:
+                raise KeyError(
+                    f"{type(self.builder).__name__} does not expose a "
+                    f"'renderer_{mode}' property",
+                )
+            renderer = prop.__get__(self.builder, type(self.builder))
+            renderer.handler = self
+            self.renderers[mode] = renderer
+        return renderer
+
+    def _get_target(self, target: Any, renderer: Any) -> Any:
+        """Resolve the render target for a render call.
+
+        - ``False`` → return-as-value: ``None`` for a string renderer, an
+          error for an object renderer (no string to return);
+        - any other falsy value → the default registered for the
+          renderer's mode (``None`` if none);
+        - a truthy value → used as-is.
+        """
+        if target is False:
+            if renderer.render_type != "string":
+                raise TypeError(
+                    f"target=False (return-as-value) is not valid for an "
+                    f"object renderer ({type(renderer).__name__})",
+                )
+            return None
+        return target or self._default_targets.get(renderer.mode)
 
     def set_render_target(
         self,
@@ -373,7 +380,7 @@ class BuilderHandler:
         ``default=True`` the mode also becomes the handler's default
         for plain ``self.render()`` calls.
         """
-        self._ensure_mode(mode)["target"] = target
+        self._default_targets[mode] = target
         if default:
             self._default_render_mode = mode
 
@@ -388,14 +395,14 @@ class BuilderHandler:
         Available for inspection (``handler.renderer._STYLE_ROOTS``,
         etc.) or for explicit calls when the shortcut
         ``handler.render(...)`` is too narrow. The instance is created
-        on first access and kept in ``self.renderers``.
+        on first access and cached in ``self.renderers``.
         """
-        return self._ensure_mode(self.builder._default_render_mode)["instance"]
+        return self._get_renderer(None)
 
-    def new_root(self) -> BuilderSource:
+    def new_root(self) -> BuilderBag:
         """Shortcut for ``self.builder.new_root()``.
 
-        Returns a throw-away ``BuilderSource`` driven by this handler's
+        Returns a throw-away ``BuilderBag`` driven by this handler's
         builder, with no handler attached. See ``BagBuilderBase.new_root``
         for the full contract.
         """
@@ -683,7 +690,7 @@ class BuilderHandler:
         # Recurse only into builder structure (BuilderBag), never into a plain
         # Bag value: that is data payload (e.g. a data_setter whose value is a
         # Bag), whose children are plain BagNodes without ``pointers()``. The
-        # source tree to index is made of BuilderBag/BuilderSourceNode.
+        # source tree to index is made of BuilderBag/BuilderBagNode.
         if isinstance(node.value, BuilderBag):
             for child in node.value:
                 self.register_pointer(child, unregister=unregister)
@@ -838,7 +845,7 @@ class BuilderHandler:
         (setup) and the structure (main) as two clearly separate steps.
         """
 
-    def main(self, root: BuilderSource) -> None:
+    def main(self, root: BuilderBag) -> None:
         """Override in subclass to populate the source bag."""
         raise NotImplementedError(
             f"{type(self).__name__}.main(root) must be implemented by the subclass",
