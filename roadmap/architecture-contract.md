@@ -153,6 +153,16 @@ dichiara `renderer_xml` (ereditato da ogni dialetto); i builder
 concreti aggiungono i propri (`HtmlBuilder.renderer_html`,
 `SvgBuilder.renderer_svg`, `CssBuilder.renderer_css`).
 
+`XmlRenderer` è un **render vero**, non un dump: cavalca il walk
+universale di `RendererBase` (quindi `runtime_values` risolve i
+pointer e filtra i marker di framework, come ogni altro dialetto) e
+compone via `rendered_item`. `pretty` indenta per profondità in
+`rendered_item`; `doc_header` antepone la dichiarazione XML in
+`finalize`. La **vista grezza** strutturale della source — marker e
+pointer non risolti inclusi — è un'altra cosa: si ottiene chiamando
+`source.to_xml()` direttamente sulla bag. `render(mode="xml")` ≠
+`source.to_xml()` (decisione: il raw NON è un render mode, area RX/§5).
+
 Aliasare un mode su un renderer esistente è una riga di classe:
 `renderer_xhtml = renderer_html`. L'utente che vuole esporre un mode
 in più sul proprio subbuilder usa lo stesso pattern (descriptor
@@ -259,10 +269,15 @@ frammento locale tramite `rendered_item(node, item, runtime_attrs,
 **opts)`. La cache `renders` di R₀ (chiave `id(builder)`) gestisce
 i sub-builder polimorfici.
 
-`r0.finalize` dispatcha via `getattr(self, f"finalize_{self.finalize_method}")`.
-Tutti i renderer attuali (HTML/SVG/CSS/XML) sono `finalize_method = "raw"`
-ed ereditano `finalize_raw` dalla base (writeable target → file
-path, file-like o callable; `None` → ritorna il valore).
+`r0.finalize(result, target, **opts)` è un metodo unico (niente più
+dispatch `finalize_<shape>`): la base compone la lista di frammenti
+(`"".join`) e consuma il target (writeable → file path, file-like o
+callable; `None` → ritorna il valore). Gli `**opts` del render
+raggiungono sia il walk (opzioni per-nodo, es. `pretty`) sia
+`finalize` (opzioni di documento); la base li ignora, un dialetto che
+ne ha uno proprio lo dichiara nell'override (`XmlRenderer` legge
+`doc_header`). I dialetti object-based sovrascrivono `finalize` con la
+propria composizione.
 
 L'API utente è **una sola**: `handler.render(startnode, mode, target, **kw)`.
 Niente shortcut `render_<mode>(...)`.

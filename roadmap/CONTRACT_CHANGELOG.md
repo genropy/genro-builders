@@ -10,6 +10,18 @@ conserva il proprio "cosa cambia" storico.
 
 ---
 
+## v0.7.0 + addendum renderer (2026-06-03, non ancora bumpato)
+
+Modifiche al modello di rendering già nel codice, raccolte in
+`roadmap/contract-addendum-renderer.md` (status 🟡), da consolidare nel bump
+v0.8.0 insieme a sub-builder, eliminazione `render_old` e parte XSD. In sintesi:
+`finalize` fuso (niente più dispatch `finalize_<shape>`); `XmlRenderer` è un
+render vero (walk universale, pointer risolti, marker filtrati) e **non** un dump
+`to_xml` — il raw resta `source.to_xml()` sulla bag; `_node_depth` sulla base via
+`fullpath`. Le sezioni rendering/finalize di v0.7.0 sono state corrette in-place.
+
+---
+
 ## v0.6.0 → v0.7.0 (2026-06-02)
 
 Bump di **riconciliazione**: il contratto v0.6.0 descriveva un modello dei

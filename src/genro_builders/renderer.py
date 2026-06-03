@@ -306,8 +306,14 @@ class RendererBase:
     # Finalize (target side)
     # ------------------------------------------------------------------
 
-    def finalize(self, result: Any, target: Any) -> Any:
+    def finalize(self, result: Any, target: Any, **_opts: Any) -> Any:
         """Turn the render result into the user-visible output.
+
+        ``_opts`` mirrors the walk options the handler forwards (e.g.
+        ``pretty``, ``include_datapath``); they are per-node concerns
+        already consumed during the walk, so the base finalize ignores
+        them. Subclasses that need a document-level option (``XmlRenderer``
+        reads ``doc_header``) declare it explicitly in their override.
 
         The default (string dialects) joins the fragments — ``result`` is
         a list of child fragments from the top-level walk, or a single
@@ -357,11 +363,20 @@ class RendererBase:
         """Escape an attribute value (also escapes double quotes)."""
         return str(value).translate(_ATTR_ESCAPE)
 
-    # Backwards-compat shim: ``CssRenderer`` (kept on the legacy walk
-    # for now) still uses this name internally. Aliased to
-    # ``finalize_raw`` so the contract is identical.
-    def _write_or_return(self, text: str, render_target: Any) -> Any:
-        return self.finalize_raw(text, render_target)
+    def _node_depth(self, node: Any) -> int:
+        """Wrapper-rooted depth of ``node`` (user top-level sits at 0).
+
+        Read off ``node.fullpath``: the path is dot-separated from the
+        backref root, e.g. ``main.div_0.span_0``. The ``main`` wrapper
+        (``self._sourceroot["main"]``) always contributes the leading
+        segment, so ``dots - 1`` gives the user-visible depth. Backref
+        is always on, so ``fullpath`` is never ``None`` for a placed
+        node. Only used for ``pretty`` indentation, so a label that
+        happened to contain a dot would skew indentation by one level —
+        never correctness.
+        """
+        fullpath = node.fullpath
+        return max(fullpath.count(".") - 1, 0) if fullpath else 0
 
 
 class XmlRenderer(RendererBase):
@@ -372,39 +387,70 @@ class XmlRenderer(RendererBase):
     that want a custom XML walk override ``renderer_xml`` on their
     builder to return a different renderer class.
 
-    XML serialization is delegated to ``Bag.to_xml`` because pretty
-    indentation and ``doc_header`` already live there. ``render`` is
-    overridden to call ``Bag.to_xml`` on the node's containing bag
-    (or the wrapper-root bag for top-level rendering) and forward
-    the result to finalize.
+    A real render: it rides the universal walk on ``RendererBase`` (so
+    pointers are resolved and framework markers filtered out, like every
+    other dialect) and composes each node via ``rendered_item``. The raw
+    structural view of the source — markers and unresolved pointers
+    included — is a different thing entirely: call ``source.to_xml()``
+    on the bag directly.
     """
 
     mode = "xml"
 
-    def render(
+    def rendered_item(
         self,
-        source: Any,
+        node: Any,
+        item: Any,
+        runtime_attrs: dict[str, Any],
         *,
         pretty: bool = False,
-        doc_header: bool | str | None = None,
         **_opts: Any,
     ) -> str:
-        """Override the universal walk: XML reuses ``Bag.to_xml``.
+        """Emit the XML fragment for ``node``.
 
-        Accepts a Bag (serialized directly) or a single BagNode
-        (wrapped in an ephemeral Bag so indentation and doc_header
-        match the legacy ``render_xml`` behavior).
+        - ``item`` is a list of already-rendered child fragments when
+          the node's value is a Bag; a leaf value otherwise (``None``
+          for empty leaves).
+        - XML has no void tags: a childless, textless element is
+          ``<tag></tag>``.
+        - ``pretty`` indents by wrapper-rooted depth, one node per line.
         """
-        if isinstance(source, Bag):
-            text = source.to_xml(pretty=pretty, doc_header=doc_header)
-        else:
-            node = source
-            tag = node.node_tag or node.label
-            wrapper = Bag()
-            wrapper.set_item(tag, node.value, _attributes=dict(node.attr or {}))
-            text = wrapper.to_xml(pretty=pretty, doc_header=doc_header)
-        assert text is not None
-        return text
+        tag = node.node_tag or node.label
+        attrs = self._format_attrs(runtime_attrs)
+        indent = "  " * self._node_depth(node) if pretty else ""
+        newline = "\n" if pretty else ""
+        if isinstance(item, list):
+            body = "".join(item)
+            return f"{indent}<{tag}{attrs}>{newline}{body}{indent}</{tag}>{newline}"
+        if item is None:
+            return f"{indent}<{tag}{attrs}></{tag}>{newline}"
+        return f"{indent}<{tag}{attrs}>{self._escape_text(item)}</{tag}>{newline}"
+
+    def finalize(
+        self,
+        result: Any,
+        target: Any,
+        *,
+        doc_header: bool | str | None = None,
+        **opts: Any,
+    ) -> Any:
+        """Join fragments, optionally prepend an XML declaration, then
+        consume ``target`` via the base ``finalize``.
+
+        ``doc_header=True`` prepends the standard declaration; a string
+        is prepended verbatim. The document-level header belongs here,
+        not in ``rendered_item`` (which is per-node).
+        """
+        if isinstance(result, list):
+            result = "".join(result)
+        if doc_header is True:
+            result = "<?xml version='1.0' encoding='UTF-8'?>" + result
+        elif isinstance(doc_header, str):
+            result = doc_header + result
+        # ``opts`` (e.g. ``pretty``) are per-node walk options already
+        # consumed in ``rendered_item``; the base finalize only handles
+        # result + target, so they are absorbed here, not forwarded.
+        return super().finalize(result, target)
 
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
         if not attrs:

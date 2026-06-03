@@ -123,8 +123,10 @@ because CSS needs top-level composition (cssvar grouping,
 renderer overrides `RendererBase.render(source, **opts)` with a
 top-level dispatch that calls into internal helpers
 (`_render_top_sequence`, `_render_top_node`, ...) and emits a
-stylesheet. The result is still finalized through the standard
-`finalize_raw` flow.
+stylesheet; `CssBuilderHandler.render` drives this whole-stylesheet
+walk instead of the generic `render_children`. The result is still
+finalized through the standard `finalize` (a single method: it joins
+the fragments and consumes the target).
 
 The only mode is `css`. Output is multi-line, indented with two
 spaces, one property per line. No minification mode yet.

@@ -103,7 +103,6 @@ class LiveDemoApp(AsgiApplication):
         for key, (title, demo_class) in discovered.items():
             page = demo_class()
             page.set_render_target("html", str(_OUT_HTML), default=True)
-            page.set_render_target("xml", str(_OUT_XML))
             page.create()   # runs setup() then main(); data ready for main
             self.demos[key] = page
             self.titles[key] = title
@@ -112,9 +111,22 @@ class LiveDemoApp(AsgiApplication):
         self._render_current()
 
     def _render_current(self) -> None:
-        """Render the current demo to both targets: html (iframe) and xml (raw)."""
+        """Refresh both views of the current demo (html render + raw xml)."""
         self.page.render()
-        self.page.render(mode="xml", pretty=True)
+        self._write_raw_xml()
+
+    def _write_raw_xml(self) -> None:
+        """Write ``out.xml``: the raw structural view of the source —
+        markers and unresolved pointers shown verbatim.
+
+        This is ``Bag.to_xml`` on the source directly, NOT
+        ``render(mode="xml")`` (which is a real render: pointers
+        resolved, markers filtered). Called after every source mutation
+        so the raw view tracks the document — ``live()`` only re-renders
+        ``out.html``, it does not know about this debug view.
+        """
+        raw_xml = self.page.source.to_xml(pretty=True)
+        _OUT_XML.write_text(raw_xml or "", encoding="utf-8")
 
     @property
     def page(self) -> InteractiveDemo:
@@ -195,6 +207,7 @@ class LiveDemoApp(AsgiApplication):
                 exec(source, self.namespaces[self.current])
         except Exception as exc:
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        self._write_raw_xml()
         return {
             "ok": True,
             "source": self._source_tree(),
@@ -213,6 +226,7 @@ class LiveDemoApp(AsgiApplication):
         """
         with self.page.live():
             self.page.data.set_item(path, value)
+        self._write_raw_xml()
         return {
             "ok": True,
             "source": self._source_tree(),

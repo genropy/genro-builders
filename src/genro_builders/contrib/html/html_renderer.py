@@ -142,30 +142,6 @@ class HtmlRenderer(RendererBase):
             f"</{tag}>{newline}"
         )
 
-    def _node_depth(self, node: Any) -> int:
-        """Count the wrapper-rooted depth of ``node``.
-
-        The handler stores the user's source as
-        ``self._sourceroot["main"]``; the wrapper node ``main`` is
-        depth 0 from the user's perspective. We count parent bags
-        upward and subtract one so the wrapper node itself sits at 0.
-        """
-        depth = 0
-        current = node
-        while current is not None:
-            parent_bag = getattr(current, "parent_bag", None)
-            if parent_bag is None:
-                break
-            parent_node = parent_bag.parent_node
-            if parent_node is None:
-                break
-            current = parent_node
-            depth += 1
-        # Wrapper root (``_sourceroot["main"]``) is one step above the
-        # user's first node; offset so the user-visible top-level sits
-        # at depth 0.
-        return max(depth - 1, 0)
-
     # ------------------------------------------------------------------
     # Attribute formatting (HTML + CSS kwarg fusion)
     # ------------------------------------------------------------------

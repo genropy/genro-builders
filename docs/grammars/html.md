@@ -129,8 +129,12 @@ Mode-specific kwargs available at `handler.render(...)`:
 | `xml` | `True` | Void tags as `<img/>` (XHTML). `False` → `<img>` (HTML5). |
 | `pretty` | `False` | Two-space indentation and trailing newline per node. |
 
-The `xml` mode is inherited from `BagBuilderBase.renderer_xml`: it
-delegates to `Bag.to_xml(pretty=...)` and produces stable XML.
+The `xml` mode is inherited from `BagBuilderBase.renderer_xml`. It is a
+real render — it rides the universal walk, so pointers are resolved and
+framework markers (`node_id`, …) are filtered out, exactly like the
+`html` render. For the raw structural view of the source (markers and
+unresolved pointers shown verbatim) call `handler.source.to_xml()` on
+the bag directly: that is a different thing from `render(mode="xml")`.
 
 ## Validation rules
 

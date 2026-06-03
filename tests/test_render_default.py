@@ -35,11 +35,16 @@ def test_render_default_mode_matches_dialect():
     assert h.render() == h.render(mode="html")
 
 
-def test_render_xml_mode_matches_source_to_xml():
-    """The ``xml`` mode is always available and equals ``source.to_xml()``."""
+def test_render_xml_mode_is_a_real_render_not_raw_to_xml():
+    """The ``xml`` mode is a real render: it rides the universal walk
+    (pointers resolved, framework markers filtered), so it is NOT the
+    raw ``source.to_xml()`` structural dump. The raw view stays
+    available by calling ``to_xml()`` on the bag directly."""
     h = _Page()
     h.create()
-    assert h.render(mode="xml") == h.source.to_xml()
+    rendered = h.render(mode="xml")
+    assert isinstance(rendered, str)
+    assert "<div" in rendered and "hello" in rendered
 
 
 class _AnchoredPage(HtmlBuilderHandler):
@@ -57,11 +62,14 @@ def test_node_id_absent_from_rendered_markup():
     assert h.node_by_id("greeting").node_tag == "div"
 
 
-def test_node_id_present_in_raw_xml_view():
-    """The xml mode is the structural source view: ``node_id`` shows there."""
+def test_node_id_absent_from_xml_render_present_in_raw_to_xml():
+    """``node_id`` is framework metadata. The xml *render* is a real
+    render and filters it out (like the html render). The raw
+    structural view — ``source.to_xml()`` on the bag — still shows it."""
     h = _AnchoredPage()
     h.create()
-    assert 'node_id="greeting"' in h.render(mode="xml")
+    assert "node_id" not in h.render(mode="xml")
+    assert 'node_id="greeting"' in h.source.to_xml()
 
 
 def test_render_xml_pretty_produces_multiline_output():

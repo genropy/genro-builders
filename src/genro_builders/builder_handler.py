@@ -312,8 +312,9 @@ class BuilderHandler:
         Flow: instantiate an ephemeral main renderer (R0) from the
         builder's ``renderer_<mode>`` property, seed its cache with
         itself, run the walk on ``startnode``, then finalize the
-        result through R0's ``finalize`` (which dispatches to the
-        renderer's shape-specific finalize method).
+        result through R0's ``finalize``. The same ``opts`` reach both
+        the walk (per-node options like ``pretty``) and ``finalize``
+        (document-level options like ``doc_header``).
         """
         main_renderer = self._get_renderer(mode)
         effective_target = self._get_target(target, main_renderer)
@@ -325,7 +326,7 @@ class BuilderHandler:
             result = main_renderer.render_children(
                 main_renderer.preprocess(self.source), **opts,
             )
-        return main_renderer.finalize(result, effective_target)
+        return main_renderer.finalize(result, effective_target, **opts)
 
     def _get_renderer(self, mode: str | None) -> Any:
         """Resolve the mode (explicit, else handler default, else builder
