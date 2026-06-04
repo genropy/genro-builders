@@ -66,17 +66,20 @@ class SvgRenderer(RendererBase):
         node: Any,
         item: Any,
         runtime_attrs: dict[str, Any],
+        *,
+        tag: str,
         **_opts: Any,
     ) -> str:
         """Emit the SVG fragment for ``node``.
 
+        - ``tag``/``runtime_attrs`` are already resolved by the base
+          ``_handle_meta`` (render_tag and render_attributes applied).
         - ``item`` is a list of already-rendered child fragments when
           the node's value is a Bag; a leaf value otherwise (``None``
           for empty leaves).
         - Void tags use the XHTML-style self-closing form preferred
           by SVG tooling (``<rect ... />``).
         """
-        tag = node.node_tag or node.label
         attrs = self._format_attrs(runtime_attrs)
         if tag in _VOID_TAGS:
             return f"<{tag}{attrs} />"

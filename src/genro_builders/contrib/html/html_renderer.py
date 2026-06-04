@@ -100,6 +100,7 @@ class HtmlRenderer(RendererBase):
         item: Any,
         runtime_attrs: dict[str, Any],
         *,
+        tag: str,
         xml: bool = True,
         pretty: bool = False,
         include_datapath: bool = False,
@@ -107,6 +108,8 @@ class HtmlRenderer(RendererBase):
     ) -> str:
         """Emit the HTML5 fragment for ``node``.
 
+        - ``tag``/``runtime_attrs`` are already resolved by the base
+          ``_handle_meta`` (render_tag and render_attributes applied).
         - ``item`` is a list of already-rendered child fragments when
           the node's value is a Bag; a leaf value otherwise (``None``
           for empty leaves).
@@ -118,7 +121,6 @@ class HtmlRenderer(RendererBase):
           attribute, a ``data-<name>-pointer`` carrying its absolute
           datapath — the hook client-side code uses to write back.
         """
-        tag = node.node_tag or node.label
         attrs = self._format_attrs(runtime_attrs)
         if include_datapath:
             attrs += self._auto_id_attr(node, runtime_attrs)
@@ -146,12 +148,20 @@ class HtmlRenderer(RendererBase):
     # Attribute formatting (HTML + CSS kwarg fusion)
     # ------------------------------------------------------------------
 
-    def _format_attrs(self, attrs: dict[str, Any]) -> str:
+    def adapt_attrs(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Collapse CSS roots, ``style_*`` escapes and Genro macros into a
+        single ``style`` entry, leaving plain HTML attributes (with the
+        keyword-collision remap) as ordinary dict entries.
+
+        Returns a dict — serialization is left to ``_format_attrs``. The
+        output keys are final HTML attribute names; ``style`` carries the
+        composed CSS text. The dialect escape ``html_<x>`` passes the
+        literal attribute through untouched.
+        """
         css: dict[str, str] = {}
-        # macro values + sub-kwargs gathered per macro
         macro_value: dict[str, Any] = {}
         macro_subs: dict[str, dict[str, Any]] = {}
-        html_parts: list[str] = []
+        out: dict[str, Any] = {}
 
         for raw_name, value in attrs.items():
             # 0. Dialect escape: ``html_<x>`` means "emit the literal HTML
@@ -160,8 +170,7 @@ class HtmlRenderer(RendererBase):
             #    ``type`` without shadowing the builtin, or ``html_width``
             #    set the HTML attribute instead of the CSS property.
             if raw_name.startswith(f"{self.builder._name}_"):
-                name = self.adapt(raw_name)
-                html_parts.append(f' {name}="{self._html_attr_value(value)}"')
+                out[self.adapt(raw_name)] = value
                 continue
 
             # 1. Bag-internal underscore keys (e.g. ``_tag``) — skip
@@ -203,8 +212,7 @@ class HtmlRenderer(RendererBase):
                 continue
 
             # 7. Plain HTML attribute (with keyword-collision remap).
-            name = _ATTR_MAP.get(raw_name, raw_name)
-            html_parts.append(f' {name}="{self._html_attr_value(value)}"')
+            out[_ATTR_MAP.get(raw_name, raw_name)] = value
 
         # Materialise Genro macros (may write into css).
         for macro_name in _GENRO_MACRO_NAMES:
@@ -217,10 +225,20 @@ class HtmlRenderer(RendererBase):
                 )
 
         if css:
-            style_text = "; ".join(f"{k}: {v}" for k, v in css.items())
-            html_parts.append(f' style="{style_text}"')
+            out["style"] = "; ".join(f"{k}: {v}" for k, v in css.items())
+        return out
 
-        return "".join(html_parts)
+    def _format_attrs(self, attrs: dict[str, Any]) -> str:
+        """Serialize an already-adapted attribute dict (see
+        ``adapt_attrs``). The ``style`` entry is pre-composed CSS text;
+        every other entry is a final HTML attribute name."""
+        parts = []
+        for name, value in attrs.items():
+            if name == "style":
+                parts.append(f' style="{value}"')
+            else:
+                parts.append(f' {name}="{self._html_attr_value(value)}"')
+        return "".join(parts)
 
     def _auto_id_attr(self, node: Any, runtime_attrs: dict[str, Any]) -> str:
         """Emit ``id="<struct-path>"`` for a pointer-bound node, if needed.

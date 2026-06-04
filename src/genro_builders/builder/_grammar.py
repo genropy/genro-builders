@@ -125,6 +125,16 @@ class _GrammarMixin:
         child_info = self._get_schema_info(node_tag)
         self._validate_parent_tags(child_info, parent_node)
 
+        # The element's schema ``_meta`` rides onto the node as a single
+        # ``_meta`` attribute (read uniformly via ``node._get_meta``).
+        # Done here — the one point both dispatch paths (bag root and
+        # node child) converge — so it is never duplicated nor missed on
+        # a root node. An explicit ``_meta`` in ``attr`` is left as-is.
+        if "_meta" not in attr:
+            meta = child_info.get("_meta")
+            if meta:
+                attr["_meta"] = meta
+
         node_label = node_label or self._auto_label(build_where, node_tag)
         child_node = build_where.set_item(
             node_label, node_value, _attributes=dict(attr),

@@ -141,30 +141,12 @@ class RendererBase:
         if node._get_meta("data_element"):
             return None
         item, ra = node.runtime_values()
+        tag, ra = self._handle_meta(node, ra)
+        ra = self.adapt_attrs(ra)
         if isinstance(node.value, BuilderBag):
             item = self.render_children(node.value, **opts)
-        # ``render_tag`` in the node's ``_meta``: the source tag is replaced by
-        # the declared envelope tag carrying ``render_attributes`` (e.g. an
-        # ``html`` boundary in SVG surfaces as
-        # ``<foreignObject xmlns="...">``). The children render in their own
-        # dialect (already in ``item``); only the wrapper tag is overridden.
-        render_tag, render_attributes = node._get_meta(
-            "render_tag,render_attributes",
-        )
-        if render_tag is not None:
-            # The envelope carries the source node's user attributes
-            # (e.g. ``svg.html(x=10, y=20)`` positions the foreignObject)
-            # plus the framework ``render_attributes`` (e.g. the xmlns);
-            # the framework values win on collision.
-            attrs = self._format_attrs({**ra, **(render_attributes or {})})
-            body = "".join(item) if isinstance(item, list) else (item or "")
-            return f"<{render_tag}{attrs}>{body}</{render_tag}>"
-        # Otherwise each node composes its own fragment with the renderer of
-        # its active builder (Decision 10): a node across a dialect boundary
-        # (e.g. ``<svg>`` in HTML, or ``<rect>`` under it) carries its own
-        # builder, so its renderer follows from the node — no boundary branch.
         renderer = self.get_render(node.builder)
-        return renderer.rendered_item(node, item, ra, **opts)
+        return renderer.rendered_item(node, item, ra, tag=tag, **opts)
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
         """Render each node in ``nodes`` and collect the fragments.
@@ -195,18 +177,61 @@ class RendererBase:
         node: Any,
         item: Any,
         runtime_attrs: dict[str, Any],
+        *,
+        tag: str,
         **opts: Any,
     ) -> Any:
         """Produce the dialect-specific fragment for ``node``.
 
-        Concrete renderers override this. ``item`` is the children's
+        Concrete renderers override this. ``tag`` and ``runtime_attrs``
+        are already resolved by the walk (``_handle_meta`` + ``adapt_attrs``),
+        so the renderer only formats and emits. ``item`` is the children's
         rendered fragments (list) when the node's value is a Bag,
-        otherwise the node's raw value. ``runtime_attrs`` is the
-        attribute dict already resolved through pointer expansion.
+        otherwise the node's raw value.
         """
         raise NotImplementedError(
             f"{type(self).__name__} does not implement rendered_item",
         )
+
+    def _handle_meta(
+        self, node: Any, runtime_attrs: dict[str, Any],
+    ) -> tuple[str, dict[str, Any]]:
+        """Resolve the ``_meta`` that affects emission, once for every
+        dialect, so ``rendered_item`` receives a ready tag and attrs.
+
+        - ``render_tag`` replaces the node's tag (a sub-builder boundary:
+          ``html`` -> ``foreignObject``; an XSLT instruction:
+          ``for_each`` -> ``xsl:for-each``);
+        - ``render_attributes`` (framework attrs, e.g. the foreignObject
+          xmlns) merge over the node's own, framework winning on clash.
+
+        A node with neither falls back to its ``node_tag``. A node with
+        no tag at all is a contract violation, not something to paper
+        over with the auto-label — raise.
+        """
+        render_tag, render_attributes = node._get_meta(
+            "render_tag,render_attributes",
+        )
+        tag = render_tag or node.node_tag
+        if not tag:
+            raise ValueError(
+                f"node {node.label!r} has no tag to render "
+                "(no render_tag, no node_tag)",
+            )
+        if render_attributes:
+            runtime_attrs = {**runtime_attrs, **render_attributes}
+        return tag, runtime_attrs
+
+    def adapt_attrs(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Dialect-specific adaptation of the attribute dict before
+        serialization. Identity by default; the extension point for any
+        rewrite that produces a different *dict* (not its serialization).
+
+        Today only ``HtmlRenderer`` overrides it, to collapse CSS roots
+        and Genro macros into a single ``style`` entry. Serialization
+        (``_format_attrs``) then treats the result as ordinary attrs.
+        """
+        return attrs
 
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
         """Serialize an attribute dict to a markup string.
@@ -333,11 +358,14 @@ class XmlRenderer(RendererBase):
         item: Any,
         runtime_attrs: dict[str, Any],
         *,
+        tag: str,
         pretty: bool = False,
         **_opts: Any,
     ) -> str:
         """Emit the XML fragment for ``node``.
 
+        - ``tag``/``runtime_attrs`` are already resolved by the base
+          ``_handle_meta`` (render_tag and render_attributes applied).
         - ``item`` is a list of already-rendered child fragments when
           the node's value is a Bag; a leaf value otherwise (``None``
           for empty leaves).
@@ -345,7 +373,6 @@ class XmlRenderer(RendererBase):
           ``<tag></tag>``.
         - ``pretty`` indents by wrapper-rooted depth, one node per line.
         """
-        tag = node.node_tag or node.label
         attrs = self._format_attrs(runtime_attrs)
         indent = "  " * self._node_depth(node) if pretty else ""
         newline = "\n" if pretty else ""
@@ -387,5 +414,14 @@ class XmlRenderer(RendererBase):
             return ""
         parts = []
         for name, value in attrs.items():
-            parts.append(f' {name}="{self._escape_attr(value)}"')
+            # ``xmlns_<prefix>`` is the author form of a namespace
+            # declaration (Python attribute names cannot carry a colon);
+            # it surfaces as ``xmlns:<prefix>``. No other underscore is
+            # rewritten — XML attribute names are emitted verbatim.
+            out_name = (
+                "xmlns:" + name[len("xmlns_"):]
+                if name.startswith("xmlns_")
+                else name
+            )
+            parts.append(f' {out_name}="{self._escape_attr(value)}"')
         return "".join(parts)

@@ -19,22 +19,21 @@ surfaced today as ``# NOTE: ... grammar gap`` comments in generated code).
 
 from __future__ import annotations
 
-from ...builder import BagBuilderBase
-from ...builder_handler import BuilderHandler
+from ..xml.xml_builder import XmlBuilderBase, XmlHandler
 
 
-class XsdBuilderBase(BagBuilderBase):
+class XsdBuilderBase(XmlBuilderBase):
     """Grammar base for dialects generated from an XSD schema.
 
-    The on-the-wire format is XML, so ``xml`` is the default render mode.
-    Concrete grammars (``FatturaElettronicaBuilder``, ``GpxBuilder``, ...)
-    subclass this and add their ``@element`` vocabulary.
+    An XSD-born dialect is XML on the wire, so it sits on
+    :class:`XmlBuilderBase` (which fixes ``xml`` as the default render
+    mode). Concrete grammars (``FatturaElettronicaBuilder``,
+    ``GpxBuilder``, ...) subclass this and add their ``@element``
+    vocabulary.
     """
 
-    _default_render_mode = "xml"
 
-
-class XsdHandler(BuilderHandler):
+class XsdHandler(XmlHandler):
     """Handler base for XSD-born dialects.
 
     A concrete ``<Schema>Handler`` subclass binds its ``builder_class`` to

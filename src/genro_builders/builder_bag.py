@@ -561,14 +561,10 @@ class _BuilderBagNodeMixin:
             schema_info = getattr(builder, "_get_schema_info", None)
             info = schema_info(original_tag) if schema_info is not None else {}
             meta = info.get("_meta") or {}
-            # The element's schema ``_meta`` rides onto the node as a single
-            # ``_meta`` attribute. Every framework marker (``data_element``,
-            # ``subbuilder``, ``render_tag``, ...) is then read uniformly via
-            # ``node._get_meta(...)`` — no per-marker attribute sprawl. The
-            # ``_meta`` attribute is structural (in ``_meta_attrs``), so it
-            # never leaks into the rendered markup.
-            if meta:
-                attrs["_meta"] = meta
+            # The element's schema ``_meta`` rides onto the node in
+            # ``set_child`` (the one point the bag and node dispatch paths
+            # converge). Here ``meta`` is only read to drive the
+            # data-element field mapping and the sub-builder attach below.
             if "data_element" in meta:
                 # Map the data-element positional fields (e.g.
                 # data_setter(destination, value)) onto their schema field
