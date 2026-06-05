@@ -1,46 +1,42 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """CssRenderer — renderer for the CSS dialect (level 1).
 
-Walks a source bag and produces CSS markup. CSS is not XML, so this
-renderer does not go through ``render_xml``: it emits the
-``selector-list { prop: value; ... }`` syntax directly.
+CSS rides the universal walk on ``RendererBase`` like every other
+dialect: each node's ``runtime_values`` is resolved (pointers ``^``/
+``=`` and ``${}`` templates actualized, keyword names like ``class_``
+normalized), then ``rendered_item`` turns the node into a small
+**dict fragment** describing what it is (``kind`` = selector / rule /
+cssvar / importcss / selector_list / stylesheet). The walk stacks
+those dicts into nested lists.
 
-Top-level dispatch:
+``finalize`` is the post-process: it receives the top-level list of
+dict fragments and composes the CSS text — grouping ``cssvar`` into a
+single ``:root`` block, hoisting ``@import`` to the top, grouping a
+selector's rules by ``(media, supports)`` into base + nested ``@media``/
+``@supports`` blocks, and emitting nested selectors. Pretty/minified
+are two serialization modes here, not two code paths in the walk.
 
-- ``stylesheet`` nodes (optional top-level container): the renderer
-  iterates their children.
-- ``selector`` nodes (also accepted at the bag root, for fragments):
-  the selector's own compound forms a one-entry selector-list; the
-  body comes from the rule(s), cssvar(s) and nested selector(s)
-  of the node.
-- ``selector_list`` nodes: hold N ``selector`` children whose
-  compounds form a comma-separated selector-list; the body comes
-  from the same set of child element types.
+CSS is not XML, so the dicts never carry markup: the dialect emits the
+``selector-list { prop: value; ... }`` syntax directly in ``finalize``.
 
-Rules grouping: a selector may carry multiple ``rule`` children.
-Each rule may declare optional ``media`` and ``supports`` kwargs.
-The renderer groups rules by ``(media, supports)``:
+Selector composition: structured kwargs (``tag``, ``id``, ``class``
+[from ``class_``/``_class``], ``classes``, ``attr``) are validated with
+strict regexes; ``raw`` is an opaque suffix joined with a leading space.
 
-- the group ``(None, None)`` is emitted as the base block;
-- each non-base group is emitted as a nested ``@media`` /
-  ``@supports`` block re-using the parent selector inside.
+Property names translate underscore to hyphen (``font_size`` ->
+``font-size``, ``_webkit_user_select`` -> ``-webkit-user-select``) — a
+CSS spelling rule, unrelated to the Python-keyword normalization done
+in ``runtime_values``.
 
-Selector composition: structured kwargs (``tag``, ``id``,
-``_class``, ``classes``, ``attr``) are validated with strict
-regexes; ``raw`` is an opaque suffix joined with a leading space.
-
-Comment support: any element accepts ``comment="..."``. The
-renderer emits ``/* ... */`` inline when the text fits in
-``COMMENT_INLINE_MAX_LEN`` (60), otherwise as a block above the
-element.
+Comment support: any element accepts ``comment="..."``. The renderer
+emits ``/* ... */`` inline when the text fits in
+``COMMENT_INLINE_MAX_LEN`` (60), otherwise as a block above the element.
 """
 
 from __future__ import annotations
 
 import re
 from typing import Any
-
-from genro_bag import Bag
 
 from ...renderer import RendererBase
 
@@ -53,64 +49,190 @@ _RE_ATTR_NAME = re.compile(r"^[a-zA-Z_-][\w-]*$")
 
 
 class CssRenderer(RendererBase):
-    """Renderer for the CSS dialect.
+    """Renderer for the CSS dialect, on the universal walk.
 
-    CSS rendering does not fit the universal node-by-node walk of
-    ``RendererBase.render`` (cssvar grouping, importcss ordering,
-    @media/@supports nested blocks). The renderer overrides ``render``
-    with its own top-level dispatch; ``CssBuilderHandler.render`` drives
-    it on the whole source. It produces a string consumed by ``finalize``.
+    ``rendered_item`` returns a dict fragment per node; ``finalize``
+    composes those fragments into the CSS document. The dialect-special
+    layout (``:root`` for cssvars, ``@import`` hoisting, ``@media``/
+    ``@supports`` grouping) lives entirely in ``finalize``.
     """
 
     mode = "css"
 
-    def render(
+    # ------------------------------------------------------------------
+    # Per-node fragment (rides the universal walk via runtime_values)
+    # ------------------------------------------------------------------
+
+    def rendered_item(
         self,
-        source: Any,
+        node: Any,
+        item: Any,
+        runtime_attrs: dict[str, Any],
+        *,
+        tag: str,
+        **_opts: Any,
+    ) -> dict[str, Any]:
+        """Turn one node into a dict fragment.
+
+        ``runtime_attrs`` is already pointer-resolved and keyword-
+        normalized by the walk. ``item`` is the list of child fragments
+        (for selector / stylesheet) or the resolved leaf value (cssvar
+        carries its name there). Composition happens in ``finalize``.
+        """
+        attrs = dict(runtime_attrs)
+        comment = attrs.pop("comment", None)
+        children = item if isinstance(item, list) else []
+
+        if tag == "stylesheet":
+            return {"kind": "stylesheet", "body": children}
+        if tag == "selector":
+            return {
+                "kind": "selector",
+                "compound": self._compound(attrs),
+                "comment": comment,
+                "body": children,
+            }
+        if tag == "selector_list":
+            return {
+                "kind": "selector_list",
+                "compounds": [c["compound"] for c in children if c["kind"] == "selector"],
+                "comment": comment,
+                "body": children,
+            }
+        if tag == "rule":
+            media = attrs.pop("media", None)
+            supports = attrs.pop("supports", None)
+            return {
+                "kind": "rule",
+                "media": media,
+                "supports": supports,
+                "props": self._properties(attrs),
+            }
+        if tag == "cssvar":
+            name = item if not isinstance(item, list) and item is not None else ""
+            return {
+                "kind": "cssvar",
+                "name": str(name),
+                "value": attrs.pop("value", ""),
+                "comment": comment,
+            }
+        if tag == "importcss":
+            return {
+                "kind": "importcss",
+                "url": attrs.pop("url", None),
+                "layer": attrs.pop("layer", None),
+                "supports": attrs.pop("supports", None),
+                "media": attrs.pop("media", None),
+                "comment": comment,
+            }
+        raise ValueError(f"css: unknown element {tag!r}")
+
+    # ------------------------------------------------------------------
+    # Selector compound + properties (pure, from resolved attrs)
+    # ------------------------------------------------------------------
+
+    def _compound(self, attrs: dict[str, Any]) -> str:
+        """Build a selector compound from resolved structured kwargs."""
+        tag = attrs.pop("tag", None)
+        sel_id = attrs.pop("id", None)
+        single_class = attrs.pop("class", None)
+        many_classes = attrs.pop("classes", None)
+        attr_map = attrs.pop("attr", None)
+        raw = attrs.pop("raw", None)
+
+        if single_class is not None and many_classes is not None:
+            raise ValueError(
+                "selector: pass either class_ (single) or classes (list), not both",
+            )
+
+        parts: list[str] = []
+        if tag is not None:
+            if not isinstance(tag, str) or not _RE_TAG.match(tag):
+                raise ValueError(f"selector tag {tag!r}: must match [a-zA-Z][\\w-]*")
+            parts.append(tag)
+        if sel_id is not None:
+            if not isinstance(sel_id, str) or not _RE_ID.match(sel_id):
+                raise ValueError(f"selector id {sel_id!r}: must match [a-zA-Z_-][\\w-]*")
+            parts.append(f"#{sel_id}")
+        class_list: list[str] = []
+        if single_class is not None:
+            if not isinstance(single_class, str):
+                raise ValueError(
+                    f"selector class_ {single_class!r}: must be a string; "
+                    "use classes=[...] for multiple",
+                )
+            class_list = [single_class]
+        elif many_classes is not None:
+            if not isinstance(many_classes, (list, tuple)):
+                raise ValueError(f"selector classes {many_classes!r}: must be a list")
+            class_list = list(many_classes)
+        for cls in class_list:
+            if not isinstance(cls, str) or not _RE_CLASS.match(cls):
+                raise ValueError(
+                    f"selector class {cls!r}: must match "
+                    "[a-zA-Z_-][\\w-]*(:{1,2}[\\w-]+)* "
+                    "(no spaces, no dots, no combinators)",
+                )
+            parts.append(f".{cls}")
+        if attr_map is not None:
+            if not isinstance(attr_map, dict):
+                raise ValueError(f"selector attr {attr_map!r}: must be a dict")
+            for name, value in attr_map.items():
+                if not isinstance(name, str) or not _RE_ATTR_NAME.match(name):
+                    raise ValueError(
+                        f"selector attr name {name!r}: must match [a-zA-Z_-][\\w-]*",
+                    )
+                parts.append(f"[{name}]" if value is None else f'[{name}="{value}"]')
+
+        compound = "".join(parts)
+        if raw is not None:
+            raw_str = str(raw)
+            return f"{compound} {raw_str}" if compound else raw_str
+        if not compound:
+            raise ValueError(
+                "selector: at least one of tag/id/class_/classes/attr/raw "
+                "must be provided",
+            )
+        return compound
+
+    def _properties(self, attrs: dict[str, Any]) -> list[str]:
+        """One ``css-name: value;`` per property kwarg (underscore->hyphen)."""
+        return [f'{name.replace("_", "-")}: {value};' for name, value in attrs.items()]
+
+    # ------------------------------------------------------------------
+    # Finalize (the post-process: dict fragments -> CSS text)
+    # ------------------------------------------------------------------
+
+    def finalize(
+        self,
+        result: Any,
+        target: Any,
         *,
         pretty: bool = True,
         indent: str = "  ",
         **_opts: Any,
-    ) -> str:
-        """Override the universal walk: CSS needs a custom top-level
-        dispatch. ``source`` is the bag (or a node containing a bag)
-        of top-level CSS elements (stylesheet / selector / cssvar /
-        importcss). Returns the serialized stylesheet as a string."""
-        if isinstance(source, Bag):
-            nodes = list(source)
-        else:
-            value = source.value
-            nodes = list(value) if isinstance(value, Bag) else [source]
+    ) -> Any:
+        """Compose top-level dict fragments into the CSS document.
+
+        ``result`` is the top-level list of fragments from the walk (a
+        single fragment for a subtree render is wrapped). Top-level
+        cssvars are gathered into one ``:root`` block; inside a
+        ``stylesheet`` imports are hoisted first. The text is then
+        consumed via the base ``finalize`` (path / writable / callable).
+        """
+        fragments = result if isinstance(result, list) else [result]
         lines: list[str] = []
-        self._render_top_sequence(
-            nodes, lines, pretty=pretty, indent=indent, depth=0,
+        self._emit_sequence(fragments, lines, pretty=pretty, indent=indent, depth=0)
+        text = (
+            "\n".join(lines) + ("\n" if lines else "")
+            if pretty
+            else "".join(lines)
         )
-        return "\n".join(lines) + ("\n" if lines else "") if pretty else "".join(lines)
+        return super().finalize(text, target)
 
-    def render_css(
+    def _emit_sequence(
         self,
-        source: Bag,
-        render_target: Any = None,
-        *,
-        pretty: bool = True,
-        indent: str = "  ",
-    ) -> str | None:
-        """Legacy entry — used by ``from_css`` and tests that haven't
-        migrated to the new ``handler.render(...)``/``finalize`` flow."""
-        lines: list[str] = []
-        self._render_top_sequence(
-            list(source), lines, pretty=pretty, indent=indent, depth=0,
-        )
-        text = "\n".join(lines) + ("\n" if lines else "") if pretty else "".join(lines)
-        return self._write_or_return(text, render_target)
-
-    # ------------------------------------------------------------------
-    # Top-level dispatch
-    # ------------------------------------------------------------------
-
-    def _render_top_sequence(
-        self,
-        nodes: list[Any],
+        fragments: list[dict[str, Any]],
         lines: list[str],
         *,
         pretty: bool,
@@ -118,186 +240,72 @@ class CssRenderer(RendererBase):
         depth: int,
         in_stylesheet: bool = False,
     ) -> None:
-        """Render a sequence of top-level nodes.
+        """Emit a sequence of top-level fragments.
 
-        When ``in_stylesheet`` is True, the sequence is the body of a
-        ``stylesheet`` element and the renderer enforces the CSS
-        ordering rule: all ``importcss`` directives are emitted first
-        (insertion order), then ``cssvar`` blocks and selectors in
-        their natural position.
-
-        Top-level ``cssvar`` children (direct children of the bag
-        root or of a ``stylesheet``) are gathered into a single
-        implicit ``:root { ... }`` block; consecutive cssvars share
-        the same block and any non-cssvar node flushes the buffer.
-
-        Encountering ``importcss`` outside a stylesheet raises
-        ``ValueError`` (the grammar forbids ``@import`` at bag-root).
+        Inside a stylesheet, ``importcss`` directives come first in
+        insertion order; then cssvars and selectors in natural position.
+        Consecutive top-level cssvars share one ``:root`` block; any
+        non-cssvar fragment flushes the buffer. ``importcss`` outside a
+        stylesheet is a contract violation (``@import`` only inside one).
         """
         if in_stylesheet:
-            imports = [n for n in nodes if (n.node_tag or n.label) == "importcss"]
-            others = [n for n in nodes if (n.node_tag or n.label) != "importcss"]
+            imports = [f for f in fragments if f["kind"] == "importcss"]
+            rest = [f for f in fragments if f["kind"] != "importcss"]
             for imp in imports:
                 self._emit_import(imp, lines, pretty=pretty, indent=indent, depth=depth)
-            nodes = others
+            fragments = rest
 
-        cssvar_buffer: list[Any] = []
+        cssvar_buffer: list[dict[str, Any]] = []
 
         def flush() -> None:
-            if not cssvar_buffer:
-                return
-            self._emit_root_cssvar_block(
-                cssvar_buffer, lines, pretty=pretty, indent=indent, depth=depth,
-            )
-            cssvar_buffer.clear()
+            if cssvar_buffer:
+                self._emit_root_cssvars(
+                    cssvar_buffer, lines, pretty=pretty, indent=indent, depth=depth,
+                )
+                cssvar_buffer.clear()
 
-        for node in nodes:
-            tag = node.node_tag or node.label
-            if tag == "cssvar":
-                cssvar_buffer.append(node)
+        for frag in fragments:
+            kind = frag["kind"]
+            if kind == "cssvar":
+                cssvar_buffer.append(frag)
                 continue
-            if tag == "importcss" and not in_stylesheet:
+            if kind == "importcss" and not in_stylesheet:
                 raise ValueError(
                     "importcss must be a child of stylesheet; open one first "
                     "(root.stylesheet().importcss(...)).",
                 )
             flush()
-            self._render_top_node(node, lines, pretty=pretty, indent=indent, depth=depth)
-        flush()
-
-    def _render_top_node(
-        self,
-        node: Any,
-        lines: list[str],
-        *,
-        pretty: bool,
-        indent: str,
-        depth: int,
-    ) -> None:
-        tag = node.node_tag or node.label
-        if tag == "stylesheet":
-            value = node.value
-            if isinstance(value, Bag):
-                self._render_top_sequence(
-                    list(value), lines,
-                    pretty=pretty, indent=indent, depth=depth,
-                    in_stylesheet=True,
+            if kind == "stylesheet":
+                self._emit_sequence(
+                    frag["body"], lines, pretty=pretty, indent=indent,
+                    depth=depth, in_stylesheet=True,
                 )
-            return
-        if tag == "selector":
-            self._render_block(
-                [self._format_selector(node)], node, lines,
-                pretty=pretty, indent=indent, depth=depth,
-            )
-            return
-        if tag == "selector_list":
-            self._render_selector_list(
-                node, lines, pretty=pretty, indent=indent, depth=depth,
-            )
-
-    def _emit_root_cssvar_block(
-        self,
-        cssvars: list[Any],
-        lines: list[str],
-        *,
-        pretty: bool,
-        indent: str,
-        depth: int,
-    ) -> None:
-        """Emit a list of ``cssvar`` nodes as a single ``:root { ... }`` block."""
-        body: list[str] = []
-        for var_node in cssvars:
-            body.extend(self._format_cssvar(var_node))
-        if not body:
-            return
-        outer = indent * depth if pretty else ""
-        inner = indent * (depth + 1) if pretty else ""
-        if pretty:
-            lines.append(f"{outer}:root {{")
-            for entry in body:
-                lines.append(f"{inner}{entry}")
-            lines.append(f"{outer}}}")
-        else:
-            lines.append(":root { " + " ".join(body) + " }")
-
-    def _emit_import(
-        self,
-        node: Any,
-        lines: list[str],
-        *,
-        pretty: bool,
-        indent: str,
-        depth: int,
-    ) -> None:
-        """Emit a single ``@import`` directive from an ``importcss`` node.
-
-        Spec order is ``@import <url> <layer>? <supports>? <media-query-list>?;``.
-        Missing kwargs are omitted.
-        """
-        attrs = dict(node.attr)
-        comment = attrs.pop("comment", None)
-        url = attrs.pop("url", None)
-        if url is None:
-            raise ValueError("importcss: missing required kwarg 'url'")
-        layer = attrs.pop("layer", None)
-        supports = attrs.pop("supports", None)
-        media = attrs.pop("media", None)
-
-        parts: list[str] = [f'@import url("{url}")']
-        if layer is not None:
-            parts.append(f"layer({layer})" if layer != "" else "layer")
-        if supports is not None:
-            # ``supports`` is passed verbatim including its outer
-            # parentheses, mirroring ``rule(supports="(...)")``. The
-            # spec syntax is ``supports(<condition>)`` where
-            # ``<condition>`` already carries its own parens, so we
-            # only need to prepend the ``supports`` keyword.
-            parts.append(f"supports{supports}")
-        if media is not None:
-            parts.append(str(media))
-        directive = " ".join(parts) + ";"
-
-        outer = indent * depth if pretty else ""
-        if comment is not None:
-            text = str(comment)
-            if len(text) <= COMMENT_INLINE_MAX_LEN:
-                lines.append(f"{outer}{directive} /* {text} */")
-                return
-            lines.append(f"{outer}/* {text} */")
-        lines.append(f"{outer}{directive}")
-
-    def _render_selector_list(
-        self,
-        node: Any,
-        lines: list[str],
-        *,
-        pretty: bool,
-        indent: str,
-        depth: int,
-    ) -> None:
-        selectors: list[str] = []
-        value = node.value
-        if isinstance(value, Bag):
-            for child in value:
-                if (child.node_tag or child.label) == "selector":
-                    selectors.append(self._format_selector(child))
-        if not selectors:
-            raise ValueError(
-                "selector_list has no selector children; add at least one .selector(...)",
-            )
-        self._render_block(
-            selectors, node, lines, pretty=pretty, indent=indent, depth=depth,
-            consume_selectors_as_list=True,
-        )
+            elif kind == "selector":
+                self._emit_block(
+                    [frag["compound"]], frag, lines,
+                    pretty=pretty, indent=indent, depth=depth,
+                )
+            elif kind == "selector_list":
+                if not frag["compounds"]:
+                    raise ValueError(
+                        "selector_list has no selector children; "
+                        "add at least one .selector(...)",
+                    )
+                self._emit_block(
+                    frag["compounds"], frag, lines,
+                    pretty=pretty, indent=indent, depth=depth,
+                    consume_selectors_as_list=True,
+                )
+        flush()
 
     # ------------------------------------------------------------------
     # Block emission (selector or selector_list)
     # ------------------------------------------------------------------
 
-    def _render_block(
+    def _emit_block(
         self,
         selector_strings: list[str],
-        node: Any,
+        frag: dict[str, Any],
         lines: list[str],
         *,
         pretty: bool,
@@ -305,49 +313,42 @@ class CssRenderer(RendererBase):
         depth: int,
         consume_selectors_as_list: bool = False,
     ) -> None:
-        """Emit a ``selectors { body }`` block.
+        """Emit a ``selectors { body }`` block from a selector fragment.
 
-        ``selector_strings`` is the comma-separated selector-list
-        (one entry for a plain selector, N for a selector_list).
-        Body comes from the rule(s), cssvar(s) and nested selector(s)
-        of ``node``. Rules are grouped by ``(media, supports)``;
-        the base group is inlined, the others are emitted as
-        nested ``@media`` / ``@supports`` blocks.
+        Body = the fragment's rule(s), cssvar(s) and nested selector(s).
+        Rules are grouped by ``(media, supports)``: the base group is
+        inlined, the others become nested ``@media`` / ``@supports``.
         """
         selector_list = ", ".join(selector_strings)
         outer = indent * depth if pretty else ""
         inner = indent * (depth + 1) if pretty else ""
 
-        block_comment = self._block_comment(node)
-        rule_groups = self._group_rules(node)
+        body_frags = frag["body"]
+        rule_groups = self._group_rules(body_frags)
         base_properties = rule_groups.pop((None, None), [])
-        cssvar_lines = self._format_cssvars(node)
+        cssvar_lines = self._cssvar_lines(body_frags)
         nested_selectors = (
             [] if consume_selectors_as_list
-            else self._find_children(node, "selector")
+            else [f for f in body_frags if f["kind"] == "selector"]
         )
 
         body = base_properties + cssvar_lines
-        if block_comment.position == "block" and block_comment.text:
-            lines.append(f"{outer}/* {block_comment.text} */")
-        inline_comment = block_comment.text if block_comment.position == "inline" else None
-        if inline_comment is not None and body:
-            body[-1] = f"{body[-1]} /* {inline_comment} */"
-        elif (
-            inline_comment is not None
-            and not body
-            and not nested_selectors
-            and not rule_groups
-        ):
-            body = [f"/* {inline_comment} */"]
+        comment = self._comment_spec(frag.get("comment"))
+        if comment.position == "block" and comment.text:
+            lines.append(f"{outer}/* {comment.text} */")
+        inline = comment.text if comment.position == "inline" else None
+        if inline is not None and body:
+            body[-1] = f"{body[-1]} /* {inline} */"
+        elif inline is not None and not body and not nested_selectors and not rule_groups:
+            body = [f"/* {inline} */"]
 
         if pretty:
             lines.append(f"{outer}{selector_list} {{")
             for entry in body:
                 lines.append(f"{inner}{entry}")
             for nested in nested_selectors:
-                self._render_block(
-                    [self._format_selector(nested)], nested, lines,
+                self._emit_block(
+                    [nested["compound"]], nested, lines,
                     pretty=pretty, indent=indent, depth=depth + 1,
                 )
             for (media, supports), properties in rule_groups.items():
@@ -359,49 +360,22 @@ class CssRenderer(RendererBase):
         else:
             extras: list[str] = []
             for nested in nested_selectors:
-                _flat: list[str] = []
-                self._render_block(
-                    [self._format_selector(nested)], nested, _flat,
+                flat: list[str] = []
+                self._emit_block(
+                    [nested["compound"]], nested, flat,
                     pretty=False, indent=indent, depth=0,
                 )
-                extras.append(" ".join(_flat))
+                extras.append(" ".join(flat))
             for (media, supports), properties in rule_groups.items():
-                _flat = []
+                flat = []
                 self._emit_at_group(
-                    media, supports, selector_strings, properties, _flat,
+                    media, supports, selector_strings, properties, flat,
                     pretty=False, indent=indent, depth=0,
                 )
-                extras.append(" ".join(_flat))
+                extras.append(" ".join(flat))
             body_text = " ".join(body)
             combined = " ".join(part for part in (body_text, *extras) if part)
             lines.append(f"{selector_list} {{ {combined} }}")
-
-    # ------------------------------------------------------------------
-    # Rule grouping by (media, supports)
-    # ------------------------------------------------------------------
-
-    def _group_rules(
-        self, node: Any,
-    ) -> dict[tuple[str | None, str | None], list[str]]:
-        """Group rule children by (media, supports). Preserves order.
-
-        The result is a dict keyed by the (media, supports) tuple,
-        with values being the merged list of CSS declaration lines
-        (in the order rules were added). The (None, None) key is
-        the base block.
-        """
-        groups: dict[tuple[str | None, str | None], list[str]] = {}
-        for rule_node in self._find_children(node, "rule"):
-            attrs = dict(rule_node.attr)
-            attrs.pop("comment", None)
-            media = attrs.pop("media", None)
-            supports = attrs.pop("supports", None)
-            key = (media, supports)
-            properties = self._format_properties(attrs)
-            if key not in groups:
-                groups[key] = []
-            groups[key].extend(properties)
-        return groups
 
     def _emit_at_group(
         self,
@@ -415,17 +389,14 @@ class CssRenderer(RendererBase):
         indent: str,
         depth: int,
     ) -> None:
-        """Emit a @media and/or @supports block re-using the parent selector.
+        """Emit a ``@media``/``@supports`` block re-using the parent selector.
 
-        When both ``media`` and ``supports`` are present, the
-        ``@supports`` block wraps the ``@media`` block.
+        When both are present, ``@supports`` wraps ``@media``.
         """
         parent_selector_list = ", ".join(parent_selectors)
-
         if pretty:
             current_depth = depth
             outer = indent * current_depth
-
             if supports is not None:
                 lines.append(f"{outer}@supports {supports} {{")
                 current_depth += 1
@@ -434,13 +405,11 @@ class CssRenderer(RendererBase):
                 lines.append(f"{outer}@media {media} {{")
                 current_depth += 1
                 outer = indent * current_depth
-
             lines.append(f"{outer}{parent_selector_list} {{")
             inner = indent * (current_depth + 1)
             for entry in properties:
                 lines.append(f"{inner}{entry}")
             lines.append(f"{outer}}}")
-
             if media is not None:
                 current_depth -= 1
                 lines.append(f"{indent * current_depth}}}")
@@ -457,36 +426,33 @@ class CssRenderer(RendererBase):
             lines.append(payload)
 
     # ------------------------------------------------------------------
-    # Properties / cssvars
+    # Rule grouping / cssvars / imports / comments (on dict fragments)
     # ------------------------------------------------------------------
 
-    def _format_properties(self, attrs: dict[str, Any]) -> list[str]:
-        """One CSS declaration per property kwarg.
+    def _group_rules(
+        self, body_frags: list[dict[str, Any]],
+    ) -> dict[tuple[str | None, str | None], list[str]]:
+        """Group rule fragments by ``(media, supports)``, preserving order."""
+        groups: dict[tuple[str | None, str | None], list[str]] = {}
+        for frag in body_frags:
+            if frag["kind"] != "rule":
+                continue
+            key = (frag["media"], frag["supports"])
+            groups.setdefault(key, []).extend(frag["props"])
+        return groups
 
-        Underscores in the Python kwarg name are translated to hyphens
-        in the CSS property name. A leading underscore therefore yields
-        a leading hyphen, which is exactly how vendor prefixes are
-        spelled in CSS (``_webkit_user_select`` → ``-webkit-user-select``).
-        """
+    def _cssvar_lines(self, body_frags: list[dict[str, Any]]) -> list[str]:
+        """Declaration lines for the ``cssvar`` fragments in a block body."""
         result: list[str] = []
-        for raw_name, value in attrs.items():
-            css_name = raw_name.replace("_", "-")
-            result.append(f"{css_name}: {value};")
+        for frag in body_frags:
+            if frag["kind"] == "cssvar":
+                result.extend(self._cssvar_decl(frag))
         return result
 
-    def _format_cssvars(self, node: Any) -> list[str]:
-        """One declaration per ``cssvar`` child."""
-        result: list[str] = []
-        for child in self._find_children(node, "cssvar"):
-            result.extend(self._format_cssvar(child))
-        return result
-
-    def _format_cssvar(self, node: Any) -> list[str]:
-        name = node.value if node.value is not None else ""
-        attrs = dict(node.attr)
-        comment = attrs.pop("comment", None)
-        var_value = attrs.pop("value", "")
-        declaration = f"--{name}: {var_value};"
+    def _cssvar_decl(self, frag: dict[str, Any]) -> list[str]:
+        """One ``--name: value;`` declaration (with optional comment)."""
+        declaration = f'--{frag["name"]}: {frag["value"]};'
+        comment = frag.get("comment")
         if comment is None:
             return [declaration]
         text = str(comment)
@@ -494,115 +460,82 @@ class CssRenderer(RendererBase):
             return [f"{declaration} /* {text} */"]
         return [f"/* {text} */", declaration]
 
-    # ------------------------------------------------------------------
-    # Selector compounding
-    # ------------------------------------------------------------------
+    def _emit_root_cssvars(
+        self,
+        cssvars: list[dict[str, Any]],
+        lines: list[str],
+        *,
+        pretty: bool,
+        indent: str,
+        depth: int,
+    ) -> None:
+        """Emit cssvar fragments as a single ``:root { ... }`` block."""
+        body: list[str] = []
+        for frag in cssvars:
+            body.extend(self._cssvar_decl(frag))
+        if not body:
+            return
+        outer = indent * depth if pretty else ""
+        inner = indent * (depth + 1) if pretty else ""
+        if pretty:
+            lines.append(f"{outer}:root {{")
+            for entry in body:
+                lines.append(f"{inner}{entry}")
+            lines.append(f"{outer}}}")
+        else:
+            lines.append(":root { " + " ".join(body) + " }")
 
-    def _format_selector(self, node: Any) -> str:
-        attrs = dict(node.attr)
-        attrs.pop("comment", None)
+    def _emit_import(
+        self,
+        frag: dict[str, Any],
+        lines: list[str],
+        *,
+        pretty: bool,
+        indent: str,
+        depth: int,
+    ) -> None:
+        """Emit a single ``@import`` directive from an importcss fragment.
 
-        tag = attrs.pop("tag", None)
-        sel_id = attrs.pop("id", None)
-        single_class = attrs.pop("_class", None)
-        many_classes = attrs.pop("classes", None)
-        attr_map = attrs.pop("attr", None)
-        raw = attrs.pop("raw", None)
+        Spec order: ``@import <url> <layer>? <supports>? <media-query-list>?;``.
+        """
+        url = frag["url"]
+        if url is None:
+            raise ValueError("importcss: missing required kwarg 'url'")
+        layer = frag["layer"]
+        supports = frag["supports"]
+        media = frag["media"]
 
-        if single_class is not None and many_classes is not None:
-            raise ValueError(
-                "selector: pass either _class (single) or classes (list), not both",
-            )
+        parts: list[str] = [f'@import url("{url}")']
+        if layer is not None:
+            parts.append(f"layer({layer})" if layer != "" else "layer")
+        if supports is not None:
+            # ``supports`` is passed verbatim including its outer parens,
+            # mirroring ``rule(supports="(...)")``: the spec syntax is
+            # ``supports(<condition>)`` and the condition carries its own
+            # parens, so we only prepend the keyword.
+            parts.append(f"supports{supports}")
+        if media is not None:
+            parts.append(str(media))
+        directive = " ".join(parts) + ";"
 
-        parts: list[str] = []
-        if tag is not None:
-            if not isinstance(tag, str) or not _RE_TAG.match(tag):
-                raise ValueError(
-                    f"selector tag {tag!r}: must match [a-zA-Z][\\w-]*",
-                )
-            parts.append(tag)
-        if sel_id is not None:
-            if not isinstance(sel_id, str) or not _RE_ID.match(sel_id):
-                raise ValueError(
-                    f"selector id {sel_id!r}: must match [a-zA-Z_-][\\w-]*",
-                )
-            parts.append(f"#{sel_id}")
-        class_list: list[str] = []
-        if single_class is not None:
-            if not isinstance(single_class, str):
-                raise ValueError(
-                    f"selector _class {single_class!r}: must be a string; "
-                    "use classes=[...] for multiple",
-                )
-            class_list = [single_class]
-        elif many_classes is not None:
-            if not isinstance(many_classes, (list, tuple)):
-                raise ValueError(
-                    f"selector classes {many_classes!r}: must be a list",
-                )
-            class_list = list(many_classes)
-        for item in class_list:
-            if not isinstance(item, str) or not _RE_CLASS.match(item):
-                raise ValueError(
-                    f"selector class {item!r}: must match "
-                    "[a-zA-Z_-][\\w-]*(:{1,2}[\\w-]+)* "
-                    "(no spaces, no dots, no combinators)",
-                )
-            parts.append(f".{item}")
-        if attr_map is not None:
-            if not isinstance(attr_map, dict):
-                raise ValueError(
-                    f"selector attr {attr_map!r}: must be a dict",
-                )
-            for name, value in attr_map.items():
-                if not isinstance(name, str) or not _RE_ATTR_NAME.match(name):
-                    raise ValueError(
-                        f"selector attr name {name!r}: must match "
-                        "[a-zA-Z_-][\\w-]*",
-                    )
-                if value is None:
-                    parts.append(f"[{name}]")
-                else:
-                    parts.append(f'[{name}="{value}"]')
+        outer = indent * depth if pretty else ""
+        comment = frag.get("comment")
+        if comment is not None:
+            text = str(comment)
+            if len(text) <= COMMENT_INLINE_MAX_LEN:
+                lines.append(f"{outer}{directive} /* {text} */")
+                return
+            lines.append(f"{outer}/* {text} */")
+        lines.append(f"{outer}{directive}")
 
-        compound = "".join(parts)
-        if raw is not None:
-            raw_str = str(raw)
-            if compound:
-                return f"{compound} {raw_str}"
-            return raw_str
-        if not compound:
-            raise ValueError(
-                "selector: at least one of tag/id/_class/classes/attr/raw "
-                "must be provided",
-            )
-        return compound
-
-    # ------------------------------------------------------------------
-    # Comments
-    # ------------------------------------------------------------------
-
-    def _block_comment(self, node: Any) -> _CommentSpec:
-        text = node.attr.get("comment")
+    def _comment_spec(self, text: Any) -> _CommentSpec:
+        """Classify a comment string as inline (<=60) or block."""
         if text is None:
             return _CommentSpec(text=None, position="inline")
         s = str(text)
         if len(s) <= COMMENT_INLINE_MAX_LEN:
             return _CommentSpec(text=s, position="inline")
         return _CommentSpec(text=s, position="block")
-
-    # ------------------------------------------------------------------
-    # Bag helpers
-    # ------------------------------------------------------------------
-
-    def _find_children(self, node: Any, tag: str) -> list[Any]:
-        value = node.value
-        if not isinstance(value, Bag):
-            return []
-        return [
-            child for child in value
-            if (child.node_tag or child.label) == tag
-        ]
 
 
 class _CommentSpec:

@@ -218,7 +218,7 @@ def test_selector_class_and_classes_mutually_exclusive():
         s = root.selector(_class="a", classes=["b", "c"])
         s.rule(color="red")
 
-    with pytest.raises(ValueError, match=r"_class.*classes"):
+    with pytest.raises(ValueError, match=r"class_.*classes"):
         _render(build)
 
 
@@ -227,7 +227,7 @@ def test_selector_with_no_kwargs_is_rejected():
         s = root.selector()
         s.rule(color="red")
 
-    with pytest.raises(ValueError, match=r"tag/id/_class/classes/attr/raw"):
+    with pytest.raises(ValueError, match=r"tag/id/class_/classes/attr/raw"):
         _render(build)
 
 

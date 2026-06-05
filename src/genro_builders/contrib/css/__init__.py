@@ -29,19 +29,14 @@ from .css_builder import CssBuilder
 class CssBuilderHandler(BuilderHandler):
     """Preset handler bound to ``CssBuilder``.
 
-    CSS is rendered as a whole stylesheet (cssvar grouping, importcss
-    ordering), not node-by-node, so ``render`` drives the renderer's
-    own top-level walk on the full source instead of the generic
-    ``render_children``. A partial (single-node) render is not
-    meaningful for CSS.
+    CSS rides the standard handler render flow: the universal walk turns
+    each node into a dict fragment (``CssRenderer.rendered_item``) and
+    ``finalize`` composes the stylesheet from those fragments (cssvar
+    grouping, importcss ordering, ``@media``/``@supports``). No custom
+    ``render`` override is needed.
     """
 
     builder_class = CssBuilder
-
-    def render(self, startnode=None, mode=None, target=None, **opts):
-        renderer = self._get_renderer(mode)
-        result = renderer.render(self.source, **opts)
-        return renderer.finalize(result, self._get_target(target, renderer))
 
 
 __all__ = ["CssBuilder", "CssBuilderHandler"]
