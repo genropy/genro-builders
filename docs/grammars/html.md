@@ -66,7 +66,7 @@ Some HTML attribute names collide with Python keywords (`class`,
 `for`). The grammar uses an underscore prefix to disambiguate:
 
 ```python
-body.div(_class="card")
+body.div(class_="card")
 body.label(_for="email")
 ```
 
@@ -81,7 +81,7 @@ syntax:
 ```python
 body.div(
     "content",
-    id="main", _class="card",
+    id="main", class_="card",
     color="red",
     background="#fff",
     padding="12px",

@@ -3,28 +3,32 @@
 **Last Updated**: 2026-06-02
 **Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
 
-The framework provides three grammar decorators, plus a marker that
-turns ordinary elements into data-elements. They live in
+The framework provides two grammar decorators. They live in
 [src/genro_builders/builder/_decorators.py](../../src/genro_builders/builder/_decorators.py)
 and are imported as:
 
 ```python
 from genro_builders.builder import (
-    element, abstract, subbuilder,
+    element, abstract,
 )
 ```
 
 ## At a glance
 
-| Decorator | Purpose | Body |
-|-----------|---------|------|
-| `@element` | Declare a tag in the grammar. | Ignored (declarative). |
-| `@abstract` | Declare an abstract base for inheritance. | Ignored (declarative). |
-| `@subbuilder` | Open a sub-grammar from this tag down. | Ignored (declarative). |
+| Decorator   | Purpose                                    | Body                  |
+|-------------|--------------------------------------------|-----------------------|
+| `@element`  | Declare a tag in the grammar.              | Ignored (declarative).|
+| `@abstract` | Declare an abstract base for inheritance.  | Ignored (declarative).|
 
-The **data-elements** (`data_setter`, `data_formula`, `data_controller`)
-are not a separate decorator: they are ordinary `@element` declarations
-marked `_meta={"data_element": True}`. See the dedicated section below.
+There is **no** separate `@subbuilder` or `@data_element` decorator.
+Both are ordinary `@element` declarations marked in their `_meta`:
+
+- a **sub-builder** (dialect boundary) is
+  `@element(_meta={"subbuilder": "<dialect>", ...})`;
+- a **data-element** (`data_setter`, `data_formula`, `data_controller`)
+  is `@element(_meta={"data_element": True})`.
+
+See the dedicated sections below.
 
 ## `@element`
 
@@ -40,11 +44,14 @@ def li(self): ...
 
 `sub_tags` syntax:
 
-- `'a,b,c'` — each of `a`, `b`, `c` exactly once.
-- `'a[],b[]'` — `a` and `b` any number of times.
+- `'a,b,c'` — `a`, `b`, `c` each allowed any number of times (0..N).
 - `'a[2],b[0:]'` — `a` exactly twice, `b` zero or more times.
 - `''` (empty) — leaf, no children allowed (void element).
 - `'*'` — any tag allowed (catch-all).
+
+A bare name is unbounded (0..N); the `foo[]` form is **not** valid and
+raises `ValueError` — use the plain name `foo` for 0..N, or `foo[n]`
+for an exact count.
 
 `parent_tags` (optional) — comma-separated list of valid parents.
 The element can only appear under one of these tags.
@@ -79,24 +86,26 @@ typos in comma-separated lists like `'phrasing,flow'`), a
 mistakes immediately instead of producing elements with silently
 missing `sub_tags`.
 
-## `@subbuilder`
+## Sub-builders
 
-Marks a tag as the entry point for a different grammar.
+A tag that opens a different grammar is an ordinary `@element` marked
+`_meta={"subbuilder": "<dialect>"}` — there is no `@subbuilder`
+decorator:
 
 ```python
-class HtmlBuilder(BagBuilderBase):
+class Html5Extensions:
 
-    @subbuilder(SvgBuilder)
+    @element(_meta={"subbuilder": "svg"})
     def svg(self): ...
 ```
 
-From `<svg>` down, the active builder becomes `SvgBuilder`. The
+From `<svg>` down, the active builder becomes the `svg` dialect. The
 sub-builder governs its own `sub_tags`; the host only declares
-`parent_tags` (where the sub-builder may appear). At render time
-the polymorphic dispatch picks the sub-builder's `renderer_<mode>`
-(see contract `BLD.3` / `HND.3`); the host can wrap the foreign
-fragment in a dialect-specific envelope via `wrapper_<sub_name>`
-(e.g. SVG hosting HTML in `<foreignObject xmlns="...">`).
+`parent_tags` (where the sub-builder may appear). At render time the
+polymorphic dispatch picks the sub-builder's `renderer_<mode>` (see
+contract `BLD.3` / `HND.3`); the boundary node may carry a
+`render_tag`/`render_attributes` envelope in its `_meta` (e.g. SVG
+hosting HTML in `<foreignObject xmlns="...">`).
 
 ## Data-elements
 
@@ -172,9 +181,10 @@ the positional args onto the field names, and flags the node
 
 ## Declarative bodies
 
-All three decorators are **declarative**: the framework only reads the
+Both decorators are **declarative**: the framework only reads the
 signature and metadata, the function body is discarded. For
-`@element`/`@abstract`/`@subbuilder`, a non-empty body emits a warning
-at class definition time — use `...` (ellipsis) as the body to
-suppress it. The data-elements, being `@element`, follow the same rule;
-their behaviour lives in the handler's compute pass, not in the body.
+`@element`/`@abstract`, a non-empty body emits a warning at class
+definition time — use `...` (ellipsis) as the body to suppress it.
+The data-elements and sub-builders, being `@element`, follow the same
+rule; their behaviour lives in the handler's compute pass / the
+sub-builder dispatch, not in the body.

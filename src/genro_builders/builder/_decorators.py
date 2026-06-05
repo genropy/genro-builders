@@ -123,10 +123,12 @@ def element(
     Args:
         tags: Tag names this method handles. If None, uses method name.
         sub_tags: Valid child tags with cardinality. Syntax:
-            'a,b,c'     -> a, b, c each exactly once
-            'a[],b[]'   -> a and b any number of times
+            'a,b,c'     -> a, b, c each any number of times (0..N)
             'a[2],b[0:]' -> a exactly twice, b zero or more
             '' (empty)  -> no children allowed (void element)
+            '*'         -> any tag allowed (catch-all)
+            A bare name is unbounded; 'foo[]' is invalid (raises
+            ValueError) -- use 'foo' for 0..N or 'foo[n]' for a count.
         parent_tags: Valid parent tags (comma-separated). If specified,
             element can only be placed inside one of these parents.
         inherits_from: Abstract element name to inherit sub_tags from.
@@ -176,7 +178,8 @@ def abstract(
 ) -> Callable:
     """Decorator to define an abstract element (for inheritance only).
 
-    Abstract elements are stored with '@' prefix and cannot be instantiated.
+    Abstract elements live in a dedicated ``_abstracts`` sub-bag of the
+    class schema (bare names, no '@' prefix) and cannot be instantiated.
     They define sub_tags/parent_tags that can be inherited by concrete elements.
 
     Args:

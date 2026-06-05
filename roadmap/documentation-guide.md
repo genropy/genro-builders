@@ -1,7 +1,7 @@
 # Builders documentation guide
 
 **Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere.
+**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; content to re-read.
 **Audience**: Contributors writing documentation for a specific
 grammar (HTML, SVG, CSS, ...) under `docs/grammars/<name>.md`,
 and contributors writing framework-wide documentation under
@@ -260,7 +260,7 @@ When the coordinator commissions a doc under `docs/builders/`:
 5. Save with status **🔴 DA REVISIONARE**.
 
 The framework-wide contributor does **not** dig into source code
-unless strictly necessary. The pubblic of `docs/builders/` is the
+unless strictly necessary. The audience of `docs/builders/` is the
 framework **user**, not the framework **maintainer**.
 
 ---

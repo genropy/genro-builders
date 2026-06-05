@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for declarative decorators (@element, @abstract, @subbuilder).
+"""Tests for declarative decorators (@element, @abstract).
 
 Declarative decorators replace the decorated function with an inert
 ``_DeclarativeMarker``: the body is dropped. A best-effort warning is

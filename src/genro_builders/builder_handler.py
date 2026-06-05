@@ -17,7 +17,9 @@ The handler owns:
 Reactive hooks:
     Subclasses react to mutations by overriding the no-op hooks
     :meth:`on_source_change` and :meth:`on_data_change`. The handler
-    subscribes to both wrappers in ``__init__`` and dispatches every
+    subscribes to both wrappers in ``create()`` (after the construction
+    phase, so initial structural inserts in ``main()`` do not fire
+    premature reactive events) and dispatches every
     insert/update/delete through the internal callbacks
     :meth:`_on_source_event` / :meth:`_on_data_event`, which normalize
     the event code to ``"ins"`` / ``"upd"`` / ``"del"`` and split the

@@ -77,7 +77,7 @@ class Theme(CssBuilderHandler):
     def main(self, root):
         sheet = root.stylesheet()
         sheet.rule(color="red", padding="10px")\
-             .selector(_class="card")
+             .selector(class_="card")
 
 t = Theme(); t.create()
 print(t.render())

@@ -23,8 +23,8 @@ class Theme(CssBuilderHandler):
     def main(self, root):
         sheet = root.stylesheet()
         sheet.rule(color="red", padding="10px")\
-             .selector(_class="card")\
-             ._.selector(_class="panel")\
+             .selector(class_="card")\
+             ._.selector(class_="panel")\
              ._.cssvar("primary", value="#3498db")
 
 
@@ -75,23 +75,25 @@ Each selector is an explicit child element:
 
 ```python
 rule = sheet.rule(color="red")
-rule.selector(_class="card")
-rule.selector(_class="panel")
+rule.selector(class_="card")
+rule.selector(class_="panel")
 rule.selector(_id="main")
 ```
 
 This produces a selector list: `.card, .panel, #main { color: red; }`.
 
-The `_class`, `_id`, `_attr` kwargs map to CSS selector syntax (a
-class, an id, an attribute selector). Pseudo-classes and
-combinators use the `pseudo=` and `combinator=` kwargs.
+The `class_`, `id`, `attr` kwargs map to CSS selector syntax (a
+class, an id, an attribute selector); `classes` takes a list for a
+multi-class compound. Pseudo-classes/elements attach directly inside
+`class_` (e.g. `class_="card:hover"`); anything the structured kwargs
+can't express goes through the opaque `raw` suffix.
 
 ### Chaining with `._`
 
 ```python
 sheet.rule(color="red")\
-     .selector(_class="card")\
-     ._.selector(_class="panel")\
+     .selector(class_="card")\
+     ._.selector(class_="panel")\
      ._.cssvar("primary", value="#3498db")
 ```
 

@@ -280,7 +280,9 @@ def _decorated_method_info(
 def _pop_decorated_methods(cls: type, builder_base: type):
     """Remove and yield decorated methods from cls and its mixin bases.
 
-    Collects @element, @abstract, @data_element methods from:
+    Collects @element and @abstract methods (data-elements and
+    sub-builders are @element marked via _meta, not separate
+    decorators) from:
     1. The class itself (cls.__dict__) -- removed with delattr
     2. Mixin bases in MRO that are not BagBuilderBase subclasses
 

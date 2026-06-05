@@ -218,13 +218,16 @@ if __name__ == "__main__":
         parts.append("")
     rendered = "\n".join(parts)
 
-    # Bonus: show how the framework realises sub-builders.
+    # Bonus: show how the framework realises sub-builders. The marker
+    # lives in ``_meta`` (``_meta["subbuilder"]`` is the dialect name),
+    # not as a top-level key.
     info = HtmlBuilder()._get_schema_info("svg")
+    subbuilder = (info.get("_meta") or {}).get("subbuilder")
     inspection = (
         f"\n<!-- Inspection -->\n"
         f"<!-- HtmlBuilder._get_schema_info('svg'):\n"
-        f"     is_subbuilder={info.get('is_subbuilder')}, "
-        f"subbuilder_name={info.get('subbuilder_name')!r} -->\n"
+        f"     is_subbuilder={subbuilder is not None}, "
+        f"subbuilder_name={subbuilder!r} -->\n"
     )
     rendered += inspection
 

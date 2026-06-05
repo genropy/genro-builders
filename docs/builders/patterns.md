@@ -50,8 +50,8 @@ class Theme(CssBuilderHandler):
     def main(self, root):
         sheet = root.stylesheet()
         sheet.rule(color="red")\
-             .selector(_class="card")\
-             ._.selector(_class="panel")\
+             .selector(class_="card")\
+             ._.selector(class_="panel")\
              ._.cssvar("primary", value="#3498db")
 ```
 

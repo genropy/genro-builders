@@ -388,8 +388,11 @@ class _GrammarMixin:
         computed keys. Common keys (presence depends on element type):
 
             sub_tags, sub_tags_compiled, parent_tags, parent_tags_compiled,
-            call_args_validations, _meta, documentation,
-            is_subbuilder, subbuilder_name, wrap_tag.
+            call_args_validations, _meta, documentation.
+
+        Sub-builder and data-element markers are not separate top-level
+        keys: they live inside ``_meta`` (``_meta["subbuilder"]`` is the
+        dialect name, ``_meta["data_element"]`` flags a data-element).
 
         Results are cached on the schema node after first access.
 
