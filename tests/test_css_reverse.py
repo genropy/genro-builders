@@ -11,7 +11,8 @@ import pytest
 pytest.importorskip("tree_sitter_css")
 
 from genro_builders.contrib.css import CssBuilder  # noqa: E402
-from genro_builders.contrib.css._reverse import CssReverser, _parse_css  # noqa: E402
+from genro_builders.contrib.css.transpiler import CssTranspiler  # noqa: E402
+from genro_builders.contrib.css.transpiler.backend import _parse_css  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Parser smoke tests
@@ -36,12 +37,12 @@ def test_parse_css_handles_at_rules():
 
 
 # ---------------------------------------------------------------------------
-# CssReverser unit tests (Phase 2: selectors, rules, vars)
+# CssTranspiler unit tests (Phase 2: selectors, rules, vars)
 # ---------------------------------------------------------------------------
 
 def _reverse(css: str, class_name: str = "ReversedCss") -> str:
-    """Helper: reverse ``css`` to Python source via CssReverser."""
-    return ast.unparse(CssReverser(class_name=class_name).reverse(css))
+    """Helper: transpile ``css`` to Python source via CssTranspiler."""
+    return ast.unparse(CssTranspiler(class_name=class_name).transpile(css))
 
 
 def _roundtrip(css: str) -> str:
@@ -413,6 +414,29 @@ def test_from_css_file_writes_dest(tmp_path):
     ret = CssBuilder.from_css_file(src, out)
     assert ret is None
     assert "class ThemeStyle" in out.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# CLI (python -m genro_builders.contrib.css.transpiler)
+# ---------------------------------------------------------------------------
+
+def test_cli_writes_output_file(tmp_path):
+    from genro_builders.contrib.css.transpiler.__main__ import main
+
+    src = tmp_path / "styles.css"
+    src.write_text(".card { color: red; }", encoding="utf-8")
+    out = tmp_path / "generated.py"
+    rc = main(["--css", str(src), "--class-name", "MyStyle", "--output", str(out)])
+    assert rc == 0
+    code = out.read_text(encoding="utf-8")
+    assert "class MyStyle(CssBuilderHandler):" in code
+    # the canonical class_ keyword form is emitted, and the code runs
+    assert "selector(class_='card')" in code
+    namespace: dict[str, object] = {}
+    exec(code, namespace)  # noqa: S102 - executing our own generated code
+    handler = namespace["MyStyle"]()
+    handler.create()
+    assert handler.render() == ".card {\n  color: red;\n}\n"
 
 
 # ---------------------------------------------------------------------------

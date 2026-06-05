@@ -1,16 +1,20 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Reverse: parse CSS source and emit equivalent CssBuilder Python.
+"""CSS->Python transpiler: parse CSS source and emit CssBuilder Python.
 
-Pipeline: ``tree-sitter-css`` parses the CSS source into an AST; a
-visitor (``CssReverser``, added in a later phase) walks it and builds a
-Python ``ast.Module`` calling the CssBuilder API; ``ast.unparse``
-serializes that to Python source.
+Pipeline mirrors the XSLT transpiler — two trees with a walk in
+between::
+
+    .css --tree-sitter-css--> CSS tree --walk--> Python AST --ast.unparse--> .py
+
+``tree-sitter-css`` parses the CSS source into a tree; ``CssTranspiler``
+walks it and builds a Python ``ast.Module`` calling the CssBuilder API;
+``ast.unparse`` serializes that to Python source.
 
 This module is gated behind the optional ``reverse`` extra. The
 ``tree_sitter`` and ``tree_sitter_css`` imports are wrapped in a
 try/except so that importing ``genro_builders.contrib.css`` does not
 force the heavy dependency on every user — only callers that invoke
-the reverse API pay the cost.
+the transpiler pay the cost.
 """
 
 from __future__ import annotations
@@ -277,10 +281,10 @@ def _kebab_to_snake(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# CssReverser
+# CssTranspiler
 # ---------------------------------------------------------------------------
 
-class CssReverser:
+class CssTranspiler:
     """Walk a tree-sitter CSS tree and emit an ``ast.Module`` whose
     execution rebuilds an equivalent CSS via ``CssBuilderHandler``."""
 
@@ -292,7 +296,7 @@ class CssReverser:
         self._counter += 1
         return f"{base}_{self._counter}"
 
-    def reverse(self, css: str) -> ast.Module:
+    def transpile(self, css: str) -> ast.Module:
         """Parse ``css`` and return an ``ast.Module`` Python source AST.
 
         The emitted ``main(self, root)`` always opens a ``stylesheet``

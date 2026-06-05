@@ -99,9 +99,9 @@ class CssBuilder(BagBuilderBase, CssElements):
 
             pip install 'genro-builders[reverse]'
         """
-        from ._reverse import CssReverser
+        from .transpiler import CssTranspiler
 
-        module = CssReverser(class_name=class_name).reverse(source)
+        module = CssTranspiler(class_name=class_name).transpile(source)
         text = ast.unparse(module)
         return _emit(text, dest)
 
