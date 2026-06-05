@@ -30,7 +30,7 @@ Canonical example
     assert ra["color"] == "blue"
 
     # P4 — template referencing a resolved attr
-    leaf2 = body.div(_class="card ${color}", color="^.color")
+    leaf2 = body.div(class_="card ${color}", color="^.color")
     _, ra2 = leaf2.runtime_values()
     assert ra2["_class"] == "card blue"
 
@@ -175,32 +175,32 @@ class PageTester(HtmlBuilderHandler):
         resolves the pointer, phase 2 substitutes ``${name}``."""
         body = self.node_by_id("body")
         leaf = body.div(
-            _class="card ${color}",
+            class_="card ${color}",
             color="^.color",
             node_id="leaf_10",
         )
         _, ra = leaf.runtime_values()
         assert ra["color"] == "blue"
-        assert ra["_class"] == "card blue"
+        assert ra["class"] == "card blue"
 
     def test_11_template_none_to_empty_string(self) -> None:
         """A pointer resolved to ``None`` substitutes to ``""`` (DB-D11.6)."""
         body = self.node_by_id("body")
         leaf = body.div(
-            _class="card ${missing}",
+            class_="card ${missing}",
             missing="^.never_set",
             node_id="leaf_11",
         )
         _, ra = leaf.runtime_values()
         assert ra["missing"] is None
-        assert ra["_class"] == "card "
+        assert ra["class"] == "card "
 
     def test_12_template_unknown_name_raises(self) -> None:
         """A ``${name}`` whose ``name`` is not in resolved attrs raises
         ``KeyError`` (DB-D10 crash-totale)."""
         body = self.node_by_id("body")
         leaf = body.div(
-            _class="card ${nowhere}",
+            class_="card ${nowhere}",
             node_id="leaf_12",
         )
         with pytest.raises(KeyError):

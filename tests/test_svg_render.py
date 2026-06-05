@@ -71,7 +71,7 @@ def test_svg_render_non_kebab_attribute_unchanged():
 
 
 def test_svg_render_class_keyword_collision():
-    _, out = _render(lambda root: root.svg(_class="chart"))
+    _, out = _render(lambda root: root.svg(class_="chart"))
     assert 'class="chart"' in out
 
 

@@ -40,7 +40,7 @@ def test_source_after_grammar_dispatch_serializes_to_xml():
 
     class _Page(HtmlBuilderHandler):
         def main(self, root):
-            root.div("aaa", _class="greeting")
+            root.div("aaa", class_="greeting")
 
     h = _Page()
     h.create()

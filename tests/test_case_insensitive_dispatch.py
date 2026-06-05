@@ -28,21 +28,21 @@ class _SvgPage(SvgBuilderHandler):
 def test_html_div_exact_case():
     page = _HtmlPage()
     page.create()
-    page.source.body().div(_class="x")
+    page.source.body().div(class_="x")
     assert '<div class="x"' in page.render()
 
 
 def test_html_div_uppercase():
     page = _HtmlPage()
     page.create()
-    page.source.body().Div(_class="x")
+    page.source.body().Div(class_="x")
     assert '<div class="x"' in page.render()
 
 
 def test_html_div_mixed_case():
     page = _HtmlPage()
     page.create()
-    page.source.body().DIV(_class="x")
+    page.source.body().DIV(class_="x")
     assert '<div class="x"' in page.render()
 
 

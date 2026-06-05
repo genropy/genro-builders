@@ -46,12 +46,12 @@ class Demo(InteractiveDemo):
         body = root.body(datapath="states")
         body.link(rel="stylesheet", href="demo_css")
         body.h1("States of Australia")
-        grid = body.div(_class="grid")
-        header = grid.div(_class="grid-row grid-head")
-        header.span("Code", _class="col-code")
-        header.span("Name", _class="col-name")
-        header.span("Capital", _class="col-capital")
-        header.span("Description", _class="col-desc")
+        grid = body.div(class_="grid")
+        header = grid.div(class_="grid-row grid-head")
+        header.span("Code", class_="col-code")
+        header.span("Name", class_="col-name")
+        header.span("Capital", class_="col-capital")
+        header.span("Description", class_="col-desc")
         # Iterating the bag yields nodes; each node's value is the state's
         # own Bag, which stateRow reads through ``^`` pointers.
         for state in self.data["states"]:
@@ -62,11 +62,11 @@ class Demo(InteractiveDemo):
         # ``code`` survives in the state data (no pop in setup), and here it
         # rebuilds the path back to this state under ``states``.
         code = state["code"]
-        row = pane.div(datapath=f".{code}", _class="grid-row")
-        row.span("^.code", _class="col-code")
-        row.span("^.name", _class="col-name")
-        row.span("^.capital", _class="col-capital")
-        row.span("^.description", _class="col-desc")
+        row = pane.div(datapath=f".{code}", class_="grid-row")
+        row.span("^.code", class_="col-code")
+        row.span("^.name", class_="col-name")
+        row.span("^.capital", class_="col-capital")
+        row.span("^.description", class_="col-desc")
 
 
 if __name__ == "__main__":

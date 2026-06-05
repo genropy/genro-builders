@@ -109,7 +109,7 @@ def test_macro_transform_skew_and_filter_drop_shadow():
 
 def test_underscore_keyword_attr_remap():
     # ``_class`` collides with no python keyword issue but remaps to ``class``.
-    out = _render(lambda root: root.body().div(_class="lbl"))
+    out = _render(lambda root: root.body().div(class_="lbl"))
     assert 'class="lbl"' in out
     assert "_class" not in out
 

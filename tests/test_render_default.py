@@ -16,7 +16,7 @@ from genro_builders.contrib.html import HtmlBuilderHandler
 
 class _Page(HtmlBuilderHandler):
     def main(self, root):
-        root.div("hello", _class="greeting")
+        root.div("hello", class_="greeting")
 
 
 def test_render_returns_string_when_target_is_none():

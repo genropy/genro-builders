@@ -53,10 +53,10 @@ class Demo(InteractiveDemo):
     def main(self, root):
         body = root.body(datapath="page")
         body.style(_CSS)
-        card = body.div(_class="card")
+        card = body.div(class_="card")
         card.h2("^.title")
         card.p("^.body")
-        card.span("inline style", _class="tag")
+        card.span("inline style", class_="tag")
 
 
 if __name__ == "__main__":

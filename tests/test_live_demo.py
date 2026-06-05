@@ -119,7 +119,7 @@ def test_repl_set_attr_applies_to_out(app: LiveDemoApp) -> None:
 
 def test_repl_add_child_appends_tag(app: LiveDemoApp) -> None:
     """A snippet appending a child re-renders out.html with the new node."""
-    result = app.repl('page.node_by_id("body").p("aggiunto", _class="note")')
+    result = app.repl('page.node_by_id("body").p("aggiunto", class_="note")')
     assert result["ok"] is True
     html = app.out()
     assert "aggiunto" in html

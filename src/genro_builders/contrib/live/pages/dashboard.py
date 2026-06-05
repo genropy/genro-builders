@@ -37,21 +37,21 @@ class Demo(InteractiveDemo):
         body = root.body(datapath="ui", node_label="body")
         body.link(rel="stylesheet", href="demo_css")
 
-        header = body.header(_class="bar")
+        header = body.header(class_="bar")
         header.h1("^.title")
         nav = header.nav()
         nav.button("Overview", html_type="button")
         nav.button("Reports", html_type="button")
         nav.button("Settings", html_type="button")
 
-        panels = body.main(node_label="panels", _class="panels")
+        panels = body.main(node_label="panels", class_="panels")
 
-        users = panels.section(node_label="users", _class="panel")
+        users = panels.section(node_label="users", class_="panel")
         users.h2("Users")
         users.p("^.users")
         users.button("Refresh", html_type="button")
 
-        revenue = panels.section(node_label="revenue", _class="panel")
+        revenue = panels.section(node_label="revenue", class_="panel")
         revenue.h2("Revenue")
         revenue.p("^.revenue")
         revenue.button("Export", html_type="button")

@@ -43,8 +43,6 @@ from typing import Any
 
 from ...renderer import RendererBase
 
-_ATTR_MAP = {"_class": "class", "_for": "for"}
-
 _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img",
     "input", "link", "meta", "source", "track", "wbr",
@@ -158,10 +156,8 @@ class HtmlRenderer(RendererBase):
         composed CSS text. The dialect escape ``html_<x>`` passes the
         literal attribute through untouched.
         """
-        css: dict[str, str] = {}
-        macro_value: dict[str, Any] = {}
-        macro_subs: dict[str, dict[str, Any]] = {}
         out: dict[str, Any] = {}
+        style_attrs: dict[str, Any] = {}
 
         for raw_name, value in attrs.items():
             # 0. Dialect escape: ``html_<x>`` means "emit the literal HTML
@@ -173,46 +169,76 @@ class HtmlRenderer(RendererBase):
                 out[self.adapt(raw_name)] = value
                 continue
 
-            # 1. Bag-internal underscore keys (e.g. ``_tag``) — skip
-            #    unless they are part of the keyword-collision map.
-            if raw_name.startswith("_") and raw_name not in _ATTR_MAP:
+            # 1. Anything that contributes to the ``style`` entry (explicit
+            #    style, style_* escapes, Genro macros, CSS roots) is handed
+            #    to _adapt_style; the rest is a plain HTML attribute.
+            if self._is_style_contribution(raw_name):
+                style_attrs[raw_name] = value
                 continue
 
-            # 2. Explicit ``style="..."`` is parsed and seeded into css;
-            #    kwarg CSS will overwrite collisions later.
+            # 2. Plain HTML attribute. Keyword-collision names (``class_`` /
+            #    ``_class``) are normalized later, at serialization, by
+            #    _fix_pylike; structural meta-attrs are already filtered
+            #    upstream in runtime_values.
+            out[raw_name] = value
+
+        style = self._adapt_style(style_attrs)
+        if style:
+            out["style"] = style
+        return out
+
+    def _is_style_contribution(self, raw_name: str) -> bool:
+        """Whether ``raw_name`` feeds the composed ``style`` entry rather
+        than being a plain HTML attribute."""
+        if raw_name == "style":
+            return True
+        if raw_name.startswith("style_"):
+            return True
+        if raw_name in _GENRO_MACRO_NAMES:
+            return True
+        if "_" in raw_name and raw_name.split("_", 1)[0] in _GENRO_MACRO_NAMES:
+            return True
+        return _is_style_attr(raw_name)
+
+    def _adapt_style(self, attrs: dict[str, Any]) -> str:
+        """Compose the CSS ``style`` text from the style-contributing
+        attributes (explicit ``style``, ``style_<prop>`` escapes, Genro
+        macros, CSS roots). Returns the joined declaration string ("" if
+        none)."""
+        css: dict[str, str] = {}
+        macro_value: dict[str, Any] = {}
+        macro_subs: dict[str, dict[str, Any]] = {}
+
+        for raw_name, value in attrs.items():
+            # Explicit ``style="..."`` is parsed and seeded into css;
+            # kwarg CSS will overwrite collisions later.
             if raw_name == "style":
                 css.update(_parse_style_string(value))
                 continue
 
-            # 3. ``style_<prop>`` escape: literal CSS, strip prefix.
-            if raw_name.startswith("style_") and raw_name != "style":
+            # ``style_<prop>`` escape: literal CSS, strip prefix.
+            if raw_name.startswith("style_"):
                 prop = raw_name[len("style_"):].replace("_", "-")
                 css[prop] = self._css_value(value)
                 continue
 
-            # 4. Top-level macro (``rounded=10``).
+            # Top-level macro (``rounded=10``).
             if raw_name in _GENRO_MACRO_NAMES:
                 macro_value[raw_name] = value
                 continue
 
-            # 5. ``<macro>_<sub>`` sub-kwarg for a Genro macro
-            #    (single underscore, matching the legacy convention).
-            #    Macros never collide with CSS roots by design, so the
-            #    macro lookup wins over the root rule.
+            # ``<macro>_<sub>`` sub-kwarg for a Genro macro (single
+            # underscore). Macros never collide with CSS roots by design,
+            # so the macro lookup wins over the root rule.
             if "_" in raw_name:
                 head, sub = raw_name.split("_", 1)
                 if head in _GENRO_MACRO_NAMES:
                     macro_subs.setdefault(head, {})[sub] = value
                     continue
 
-            # 6. CSS root / root_xxx rule.
-            if _is_style_attr(raw_name):
-                prop = raw_name.replace("_", "-")
-                css[prop] = self._css_value(value)
-                continue
-
-            # 7. Plain HTML attribute (with keyword-collision remap).
-            out[_ATTR_MAP.get(raw_name, raw_name)] = value
+            # CSS root / root_xxx rule.
+            prop = raw_name.replace("_", "-")
+            css[prop] = self._css_value(value)
 
         # Materialise Genro macros (may write into css).
         for macro_name in _GENRO_MACRO_NAMES:
@@ -224,9 +250,7 @@ class HtmlRenderer(RendererBase):
                     css,
                 )
 
-        if css:
-            out["style"] = "; ".join(f"{k}: {v}" for k, v in css.items())
-        return out
+        return "; ".join(f"{k}: {v}" for k, v in css.items())
 
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
         """Serialize an already-adapted attribute dict (see
@@ -271,15 +295,17 @@ class HtmlRenderer(RendererBase):
         """Emit ``data-<name>-pointer`` for every pointer-bound attribute.
 
         Reads the node's *original* attrs (``^``/``=`` strings, before
-        resolution) and resolves each to its absolute datapath. The HTML
-        name passes through ``_ATTR_MAP`` so ``_class`` becomes ``class``.
+        resolution) and resolves each to its absolute datapath. The
+        attribute name stays in its internal form (the ``data-<name>-
+        pointer`` is a private write-back hook keyed by path, not by the
+        HTML name), with only the dialect ``adapt`` escape applied.
         These are the write-back hooks client code reads on input events.
         """
         parts: list[str] = []
         for raw_name, value in node.attr.items():
             if not (isinstance(value, str) and value and value[0] in ("^", "=")):
                 continue
-            html_name = _ATTR_MAP.get(raw_name, self.adapt(raw_name))
+            html_name = self.adapt(raw_name)
             path = node.abs_datapath(value)
             parts.append(f' data-{html_name}-pointer="{self._html_attr_value(path)}"')
         return "".join(parts)

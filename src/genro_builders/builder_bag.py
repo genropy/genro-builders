@@ -19,7 +19,9 @@ one as ``self.source``.
 """
 from __future__ import annotations
 
+import keyword
 import re
+import warnings
 from typing import Any
 
 from genro_bag import Bag, BagNode
@@ -347,6 +349,21 @@ class _BuilderBagNodeMixin:
         for attrname, v in self.attr.items():
             if attrname in meta_attrs:
                 continue
+            # An attribute whose name is a Python keyword can't be a bare
+            # kwarg; the author writes ``class_`` (suffix, PEP 8) or the
+            # legacy ``_class`` (prefix, deprecated). Both surface here as
+            # the real name (``class``) — the single point every renderer
+            # reads, so renderers stay free of keyword remaps.
+            if attrname.endswith("_") and keyword.iskeyword(attrname[:-1]):
+                attrname = attrname[:-1]
+            elif attrname.startswith("_") and keyword.iskeyword(attrname[1:]):
+                warnings.warn(
+                    f"attribute '{attrname}': the leading-underscore form is "
+                    f"deprecated, use '{attrname[1:]}_' instead",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                attrname = attrname[1:]
             if isinstance(v, str) and v and v[0] in ("^", "="):
                 path = self.abs_datapath(v)
                 resolved[attrname] = handler.data.get_item(path)

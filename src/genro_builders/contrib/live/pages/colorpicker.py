@@ -32,7 +32,7 @@ class Demo(InteractiveDemo):
         body.link(rel="stylesheet", href="demo_css")
         body.h1("Pick a border color")
         body.input(html_type="color", value="^.border")
-        body.div("Riquadro", _class="swatch", border_color="^.border")
+        body.div("Riquadro", class_="swatch", border_color="^.border")
 
 
 if __name__ == "__main__":

@@ -19,8 +19,6 @@ from typing import Any
 
 from ...renderer import RendererBase
 
-_ATTR_MAP = {"_class": "class", "_for": "for"}
-
 _KEBAB_ATTRS = frozenset({
     "alignment_baseline", "baseline_shift", "clip_path", "clip_rule",
     "color_interpolation", "color_interpolation_filters", "dominant_baseline",
@@ -92,14 +90,9 @@ class SvgRenderer(RendererBase):
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
         parts: list[str] = []
         for raw_name, value in attrs.items():
-            if raw_name.startswith("_") and raw_name not in _ATTR_MAP:
-                continue
-            if raw_name in _ATTR_MAP:
-                name = _ATTR_MAP[raw_name]
-            elif raw_name in _KEBAB_ATTRS:
-                name = raw_name.replace("_", "-")
-            else:
-                name = raw_name
+            name = raw_name
+            if name in _KEBAB_ATTRS:
+                name = name.replace("_", "-")
             if value is True:
                 rendered = "true"
             elif value is False:

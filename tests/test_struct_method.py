@@ -93,7 +93,7 @@ def test_struct_method_args_kwargs_forwarded():
     class P(HtmlBuilderHandler):
         @struct_method
         def card(self, pane, title, color="blue"):
-            pane.div(_class=f"card {color}").h2(title)
+            pane.div(class_=f"card {color}").h2(title)
 
         def main(self, root):
             pass
@@ -228,7 +228,7 @@ def test_struct_method_return_value_passed_through():
         @struct_method
         def card(self, pane, title):
             pane.h2(title)
-            return pane.div(_class="body")
+            return pane.div(class_="body")
 
         def main(self, root):
             pass

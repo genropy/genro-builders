@@ -88,7 +88,7 @@ def test_html_render_unknown_kwarg_is_silently_ignored():
 
 
 def test_html_render_attributes_keyword_collision():
-    _, out = _render(lambda root: root.div("x", _class="foo"))
+    _, out = _render(lambda root: root.div("x", class_="foo"))
     assert out == '<div class="foo">x</div>'
 
 
@@ -141,7 +141,7 @@ def test_html_render_script_content_not_escaped():
 
 
 def test_html_render_attribute_quote_escape():
-    _, out = _render(lambda root: root.div("x", _class='he said "hi"'))
+    _, out = _render(lambda root: root.div("x", class_='he said "hi"'))
     assert out == '<div class="he said &quot;hi&quot;">x</div>'
 
 
@@ -172,7 +172,7 @@ class _BoundPage(HtmlBuilderHandler):
 
     def main(self, root):
         row = root.body(datapath="states").div(datapath=".NSW")
-        row.input(value="^.name", _class="=ui.theme")
+        row.input(value="^.name", class_="=ui.theme")
 
 
 def test_datapath_off_by_default():
@@ -188,13 +188,18 @@ def test_datapath_emits_absolute_path_for_each_pointer():
     page.create()
     out = page.render(include_datapath=True)
     assert 'data-value-pointer="states.NSW.name"' in out
-    assert 'data-class-pointer="ui.theme"' in out          # _class -> class
+    # The data-pointer hook keeps the internal attribute name (``class_``):
+    # the write-back channel identifies the attribute by the name we use,
+    # not by its rendered HTML name. The rendered attribute itself is
+    # ``class`` — only the markup form is normalized.
+    assert 'data-class_-pointer="ui.theme"' in out
+    assert 'class="dark"' in out                           # rendered attr is class
     assert 'value="New South Wales"' in out                # resolved value stays
 
 
 def test_html_render_nested():
     def build(root):
-        d = root.div(_class="x")
+        d = root.div(class_="x")
         d.span("y")
 
     _, out = _render(build)
@@ -243,8 +248,8 @@ def test_html_render_pretty_void_tags_on_their_own_line():
 def test_html_render_pretty_deep_nesting_indents_per_level():
     def build(root):
         body = root.body()
-        div = body.div(_class="outer")
-        inner = div.div(_class="inner")
+        div = body.div(class_="outer")
+        inner = div.div(class_="inner")
         inner.span("deep")
 
     _, out = _render_pretty(build)
