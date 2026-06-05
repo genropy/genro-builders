@@ -23,6 +23,7 @@ from .backend import XsltTranspiler
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse args, transpile the XSLT file, write the Python module."""
     parser = argparse.ArgumentParser(
         prog="python -m genro_builders.contrib.xslt.transpiler",
         description="Transpile an XSLT stylesheet to Python rebuilding it.",

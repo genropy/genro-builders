@@ -6,7 +6,7 @@ The handler owns:
     - two wrapper bags, ``_sourceroot`` and ``_dataroot``, each holding
       the live payload under the key ``"main"``:
 
-          _sourceroot["main"] = BuilderSource(...)   # alias: self.source
+          _sourceroot["main"] = BuilderBag(...)      # alias: self.source
           _dataroot  ["main"] = Bag()                # alias: self.data
 
       Wrapping the payload under a stable root lets the subscription

@@ -24,6 +24,7 @@ from .generator import PythonGenerator
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse args, run the XSD backend + generator, write the module."""
     parser = argparse.ArgumentParser(
         prog="python -m genro_builders.contrib.xsd.codegen",
         description="Generate a Python element mixin from an XSD schema.",

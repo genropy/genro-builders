@@ -24,6 +24,7 @@ from ..css_builder import CssBuilder
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse args, transpile the CSS file, write the Python module."""
     parser = argparse.ArgumentParser(
         prog="python -m genro_builders.contrib.css.transpiler",
         description="Transpile a CSS stylesheet to Python rebuilding it.",
