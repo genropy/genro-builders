@@ -328,12 +328,15 @@ class BagBuilderBase(
     _default_render_mode: str = "xml"
 
     #: Structural meta-attributes carried by nodes of this grammar:
-    #: identity and anchors, not domain attributes. ``runtime_values``
-    #: drops them from the actualized attribute view, so they never reach
-    #: a renderer or a data-element binding; their readers (``node_by_id``,
-    #: ``abs_datapath``) take them straight from ``node.attr``. A dialect
-    #: that introduces a new node-meta extends this set, e.g.
+    #: identity, anchors and the datapath root — not domain attributes.
+    #: ``runtime_values`` drops them from the actualized attribute view,
+    #: so they never reach a renderer or a data-element binding; their
+    #: readers (``node_by_id``, ``abs_datapath``) take them straight from
+    #: ``node.attr``. ``datapath`` is binding state (the relative-pointer
+    #: root), not markup: it is read by ``abs_datapath`` along the
+    #: ancestor chain, never emitted. A dialect that introduces a new
+    #: node-meta extends this set, e.g.
     #: ``_meta_attrs = BagBuilderBase._meta_attrs | {"_my_marker"}``.
     _meta_attrs: frozenset[str] = frozenset(
-        {"node_id", "_meta", "_anchor"},
+        {"node_id", "_meta", "_anchor", "datapath"},
     )
