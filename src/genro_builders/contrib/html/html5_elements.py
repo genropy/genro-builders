@@ -16,8 +16,8 @@ from genro_builders.builder import element
 class Html5Elements:
     """HTML5 element mixin. Provides @element for all HTML5 tags."""
 
-    @element()
-    def a(self): ...
+    @element(sub_tags="*")
+    def a(self): ...  # transparent content
 
     @element(
         sub_tags='a,abbr,area,audio,b,bdi,bdo,br,button,canvas,cite,code,data,datalist,del,dfn,em,embed,i,iframe,img,input,ins,kbd,label,link,map,mark,meta,meter,noscript,object,output,picture,progress,q,ruby,s,samp,script,select,selectedcontent,slot,small,span,strong,sub,sup,template,textarea,time,u,var,video,wbr',
@@ -42,8 +42,8 @@ class Html5Elements:
     )
     def aside(self): ...
 
-    @element()
-    def audio(self): ...
+    @element(sub_tags="*")
+    def audio(self): ...  # transparent content
 
     @element(
         sub_tags='a,abbr,area,audio,b,bdi,bdo,br,button,canvas,cite,code,data,datalist,del,dfn,em,embed,i,iframe,img,input,ins,kbd,label,link,map,mark,meta,meter,noscript,object,output,picture,progress,q,ruby,s,samp,script,select,selectedcontent,slot,small,span,strong,sub,sup,template,textarea,time,u,var,video,wbr',
@@ -81,8 +81,8 @@ class Html5Elements:
     )
     def button(self): ...
 
-    @element()
-    def canvas(self): ...
+    @element(sub_tags="*")
+    def canvas(self): ...  # transparent content
 
     @element(
         sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
@@ -120,8 +120,8 @@ class Html5Elements:
     )
     def dd(self): ...
 
-    @element(tags='del')
-    def del_(self): ...
+    @element(tags='del', sub_tags="*")
+    def del_(self): ...  # transparent content
 
     @element(sub_tags='summary')
     def details(self): ...
@@ -224,7 +224,7 @@ class Html5Elements:
     @element()
     def hr(self): ...
 
-    @element(sub_tags='head')
+    @element(sub_tags='head,body')
     def html(self): ...
 
     @element(
@@ -241,8 +241,8 @@ class Html5Elements:
     @element()
     def input(self): ...
 
-    @element()
-    def ins(self): ...
+    @element(sub_tags="*")
+    def ins(self): ...  # transparent content
 
     @element(
         sub_tags='a,abbr,area,audio,b,bdi,bdo,br,button,canvas,cite,code,data,datalist,del,dfn,em,embed,i,iframe,img,input,ins,kbd,label,link,map,mark,meta,meter,noscript,object,output,picture,progress,q,ruby,s,samp,script,select,selectedcontent,slot,small,span,strong,sub,sup,template,textarea,time,u,var,video,wbr',
@@ -272,8 +272,8 @@ class Html5Elements:
     )
     def main(self): ...
 
-    @element()
-    def map(self): ...
+    @element(sub_tags="*")
+    def map(self): ...  # transparent content
 
     @element(
         sub_tags='a,abbr,area,audio,b,bdi,bdo,br,button,canvas,cite,code,data,datalist,del,dfn,em,embed,i,iframe,img,input,ins,kbd,label,link,map,mark,meta,meter,noscript,object,output,picture,progress,q,ruby,s,samp,script,select,selectedcontent,slot,small,span,strong,sub,sup,template,textarea,time,u,var,video,wbr',
@@ -296,11 +296,11 @@ class Html5Elements:
     )
     def nav(self): ...
 
-    @element()
-    def noscript(self): ...
+    @element(sub_tags="*")
+    def noscript(self): ...  # transparent content
 
-    @element()
-    def object(self): ...
+    @element(sub_tags="*")
+    def object(self): ...  # transparent content
 
     @element(sub_tags='li,script,template')
     def ol(self): ...
@@ -378,8 +378,8 @@ class Html5Elements:
     @element(sub_tags='button,div,hr,noscript,optgroup,option,script,template')
     def select(self): ...
 
-    @element()
-    def slot(self): ...
+    @element(sub_tags="*")
+    def slot(self): ...  # transparent content
 
     @element(
         sub_tags='a,abbr,area,audio,b,bdi,bdo,br,button,canvas,cite,code,data,datalist,del,dfn,em,embed,i,iframe,img,input,ins,kbd,label,link,map,mark,meta,meter,noscript,object,output,picture,progress,q,ruby,s,samp,script,select,selectedcontent,slot,small,span,strong,sub,sup,template,textarea,time,u,var,video,wbr',
@@ -472,8 +472,8 @@ class Html5Elements:
     )
     def var(self): ...
 
-    @element()
-    def video(self): ...
+    @element(sub_tags="*")
+    def video(self): ...  # transparent content
 
     @element()
     def wbr(self): ...

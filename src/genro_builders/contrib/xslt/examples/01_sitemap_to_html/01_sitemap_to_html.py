@@ -4,14 +4,15 @@
 What you learn:
     - An XSLT stylesheet is just XML, so it renders through the shared
       `XmlRenderer` — no XSLT-specific renderer exists.
-    - Namespaced instructions (`xsl:value-of`, `xsl:for-each`) come from
-      `@element(_meta={"ns": "xsl", "local": "..."})`: the Python method
-      keeps a legal name (`value_of`), the emitted tag carries the prefix
-      and hyphen (`xsl:value-of`).
-    - The `xsl` prefix is declared as a plain attribute on the root:
-      `stylesheet(xmlns_xsl=...)` surfaces as `xmlns:xsl="..."`.
-    - HTML output tags are *literal result elements* of the XSLT grammar
-      (interleaved with the instructions), not a nested HTML sub-builder.
+    - Namespaced instructions (`xslt:value-of`, `xslt:for-each`) come from
+      `@element(_meta={"render_tag": "xslt:..."})`: the Python method keeps
+      a legal name (`value_of`), the emitted tag carries the prefix and
+      hyphen (`xslt:value-of`).
+    - The `xslt` prefix is declared as a plain attribute on the root:
+      `stylesheet(xmlns_xslt=...)` surfaces as `xmlns:xslt="..."`.
+    - HTML output tags are *literal result elements*: the whole HTML5
+      vocabulary is mixed into the XSLT grammar (interleaved with the
+      instructions), not a nested HTML sub-builder.
     - The stylesheet is then applied to a real sitemap with lxml; the
       `{loc}` attribute-value-template is resolved by the XSLT processor.
 
@@ -37,10 +38,10 @@ class SitemapToHtml(XsltBuilderHandler):
     """A stylesheet that renders a <urlset> as an HTML table of URLs."""
 
     def main(self, root):
-        ss = root.stylesheet(version="1.0", xmlns_xsl=XSL)
-        ss.output(method="html", encoding="UTF-8", indent="yes")
+        ss = root.stylesheet(version="1.0", xmlns_xslt=XSL)
+        ss.xslt_output(method="html", encoding="UTF-8", indent="yes")
 
-        tpl = ss.template(match="/urlset")
+        tpl = ss.xslt_template(match="/urlset")
         html = tpl.html()
         html.head().title("Sitemap")
         body = html.body()

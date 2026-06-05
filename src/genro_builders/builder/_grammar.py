@@ -306,11 +306,6 @@ class _GrammarMixin:
             node: The node to validate.
             info: Schema info dict from get_schema_info().
         """
-        node_tag = node.node_tag
-        if not node_tag:
-            node._invalid_reasons = []
-            return
-
         # Subbuilder nodes are transparent containers for the embedded dialect.
         if node._get_meta("subbuilder"):
             node._invalid_reasons = []
@@ -326,20 +321,31 @@ class _GrammarMixin:
             node._invalid_reasons = []
             return
 
-        # Domain nodes always carry a node_tag; only data_element and
-        # subbuilder nodes may lack one, and both are excluded here. The
-        # `and n.node_tag` makes that invariant explicit (children_tags is
-        # list[str], not list[str | None]).
         children_tags = [
             n.node_tag for n in node.value.nodes
-            if not n._get_meta("data_element")
-            and not n._get_meta("subbuilder")
-            and n.node_tag
+            if self.require_sub_tag_validation(n)
         ] if isinstance(node.value, Bag) else []
 
         node._invalid_reasons = self._validate_children_tags(
-            node_tag, sub_tags_compiled, children_tags
+            node.node_tag, sub_tags_compiled, children_tags
         )
+
+    def require_sub_tag_validation(self, node: BagNode) -> bool:
+        """Whether ``node`` counts as a child for its parent's sub_tags check.
+
+        Data-elements and subbuilders are structural: invisible to the
+        containment grammar. Everything else defers to
+        ``custom_require_sub_tag_validation``, the dialect hook.
+        """
+        meta = node._get_meta("data_element,subbuilder")
+        if meta[0] or meta[1]:
+            return False
+        return self.custom_require_sub_tag_validation(node)
+
+    def custom_require_sub_tag_validation(self, node: BagNode) -> bool:
+        """Dialect hook: return False to exempt ``node`` from its parent's
+        sub_tags validation. Default validates everything."""
+        return True
 
     def _validate_parent_tags(
         self,

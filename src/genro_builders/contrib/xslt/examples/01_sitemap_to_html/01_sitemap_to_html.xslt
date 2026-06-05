@@ -1,6 +1,6 @@
-<?xml version='1.0' encoding='UTF-8'?><xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-  <xsl:output method="html" encoding="UTF-8" indent="yes"></xsl:output>
-  <xsl:template match="/urlset">
+<?xml version='1.0' encoding='UTF-8'?><xslt:stylesheet version="1.0" xmlns:xslt="http://www.w3.org/1999/XSL/Transform">
+  <xslt:output method="html" encoding="UTF-8" indent="yes"></xslt:output>
+  <xslt:template match="/urlset">
     <html>
       <head>
         <title>Sitemap</title>
@@ -16,24 +16,24 @@
             </tr>
           </thead>
           <tbody>
-            <xsl:for-each select="url">
+            <xslt:for-each select="url">
               <tr>
                 <td>
                   <a href="{loc}">
-                    <xsl:value-of select="loc"></xsl:value-of>
+                    <xslt:value-of select="loc"></xslt:value-of>
                   </a>
                 </td>
                 <td>
-                  <xsl:value-of select="lastmod"></xsl:value-of>
+                  <xslt:value-of select="lastmod"></xslt:value-of>
                 </td>
                 <td>
-                  <xsl:value-of select="priority"></xsl:value-of>
+                  <xslt:value-of select="priority"></xslt:value-of>
                 </td>
               </tr>
-            </xsl:for-each>
+            </xslt:for-each>
           </tbody>
         </table>
       </body>
     </html>
-  </xsl:template>
-</xsl:stylesheet>
+  </xslt:template>
+</xslt:stylesheet>

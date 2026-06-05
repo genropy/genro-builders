@@ -4,23 +4,26 @@
 An XSLT stylesheet is XML, so it renders through the core ``XmlRenderer``
 with no new renderer. Two element families share one tree:
 
-- **XSLT instructions** (``xsl:template``, ``xsl:for-each``, ...). Each
-  declares ``_meta={"render_tag": "xsl:<local>"}``: the Python method
+- **XSLT instructions** (``xslt:template``, ``xslt:for-each``, ...). Each
+  declares ``_meta={"render_tag": "xslt:<local>"}``: the Python method
   name stays a legal identifier (``for_each``) while the emitted tag is
-  the prefixed name (``xsl:for-each``). This reuses the renderer's
+  the prefixed name (``xslt:for-each``). This reuses the renderer's
   existing ``render_tag`` mechanism (the same one that turns the SVG
   ``html`` sub-builder into ``<foreignObject>``) — no XSLT-specific
-  render code. The ``xsl`` prefix is declared once by the user as an
-  ``xmlns_xsl`` attribute on the ``stylesheet`` root (emitted as
-  ``xmlns:xsl``).
+  render code. The ``xslt`` prefix is declared once by the user as an
+  ``xmlns_xslt`` attribute on the ``stylesheet`` root (emitted as
+  ``xmlns:xslt``).
 
-- **Literal result elements** (``html``, ``table``, ``tr``, ...). Plain
-  ``@element`` with no ``render_tag``: copied to the output verbatim. In
-  XSLT these are *part of the stylesheet grammar*, interleaved with the
-  instructions at the same level — which is why they live here rather
-  than in a nested HTML sub-builder (a sub-builder switches the active
-  grammar irreversibly, so an ``xsl:for-each`` inside an HTML ``<table>``
-  would be unreachable).
+- **Literal result elements** — the output vocabulary copied verbatim.
+  These come from the HTML5 grammar mixed into ``XsltBuilder``
+  (``Html5Elements``), not declared here: in XSLT they are *part of the
+  stylesheet grammar*, interleaved with the instructions at the same
+  level. An XSLT instruction may nest inside any of them, which
+  ``XsltBuilder.custom_require_sub_tag_validation`` allows.
+
+Two instruction methods are renamed to avoid colliding with the HTML
+tags of the same name: ``xslt_output``/``xslt_template`` (the emitted
+tags stay ``xslt:output``/``xslt:template``, from ``render_tag``).
 
 Attribute names like ``select``/``match``/``test`` are XPath and are
 emitted verbatim. ``{...}`` attribute-value-templates pass through too
@@ -33,144 +36,90 @@ from genro_builders.builder import element
 
 
 class XsltElements:
-    """Mixin: the XSLT instruction vocabulary + literal result elements."""
+    """Mixin: the XSLT instruction vocabulary (``xslt:*``)."""
 
-    # -------------------------------------------------------------------
-    # XSLT instructions (xsl:* namespace)
-    # -------------------------------------------------------------------
-
-    @element(sub_tags="*", _meta={"render_tag": "xsl:stylesheet"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:stylesheet"})
     def stylesheet(self):
         """Root of a stylesheet. Carries ``version`` and the namespace
-        declaration ``xmlns_xsl`` (emitted as ``xmlns:xsl``)."""
+        declaration ``xmlns_xslt`` (emitted as ``xmlns:xslt``)."""
         ...
 
-    @element(_meta={"render_tag": "xsl:output"})
-    def output(self):
+    @element(_meta={"render_tag": "xslt:output"})
+    def xslt_output(self):
         """Serialization options for the result tree (``method``,
-        ``encoding``, ``indent``)."""
+        ``encoding``, ``indent``). Named ``xslt_output`` to leave the bare
+        ``output`` for the HTML ``<output>`` tag."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:template"})
-    def template(self):
+    @element(sub_tags="*", _meta={"render_tag": "xslt:template"})
+    def xslt_template(self):
         """A transformation rule, selected by ``match`` (pattern) or
-        invoked by ``name``."""
+        invoked by ``name``. Named ``xslt_template`` to leave the bare
+        ``template`` for the HTML ``<template>`` tag."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:apply-templates"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:apply-templates"})
     def apply_templates(self):
         """Process the nodes chosen by ``select`` with their matching
         templates."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:call-template"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:call-template"})
     def call_template(self):
         """Invoke a named template (``name``)."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:param"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:param"})
     def param(self):
         """A template/stylesheet parameter (``name``, optional default
         via ``select`` or body)."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:with-param"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:with-param"})
     def with_param(self):
         """Pass an argument (``name``, ``select``) to a called template."""
         ...
 
-    @element(_meta={"render_tag": "xsl:value-of"})
+    @element(_meta={"render_tag": "xslt:value-of"})
     def value_of(self):
         """Insert the string value of the XPath ``select`` into the
         output."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:for-each"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:for-each"})
     def for_each(self):
         """Iterate over the node-set chosen by ``select``."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:if"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:if"})
     def if_(self):
         """Conditional: emit the body when the XPath ``test`` is true.
         Named ``if_`` (``if`` is a Python keyword); the emitted tag is
-        ``xsl:if`` from ``render_tag``, independent of the method name."""
+        ``xslt:if`` from ``render_tag``, independent of the method name."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:choose"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:choose"})
     def choose(self):
         """Multi-branch conditional: a series of ``when`` plus an
         optional ``otherwise``."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:when"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:when"})
     def when(self):
         """A branch of ``choose``, taken when its ``test`` is true."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:otherwise"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:otherwise"})
     def otherwise(self):
         """The fallback branch of ``choose``."""
         ...
 
-    @element(_meta={"render_tag": "xsl:text"})
+    @element(_meta={"render_tag": "xslt:text"})
     def text(self):
         """Literal text, with control over output escaping/whitespace."""
         ...
 
-    @element(sub_tags="*", _meta={"render_tag": "xsl:variable"})
+    @element(sub_tags="*", _meta={"render_tag": "xslt:variable"})
     def variable(self):
         """A named variable (``name``, value via ``select`` or body)."""
         ...
-
-    # -------------------------------------------------------------------
-    # Literal result elements (no namespace; copied to the output)
-    # -------------------------------------------------------------------
-
-    @element(sub_tags="*")
-    def html(self): ...
-
-    @element(sub_tags="*")
-    def head(self): ...
-
-    @element(sub_tags="*")
-    def title(self): ...
-
-    @element(sub_tags="*")
-    def body(self): ...
-
-    @element(sub_tags="*")
-    def h1(self): ...
-
-    @element(sub_tags="*")
-    def h2(self): ...
-
-    @element(sub_tags="*")
-    def p(self): ...
-
-    @element(sub_tags="*")
-    def table(self): ...
-
-    @element(sub_tags="*")
-    def thead(self): ...
-
-    @element(sub_tags="*")
-    def tbody(self): ...
-
-    @element(sub_tags="*")
-    def tr(self): ...
-
-    @element(sub_tags="*")
-    def th(self): ...
-
-    @element(sub_tags="*")
-    def td(self): ...
-
-    @element(sub_tags="*")
-    def a(self): ...
-
-    @element(sub_tags="*")
-    def div(self): ...
-
-    @element(sub_tags="*")
-    def span(self): ...

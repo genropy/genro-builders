@@ -22,9 +22,9 @@ class _SitemapToHtml(XsltBuilderHandler):
     """Stylesheet: render a <urlset> as an HTML table of its URLs."""
 
     def main(self, root):
-        ss = root.stylesheet(version="1.0", xmlns_xsl=XSL)
-        ss.output(method="html", encoding="UTF-8", indent="yes")
-        tpl = ss.template(match="/urlset")
+        ss = root.stylesheet(version="1.0", xmlns_xslt=XSL)
+        ss.xslt_output(method="html", encoding="UTF-8", indent="yes")
+        tpl = ss.xslt_template(match="/urlset")
         html = tpl.html()
         html.head().title("Sitemap")
         body = html.body()
@@ -68,12 +68,12 @@ def _sitemap_str() -> str:
 
 def test_stylesheet_markup_shape():
     out = _stylesheet_str()
-    assert f'<xsl:stylesheet version="1.0" xmlns:xsl="{XSL}">' in out
-    assert '<xsl:output method="html"' in out
-    assert '<xsl:template match="/urlset">' in out
-    assert '<xsl:for-each select="url">' in out
+    assert f'<xslt:stylesheet version="1.0" xmlns:xslt="{XSL}">' in out
+    assert '<xslt:output method="html"' in out
+    assert '<xslt:template match="/urlset">' in out
+    assert '<xslt:for-each select="url">' in out
     assert '<a href="{loc}">' in out
-    assert '<xsl:value-of select="loc">' in out
+    assert '<xslt:value-of select="loc">' in out
 
 
 def test_stylesheet_well_formed():
