@@ -38,7 +38,7 @@ class HelloCss(CssBuilderHandler):
         rt.cssvar("spacing", value="8px")
 
         # 2. Single selector built from structured kwargs.
-        btn = sheet.selector(tag="button", _class="primary")
+        btn = sheet.selector(tag="button", class_="primary")
         btn.rule(
             background_color="var(--primary-color)",
             color="white",
@@ -47,33 +47,33 @@ class HelloCss(CssBuilderHandler):
 
         # 3. Selector list — multiple selectors share one block.
         cards = sheet.selector_list()
-        cards.selector(_class="card")
-        cards.selector(_class="panel")
-        cards.selector(_class="dialog")
+        cards.selector(class_="card")
+        cards.selector(class_="panel")
+        cards.selector(class_="dialog")
         cards.rule(font_family="sans-serif")
 
         # 4. Media variant — extra rule with media kwarg.
-        responsive = sheet.selector(_class="card2")
+        responsive = sheet.selector(class_="card2")
         responsive.rule(width="300px", padding="16px")
         responsive.rule(media="(max-width: 600px)",
                         width="100%", padding="8px")
         responsive.rule(media="print", color="black")
 
         # 5. Nesting (CSS Nesting moderno).
-        card = sheet.selector(_class="card3")
+        card = sheet.selector(class_="card3")
         card.rule(padding="8px", background_color="#fafafa")
-        title = card.selector(_class="title")
+        title = card.selector(class_="title")
         title.rule(font_size="18px", font_weight="bold")
         hover = card.selector(raw="&:hover")
         hover.rule(background_color="#eef")
 
         # 6. Comment on a selector (short, inline).
-        alert = sheet.selector(_class="alert", comment="warning state")
+        alert = sheet.selector(class_="alert", comment="warning state")
         alert.rule(color="red")
 
         # 7. Comment on a selector (long, block).
         dashboard = sheet.selector(
-            _class="dashboard",
+            class_="dashboard",
             comment=(
                 "Grid layout for the dashboard summary cards; the "
                 "auto-fit + minmax pattern lets cards reflow without "

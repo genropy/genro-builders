@@ -45,7 +45,7 @@ def test_css_render_default_mode_is_css():
 
 def test_single_selector_with_rule():
     def build(root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(color="red", font_size="14px")
 
     out = _render(build)
@@ -54,7 +54,7 @@ def test_single_selector_with_rule():
 
 def test_fragment_at_root_no_stylesheet():
     def build(root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(color="red")
 
     out = _render(build)
@@ -63,7 +63,7 @@ def test_fragment_at_root_no_stylesheet():
 
 def test_property_kebab_case_conversion():
     def build(root):
-        s = root.selector(_class="x")
+        s = root.selector(class_="x")
         s.rule(background_color="#fff", font_size="12px")
 
     out = _render(build)
@@ -78,7 +78,7 @@ def test_property_kebab_case_conversion():
 
 def test_selector_tag_id_class():
     def build(root):
-        s = root.selector(tag="div", id="main", _class="card")
+        s = root.selector(tag="div", id="main", class_="card")
         s.rule(color="red")
 
     out = _render(build)
@@ -96,7 +96,7 @@ def test_selector_classes_list():
 
 def test_selector_class_with_pseudo():
     def build(root):
-        s = root.selector(_class="foo:hover")
+        s = root.selector(class_="foo:hover")
         s.rule(color="red")
 
     out = _render(build)
@@ -132,7 +132,7 @@ def test_selector_raw_alone():
 
 def test_selector_raw_appended_to_compound():
     def build(root):
-        s = root.selector(_class="card", raw="> .icon")
+        s = root.selector(class_="card", raw="> .icon")
         s.rule(color="green")
 
     out = _render(build)
@@ -147,9 +147,9 @@ def test_selector_raw_appended_to_compound():
 def test_selector_list_multiple_selectors():
     def build(root):
         sl = root.selector_list()
-        sl.selector(_class="card")
-        sl.selector(_class="panel")
-        sl.selector(_class="dialog")
+        sl.selector(class_="card")
+        sl.selector(class_="panel")
+        sl.selector(class_="dialog")
         sl.rule(color="white")
 
     out = _render(build)
@@ -160,8 +160,8 @@ def test_selector_list_in_stylesheet():
     def build(root):
         sheet = root.stylesheet()
         sl = sheet.selector_list()
-        sl.selector(_class="a")
-        sl.selector(_class="b")
+        sl.selector(class_="a")
+        sl.selector(class_="b")
         sl.rule(color="red")
 
     out = _render(build)
@@ -197,7 +197,7 @@ def test_selector_list_with_no_selectors_raises():
 
 def test_selector_class_with_space_is_rejected():
     def build(root):
-        s = root.selector(_class="card featured")
+        s = root.selector(class_="card featured")
         s.rule(color="red")
 
     with pytest.raises(ValueError, match=r"selector class 'card featured'"):
@@ -206,7 +206,7 @@ def test_selector_class_with_space_is_rejected():
 
 def test_selector_class_with_dot_is_rejected():
     def build(root):
-        s = root.selector(_class="card.featured")
+        s = root.selector(class_="card.featured")
         s.rule(color="red")
 
     with pytest.raises(ValueError, match=r"selector class 'card.featured'"):
@@ -215,7 +215,7 @@ def test_selector_class_with_dot_is_rejected():
 
 def test_selector_class_and_classes_mutually_exclusive():
     def build(root):
-        s = root.selector(_class="a", classes=["b", "c"])
+        s = root.selector(class_="a", classes=["b", "c"])
         s.rule(color="red")
 
     with pytest.raises(ValueError, match=r"class_.*classes"):
@@ -289,7 +289,7 @@ def test_cssvar_with_block_comment_when_long():
 
 def test_selector_inline_comment():
     def build(root):
-        s = root.selector(_class="alert", comment="warning state")
+        s = root.selector(class_="alert", comment="warning state")
         s.rule(color="red")
 
     out = _render(build)
@@ -301,7 +301,7 @@ def test_selector_block_comment():
     assert len(long) > 60
 
     def build(root):
-        s = root.selector(_class="card", comment=long)
+        s = root.selector(class_="card", comment=long)
         s.rule(color="red")
 
     out = _render(build)
@@ -315,7 +315,7 @@ def test_selector_block_comment():
 
 def test_rule_with_media_kwarg():
     def build(root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(width="300px")
         s.rule(media="(max-width: 600px)", width="100%")
 
@@ -334,7 +334,7 @@ def test_rule_with_media_kwarg():
 
 def test_rule_media_with_type_in_string():
     def build(root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(color="white")
         s.rule(media="print", color="black")
 
@@ -345,7 +345,7 @@ def test_rule_media_with_type_in_string():
 
 def test_rule_media_type_and_feature_combined():
     def build(root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(media="screen and (max-width: 600px)", padding="8px")
 
     out = _render(build)
@@ -354,7 +354,7 @@ def test_rule_media_type_and_feature_combined():
 
 def test_rules_with_same_media_are_grouped():
     def build(root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(media="(max-width: 600px)", width="100%")
         s.rule(media="(max-width: 600px)", padding="8px")
 
@@ -367,7 +367,7 @@ def test_rules_with_same_media_are_grouped():
 
 def test_rules_with_different_media_are_separate_blocks():
     def build(root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(media="(max-width: 600px)", padding="8px")
         s.rule(media="(max-width: 400px)", padding="4px")
 
@@ -379,8 +379,8 @@ def test_rules_with_different_media_are_separate_blocks():
 def test_rule_media_inside_selector_list():
     def build(root):
         sl = root.selector_list()
-        sl.selector(_class="a")
-        sl.selector(_class="b")
+        sl.selector(class_="a")
+        sl.selector(class_="b")
         sl.rule(padding="16px")
         sl.rule(media="(max-width: 600px)", padding="8px")
 
@@ -397,7 +397,7 @@ def test_rule_media_inside_selector_list():
 
 def test_rule_with_supports_kwarg():
     def build(root):
-        s = root.selector(_class="grid")
+        s = root.selector(class_="grid")
         s.rule(display="flex")
         s.rule(supports="(display: grid)", display="grid")
 
@@ -408,7 +408,7 @@ def test_rule_with_supports_kwarg():
 
 def test_rule_with_media_and_supports():
     def build(root):
-        s = root.selector(_class="grid")
+        s = root.selector(class_="grid")
         s.rule(
             media="(max-width: 600px)",
             supports="(display: grid)",
@@ -428,9 +428,9 @@ def test_rule_with_media_and_supports():
 
 def test_nested_selector_inside_selector():
     def build(root):
-        card = root.selector(_class="card")
+        card = root.selector(class_="card")
         card.rule(padding="8px")
-        title = card.selector(_class="title")
+        title = card.selector(class_="title")
         title.rule(font_size="18px")
 
     out = _render(build)
@@ -446,7 +446,7 @@ def test_nested_selector_inside_selector():
 
 def test_nested_selector_with_ampersand():
     def build(root):
-        card = root.selector(_class="card")
+        card = root.selector(class_="card")
         card.rule(padding="8px")
         hover = card.selector(raw="&:hover")
         hover.rule(background_color="#eef")
@@ -458,9 +458,9 @@ def test_nested_selector_with_ampersand():
 
 def test_deeply_nested_selectors():
     def build(root):
-        a = root.selector(_class="a")
+        a = root.selector(class_="a")
         a.rule(padding="8px")
-        b = a.selector(_class="b")
+        b = a.selector(class_="b")
         b.rule(font_size="14px")
         c = b.selector(raw="&:hover")
         c.rule(color="red")
@@ -486,7 +486,7 @@ def test_deeply_nested_selectors():
 
 def test_render_pretty_false_produces_single_line():
     def build(root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(color="red", font_size="14px")
 
     out = _render(build, pretty=False)
@@ -495,9 +495,9 @@ def test_render_pretty_false_produces_single_line():
 
 def test_render_custom_indent():
     def build(root):
-        card = root.selector(_class="card")
+        card = root.selector(class_="card")
         card.rule(padding="8px")
-        title = card.selector(_class="title")
+        title = card.selector(class_="title")
         title.rule(font_size="18px")
 
     out = _render(build, indent="    ")
@@ -555,7 +555,7 @@ def test_multiple_vendor_prefixes_all_kept():
 def test_cssvar_direct_on_root_emits_root_block():
     def build(root):
         root.cssvar("brand", value="#3498db")
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(color="var(--brand)")
 
     out = _render(build)
@@ -568,7 +568,7 @@ def test_cssvar_inside_stylesheet_emits_root_block():
     def build(root):
         sheet = root.stylesheet()
         sheet.cssvar("brand", value="#3498db")
-        s = sheet.selector(_class="card")
+        s = sheet.selector(class_="card")
         s.rule(color="var(--brand)")
 
     out = _render(build)
@@ -583,7 +583,7 @@ def test_consecutive_top_level_cssvars_grouped_into_single_root_block():
         sheet.cssvar("brand", value="#3498db")
         sheet.cssvar("spacing", value="8px")
         sheet.cssvar("radius", value="4px")
-        s = sheet.selector(_class="card")
+        s = sheet.selector(class_="card")
         s.rule(color="var(--brand)")
 
     out = _render(build)
@@ -597,7 +597,7 @@ def test_cssvar_after_selector_starts_a_new_root_block():
     def build(root):
         sheet = root.stylesheet()
         sheet.cssvar("brand", value="#3498db")
-        s = sheet.selector(_class="card")
+        s = sheet.selector(class_="card")
         s.rule(color="var(--brand)")
         sheet.cssvar("late", value="42px")
 
@@ -608,7 +608,7 @@ def test_cssvar_after_selector_starts_a_new_root_block():
 def test_top_level_cssvar_minified():
     def build(root):
         root.cssvar("brand", value="#3498db")
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(color="var(--brand)")
 
     out = _render(build, pretty=False)
@@ -696,7 +696,7 @@ def test_importcss_rendered_before_other_content():
     def build(root):
         sheet = root.stylesheet()
         sheet.cssvar("brand", value="#3498db")
-        s = sheet.selector(_class="card")
+        s = sheet.selector(class_="card")
         s.rule(color="var(--brand)")
         sheet.importcss(url="reset.css")  # inserted last on purpose
 

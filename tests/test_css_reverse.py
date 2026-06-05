@@ -58,7 +58,7 @@ def _roundtrip(css: str) -> str:
 
 def test_class_selector_simple():
     code = _reverse(".card { color: red; }")
-    assert "_class='card'" in code
+    assert "class_='card'" in code
     assert "color='red'" in code
 
 
@@ -80,7 +80,7 @@ def test_attribute_selector():
 
 def test_pseudo_class_attached_to_single_class():
     code = _reverse(".btn:hover { color: red; }")
-    assert "_class='btn:hover'" in code
+    assert "class_='btn:hover'" in code
 
 
 def test_pseudo_class_functional_falls_back_to_raw():
@@ -90,13 +90,13 @@ def test_pseudo_class_functional_falls_back_to_raw():
 
 def test_class_with_pseudo_plus_functional_falls_back_to_raw():
     """A plain pseudo (``:active``) attached to a class is normally
-    folded into ``_class``, but as soon as a functional pseudo
+    folded into ``class_``, but as soon as a functional pseudo
     (``:not(...)``) joins the chain the whole selector must go to
-    ``raw=`` — the strict ``_class`` regex on the renderer rejects
+    ``raw=`` — the strict ``class_`` regex on the renderer rejects
     parentheses, dots and commas inside the class string."""
     code = _reverse(".multibutton:active:not(.multibutton_selected) { color: red; }")
     assert "raw=" in code
-    assert "_class=" not in code
+    assert "class_=" not in code
 
 
 def test_kebab_property_becomes_underscore_kwarg():
@@ -206,8 +206,8 @@ def test_css_nesting_produces_nested_selectors():
     code = _reverse(css)
     # Outer selector and inner selector both present, both with own rule()
     assert code.count(".selector(") >= 2
-    assert "_class='card'" in code
-    assert "_class='title'" in code
+    assert "class_='card'" in code
+    assert "class_='title'" in code
     assert "padding='8px'" in code
     assert "font_size='18px'" in code
 
@@ -215,7 +215,7 @@ def test_css_nesting_produces_nested_selectors():
 def test_nesting_with_ampersand_uses_raw():
     css = ".card { &:hover { color: red; } }"
     code = _reverse(css)
-    assert "_class='card'" in code
+    assert "class_='card'" in code
     # &:hover not expressible structurally → raw
     assert "raw=" in code
 
@@ -318,7 +318,7 @@ def test_from_css_returns_python_string_when_dest_none():
     assert isinstance(out, str)
     assert "class ReversedCss(CssBuilderHandler):" in out
     assert "sheet = root.stylesheet()" in out
-    assert "_class='card'" in out
+    assert "class_='card'" in out
 
 
 def test_from_css_writes_to_str_path(tmp_path):

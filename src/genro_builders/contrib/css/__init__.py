@@ -13,7 +13,7 @@ Example::
             sheet = root.stylesheet()
             r = sheet.rule(background_color="#3498db", color="white",
                            padding="12px")
-            r.selector(_class="card")
+            r.selector(class_="card")
 
     theme = Theme()
     theme.create()

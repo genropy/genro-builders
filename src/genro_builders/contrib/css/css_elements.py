@@ -86,7 +86,7 @@ class CssElements:
     def selector(self):
         """A single CSS selector. The case container.
 
-        Built from structured kwargs (``tag``, ``id``, ``_class``,
+        Built from structured kwargs (``tag``, ``id``, ``class_``,
         ``classes``, ``attr``) and/or an opaque ``raw`` suffix.
         Holds one or more ``rule`` children (the base block plus
         any media/supports variants), ``cssvar`` declarations, and

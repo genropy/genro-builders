@@ -20,7 +20,7 @@ def test_rule_value_pointer_is_resolved():
             self.data.set_item("theme.accent", "#ff0066")
 
         def main(self, root):
-            root.selector(_class="card").rule(color="^theme.accent")
+            root.selector(class_="card").rule(color="^theme.accent")
 
     page = _Page()
     page.create()

@@ -21,7 +21,7 @@ from genro_builders.contrib.css import CssBuilderHandler
 
 class Theme(CssBuilderHandler):
     def main(self, root):
-        s = root.selector(_class="card")
+        s = root.selector(class_="card")
         s.rule(color="white", background_color="#3498db", padding="12px")
 
 
@@ -59,21 +59,22 @@ plus a `raw` kwarg for the rest:
 |-----------|----------------------------|-------------------------|------------------------------------------|
 | `tag`     | `str`                      | `tagname`               | `tag="div"` → `div`                      |
 | `id`      | `str`                      | `#id`                   | `id="main"` → `#main`                    |
-| `_class`  | `str` (one class)          | `.class`                | `_class="card"` → `.card`                |
+| `class_`  | `str` (one class)          | `.class`                | `class_="card"` → `.card`                |
 | `classes` | `list[str]`                | `.a.b.c`                | `classes=["card","featured"]` → `.card.featured` |
 | `attr`    | `dict[str, str \| None]`   | `[name="v"]` / `[name]` | `attr={"type":"text"}` → `[type="text"]` |
 | `raw`     | `str`                      | suffix, space-separated | `raw="> .icon"` → `<compound> > .icon`   |
 
 Composition order: `tag → id → classes → attr`, then `raw`
 appended with a leading space if a compound precedes it.
-`_class` and `classes` are mutually exclusive.
+`class_` and `classes` are mutually exclusive. (The leading-underscore
+form `_class` is still accepted but deprecated; prefer `class_`.)
 
 Pseudo-classes and pseudo-elements attach directly inside
-`_class`:
+`class_`:
 
 ```python
-root.selector(_class="card:hover")
-root.selector(_class="btn::before")
+root.selector(class_="card:hover")
+root.selector(class_="btn::before")
 ```
 
 `raw` is the unchecked escape hatch for combinators, functional
@@ -81,7 +82,7 @@ pseudo-classes, and anything not covered by the structured form:
 
 ```python
 root.selector(raw=".card:not(.disabled)")
-root.selector(_class="card", raw="> .icon")
+root.selector(class_="card", raw="> .icon")
 ```
 
 ### selector_list
@@ -91,9 +92,9 @@ When several selectors share the same rule and variants, use
 
 ```python
 sl = root.selector_list()
-sl.selector(_class="card")
-sl.selector(_class="panel")
-sl.selector(_class="dialog")
+sl.selector(class_="card")
+sl.selector(class_="panel")
+sl.selector(class_="dialog")
 sl.rule(color="white")
 ```
 
@@ -109,7 +110,7 @@ Property block. Underscores in kwarg names are converted to
 hyphens at render time. Values are stringified verbatim.
 
 ```python
-s = root.selector(_class="x")
+s = root.selector(class_="x")
 s.rule(background_color="#fff", font_size="12px")
 ```
 
@@ -122,7 +123,7 @@ a ``@media`` and/or ``@supports`` block that re-uses the parent
 selector:
 
 ```python
-s = root.selector(_class="card")
+s = root.selector(class_="card")
 s.rule(width="300px")
 s.rule(media="(max-width: 600px)", width="100%")
 s.rule(media="screen and (max-width: 600px)", padding="8px")
@@ -174,7 +175,7 @@ rt.cssvar("spacing", value="8px")
 Consume from property values as a regular `var(--name)`:
 
 ```python
-root.selector(_class="branded").rule(color="var(--primary-color)")
+root.selector(class_="branded").rule(color="var(--primary-color)")
 ```
 
 ## CSS Nesting
@@ -183,9 +184,9 @@ Attach nested selectors inside a selector to get native CSS
 nesting:
 
 ```python
-card = root.selector(_class="card")
+card = root.selector(class_="card")
 card.rule(padding="8px")
-title = card.selector(_class="title")
+title = card.selector(class_="title")
 title.rule(font_size="18px")
 hover = card.selector(raw="&:hover")
 hover.rule(background_color="#eef")
@@ -226,7 +227,7 @@ Any element accepts an optional `comment="..."` kwarg:
   the element.
 
 ```python
-s = root.selector(_class="alert", comment="warning state")
+s = root.selector(class_="alert", comment="warning state")
 s.rule(color="red")
 ```
 
@@ -257,7 +258,7 @@ Validation is eager: malformed structured kwargs raise
 |------------------------------------|--------------------------------------|
 | `tag`                              | `^[a-zA-Z][\w-]*$`                   |
 | `id`                               | `^[a-zA-Z_-][\w-]*$`                 |
-| `_class`, each `classes` entry     | `^[a-zA-Z_-][\w-]*(:{1,2}[\w-]+)*$`  |
+| `class_`, each `classes` entry     | `^[a-zA-Z_-][\w-]*(:{1,2}[\w-]+)*$`  |
 | attribute name in `attr`           | `^[a-zA-Z_-][\w-]*$`                 |
 
 `raw` is not validated.
@@ -280,7 +281,7 @@ class Theme(CssBuilderHandler):
         rt.cssvar("spacing", value="8px")
 
         # Single selector + rule
-        card = sheet.selector(_class="card")
+        card = sheet.selector(class_="card")
         card.rule(
             background_color="var(--brand)",
             color="white",
@@ -290,20 +291,20 @@ class Theme(CssBuilderHandler):
 
         # Selector-list
         shared = sheet.selector_list()
-        shared.selector(_class="card")
-        shared.selector(_class="panel")
-        shared.selector(_class="dialog")
+        shared.selector(class_="card")
+        shared.selector(class_="panel")
+        shared.selector(class_="dialog")
         shared.rule(font_family="sans-serif", line_height="1.5")
 
         # Media variant
-        responsive = sheet.selector(_class="responsive")
+        responsive = sheet.selector(class_="responsive")
         responsive.rule(width="300px")
         responsive.rule(media="(max-width: 600px)", width="100%")
 
         # Nesting
-        nested = sheet.selector(_class="nested")
+        nested = sheet.selector(class_="nested")
         nested.rule(padding="8px")
-        title = nested.selector(_class="title")
+        title = nested.selector(class_="title")
         title.rule(font_size="18px")
         hover = nested.selector(raw="&:hover")
         hover.rule(background_color="#eef")
@@ -369,7 +370,7 @@ class ReversedCss(CssBuilderHandler):
     def main(self, root):
         sheet = root.stylesheet()
         sheet.importcss(url='reset.css')
-        s_1 = sheet.selector(_class='card')
+        s_1 = sheet.selector(class_='card')
         s_1.rule(color='red', padding='8px')
 ```
 
@@ -382,11 +383,11 @@ by grammar.
 
 | CSS construct                         | Reverse output                                  |
 | ------------------------------------- | ----------------------------------------------- |
-| `.foo { color: red }`                 | `selector(_class='foo').rule(...)`              |
+| `.foo { color: red }`                 | `selector(class_='foo').rule(...)`              |
 | `.a, .b { ... }`                      | `selector_list().selector().selector().rule()`  |
 | `#main`, `button`                     | `selector(id=...)`, `selector(tag=...)`         |
 | `input[type="text"]`                  | `selector(attr={'type': 'text'})`               |
-| `.btn:hover`                          | `selector(_class='btn:hover')`                  |
+| `.btn:hover`                          | `selector(class_='btn:hover')`                  |
 | `.parent .child`, `:not(.x)`          | `selector(raw=...)` (fallback)                  |
 | `--brand: #3498db`                    | `cssvar('brand', value='#3498db')`              |
 | `@media (max-width: 600px) { ... }`   | `rule(media='(max-width: 600px)', ...)`         |

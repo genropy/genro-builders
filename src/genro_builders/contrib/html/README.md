@@ -17,7 +17,7 @@ from genro_builders.contrib.html import HtmlBuilderHandler
 class HelloPage(HtmlBuilderHandler):
     def main(self, root):
         body = root.body()
-        body.div(_class="card").p("Hello, world!")
+        body.div(class_="card").p("Hello, world!")
 
 
 page = HelloPage()

@@ -168,8 +168,8 @@ def _selector_kwargs(selector_node: Any) -> dict[str, object]:
 
     # Functional pseudos (:not, :nth-child, :has, ...) can carry
     # commas, parens and nested selectors that cannot survive the
-    # structured _class concatenation — emit the entire selector as
-    # raw so the renderer's strict _class regex doesn't reject it.
+    # structured class_ concatenation — emit the entire selector as
+    # raw so the renderer's strict class regex doesn't reject it.
     if functional_pseudo:
         return {"raw": text}
 
@@ -186,14 +186,14 @@ def _selector_kwargs(selector_node: Any) -> dict[str, object]:
     if pseudo_parts:
         joined_pseudo = "".join(pseudo_parts)
         if len(classes) == 1:
-            kwargs["_class"] = classes[0] + joined_pseudo
+            kwargs["class_"] = classes[0] + joined_pseudo
         elif len(classes) > 1:
             return {"raw": text}
         else:
             kwargs["raw"] = joined_pseudo
     else:
         if len(classes) == 1:
-            kwargs["_class"] = classes[0]
+            kwargs["class_"] = classes[0]
         elif len(classes) > 1:
             kwargs["classes"] = classes
     if attrs:
