@@ -1,6 +1,6 @@
 # `builder_grammar` v1.0 — format specification
 
-**Last Updated**: 2026-05-19
+**Last Updated**: 2026-06-06
 **Status**: 🔴 DA REVISIONARE — documento non ancora approvato
 **Format version**: 1.0
 
@@ -49,7 +49,7 @@ convention, not a contract.
 
 ## 3. Document structure
 
-A `builder_grammar` document is a JSON object with **six top-level
+A `builder_grammar` document is a JSON object with **four top-level
 keys**, always present, in this exact order:
 
 ```json
@@ -61,12 +61,16 @@ keys**, always present, in this exact order:
     "title": null,
     "description": null
   },
-  "abstracts":     { ... },
-  "subbuilders":   { ... },
-  "elements":      { ... },
-  "data_elements": { ... }
+  "abstracts": { ... },
+  "elements":  { ... }
 }
 ```
+
+Sub-builders and data-elements are **not** separate sections: they are
+ordinary elements marked in their `_meta` (`_meta.subbuilder` for a
+dialect boundary, `_meta.data_element` for a data-element). They appear
+in the `elements` section like any other element, distinguished only by
+that `_meta` marker (see §4.2).
 
 ### 3.1 `document_format`
 
@@ -89,17 +93,15 @@ keys**, always present, in this exact order:
 Optional metadata fields are **present** in the document with
 `null` value, not omitted. The document shape is stable.
 
-### 3.3 Four sections, in usage order
+### 3.3 Two sections, in usage order
 
 | Section | Contents |
 |---|---|
 | `abstracts` | Abstract templates that define shared `sub_tags` / `parent_tags`. Consumed by `inherits_from`. Always emitted first because elements reference them. |
-| `subbuilders` | Subbuilder entry points (a node that switches the active grammar to a different dialect). |
-| `elements` | The instantiable, schema-validated elements of the grammar. |
-| `data_elements` | Elements that bind data-infrastructure (tabular sections, etc.). |
+| `elements` | Every instantiable, schema-validated element of the grammar — including sub-builder entry points (`_meta.subbuilder`) and data-elements (`_meta.data_element`), which are ordinary elements with a marker, not a separate section. |
 
 Each section is a JSON object (not an array). Keys are element
-names; values are the per-element form described in §4. **All four
+names; values are the per-element form described in §4. **Both
 sections are always present** even when empty (`{}`).
 
 The sections are emitted in this order because a top-down reader
@@ -133,29 +135,7 @@ The shape of each per-element entry is fixed. All declared keys are
 | `inherits_from` | string \| null | Comma-separated names of other abstracts (e.g. `"phrasing"` or `"phrasing,flow"`). **Literal, not resolved.** |
 | `_meta` | object \| null | Pass-through metadata for renderers/compilers. No validation. |
 
-### 4.2 Subbuilder
-
-```json
-{
-  "doc": "Embed an HTML fragment.",
-  "builder_name": "html",
-  "parent_tags": null,
-  "wrap_tag": "foreignObject",
-  "wrap_attrs": {"xmlns": "http://www.w3.org/1999/xhtml"},
-  "_meta": null
-}
-```
-
-| Key | Type | Meaning |
-|---|---|---|
-| `doc` | string \| null | Documentation text. |
-| `builder_name` | string | Canonical name of the grammar the subbuilder switches to (matches some other `grammar.name`). |
-| `parent_tags` | string \| null | Cardinality string for valid parents. See §5. |
-| `wrap_tag` | string \| null | Host-side wrap tag emitted at the boundary (declared by the host's `wrapper_<sub_name>` method). |
-| `wrap_attrs` | object \| null | Framework attributes emitted on the wrap tag (e.g. XML namespace declarations declared by the host's `wrapper_<sub_name>` method). |
-| `_meta` | object \| null | Pass-through metadata. |
-
-### 4.3 Element
+### 4.2 Element
 
 ```json
 {
@@ -175,22 +155,48 @@ The shape of each per-element entry is fixed. All declared keys are
 | `parent_tags` | string \| null | Cardinality string for valid parents. See §5. |
 | `inherits_from` | string \| null | Comma-separated names of abstracts to inherit from. **Literal, not resolved.** See §6. |
 | `attributes` | object \| null | Reserved for the parametric-attribute plan (Step 3 of the broader subtask). **Always `null` in v1.0.** |
-| `_meta` | object \| null | Pass-through metadata. |
+| `_meta` | object \| null | Pass-through metadata. Also the **marker** that distinguishes special elements (see below). |
 
-### 4.4 Data element
+#### Sub-builders and data-elements via `_meta`
 
-```json
-{
-  "doc": "Bind a tabular section."
-}
-```
+A sub-builder and a data-element are ordinary elements; what marks them
+is a key in `_meta`, not a dedicated section or shape:
 
-| Key | Type | Meaning |
-|---|---|---|
-| `doc` | string \| null | Documentation text. |
+- **Sub-builder** — `_meta.subbuilder` holds the canonical name of the
+  grammar the node switches to (matches some other `grammar.name`).
+  The boundary envelope, when present, rides on `_meta` too
+  (`_meta.render_tag` for the host-side wrap tag, `_meta.render_attributes`
+  for the framework attributes emitted on it):
 
-Data elements have the smallest shape; binding details are not part
-of the neutral grammar contract.
+  ```json
+  {
+    "doc": "Embedded SVG drawing.",
+    "sub_tags": "*",
+    "parent_tags": null,
+    "inherits_from": null,
+    "attributes": null,
+    "_meta": {"subbuilder": "svg"}
+  }
+  ```
+
+- **Data-element** — `_meta.data_element` marks an element that binds
+  data-infrastructure (a tabular section, a setter/formula/controller).
+  It is transparent at render time; binding details are not part of the
+  neutral grammar contract.
+
+  ```json
+  {
+    "doc": "Bind a tabular section.",
+    "sub_tags": "",
+    "parent_tags": null,
+    "inherits_from": null,
+    "attributes": null,
+    "_meta": {"data_element": "setter"}
+  }
+  ```
+
+A consumer that does not recognise a `_meta` marker still sees a valid
+element entry; the marker is additive information, not a different shape.
 
 ---
 
@@ -267,19 +273,16 @@ report it as a producer bug.
 
 ### 7.1 Top-level sections
 
-The six top-level keys appear in this exact order:
+The four top-level keys appear in this exact order:
 
 1. `document_format`
 2. `grammar`
 3. `abstracts`
-4. `subbuilders`
-5. `elements`
-6. `data_elements`
+4. `elements`
 
 Rationale: a top-down reader processes definitions before usages.
-`abstracts` define contracts; `subbuilders` introduce alternate
-grammars; `elements` reference both; `data_elements` describe
-data-binding leaves.
+`abstracts` define contracts; `elements` reference them (and carry
+sub-builders and data-elements as `_meta`-marked entries).
 
 ### 7.2 Inside each section
 
@@ -355,4 +358,6 @@ for checking it and refusing documents with unsupported versions.
 ## Riferimenti
 
 Documento prodotto nella sessione Claude Code locale del 2026-05-19
-sul subtask `schema_export` (genro-builders).
+sul subtask `schema_export` (genro-builders). Riallineato il 2026-06-06
+al modello unificato `@element`+`_meta` (sub-builder e data-element non
+sono più sezioni separate: due chiavi top-level invece di sei).
