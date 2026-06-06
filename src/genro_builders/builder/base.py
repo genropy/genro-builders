@@ -2,8 +2,9 @@
 """BuilderBase — grammar base class for Bag builders.
 
 A builder declares the grammar of a dialect via decorators
-(@element, @abstract, @subbuilder) and the schema of valid tag
-placements (sub_tags, parent_tags). The three data-elements
+(@element, @abstract) and the schema of valid tag placements
+(sub_tags, parent_tags). Sub-builders and data-elements are ordinary
+@element marked in their ``_meta`` (no dedicated decorator). The three data-elements
 (data_setter / data_formula / data_controller) are ordinary @element
 declared on this base and marked ``_meta['data_element']``. Engine
 responsibilities — source, the create/render phases, render_target,
@@ -220,7 +221,7 @@ class BuilderBase(
         If ``name`` is not in the registry, attempts a lazy import of
         ``genro_builders.contrib.<name>`` to give the dialect a chance
         to register itself via ``__init_subclass__``. This keeps the
-        ``@subbuilder("name")`` declarations decoupled from import
+        ``_meta['subbuilder']`` references decoupled from import
         order: mutual references (HTML <-> SVG) need not eagerly
         import each other.
 
@@ -241,9 +242,10 @@ class BuilderBase(
         """Serialize the grammar to a ``builder_grammar`` v1.0 JSON file.
 
         The output is a language-neutral document that describes the
-        builder's grammar (abstracts, subbuilders, elements,
-        data_elements) so that a consumer in another environment can
-        reconstruct an equivalent schema.
+        builder's grammar (two sections: abstracts and elements;
+        sub-builders and data-elements are elements marked in ``_meta``)
+        so that a consumer in another environment can reconstruct an
+        equivalent schema.
 
         Format specification: see ``GRAMMAR_FORMAT.md`` co-located
         with this module.
