@@ -283,7 +283,9 @@ def _pop_decorated_methods(cls: type, builder_base: type):
     Collects @element and @abstract methods (data-elements and
     sub-builders are @element marked via _meta, not separate
     decorators) from:
-    1. The class itself (cls.__dict__) -- removed with delattr
+    1. The class itself (cls.__dict__) -- removed with delattr, EXCEPT
+       components (_meta['component']): their body must stay callable on
+       the class for render-time expansion, so they are kept.
     2. Mixin bases in MRO that are not BuilderBase subclasses
 
     Methods defined directly on cls take priority over mixin methods.
@@ -298,7 +300,9 @@ def _pop_decorated_methods(cls: type, builder_base: type):
     for name, obj in list(cls.__dict__.items()):
         if hasattr(obj, "_decorator"):
             seen.add(name)
-            delattr(cls, name)
+            is_component = (obj._decorator.get("_meta") or {}).get("component")
+            if not is_component:
+                delattr(cls, name)
             yield _decorated_method_info(name, obj)
 
     for base in cls.__mro__:
