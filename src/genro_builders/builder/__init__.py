@@ -7,6 +7,7 @@ to work unchanged after the split from a single module to a package.
 
 from ._decorators import (
     abstract,
+    component,
     element,
     struct_method,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "Range",
     "Regex",
     "abstract",
+    "component",
     "element",
     "struct_method",
 ]

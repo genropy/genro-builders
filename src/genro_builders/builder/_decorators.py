@@ -254,3 +254,59 @@ def struct_method(func_or_name):
         return decorate
 
     return _mark(func_or_name, None)
+
+
+# ---------------------------------------------------------------------------
+# @component
+# ---------------------------------------------------------------------------
+
+def component(
+    tags: str | tuple[str, ...] | None = None,
+    sub_tags: str | tuple[str, ...] | None = None,
+    parent_tags: str | None = None,
+    inherits_from: str | None = None,
+    _meta: dict[str, Any] | None = None,
+) -> Callable:
+    """Decorator: a grammar element whose body builds a reusable structure.
+
+    Unlike ``@element`` (declarative, empty body, dropped from the class),
+    a component CARRIES a body: it populates a fresh source (a
+    ``new_root``) and that subtree is the component's expansion. The body
+    is therefore kept callable on the class — it is not turned into an
+    inert marker. The element enters the schema like any other, marked
+    ``_meta['component'] = True`` so the renderer recognises it and, at
+    render time, builds a ``new_root``, runs the body on it, and uses the
+    resulting source as the node's content.
+
+    The same arguments as ``@element`` (``tags``, ``sub_tags``,
+    ``parent_tags``, ``inherits_from``, ``_meta``) place it in the grammar.
+    A same-named plain element is overridden by the component.
+
+    Example::
+
+        @component
+        def product_card(self, root):
+            row = root.div(class_="card")
+            row.h3("^.?name")
+            row.p("^.?price", class_="price")
+    """
+    def _mark(func: Callable) -> Callable:
+        merged_meta = {"component": True, **(_meta or {})}
+        info: dict[str, Any] = {"_meta": merged_meta}
+        for key, value in (
+            ("tags", tags),
+            ("sub_tags", sub_tags),
+            ("parent_tags", parent_tags),
+            ("inherits_from", inherits_from),
+        ):
+            if value is not None:
+                info[key] = value
+        func._decorator = info  # type: ignore[attr-defined]
+        return func
+
+    # Bare ``@component`` (no parentheses): ``tags`` holds the function.
+    if callable(tags):
+        func, tags = tags, None
+        return _mark(func)
+
+    return _mark
