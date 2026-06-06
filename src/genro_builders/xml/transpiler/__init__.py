@@ -1,8 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""XSD codegen package.
+"""XML schema transpiler package.
 
 Three-layer pipeline that turns an XSD schema into a self-contained
-Python module:
+Python module declaring an XML dialect grammar:
 
     XSD file
       -> XmlschemaBackend.load (lazy import of xmlschema)
@@ -10,12 +10,12 @@ Python module:
       -> PythonGenerator.render
       -> Python source text  (committed in the repo, e.g. sitemap.py)
 
-The generated module declares a ``<Dialect>Builder(XsdBuilderBase)`` +
-``<Dialect>Handler(XsdHandler)`` pair — no hand-written glue. The user
-subclasses the handler and implements ``main`` (see
-``contrib/xsd/examples/sitemap/`` and ``examples/fatturapa/``).
+The generated module declares a ``<Dialect>Builder(XmlBuilderBase)`` +
+``<Dialect>Handler(XmlHandler)`` pair — no hand-written glue. The user
+subclasses the handler and implements ``main`` (see the bundled
+``xml/examples/sitemap/`` and ``xml/examples/fatturapa/``).
 
-The codegen produces a *starting base*, not a guaranteed-complete dialect.
+The transpiler produces a *starting base*, not a guaranteed-complete dialect.
 The intermediate model records XSD constraints the grammar does not yet
 emit (``totalDigits``, ``minLength``), and XSD patterns Python's ``re``
 cannot compile (Unicode block properties such as ``\\p{IsBasicLatin}``)

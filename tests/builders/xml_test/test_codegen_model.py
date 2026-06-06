@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from genro_builders.contrib.xsd.codegen import (
+from genro_builders.xml.transpiler import (
     AttributeModel,
     ChildModel,
     ElementModel,

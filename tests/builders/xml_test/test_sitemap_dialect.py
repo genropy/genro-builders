@@ -13,14 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders.contrib.xsd.examples.sitemap import (
+from genro_builders.xml.examples.sitemap import (
     SitemapBuilder,
     SitemapHandler,
 )
 
 _SITEMAP_DIR = (
     Path(__file__).resolve().parents[2]
-    / "../src/genro_builders/contrib/xsd/examples/sitemap"
+    / "../src/genro_builders/xml/examples/sitemap"
 ).resolve()
 SITEMAP_XSD = _SITEMAP_DIR / "sitemap.xsd"
 SITEMAP_GENERATED = _SITEMAP_DIR / "sitemap.py"
@@ -76,7 +76,7 @@ def test_regeneration_is_byte_identical():
     committed module byte-for-byte."""
     pytest.importorskip("xmlschema")
 
-    from genro_builders.contrib.xsd.codegen import (
+    from genro_builders.xml.transpiler import (
         PythonGenerator,
         XmlschemaBackend,
     )
@@ -90,6 +90,6 @@ def test_regeneration_is_byte_identical():
     committed = SITEMAP_GENERATED.read_text(encoding="utf-8")
     assert source == committed, (
         "Codegen output drifted from the committed file. Regenerate with: "
-        f"python -m genro_builders.contrib.xsd.codegen --xsd {SITEMAP_XSD} "
+        f"python -m genro_builders.xml.transpiler --xsd {SITEMAP_XSD} "
         f"--dialect-name Sitemap --output {SITEMAP_GENERATED}"
     )

@@ -1,6 +1,6 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 # GENERATED FILE - DO NOT EDIT MANUALLY.
-# Regenerate with: python -m genro_builders.contrib.xsd.codegen --xsd <path> --dialect-name FatturaElettronica --output <path>
+# Regenerate with: python -m genro_builders.xml.transpiler --xsd <path> --dialect-name FatturaElettronica --output <path>
 # Source targetNamespace: http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2
 """FatturaPA v1.2.3 dialect (Italian PA electronic invoice). Generated from the official Schema_VFPA12_V1.2.3.xsd published by Agenzia delle Entrate. Some XSD patterns use Unicode block properties that Python re cannot compile; those validators are commented out for hand-refinement."""
 
@@ -10,10 +10,10 @@ from decimal import Decimal
 from typing import Annotated, Literal
 
 from genro_builders.builder import Range, Regex, element
-from genro_builders.contrib.xsd.xsd_builder import XsdBuilderBase, XsdHandler
+from genro_builders.xml import XmlBuilderBase, XmlHandler
 
 
-class FatturaElettronicaBuilder(XsdBuilderBase):
+class FatturaElettronicaBuilder(XmlBuilderBase):
     """XSD dialect grammar generated from namespace ``http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2``.
 
     NOTE: the source XSD declares additional namespace imports that are not introspected by the current codegen:
@@ -1244,7 +1244,7 @@ class FatturaElettronicaBuilder(XsdBuilderBase):
         ...
 
 
-class FatturaElettronicaHandler(XsdHandler):
+class FatturaElettronicaHandler(XmlHandler):
     """Preset handler bound to :class:`FatturaElettronicaBuilder`."""
 
     builder_class = FatturaElettronicaBuilder

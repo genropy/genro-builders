@@ -1,6 +1,6 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 # GENERATED FILE - DO NOT EDIT MANUALLY.
-# Regenerate with: python -m genro_builders.contrib.xsd.codegen --xsd <path> --dialect-name Sitemap --output <path>
+# Regenerate with: python -m genro_builders.xml.transpiler --xsd <path> --dialect-name Sitemap --output <path>
 # Source targetNamespace: http://www.sitemaps.org/schemas/sitemap/0.9
 """XML Sitemap dialect, generated from sitemap.xsd (modelled on the public Sitemaps protocol 0.9). A small real-world XSD example: nested urlset/url, enumerated changefreq, bounded priority."""
 
@@ -10,10 +10,10 @@ from decimal import Decimal
 from typing import Annotated, Literal
 
 from genro_builders.builder import Range, element
-from genro_builders.contrib.xsd.xsd_builder import XsdBuilderBase, XsdHandler
+from genro_builders.xml import XmlBuilderBase, XmlHandler
 
 
-class SitemapBuilder(XsdBuilderBase):
+class SitemapBuilder(XmlBuilderBase):
     """XSD dialect grammar generated from namespace ``http://www.sitemaps.org/schemas/sitemap/0.9``.
     """
 
@@ -53,7 +53,7 @@ class SitemapBuilder(XsdBuilderBase):
         ...
 
 
-class SitemapHandler(XsdHandler):
+class SitemapHandler(XmlHandler):
     """Preset handler bound to :class:`SitemapBuilder`."""
 
     builder_class = SitemapBuilder

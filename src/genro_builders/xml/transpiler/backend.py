@@ -292,7 +292,7 @@ def _as_decimal(value: Any) -> Decimal | None:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python -m genro_builders.contrib.xsd.codegen.backend <schema.xsd>")
+        print("Usage: python -m genro_builders.xml.transpiler.backend <schema.xsd>")
         sys.exit(1)
     backend = XmlschemaBackend()
     model = backend.load(sys.argv[1])

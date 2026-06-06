@@ -1,28 +1,22 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Hierarchy + registration tests for the XSLT dialect.
 
-Verifies that the XSLT builder sits on the shared XML base, that XSD was
-re-parented onto the same base, that the dialect is registered under
-``xslt``, that it renders via the core ``XmlRenderer``, and that its
-grammar rejects unknown elements.
+Verifies that the XSLT builder sits on the shared XML base, that the
+dialect is registered under ``xslt``, that it renders via the core
+``XmlRenderer``, and that its grammar rejects unknown elements.
 """
 from __future__ import annotations
 
 import pytest
 
 from genro_builders.builder import BagBuilderBase
-from genro_builders.contrib.xml import XmlBuilderBase
-from genro_builders.contrib.xsd.xsd_builder import XsdBuilderBase
 from genro_builders.contrib.xslt import XsltBuilder, XsltBuilderHandler
+from genro_builders.xml import XmlBuilderBase
 
 
 def test_xslt_builder_is_xml_base():
     assert issubclass(XsltBuilder, XmlBuilderBase)
     assert XsltBuilder._default_render_mode == "xml"
-
-
-def test_xsd_reparented_on_xml_base():
-    assert issubclass(XsdBuilderBase, XmlBuilderBase)
 
 
 def test_xslt_registered():

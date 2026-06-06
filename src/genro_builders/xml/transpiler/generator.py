@@ -47,8 +47,8 @@ class PythonGenerator:
 
         ``dialect_name`` is the dialect's base name (e.g. ``Gpx``,
         ``FatturaElettronica``); the module declares two classes derived
-        from it: ``<dialect_name>Builder(XsdBuilderBase)`` carrying the
-        ``@element`` grammar, and ``<dialect_name>Handler(XsdHandler)``
+        from it: ``<dialect_name>Builder(XmlBuilderBase)`` carrying the
+        ``@element`` grammar, and ``<dialect_name>Handler(XmlHandler)``
         bound to it via ``builder_class``. The user subclasses the
         handler and implements ``main``.
         """
@@ -73,7 +73,7 @@ class PythonGenerator:
         out.write("# Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0\n")
         out.write("# GENERATED FILE - DO NOT EDIT MANUALLY.\n")
         out.write(
-            "# Regenerate with: python -m genro_builders.contrib.xsd.codegen "
+            "# Regenerate with: python -m genro_builders.xml.transpiler "
             "--xsd <path> --dialect-name "
             f"{dialect_name} --output <path>\n"
         )
@@ -122,8 +122,7 @@ class PythonGenerator:
             f"from genro_builders.builder import {', '.join(builder_imports)}\n"
         )
         out.write(
-            "from genro_builders.contrib.xsd.xsd_builder import "
-            "XsdBuilderBase, XsdHandler\n\n\n"
+            "from genro_builders.xml import XmlBuilderBase, XmlHandler\n\n\n"
         )
 
     def _write_builder(
@@ -132,7 +131,7 @@ class PythonGenerator:
         model: NamespaceModel,
         dialect_name: str,
     ) -> None:
-        out.write(f"class {dialect_name}Builder(XsdBuilderBase):\n")
+        out.write(f"class {dialect_name}Builder(XmlBuilderBase):\n")
         ns = model.target_namespace or "<no namespace>"
         out.write(
             f'    """XSD dialect grammar generated from namespace ``{ns}``.\n'
@@ -151,7 +150,7 @@ class PythonGenerator:
 
     def _write_handler(self, out: StringIO, dialect_name: str) -> None:
         out.write("\n")
-        out.write(f"class {dialect_name}Handler(XsdHandler):\n")
+        out.write(f"class {dialect_name}Handler(XmlHandler):\n")
         out.write(
             f'    """Preset handler bound to :class:`{dialect_name}Builder`."""\n\n'
         )
@@ -447,7 +446,7 @@ if __name__ == "__main__":
     from .backend import XmlschemaBackend
 
     if len(sys.argv) != 3:
-        print("Usage: python -m genro_builders.contrib.xsd.codegen.generator <schema.xsd> <DialectName>")
+        print("Usage: python -m genro_builders.xml.transpiler.generator <schema.xsd> <DialectName>")
         sys.exit(1)
     model = XmlschemaBackend().load(sys.argv[1])
     source = PythonGenerator().render(model, sys.argv[2])

@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from genro_builders.contrib.xsd.codegen import (
+from genro_builders.xml.transpiler import (
     AttributeModel,
     ChildModel,
     ElementModel,
@@ -29,14 +29,11 @@ def gen():
 def test_empty_model_yields_builder_and_handler_classes(gen):
     model = NamespaceModel(target_namespace="http://example.com/x")
     src = gen.render(model, "Demo")
-    assert "class DemoBuilder(XsdBuilderBase):" in src
-    assert "class DemoHandler(XsdHandler):" in src
+    assert "class DemoBuilder(XmlBuilderBase):" in src
+    assert "class DemoHandler(XmlHandler):" in src
     assert "builder_class = DemoBuilder" in src
     assert "from genro_builders.builder import element" in src
-    assert (
-        "from genro_builders.contrib.xsd.xsd_builder import "
-        "XsdBuilderBase, XsdHandler" in src
-    )
+    assert "from genro_builders.xml import XmlBuilderBase, XmlHandler" in src
     assert "GENERATED FILE" in src
 
 

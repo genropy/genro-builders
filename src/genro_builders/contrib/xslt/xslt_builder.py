@@ -18,8 +18,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from genro_builders.xml import XmlBuilderBase, XmlHandler
+
 from ..html.html5_elements import Html5Elements
-from ..xml.xml_builder import XmlBuilderBase, XmlHandler
 from .xslt_elements import XsltElements
 
 

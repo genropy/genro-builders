@@ -13,14 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders.contrib.xsd.examples.fatturapa import (
+from genro_builders.xml.examples.fatturapa import (
     FatturaElettronicaBuilder,
     FatturaElettronicaHandler,
 )
 
 _FATTURAPA_DIR = (
     Path(__file__).resolve().parents[2]
-    / "../src/genro_builders/contrib/xsd/examples/fatturapa"
+    / "../src/genro_builders/xml/examples/fatturapa"
 ).resolve()
 FATTURAPA_XSD = _FATTURAPA_DIR / "Schema_VFPA12_V1.2.3.xsd"
 FATTURAPA_GENERATED = _FATTURAPA_DIR / "fattura_elettronica.py"
@@ -41,7 +41,7 @@ def test_dialect_imports_without_xmlschema_dependency():
 
     pre_state = "xmlschema" in sys.modules
     importlib.import_module(
-        "genro_builders.contrib.xsd.examples.fatturapa.fattura_elettronica"
+        "genro_builders.xml.examples.fatturapa.fattura_elettronica"
     )
     post_state = "xmlschema" in sys.modules
     assert post_state == pre_state, (
@@ -121,7 +121,7 @@ def test_generated_signature_documents_enum_values():
     only: the declarative ``@element`` drops the signature at runtime)."""
     import inspect
 
-    from genro_builders.contrib.xsd.examples.fatturapa import (
+    from genro_builders.xml.examples.fatturapa import (
         fattura_elettronica as fe_module,
     )
 
@@ -143,11 +143,11 @@ def test_regeneration_is_byte_identical():
     pytest.importorskip("xmlschema")
     import warnings
 
-    from genro_builders.contrib.xsd.codegen import (
+    from genro_builders.xml.transpiler import (
         PythonGenerator,
         XmlschemaBackend,
     )
-    from genro_builders.contrib.xsd.codegen.backend import XsdCodegenWarning
+    from genro_builders.xml.transpiler.backend import XsdCodegenWarning
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", XsdCodegenWarning)
@@ -161,6 +161,6 @@ def test_regeneration_is_byte_identical():
     committed = FATTURAPA_GENERATED.read_text(encoding="utf-8")
     assert source == committed, (
         "Codegen output drifted from the committed file. Regenerate with: "
-        f"python -m genro_builders.contrib.xsd.codegen --xsd {FATTURAPA_XSD} "
+        f"python -m genro_builders.xml.transpiler --xsd {FATTURAPA_XSD} "
         f"--dialect-name FatturaElettronica --output {FATTURAPA_GENERATED}"
     )

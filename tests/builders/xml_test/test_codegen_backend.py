@@ -15,8 +15,8 @@ import pytest
 
 xmlschema = pytest.importorskip("xmlschema")  # noqa: F401
 
-from genro_builders.contrib.xsd.codegen import XmlschemaBackend  # noqa: E402
-from genro_builders.contrib.xsd.codegen.backend import (  # noqa: E402
+from genro_builders.xml.transpiler import XmlschemaBackend  # noqa: E402
+from genro_builders.xml.transpiler.backend import (  # noqa: E402
     XsdCodegenWarning,
     _as_decimal,
     _xsd_builtin_to_base,

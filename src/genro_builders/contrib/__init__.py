@@ -4,16 +4,14 @@
 These are shipped with genro-builders but are not part of the core
 framework. They are optional and only loaded when explicitly imported.
 
-Aligned with the current ``BuilderHandler`` contract (post 2026-05-12
-renegotiation of decision 8):
+Dialects with a grammar (concrete builders, instantiated by users):
     - ``genro_builders.contrib.html`` — HtmlBuilder (W3C HTML5)
     - ``genro_builders.contrib.svg`` — SvgBuilder
     - ``genro_builders.contrib.css`` — CssBuilder (level 1)
+    - ``genro_builders.contrib.xslt`` — XsltBuilder (XSLT 1.0 stylesheets)
 
-Not yet aligned (import succeeds but objects are not functional under
-the current contract; candidates for rewrite or archival):
-    - ``genro_builders.contrib.xsd``
-    - ``genro_builders.contrib.data``
+The abstract XML base and the schema transpiler live in the core
+(``genro_builders.xml``), not here: they are bases, not dialects.
 
 Archived (moved to ``archive/contrib/``; will return under a future
 subtask when the framework supports the features they require):

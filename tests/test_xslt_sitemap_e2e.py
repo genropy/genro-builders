@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from lxml import etree
 
-from genro_builders.contrib.xsd.examples.sitemap import SitemapHandler
 from genro_builders.contrib.xslt import XsltBuilderHandler
+from genro_builders.xml.examples.sitemap import SitemapHandler
 
 XSL = "http://www.w3.org/1999/XSL/Transform"
 

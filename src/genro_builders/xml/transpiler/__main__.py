@@ -3,7 +3,7 @@
 
 Usage::
 
-    python -m genro_builders.contrib.xsd.codegen \\
+    python -m genro_builders.xml.transpiler \\
         --xsd path/to/schema.xsd \\
         --dialect-name FatturaElettronica \\
         --output path/to/fattura_elettronica.py
@@ -26,7 +26,7 @@ from .generator import PythonGenerator
 def main(argv: list[str] | None = None) -> int:
     """Parse args, run the XSD backend + generator, write the module."""
     parser = argparse.ArgumentParser(
-        prog="python -m genro_builders.contrib.xsd.codegen",
+        prog="python -m genro_builders.xml.transpiler",
         description="Generate a Python element mixin from an XSD schema.",
     )
     parser.add_argument(

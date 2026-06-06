@@ -18,17 +18,18 @@ with pointers resolved and framework markers filtered.
 
 from __future__ import annotations
 
-from ...builder import BagBuilderBase
-from ...builder_handler import BuilderHandler
+from genro_builders.builder import BagBuilderBase
+from genro_builders.builder_handler import BuilderHandler
 
 
 class XmlBuilderBase(BagBuilderBase):
     """Grammar base for dialects whose on-the-wire format is XML.
 
-    The default render mode is ``xml``. Concrete bases (``XsdBuilderBase``,
-    ``XsltBuilder``, ...) subclass this and add their ``@element``
-    vocabulary. Left unregistered (``_name = None``): it is an abstract
-    anchor, not a usable dialect.
+    The default render mode is ``xml``. Concrete dialects (``XsltBuilder``,
+    the schema-generated ``SitemapBuilder``/``FatturaElettronicaBuilder``,
+    ...) subclass this and add their ``@element`` vocabulary. Left
+    unregistered (``_name = None``): it is an abstract anchor, not a
+    usable dialect.
     """
 
     _default_render_mode = "xml"
