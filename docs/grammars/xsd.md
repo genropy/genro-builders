@@ -24,7 +24,7 @@ editors), not a full XSD validator.
 from genro_builders.contrib.xsd.xsd_builder import XsdBuilderBase, XsdHandler
 ```
 
-- `XsdBuilderBase(BagBuilderBase)` — grammar base for XSD-born dialects;
+- `XsdBuilderBase(BuilderBase)` — grammar base for XSD-born dialects;
   default render mode is `xml`.
 - `XsdHandler(BuilderHandler)` — engine preset; a concrete handler binds
   `builder_class`.

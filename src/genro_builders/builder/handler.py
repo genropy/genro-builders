@@ -6,7 +6,7 @@ The handler owns:
     - two wrapper bags, ``_sourceroot`` and ``_dataroot``, each holding
       the live payload under the key ``"main"``:
 
-          _sourceroot["main"] = BuilderBag(...)      # alias: self.source
+          _sourceroot["main"] = SourceBag(...)      # alias: self.source
           _dataroot  ["main"] = Bag()                # alias: self.data
 
       Wrapping the payload under a stable root lets the subscription
@@ -45,8 +45,8 @@ from typing import Any
 
 from genro_bag import Bag
 
-from .base import BagBuilderBase
-from .source_bag import BuilderBag, BuilderBagNode
+from .base import BuilderBase
+from .source_bag import SourceBag, SourceBagNode
 
 
 class BuilderHandler:
@@ -121,15 +121,15 @@ class BuilderHandler:
         # application; reactivity is the relationship, not an internal flag.
         self.application = application
         self.builder = self.builder_class()
-        self._sourceroot: BuilderBag = BuilderBag(
+        self._sourceroot: SourceBag = SourceBag(
             builder=self.builder, handler=self,
         )
-        self._dataroot: BuilderBag = BuilderBag(
+        self._dataroot: SourceBag = SourceBag(
             builder=self.builder, handler=self,
         )
-        self._sourceroot["main"] = BuilderBag(builder=self.builder, handler=self)
+        self._sourceroot["main"] = SourceBag(builder=self.builder, handler=self)
         self._dataroot["main"] = Bag()
-        self.source: BuilderBag = self._sourceroot["main"]
+        self.source: SourceBag = self._sourceroot["main"]
         self.data: Bag = self._dataroot["main"]
         # HND.2 — wrapper-root strutturale: backref acceso sempre, in modo
         # esplicito. Serve a abs_datapath e alla risalita ancestor in genere.
@@ -143,9 +143,9 @@ class BuilderHandler:
         self._default_render_mode: str | None = None
         # DAT.2 — mappa delle dipendenze pointer popolata da
         # ``register_pointer``. Chiave esterna = path assoluto (output di
-        # ``abs_datapath``); valore = dict ``{id(node): node}`` (BuilderBagNode
+        # ``abs_datapath``); valore = dict ``{id(node): node}`` (SourceBagNode
         # non è hashable, indicizziamo per ``id`` per add/remove O(1)).
-        self.pointer_map: dict[str, dict[int, BuilderBagNode]] = {}
+        self.pointer_map: dict[str, dict[int, SourceBagNode]] = {}
         # RX livello 0 — flag di abilitazione reattività: acceso da
         # create() dopo aver armato le subscribe. live() lo esige (DR5):
         # senza, una mutazione resterebbe muta (subscribe non armate) e
@@ -402,11 +402,11 @@ class BuilderHandler:
         """
         return self._get_renderer(None)
 
-    def new_root(self) -> BuilderBag:
+    def new_root(self) -> SourceBag:
         """Shortcut for ``self.builder.new_root()``.
 
-        Returns a throw-away ``BuilderBag`` driven by this handler's
-        builder, with no handler attached. See ``BagBuilderBase.new_root``
+        Returns a throw-away ``SourceBag`` driven by this handler's
+        builder, with no handler attached. See ``BuilderBase.new_root``
         for the full contract.
         """
         return self.builder.new_root()
@@ -419,15 +419,15 @@ class BuilderHandler:
         """Return a sub-builder instance by canonical name.
 
         Looks up the class in the global registry via
-        :meth:`BagBuilderBase.get_builder_class` and instantiates it.
+        :meth:`BuilderBase.get_builder_class` and instantiates it.
         """
-        return BagBuilderBase.get_builder_class(name)()
+        return BuilderBase.get_builder_class(name)()
 
     # ------------------------------------------------------------------
     # Wrapper-root subscriptions (decision 11 + HWR refactor)
     # ------------------------------------------------------------------
 
-    def _on_source_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
+    def _on_source_event(self, node: SourceBagNode, evt: str, **kw: Any) -> None:
         """Internal dispatcher for events on ``_sourceroot``.
 
         First maintains ``self.pointer_map`` coherent across the
@@ -454,7 +454,7 @@ class BuilderHandler:
         if self._live_active:
             self.render(target=self._live_target)
 
-    def _on_data_event(self, node: BuilderBagNode, evt: str, **kw: Any) -> None:
+    def _on_data_event(self, node: SourceBagNode, evt: str, **kw: Any) -> None:
         """Internal dispatcher for events on ``_dataroot``.
 
         Runs :meth:`compute_logic` for the mutated path FIRST (so dependent
@@ -492,7 +492,7 @@ class BuilderHandler:
         if self._live_active:
             self.render(target=self._live_target)
 
-    def node_by_id(self, node_id: str) -> BuilderBagNode:
+    def node_by_id(self, node_id: str) -> SourceBagNode:
         """Return the source node carrying ``node_id``.
 
         Walk-based lookup over the source tree. Raises ``KeyError`` if
@@ -507,7 +507,7 @@ class BuilderHandler:
     # Reactive cascade (compute)
     # ------------------------------------------------------------------
 
-    def _nodes_to_compute(self, path: str) -> list[BuilderBagNode]:
+    def _nodes_to_compute(self, path: str) -> list[SourceBagNode]:
         """Collect the data-element nodes that depend on a mutated ``path``.
 
         Three matches against ``pointer_map`` (whose keys are absolute data
@@ -526,7 +526,7 @@ class BuilderHandler:
         excluded by construction. Deduped by ``id(node)`` (a node may match
         from several keys).
         """
-        seen: dict[int, BuilderBagNode] = {}
+        seen: dict[int, SourceBagNode] = {}
         for key, inner in self.pointer_map.items():
             kp = key.split("?", 1)[0]
             if kp == path or kp.startswith(path + ".") or path.startswith(kp + "."):
@@ -535,7 +535,7 @@ class BuilderHandler:
                         seen[node_id] = node
         return list(seen.values())
 
-    def compute_logic(self, nodes: Iterable[BuilderBagNode]) -> None:
+    def compute_logic(self, nodes: Iterable[SourceBagNode]) -> None:
         """Execute a list of data-element nodes.
 
         The single executor, shared by both entry points: the first
@@ -554,7 +554,7 @@ class BuilderHandler:
         for node in nodes:
             self._compute_node(node)
 
-    def _compute_node(self, node: BuilderBagNode) -> None:
+    def _compute_node(self, node: SourceBagNode) -> None:
         """Execute a single data-element node according to its kind.
 
         ``kind`` is the node tag (``data_formula`` / ``data_controller``).
@@ -587,7 +587,7 @@ class BuilderHandler:
                 func = self._resolve_logic_func(node.attr["func"])
                 func(node, **self._bindings(node))
 
-    def _bindings(self, node: BuilderBagNode) -> dict[str, Any]:
+    def _bindings(self, node: SourceBagNode) -> dict[str, Any]:
         """Resolve a data-element node's bindings via :meth:`runtime_values`.
 
         The single resolution point (``^``/``=`` pointers, ``${}`` templates,
@@ -660,7 +660,7 @@ class BuilderHandler:
     # Pointer map (DAT.2)
     # ------------------------------------------------------------------
 
-    def register_pointer(self, node: BuilderBagNode, unregister: bool = False) -> None:
+    def register_pointer(self, node: SourceBagNode, unregister: bool = False) -> None:
         """Update ``self.pointer_map`` for the subtree rooted at ``node``.
 
         Walks the subtree recursively. For each visited node, collects
@@ -676,7 +676,7 @@ class BuilderHandler:
             - pointer on ``node.value``    → key = ``abs_datapath(node, pointer)``
             - pointer on ``node.attr[a]``  → key = ``abs_datapath(node, pointer) + "?" + a``
 
-        Map value: ``{id(node): node}`` (``BuilderBagNode`` is not
+        Map value: ``{id(node): node}`` (``SourceBagNode`` is not
         hashable, so we index by ``id`` for O(1) add/remove).
 
         ``unregister=False`` (default) — add. ``unregister=True`` —
@@ -690,17 +690,17 @@ class BuilderHandler:
         propagated.
         """
         self._update_pointer_map(node, node.pointers(), unregister)
-        # Recurse only into builder structure (BuilderBag), never into a plain
+        # Recurse only into builder structure (SourceBag), never into a plain
         # Bag value: that is data payload (e.g. a data_setter whose value is a
         # Bag), whose children are plain BagNodes without ``pointers()``. The
-        # source tree to index is made of BuilderBag/BuilderBagNode.
-        if isinstance(node.value, BuilderBag):
+        # source tree to index is made of SourceBag/SourceBagNode.
+        if isinstance(node.value, SourceBag):
             for child in node.value:
                 self.register_pointer(child, unregister=unregister)
 
     def _update_pointer_map(
         self,
-        node: BuilderBagNode,
+        node: SourceBagNode,
         pointers: list[tuple[str, str]],
         unregister: bool,
     ) -> None:
@@ -736,7 +736,7 @@ class BuilderHandler:
             return "pointer"
         return "scalar"
 
-    def _on_upd_value(self, node: BuilderBagNode, oldvalue: Any) -> None:
+    def _on_upd_value(self, node: SourceBagNode, oldvalue: Any) -> None:
         """Keep ``self.pointer_map`` coherent across an ``upd_value`` event.
 
         Dispatches over the 9 transitions of (old kind, new kind) where
@@ -780,7 +780,7 @@ class BuilderHandler:
                 for child in new:
                     self.register_pointer(child)
 
-    def _on_upd_attrs(self, node: BuilderBagNode, attrs_diff: dict) -> None:
+    def _on_upd_attrs(self, node: SourceBagNode, attrs_diff: dict) -> None:
         """Keep ``self.pointer_map`` coherent across an ``upd_attrs`` event.
 
         ``attrs_diff`` is the per-attribute diff produced by ``genro_bag``:
@@ -807,7 +807,7 @@ class BuilderHandler:
 
     def on_source_change(
         self,
-        node: BuilderBagNode,
+        node: SourceBagNode,
         evt: str,
         evt_detail: str | None = None,
         **kw: Any,
@@ -824,7 +824,7 @@ class BuilderHandler:
 
     def on_data_change(
         self,
-        node: BuilderBagNode,
+        node: SourceBagNode,
         evt: str,
         evt_detail: str | None = None,
         **kw: Any,
@@ -848,7 +848,7 @@ class BuilderHandler:
         (setup) and the structure (main) as two clearly separate steps.
         """
 
-    def main(self, root: BuilderBag) -> None:
+    def main(self, root: SourceBag) -> None:
         """Override in subclass to populate the source bag."""
         raise NotImplementedError(
             f"{type(self).__name__}.main(root) must be implemented by the subclass",

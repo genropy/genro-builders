@@ -45,9 +45,9 @@ The source bag is inspectable as `page.source` after `create()`.
 A builder declares its grammar via decorators on methods:
 
 ```python
-from genro_builders.builder import BagBuilderBase, element
+from genro_builders.builder import BuilderBase, element
 
-class MyBuilder(BagBuilderBase):
+class MyBuilder(BuilderBase):
 
     @element(sub_tags='body')
     def html(self): ...

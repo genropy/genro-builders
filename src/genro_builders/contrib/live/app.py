@@ -271,7 +271,7 @@ class LiveDemoApp(AsgiApplication):
         if value is None:
             node_info["value"] = {"kind": "none"}
             return node_info
-        # A BuilderBag/Bag value means children — recurse.
+        # A SourceBag/Bag value means children — recurse.
         if hasattr(value, "__iter__") and not isinstance(value, (str, bytes)):
             children = [self._serialize_source_node(child) for child in value]
             node_info["value"] = {"kind": "bag"}

@@ -142,7 +142,7 @@ def _class_schema_to_grammar_document(cls: type) -> dict[str, Any]:
 
     Reads ``cls._class_schema`` and returns a dict ready to be
     serialised with ``json.dumps``. Does not write to disk; the
-    classmethod ``to_grammar`` on ``BagBuilderBase`` handles I/O.
+    classmethod ``to_grammar`` on ``BuilderBase`` handles I/O.
 
     Sections are always present (empty dict if no entries). Top-level
     keys are emitted in this order:

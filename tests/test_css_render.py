@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from genro_builders import BagBuilderBase
+from genro_builders import BuilderBase
 from genro_builders.contrib.css import CssBuilder, CssBuilderHandler
 
 
@@ -27,7 +27,7 @@ def _render(main_fn, **render_kwargs):
 
 
 def test_css_builder_is_registered():
-    assert BagBuilderBase.get_builder_class("css") is CssBuilder
+    assert BuilderBase.get_builder_class("css") is CssBuilder
 
 
 def test_css_builder_has_canonical_name():

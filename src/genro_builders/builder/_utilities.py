@@ -284,14 +284,14 @@ def _pop_decorated_methods(cls: type, builder_base: type):
     sub-builders are @element marked via _meta, not separate
     decorators) from:
     1. The class itself (cls.__dict__) -- removed with delattr
-    2. Mixin bases in MRO that are not BagBuilderBase subclasses
+    2. Mixin bases in MRO that are not BuilderBase subclasses
 
     Methods defined directly on cls take priority over mixin methods.
     Mixin methods are NOT removed from their defining class.
 
     Args:
         cls: The class being processed.
-        builder_base: The BagBuilderBase class (passed to avoid circular import).
+        builder_base: The BuilderBase class (passed to avoid circular import).
     """
     seen: set[str] = set()
 
@@ -305,9 +305,9 @@ def _pop_decorated_methods(cls: type, builder_base: type):
         if base is cls or base is object:
             continue
         if base is builder_base:
-            # BagBuilderBase contributes no schema elements via this path:
+            # BuilderBase contributes no schema elements via this path:
             # the three data-elements it declares are injected into every
-            # subclass schema by BagBuilderBase._add_data_elements.
+            # subclass schema by BuilderBase._add_data_elements.
             continue
         if issubclass(base, builder_base):
             continue

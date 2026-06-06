@@ -1,9 +1,9 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Builder-aware Bag and BagNode — level 1 of the bag/node layering.
 
-Decision 3: ``BuilderBag`` and ``BuilderBagNode`` are obtained by
-combining ``Bag`` with ``_BuilderBagMixin`` and ``BagNode`` with
-``_BuilderBagNodeMixin``. The grammar-aware logic lives in the mixins;
+Decision 3: ``SourceBag`` and ``SourceBagNode`` are obtained by
+combining ``Bag`` with ``_SourceBagMixin`` and ``BagNode`` with
+``_SourceBagNodeMixin``. The grammar-aware logic lives in the mixins;
 the base classes from ``genro-bag`` stay untouched.
 
 Decision 10: every node carries two slots, ``_builder`` and
@@ -12,8 +12,8 @@ Decision 10: every node carries two slots, ``_builder`` and
 at attach time. Immutability is convention-only during the restart
 (see ``feedback_lightweight_nodes.md``).
 
-This module defines the bag/node pair (``BuilderBag`` /
-``BuilderBagNode``): a Bag/BagNode carrying the active builder and
+This module defines the bag/node pair (``SourceBag`` /
+``SourceBagNode``): a Bag/BagNode carrying the active builder and
 handler plus grammar-aware attribute resolution. The handler populates
 one as ``self.source``.
 """
@@ -47,11 +47,11 @@ def _dispatch_struct_method(handler: Any, target: Any, name: str) -> Any | None:
     return lambda *args, **kwargs: bound(target, *args, **kwargs)
 
 
-class _BuilderBagNodeMixin:
+class _SourceBagNodeMixin:
     """Builder-aware logic for nodes: schema dispatch via __getattr__.
 
     The actual slots ``_builder``/``_handler`` are declared on the
-    final ``BuilderBagNode`` class (BagNode itself uses __slots__,
+    final ``SourceBagNode`` class (BagNode itself uses __slots__,
     so the slots must live on the concrete class to avoid a layout
     conflict).
     """
@@ -123,7 +123,7 @@ class _BuilderBagNodeMixin:
         handler (one node_id namespace per handler, subbuilders included).
 
         When the bag has no handler attached (off-line subtree built via
-        ``BagBuilderBase.new_root``), the check is a no-op: uniqueness
+        ``BuilderBase.new_root``), the check is a no-op: uniqueness
         will be enforced — and is the user's responsibility to respect —
         only once the subtree is attached to a live source.
         """
@@ -239,7 +239,7 @@ class _BuilderBagNodeMixin:
         trailing dot (so ``.?b`` -> ``triangolo?b``, not ``triangolo.?b``).
         """
         # ``current`` typed as Any: the mixin is combined with BagNode
-        # at runtime to form BuilderBagNode, but pyright analyses the
+        # at runtime to form SourceBagNode, but pyright analyses the
         # mixin in isolation and can't see the eventual concrete shape.
         current: Any = self
         while current is not None and path.startswith("."):
@@ -621,7 +621,7 @@ class _BuilderBagNodeMixin:
         return sorted(base)
 
 
-class _BuilderBagMixin:
+class _SourceBagMixin:
     """Builder-aware logic for bags: schema dispatch via __getattribute__.
 
     Bag itself does not use __slots__, so ``_builder``/``_handler``
@@ -680,7 +680,7 @@ class _BuilderBagMixin:
         return sorted(base)
 
 
-class BuilderBagNode(BagNode, _BuilderBagNodeMixin):
+class SourceBagNode(BagNode, _SourceBagNodeMixin):
     """BagNode with builder-aware attribute dispatch."""
 
     __slots__ = ("_builder", "_handler")
@@ -692,14 +692,14 @@ class BuilderBagNode(BagNode, _BuilderBagNodeMixin):
     _handler: Any
 
 
-class BuilderBag(Bag, _BuilderBagMixin):
+class SourceBag(Bag, _SourceBagMixin):
     """Bag with builder-aware attribute dispatch.
 
     The handler instantiates one as ``self.source``; ``new_root``
     returns a detached one for offline subtree building.
     """
 
-    _node_class: type[BagNode] = BuilderBagNode
+    _node_class: type[BagNode] = SourceBagNode
 
     def __init__(
         self,
@@ -712,7 +712,7 @@ class BuilderBag(Bag, _BuilderBagMixin):
 
         Args:
             source: Optional dict to seed the Bag (mirrors ``Bag.__init__``).
-            builder: BagBuilderBase instance whose schema drives attribute
+            builder: BuilderBase instance whose schema drives attribute
                 dispatch on this bag (and on nodes attached to it).
             handler: BuilderHandler that owns the tree this bag belongs to.
         """

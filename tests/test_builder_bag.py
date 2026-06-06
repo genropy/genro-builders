@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for ``BuilderBag`` / ``BuilderBagNode``.
+"""Tests for ``SourceBag`` / ``SourceBagNode``.
 
 The genro-bag base classes combined with the builder-aware mixins:
 they carry the active builder/handler and grammar-aware attribute
@@ -9,30 +9,30 @@ from __future__ import annotations
 
 from genro_bag import Bag, BagNode
 
-from genro_builders import BuilderBag, BuilderBagNode
+from genro_builders import SourceBag, SourceBagNode
 
 
 def test_builder_bag_inherits_from_bag():
-    """Decision 3: BuilderBag is Bag + mixin."""
-    assert issubclass(BuilderBag, Bag)
+    """Decision 3: SourceBag is Bag + mixin."""
+    assert issubclass(SourceBag, Bag)
 
 
 def test_builder_bag_node_inherits_from_bag_node():
-    """Decision 3: BuilderBagNode is BagNode + mixin."""
-    assert issubclass(BuilderBagNode, BagNode)
+    """Decision 3: SourceBagNode is BagNode + mixin."""
+    assert issubclass(SourceBagNode, BagNode)
 
 
 def test_builder_bag_uses_builder_bag_node_as_node_class():
-    """Nodes attached to a BuilderBag must be BuilderBagNode instances."""
-    bag = BuilderBag()
+    """Nodes attached to a SourceBag must be SourceBagNode instances."""
+    bag = SourceBag()
     bag.set_item("hello", "world")
     node = bag.get_node("hello")
-    assert isinstance(node, BuilderBagNode)
+    assert isinstance(node, SourceBagNode)
 
 
 def test_builder_bag_carries_builder_and_handler_slots():
     """Decision 10: bag exposes _builder and _handler attributes."""
-    bag = BuilderBag()
+    bag = SourceBag()
     assert bag._builder is None
     assert bag._handler is None
 
@@ -43,7 +43,7 @@ def test_builder_bag_node_has_builder_and_handler_slots():
     Slots default to AttributeError when unset; this test sets them
     explicitly to confirm both slots accept values.
     """
-    bag = BuilderBag()
+    bag = SourceBag()
     bag.set_item("alfa", None)
     node = bag.get_node("alfa")
     node._builder = "fake-builder"
@@ -56,14 +56,14 @@ def test_builder_bag_accepts_builder_and_handler_in_init():
     """Decision 4: bags receive their handler at construction."""
     sentinel_builder = object()
     sentinel_handler = object()
-    bag = BuilderBag(builder=sentinel_builder, handler=sentinel_handler)
+    bag = SourceBag(builder=sentinel_builder, handler=sentinel_handler)
     assert bag._builder is sentinel_builder
     assert bag._handler is sentinel_handler
 
 
 def test_builder_bag_without_builder_falls_back_to_normal_attribute_lookup():
     """A bag without a builder behaves like a plain Bag for attribute access."""
-    bag = BuilderBag()
+    bag = SourceBag()
     bag.set_item("greeting", "hello")
     # No builder attached: 'greeting' resolves through the regular
     # ``__getattribute__`` path and would not exist as an attribute,
@@ -81,7 +81,7 @@ def test_builder_bag_dispatches_to_schema_when_builder_attached():
             return ("bag_call", bag, name)
 
     builder = FakeBuilder()
-    bag = BuilderBag(builder=builder)
+    bag = SourceBag(builder=builder)
     result = bag.div
     assert result == ("bag_call", bag, "div")
 
@@ -95,7 +95,7 @@ def test_builder_bag_node_dispatches_to_builder_when_tag_known():
         def _command_on_node(self, node, tag, node_position=None, node_value=None, **attrs):
             return ("cmd", node, tag, node_value, attrs)
 
-    bag = BuilderBag()
+    bag = SourceBag()
     bag.set_item("root", None)
     node = bag.get_node("root")
     node._builder = FakeBuilder()
@@ -110,7 +110,7 @@ def test_builder_bag_node_unknown_tag_raises_attribute_error():
     class FakeBuilder:
         _schema_tag_names = {"div": "div"}
 
-    bag = BuilderBag()
+    bag = SourceBag()
     bag.set_item("root", None)
     node = bag.get_node("root")
     node._builder = FakeBuilder()

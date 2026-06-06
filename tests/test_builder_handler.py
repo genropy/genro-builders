@@ -4,7 +4,7 @@
 The handler is the engine that drives a single Builder through the
 create/render lifecycle. These tests exercise:
     - construction binds builder_class to ``self.builder``;
-    - ``self.source`` is a BuilderBag;
+    - ``self.source`` is a SourceBag;
     - ``create()`` calls user-defined ``main(source)``;
     - ``render()`` delegates to the builder renderer with source,
       mode and render_target;
@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 from genro_bag import Bag
 
-from genro_builders import BuilderBag
+from genro_builders import SourceBag
 from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilderHandler
 
@@ -86,7 +86,7 @@ def test_handler_instantiates_builder_and_source():
     """Decision 4: handler holds builder + source bag."""
     h = _StubHandler()
     assert isinstance(h.builder, _RecordingBuilder)
-    assert isinstance(h.source, BuilderBag)
+    assert isinstance(h.source, SourceBag)
 
 
 def test_handler_attaches_itself_to_source():
@@ -163,11 +163,11 @@ def test_node_id_cleaned_on_delete():
 
 
 def test_handler_has_sourceroot_wrapper():
-    """_sourceroot is a plain Bag holding the source BuilderBag under 'main'."""
+    """_sourceroot is a plain Bag holding the source SourceBag under 'main'."""
     h = _StubHandler()
     assert isinstance(h._sourceroot, Bag)
     assert "main" in h._sourceroot
-    assert isinstance(h._sourceroot["main"], BuilderBag)
+    assert isinstance(h._sourceroot["main"], SourceBag)
 
 
 def test_handler_has_dataroot_wrapper():

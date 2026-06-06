@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BagBuilderBase — grammar base class for Bag builders.
+"""BuilderBase — grammar base class for Bag builders.
 
 A builder declares the grammar of a dialect via decorators
 (@element, @abstract, @subbuilder) and the schema of valid tag
@@ -10,7 +10,7 @@ responsibilities — source, the create/render phases, render_target,
 node_id lookup — live on the BuilderHandler (decisions 1, 8, 9).
 
 Exports:
-    BagBuilderBase: Base class for all builders.
+    BuilderBase: Base class for all builders.
 """
 
 from __future__ import annotations
@@ -34,10 +34,10 @@ from ._utilities import (
     _iter_data_element_methods,
     _pop_decorated_methods,
 )
-from .source_bag import BuilderBag
+from .source_bag import SourceBag
 
 
-class BagBuilderBase(
+class BuilderBase(
     _GrammarMixin,
     ABC,
 ):
@@ -112,7 +112,7 @@ class BagBuilderBase(
         if cls._class_schema.get_node("_abstracts") is None:
             cls._class_schema.set_item("_abstracts", Bag())
 
-        for tag_list, method_name, obj, decorator_info in _pop_decorated_methods(cls, BagBuilderBase):
+        for tag_list, method_name, obj, decorator_info in _pop_decorated_methods(cls, BuilderBase):
             if method_name:
                 setattr(cls, method_name, obj)
 
@@ -145,12 +145,12 @@ class BagBuilderBase(
                         call_args_validations=call_args_validations,
                     )
 
-        # Inject the data-element stubs declared on BagBuilderBase into this
+        # Inject the data-element stubs declared on BuilderBase into this
         # subclass schema. They are @element marked with _meta['data_element'];
         # _pop_decorated_methods skips the base, so they reach every dialect
         # only here. Injected AFTER the dialect's own elements so a data-element
         # (e.g. ``data``) overrides a same-named dialect tag (e.g. HTML <data>).
-        for tag_list, obj, decorator_info in _iter_data_element_methods(BagBuilderBase):
+        for tag_list, obj, decorator_info in _iter_data_element_methods(BuilderBase):
             call_args_validations = _extract_validators_from_signature(obj)
             for tag in tag_list:
                 cls._class_schema.set_item(
@@ -205,13 +205,13 @@ class BagBuilderBase(
                 raise TypeError(
                     f"{cls.__name__}._name must be str, got {type(name).__name__}"
                 )
-            existing_builder = BagBuilderBase._registry.get(name)
+            existing_builder = BuilderBase._registry.get(name)
             if existing_builder is not None and existing_builder is not cls:
                 raise ValueError(
                     f"Builder name {name!r} already registered to "
                     f"{existing_builder.__name__}; cannot register {cls.__name__}"
                 )
-            BagBuilderBase._registry[name] = cls
+            BuilderBase._registry[name] = cls
 
     @classmethod
     def get_builder_class(cls, name: str) -> type:
@@ -228,11 +228,11 @@ class BagBuilderBase(
             LookupError: if no builder is registered under ``name``
                 after the auto-import attempt.
         """
-        if name not in BagBuilderBase._registry:
+        if name not in BuilderBase._registry:
             with contextlib.suppress(ImportError):
                 __import__(f"genro_builders.contrib.{name}")
         try:
-            return BagBuilderBase._registry[name]
+            return BuilderBase._registry[name]
         except KeyError:
             raise LookupError(f"No builder registered with name {name!r}") from None
 
@@ -290,8 +290,8 @@ class BagBuilderBase(
         """
         return YamlRenderer(builder=self)
 
-    def new_root(self) -> BuilderBag:
-        """Return a fresh, throw-away ``BuilderBag`` driven by this builder.
+    def new_root(self) -> SourceBag:
+        """Return a fresh, throw-away ``SourceBag`` driven by this builder.
 
         The returned source carries this builder (so the grammar API
         works: ``root.div(...)`` etc.) and has backref enabled (so
@@ -304,7 +304,7 @@ class BagBuilderBase(
         on the live source triggers ``register_pointer`` for the new
         subtree. The throw-away root itself is not retained by anything.
         """
-        root = BuilderBag(builder=self, handler=None)
+        root = SourceBag(builder=self, handler=None)
         root.set_backref()
         return root
 
@@ -347,7 +347,7 @@ class BagBuilderBase(
     #: root), not markup: it is read by ``abs_datapath`` along the
     #: ancestor chain, never emitted. A dialect that introduces a new
     #: node-meta extends this set, e.g.
-    #: ``_meta_attrs = BagBuilderBase._meta_attrs | {"_my_marker"}``.
+    #: ``_meta_attrs = BuilderBase._meta_attrs | {"_my_marker"}``.
     _meta_attrs: frozenset[str] = frozenset(
         {"node_id", "_meta", "_anchor", "datapath"},
     )

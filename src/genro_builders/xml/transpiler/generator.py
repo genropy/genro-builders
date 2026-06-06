@@ -4,7 +4,7 @@
 The output is a standalone module that declares one class with
 ``@element`` methods for every element in the model. The generated
 class is meant to be used as a **mixin**: a concrete builder pairs it
-with :class:`~genro_builders.builder.BagBuilderBase`, optionally
+with :class:`~genro_builders.builder.BuilderBase`, optionally
 mixed with a renderer registration in ``__init__``. This matches the
 ``Html5Elements`` / ``HtmlBuilder`` pattern in ``contrib/html``.
 

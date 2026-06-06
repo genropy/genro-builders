@@ -11,14 +11,14 @@ from ._decorators import (
     struct_method,
 )
 from ._validators import Range, Regex
-from .base import BagBuilderBase
+from .base import BuilderBase
 from .handler import BuilderHandler
-from .source_bag import BuilderBag, BuilderBagNode
+from .source_bag import SourceBag, SourceBagNode
 
 __all__ = [
-    "BagBuilderBase",
-    "BuilderBag",
-    "BuilderBagNode",
+    "BuilderBase",
+    "SourceBag",
+    "SourceBagNode",
     "BuilderHandler",
     "Range",
     "Regex",

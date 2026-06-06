@@ -28,7 +28,7 @@ from .base import RendererBase
 class YamlRenderer(RendererBase):
     """Renderer of the shared ``yaml`` mode.
 
-    Exposed by ``BagBuilderBase.renderer_yaml`` so every dialect can
+    Exposed by ``BuilderBase.renderer_yaml`` so every dialect can
     serialize its tree to YAML. Unlike XML/HTML/CSS (which emit text
     fragments), each node yields a *structure* fragment — a ``(tag,
     value)`` pair — and ``finalize`` folds the top-level fragments into a

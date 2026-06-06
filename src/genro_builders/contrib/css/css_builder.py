@@ -25,12 +25,12 @@ import ast
 from pathlib import Path
 from typing import Any
 
-from ...builder import BagBuilderBase
+from ...builder import BuilderBase
 from .css_elements import CssElements
 from .css_renderer import CssRenderer
 
 
-class CssBuilder(BagBuilderBase, CssElements):
+class CssBuilder(BuilderBase, CssElements):
     """CSS dialect builder. Grammar only — rendering on
     ``CssRenderer``, exposed via the ``renderer_css`` property."""
 

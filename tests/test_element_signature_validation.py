@@ -18,10 +18,10 @@ from typing import Annotated
 
 import pytest
 
-from genro_builders.builder import BagBuilderBase, Regex, element
+from genro_builders.builder import BuilderBase, Regex, element
 
 
-class _CountryBuilder(BagBuilderBase):
+class _CountryBuilder(BuilderBase):
     _name = "test_country"
     _default_render_mode = "xml"
 

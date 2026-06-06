@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from genro_builders.builder import BagBuilderBase
+from genro_builders.builder import BuilderBase
 from genro_builders.contrib.xslt import XsltBuilder, XsltBuilderHandler
 from genro_builders.xml import XmlBuilderBase
 
@@ -20,7 +20,7 @@ def test_xslt_builder_is_xml_base():
 
 
 def test_xslt_registered():
-    assert BagBuilderBase.get_builder_class("xslt") is XsltBuilder
+    assert BuilderBase.get_builder_class("xslt") is XsltBuilder
 
 
 def test_renderer_is_xmlrenderer():

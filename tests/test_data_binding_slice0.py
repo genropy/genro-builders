@@ -3,8 +3,8 @@
 
 Covers:
     P1 - ``handler.data`` exposed as a live ``Bag`` with active subscriptions.
-    P3 - ``BuilderBagNode.runtime_values`` phase 1 (pointer resolution).
-    P4 - ``BuilderBagNode.runtime_values`` phase 2 (template expansion).
+    P3 - ``SourceBagNode.runtime_values`` phase 1 (pointer resolution).
+    P4 - ``SourceBagNode.runtime_values`` phase 2 (template expansion).
     P5 - ``node.get_relative_data`` / ``node.set_relative_data`` round-trip.
 
 Canonical example

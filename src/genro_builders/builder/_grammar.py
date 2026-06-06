@@ -17,12 +17,12 @@ from typing import TYPE_CHECKING, Any
 from genro_bag import Bag
 
 from ._utilities import _check_type, _parse_parent_tags_spec, _parse_sub_tags_spec
-from .source_bag import BuilderBag
+from .source_bag import SourceBag
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
 
-    from .source_bag import BuilderBagNode
+    from .source_bag import SourceBagNode
 
 
 class _GrammarMixin:
@@ -109,7 +109,7 @@ class _GrammarMixin:
         ``body.span(...)`` etc. ultimately lands here. Use it directly when
         you need to attach a node whose tag is computed at runtime (rather
         than spelled out as a method name), e.g. when injecting a subtree
-        pre-built via ``BagBuilderBase.new_root``.
+        pre-built via ``BuilderBase.new_root``.
 
         Auto-labels the new node via ``_auto_label`` when ``node_label``
         is omitted, ensuring no collision with existing siblings in
@@ -163,7 +163,7 @@ class _GrammarMixin:
 
     def _command_on_node(
         self,
-        node: BuilderBagNode,
+        node: SourceBagNode,
         child_tag: str,
         node_position: str | int | None = None,
         node_value: Any = None,
@@ -176,14 +176,14 @@ class _GrammarMixin:
         """
         if not isinstance(node.value, Bag):
             # Sub-bag must be the same type as the parent bag (e.g. a
-            # ``BuilderBagNode`` spawns a ``BuilderBag`` sub-bag).
+            # ``SourceBagNode`` spawns a ``SourceBag`` sub-bag).
             # ``_builder`` is resolved via the node itself
             # (its slot if populated, else ancestors): this lets an
             # @subbuilder node (e.g. <svg>) propagate its own dialect
             # down into the freshly-created sub-bag instead of leaking
             # the host dialect.
             parent_bag = node.parent_bag
-            sub_bag_cls = type(parent_bag) if parent_bag is not None else BuilderBag
+            sub_bag_cls = type(parent_bag) if parent_bag is not None else SourceBag
             sub_bag = sub_bag_cls(
                 builder=node._resolve_builder(),
                 handler=getattr(parent_bag, "_handler", None) if parent_bag else None,

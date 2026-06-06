@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """End-to-end tests for the core ``yaml`` render mode (YamlRenderer).
 
-YAML is a shared render mode on ``BagBuilderBase`` (like ``xml``): any
+YAML is a shared render mode on ``BuilderBase`` (like ``xml``): any
 builder serves it via ``renderer_yaml``. These tests drive a real
 handler on an ad-hoc grammar and assert on the parsed YAML — outcomes,
 never internals. PyYAML is an optional dependency; the suite skips if it
@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import pytest
 
-from genro_builders import BagBuilderBase
+from genro_builders import BuilderBase
 from genro_builders.builder import BuilderHandler, element
 
 yaml = pytest.importorskip("yaml")
 
 
-class CfgBuilder(BagBuilderBase):
+class CfgBuilder(BuilderBase):
     """Ad-hoc grammar exercising the YAML renderer."""
 
     _name = "cfg_yaml_test"

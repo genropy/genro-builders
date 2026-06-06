@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BagBuilderBase.to_grammar — the builder_grammar v1.0 exporter.
+"""Tests for BuilderBase.to_grammar — the builder_grammar v1.0 exporter.
 
 The format specification lives in
 ``src/genro_builders/builder/GRAMMAR_FORMAT.md``.
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders import BagBuilderBase
+from genro_builders import BuilderBase
 from genro_builders.builder import abstract, element
 from genro_builders.builder._grammar_export import (
     _class_schema_to_grammar_document,
@@ -162,7 +162,7 @@ def test_inherits_from_unknown_raises_value_error() -> None:
     runtime)."""
 
     with pytest.raises(ValueError, match="inherits_from"):
-        class _Bogus(BagBuilderBase):
+        class _Bogus(BuilderBase):
             _name = None  # not registered
 
             @abstract(sub_tags="span,a")
@@ -177,7 +177,7 @@ def test_inherits_from_partial_unknown_in_list_raises() -> None:
     must raise — even if the other names resolve correctly."""
 
     with pytest.raises(ValueError, match="inherits_from"):
-        class _Bogus(BagBuilderBase):
+        class _Bogus(BuilderBase):
             _name = None
 
             @abstract(sub_tags="span")
@@ -196,7 +196,7 @@ def test_abstracts_section_is_topologically_ordered() -> None:
     """An abstract that inherits from another must appear after its
     parent in the abstracts section."""
 
-    class _Topo(BagBuilderBase):
+    class _Topo(BuilderBase):
         _name = None  # not registered
 
         @abstract(sub_tags="a,b,c")

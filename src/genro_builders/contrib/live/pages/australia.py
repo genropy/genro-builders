@@ -16,7 +16,7 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from genro_builders import BuilderBag, struct_method
+from genro_builders import SourceBag, struct_method
 
 from ..interactive_demo import InteractiveDemo
 
@@ -40,7 +40,7 @@ class Demo(InteractiveDemo):
         # are the pointer targets the row reads with ``^.name`` etc.
         with _CSV_PATH.open(encoding="utf-8") as stream:
             for row in csv.DictReader(stream):
-                self.set_data(f"states.{row['code']}", BuilderBag(row))
+                self.set_data(f"states.{row['code']}", SourceBag(row))
 
     def main(self, root):
         body = root.body(datapath="states")

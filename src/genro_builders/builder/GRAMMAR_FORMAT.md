@@ -9,7 +9,7 @@
 ## 1. Purpose
 
 The `builder_grammar` format is the **runtime contract** between a
-Python builder (the producer, via `BagBuilderBase.to_grammar(path)`)
+Python builder (the producer, via `BuilderBase.to_grammar(path)`)
 and any consumer that needs to reconstruct the same grammar in a
 different environment:
 
@@ -85,7 +85,7 @@ that `_meta` marker (see §4.2).
 
 | Field | Type | Meaning |
 |---|---|---|
-| `name` | string | Canonical name of the grammar (e.g. `"html"`, `"svg"`, `"css"`). Comes from `BagBuilderBase._name`. |
+| `name` | string | Canonical name of the grammar (e.g. `"html"`, `"svg"`, `"css"`). Comes from `BuilderBase._name`. |
 | `version` | string \| null | Version of this specific grammar (e.g. `"5.2.0"` for HTML5 revision 2). Optional. |
 | `title` | string \| null | Human-readable title. Optional. |
 | `description` | string \| null | Long-form description. Optional. |
@@ -343,7 +343,7 @@ for checking it and refusing documents with unsupported versions.
 
 ## 10. References
 
-- **Producer** (Python): `BagBuilderBase.to_grammar(path)` in
+- **Producer** (Python): `BuilderBase.to_grammar(path)` in
   [`base.py`](./base.py).
 - **Implementation**: [`_grammar_export.py`](./_grammar_export.py).
 - **Reference dialects**:

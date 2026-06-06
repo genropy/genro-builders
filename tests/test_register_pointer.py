@@ -9,7 +9,7 @@ Map key rule (DAT.2):
     pointer on node.attr[a]  -> abs_datapath(node, pointer) + "?" + a
 
 Map value:
-    dict {id(node): node} — BuilderBagNode is not hashable.
+    dict {id(node): node} — SourceBagNode is not hashable.
 
 Tests build pointers ONLY via the canonical builder API (kwargs on the
 @element call inside main(self, root)), never by writing to node.attr or

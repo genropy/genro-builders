@@ -13,12 +13,12 @@ output type is XML (``XmlRenderer`` via ``renderer_xml``).
 """
 from __future__ import annotations
 
-from genro_builders.builder import BagBuilderBase, BuilderHandler, element
+from genro_builders.builder import BuilderBase, BuilderHandler, element
 
 XSL_URI = "http://www.w3.org/1999/XSL/Transform"
 
 
-class _NsBuilder(BagBuilderBase):
+class _NsBuilder(BuilderBase):
     """Minimal builder: a root container plus two ``xsl:*`` elements and
     one plain (literal) element with no namespace."""
 

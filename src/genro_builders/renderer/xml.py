@@ -3,7 +3,7 @@
 
 Rides the universal walk on ``RendererBase``: pointers resolved,
 framework markers filtered, each node composed via ``rendered_item``.
-Exposed by ``BagBuilderBase.renderer_xml`` so every dialect serves
+Exposed by ``BuilderBase.renderer_xml`` so every dialect serves
 ``xml`` without declaring its own renderer.
 """
 
@@ -17,7 +17,7 @@ from .base import RendererBase
 class XmlRenderer(RendererBase):
     """Renderer of the shared ``xml`` mode.
 
-    Exposed by ``BagBuilderBase.renderer_xml`` so every dialect can
+    Exposed by ``BuilderBase.renderer_xml`` so every dialect can
     serve ``xml`` without declaring its own renderer. Concrete dialects
     that want a custom XML walk override ``renderer_xml`` on their
     builder to return a different renderer class.

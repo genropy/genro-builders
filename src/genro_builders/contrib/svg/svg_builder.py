@@ -8,13 +8,13 @@ mode in ``__init__`` (decision 6+8 v0.4.0).
 
 from __future__ import annotations
 
-from ...builder import BagBuilderBase
+from ...builder import BuilderBase
 from .svg_elements import SvgElements
 from .svg_extensions import SvgExtensions
 from .svg_renderer import SvgRenderer
 
 
-class SvgBuilder(BagBuilderBase, SvgExtensions, SvgElements):
+class SvgBuilder(BuilderBase, SvgExtensions, SvgElements):
     """SVG dialect builder. Grammar only — rendering on
     ``SvgRenderer``, exposed via the ``renderer_svg`` property."""
 

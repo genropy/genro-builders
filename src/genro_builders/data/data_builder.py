@@ -21,11 +21,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from genro_builders.builder import BagBuilderBase
+from genro_builders.builder import BuilderBase
 from genro_builders.builder._decorators import element
 
 
-class DataBuilderBase(BagBuilderBase):
+class DataBuilderBase(BuilderBase):
     """Base for structured data schemas.
 
     Defines data structure via ``field`` elements. No renderers or

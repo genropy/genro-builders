@@ -8,13 +8,13 @@ under the ``"html"`` mode in ``__init__`` (decision 6+8 v0.4.0).
 
 from __future__ import annotations
 
-from ...builder import BagBuilderBase
+from ...builder import BuilderBase
 from .html5_elements import Html5Elements
 from .html5_extensions import Html5Extensions
 from .html_renderer import HtmlRenderer
 
 
-class HtmlBuilder(BagBuilderBase, Html5Extensions, Html5Elements):
+class HtmlBuilder(BuilderBase, Html5Extensions, Html5Elements):
     """HTML5 dialect builder. Grammar only — rendering on
     ``HtmlRenderer``, exposed via the ``renderer_html`` property."""
 

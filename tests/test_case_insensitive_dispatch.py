@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from genro_builders.builder import BagBuilderBase, element
+from genro_builders.builder import BuilderBase, element
 from genro_builders.contrib.html import HtmlBuilderHandler
 from genro_builders.contrib.svg import SvgBuilderHandler
 
@@ -90,7 +90,7 @@ def test_duplicate_tag_lowercase_collision_raises():
     class construction time (in __init_subclass__)."""
     with pytest.raises(ValueError, match="(?i)duplicate|collision"):
 
-        class _Colliding(BagBuilderBase):
+        class _Colliding(BuilderBase):
             @element(sub_tags="")
             def widget(self): ...
 

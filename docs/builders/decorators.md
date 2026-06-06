@@ -112,12 +112,12 @@ hosting HTML in `<foreignObject xmlns="...">`).
 Three **transparent** elements live in the source tree but emit **no
 markup** at render time. They carry data behaviour (seeding the data
 bag, computing, side effects) that runs in the handler. They are
-declared once on `BagBuilderBase` as ordinary `@element` marked
+declared once on `BuilderBase` as ordinary `@element` marked
 `_meta={"data_element": True}` and injected into every dialect's schema
 by `__init_subclass__` — so every builder has them without re-declaring:
 
 ```python
-class BagBuilderBase(...):
+class BuilderBase(...):
 
     @element(_meta={"data_element": True})
     def data_setter(self, destination: str, value: Any): ...

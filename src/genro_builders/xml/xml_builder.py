@@ -12,16 +12,16 @@ single place to fix ``xml`` as the default render mode for the family.
 
 These bases are intentionally light. The real XML render is the core's
 ``XmlRenderer`` (on ``RendererBase``, exposed by
-``BagBuilderBase.renderer_xml``): every dialect already serves ``xml``
+``BuilderBase.renderer_xml``): every dialect already serves ``xml``
 with pointers resolved and framework markers filtered.
 """
 
 from __future__ import annotations
 
-from genro_builders.builder import BagBuilderBase, BuilderHandler
+from genro_builders.builder import BuilderBase, BuilderHandler
 
 
-class XmlBuilderBase(BagBuilderBase):
+class XmlBuilderBase(BuilderBase):
     """Grammar base for dialects whose on-the-wire format is XML.
 
     The default render mode is ``xml``. Concrete dialects (``XsltBuilder``,

@@ -31,7 +31,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..builder.source_bag import BuilderBag, BuilderBagNode
+from ..builder.source_bag import SourceBag, SourceBagNode
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
 _ATTR_ESCAPE = str.maketrans(
@@ -122,7 +122,7 @@ class RendererBase:
         error (the caller resolves the bag/node discontinuity, not the
         renderer). Data-elements are transparent — they return ``None``
         (the walk never emits strings, so absence of output is ``None``,
-        not ``""``). For a node whose value is a structural BuilderBag the
+        not ``""``). For a node whose value is a structural SourceBag the
         children are rendered recursively into a nested list (``None``
         fragments from transparent children are dropped); the dialect's
         ``rendered_item`` then composes the fragment.
@@ -134,16 +134,16 @@ class RendererBase:
         (resolved and cached via ``get_render``). The host renderer never
         renders foreign-grammar nodes with its own rules.
         """
-        if not isinstance(node, BuilderBagNode):
+        if not isinstance(node, SourceBagNode):
             raise TypeError(
-                f"render() requires a BuilderBagNode, got {type(node).__name__}",
+                f"render() requires a SourceBagNode, got {type(node).__name__}",
             )
         if node._get_meta("data_element"):
             return None
         item, ra = node.runtime_values()
         tag, ra = self._handle_meta(node, ra)
         ra = self.adapt_attrs(ra)
-        if isinstance(node.value, BuilderBag):
+        if isinstance(node.value, SourceBag):
             item = self.render_children(node.value, **opts)
         renderer = self.get_render(node.builder)
         return renderer.rendered_item(node, item, ra, tag=tag, **opts)

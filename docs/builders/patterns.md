@@ -4,7 +4,7 @@
 **Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
 
 Cross-grammar idioms. These work the same way on HTML, SVG, CSS, or
-any user-defined dialect built on `BagBuilderBase`.
+any user-defined dialect built on `BuilderBase`.
 
 ## `._` chaining — climbing back to the parent
 
@@ -159,7 +159,7 @@ match. It is used internally to resolve symbolic pointers
 
 A builder declares the modes it supports by exposing
 `renderer_<mode>` properties (e.g. `renderer_html` on `HtmlBuilder`,
-`renderer_xml` on `BagBuilderBase` so every dialect can serve
+`renderer_xml` on `BuilderBase` so every dialect can serve
 `xml`). The handler dispatches via `mode`:
 
 ```python

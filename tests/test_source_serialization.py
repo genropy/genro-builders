@@ -7,18 +7,18 @@ serialization (``to_xml()`` and other serializers).
 """
 from __future__ import annotations
 
-from genro_builders import BuilderBag
+from genro_builders import SourceBag
 from genro_builders.contrib.html import HtmlBuilderHandler
 
 
 def test_empty_source_bag_serializes_to_xml():
-    bag = BuilderBag()
+    bag = SourceBag()
     out = bag.to_xml()
     assert isinstance(out, str)
 
 
 def test_plain_source_bag_to_xml_round_trip():
-    bag = BuilderBag()
+    bag = SourceBag()
     bag.set_item("alfa", "hello")
     bag.set_item("beta", 42)
     out = bag.to_xml()
@@ -27,8 +27,8 @@ def test_plain_source_bag_to_xml_round_trip():
 
 
 def test_nested_source_bag_to_xml():
-    bag = BuilderBag()
-    bag.set_item("container", BuilderBag())
+    bag = SourceBag()
+    bag.set_item("container", SourceBag())
     bag.get_item("container").set_item("inner", "nested")
     out = bag.to_xml()
     assert "<container>" in out

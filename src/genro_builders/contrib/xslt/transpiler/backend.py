@@ -43,7 +43,7 @@ _XSLT_URI = "http://www.w3.org/1999/XSL/Transform"
 
 #: HTML attribute names that collide with Python keywords; the builder
 #: exposes them with a trailing underscore (the canonical PEP 8 form
-#: resolved in BuilderBagNode.runtime_values).
+#: resolved in SourceBagNode.runtime_values).
 _ATTR_KEYWORD_MAP = {"class": "class_", "for": "for_"}
 
 

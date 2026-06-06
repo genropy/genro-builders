@@ -129,7 +129,7 @@ Mode-specific kwargs available at `handler.render(...)`:
 | `xml` | `True` | Void tags as `<img/>` (XHTML). `False` → `<img>` (HTML5). |
 | `pretty` | `False` | Two-space indentation and trailing newline per node. |
 
-The `xml` mode is inherited from `BagBuilderBase.renderer_xml`. It is a
+The `xml` mode is inherited from `BuilderBase.renderer_xml`. It is a
 real render — it rides the universal walk, so pointers are resolved and
 framework markers (`node_id`, …) are filtered out, exactly like the
 `html` render. For the raw structural view of the source (markers and
