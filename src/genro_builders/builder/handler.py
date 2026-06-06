@@ -194,7 +194,8 @@ class BuilderHandler:
         """
         self.setup()
         self.main(self.source)
-        self.register_pointer(self.source.parent_node)
+        # The pointer_map is populated lazily, as runtime_values reads each
+        # ^ pointer during the first render (not by an a-priori walk here).
         self.compute_logic(
             self.source.query(
                 what="#n", deep=True,
@@ -749,6 +750,10 @@ class BuilderHandler:
                         del self.pointer_map[path]
             else:
                 self.pointer_map.setdefault(path, {})[id(node)] = node
+
+    def register_path(self, node: SourceBagNode, abs_path: str) -> None:
+        """Register ``node`` as a reader of ``abs_path`` (read-time tracking)."""
+        self.pointer_map.setdefault(abs_path, {})[id(node)] = node
 
     def _value_nature(self, v: Any) -> str:
         """Classify a value as ``"bag"``, ``"pointer"`` or ``"scalar"``.

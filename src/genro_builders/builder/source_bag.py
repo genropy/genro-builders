@@ -148,12 +148,46 @@ class _SourceBagNodeMixin:
         result: list[tuple[str, str]] = [
             (attrname, v)
             for attrname, v in self.attr.items()
-            if isinstance(v, str) and v.startswith("^")
+            if self.pointer_type(v) == "^"
         ]
         value = self.value
-        if isinstance(value, str) and value.startswith("^"):
+        if self.pointer_type(value) == "^":
             result.append(("", value))
         return result
+
+    def pointer_type(self, v: Any) -> str | None:
+        """Return ``"^"`` (reactive), ``"="`` (passive) or ``None``."""
+        if isinstance(v, str) and v[:1] in ("^", "="):
+            return v[0]
+        return None
+
+    def fixed_attr_items(self) -> Any:
+        """Yield ``(name, value)`` for domain attributes, names canonicalized.
+
+        Skips structural meta-attributes and resolves Python-keyword forms
+        (``class_`` / legacy ``_class`` -> ``class``).
+        """
+        meta_attrs = self._resolve_builder()._meta_attrs
+        for attrname, v in self.attr.items():
+            if attrname in meta_attrs:
+                continue
+            if attrname.endswith("_") and keyword.iskeyword(attrname[:-1]):
+                attrname = attrname[:-1]
+            elif attrname.startswith("_") and keyword.iskeyword(attrname[1:]):
+                warnings.warn(
+                    f"attribute '{attrname}': the leading-underscore form is "
+                    f"deprecated, use '{attrname[1:]}_' instead",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                attrname = attrname[1:]
+            yield attrname, v
+
+    def runtime_to_evaluate(self) -> dict[Any, Any]:
+        """Attributes to resolve plus the node value under key ``None``."""
+        items: dict[Any, Any] = dict(self.fixed_attr_items())
+        items[None] = self.value
+        return items
 
     # ------------------------------------------------------------------
     # Path composition (DAT.2) — moved here from BuilderHandler
@@ -198,7 +232,7 @@ class _SourceBagNodeMixin:
                                        no node carries that id
         """
         raw = path
-        if path and path[0] in ("^", "="):
+        if self.pointer_type(path):
             path = path[1:]
 
         if path.startswith("#"):
@@ -344,53 +378,27 @@ class _SourceBagNodeMixin:
         try/except; the caller decides whether ``None`` is meaningful).
         """
         handler = self._resolve_handler()
-        meta_attrs = self._resolve_builder()._meta_attrs
-        resolved: dict[str, Any] = {}
-        for attrname, v in self.attr.items():
-            if attrname in meta_attrs:
-                continue
-            # An attribute whose name is a Python keyword can't be a bare
-            # kwarg; the author writes ``class_`` (suffix, PEP 8) or the
-            # legacy ``_class`` (prefix, deprecated). Both surface here as
-            # the real name (``class``) — the single point every renderer
-            # reads, so renderers stay free of keyword remaps.
-            if attrname.endswith("_") and keyword.iskeyword(attrname[:-1]):
-                attrname = attrname[:-1]
-            elif attrname.startswith("_") and keyword.iskeyword(attrname[1:]):
-                warnings.warn(
-                    f"attribute '{attrname}': the leading-underscore form is "
-                    f"deprecated, use '{attrname[1:]}_' instead",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                attrname = attrname[1:]
-            if isinstance(v, str) and v and v[0] in ("^", "="):
-                path = self.abs_datapath(v)
-                resolved[attrname] = handler.data.get_item(path)
+        resolved: dict[Any, Any] = {}
+        for k, v in self.runtime_to_evaluate().items():
+            ptype = self.pointer_type(v)
+            if ptype:
+                resolved[k] = self.get_relative_data(v)
+                if ptype == "^":
+                    handler.register_path(self, self.abs_datapath(v))
             else:
-                resolved[attrname] = v
-
-        value = self.value
-        if isinstance(value, str) and value and value[0] in ("^", "="):
-            runtime_value: Any = handler.data.get_item(
-                self.abs_datapath(value),
-            )
-        else:
-            runtime_value = value
+                resolved[k] = v
 
         def _expand(s: str) -> str:
             def repl(m: re.Match[str]) -> str:
-                name = m.group(1)
-                val = resolved[name]
+                val = resolved[m.group(1)]
                 return "" if val is None else str(val)
             return _TEMPLATE_RE.sub(repl, s)
 
-        for attrname, v in list(resolved.items()):
+        for k, v in resolved.items():
             if isinstance(v, str) and "${" in v:
-                resolved[attrname] = _expand(v)
+                resolved[k] = _expand(v)
 
-        if isinstance(runtime_value, str) and "${" in runtime_value:
-            runtime_value = _expand(runtime_value)
+        runtime_value: Any = resolved.pop(None)
 
         return runtime_value, resolved
 

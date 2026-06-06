@@ -163,8 +163,8 @@ def test_register_node_without_pointers_is_noop():
 def test_register_propagates_value_error_for_relative_without_anchor():
     """A relative pointer with no datapath in the ancestor chain raises.
 
-    The error surfaces during ``create()`` itself, because ``create``
-    invokes ``register_pointer`` on the populated subtree.
+    The error surfaces at the first render, when ``runtime_values``
+    resolves the pointer and ``abs_datapath`` can't anchor it.
     """
 
     class P(HtmlBuilderHandler):
@@ -174,8 +174,9 @@ def test_register_propagates_value_error_for_relative_without_anchor():
             body.div(color="^.color", node_id="leaf")
 
     page = P()
+    page.create()
     with pytest.raises(ValueError):
-        page.create()
+        page.render()
 
 
 # ---------------------------------------------------------------------------

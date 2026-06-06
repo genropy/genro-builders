@@ -47,6 +47,7 @@ def test_formula_recomputes_on_dependency_update():
 
     page = P()
     page.create()
+    page.render()
     # The first render (data_elements()) is off in this slice, so data is empty.
     # Seed the dependency (creation = ins, no compute, like legacy autocreate),
     # then change it (a real upd) to fire the reactive compute.
@@ -74,6 +75,7 @@ def test_func_by_name_resolves_staticmethod():
 
     page = P()
     page.create()
+    page.render()
     page.data.set_item("tri.altezza", 4)
     page.data.set_item("tri.base", 5)
     page.data.set_item("tri.base", 10)
@@ -102,6 +104,7 @@ def test_func_not_staticmethod_raises():
 
     page = P()
     page.create()
+    page.render()
     page.data.set_item("tri.altezza", 6)
     page.data.set_item("tri.base", 10)
     with pytest.raises(TypeError):
@@ -121,6 +124,7 @@ def test_func_missing_raises():
 
     page = P()
     page.create()
+    page.render()
     page.data.set_item("tri.base", 10)
     with pytest.raises(AttributeError):
         page.data.set_item("tri.base", 20)
@@ -155,6 +159,7 @@ def test_data_logic_left_to_right_first_wins():
 
     page = P()
     page.create()
+    page.render()
     page.data.set_item("tri.base", 10)
     page.data.set_item("tri.base", 5)
     assert page.data.get_item("tri.area") == 10  # LogicA wins (5*2), not 500
@@ -184,6 +189,7 @@ def test_data_logic_skips_source_without_attr():
 
     page = P()
     page.create()
+    page.render()
     page.data.set_item("tri.base", 10)
     page.data.set_item("tri.base", 7)
     assert page.data.get_item("tri.area") == 21  # LogicB.calc (7*3)
@@ -209,6 +215,7 @@ def test_controller_receives_node():
 
     page = P()
     page.create()
+    page.render()
     page.data.set_item("tri.base", 10)
     page.data.set_item("tri.base", 9)
     assert page.data.get_item("tri.doubled") == 18
@@ -236,6 +243,7 @@ def test_view_node_not_recomputed():
 
     page = P()
     page.create()
+    page.render()
     page.data.set_item("tri.base", 10)
     page.data.set_item("tri.base", 4)
     # the formula recomputed (base*2)
