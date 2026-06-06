@@ -15,9 +15,9 @@ from __future__ import annotations
 import pytest
 
 from genro_builders import BagBuilderBase
-from genro_builders.contrib.data import DataBuilder
 from genro_builders.contrib.html import HtmlBuilder
 from genro_builders.contrib.svg import SvgBuilder
+from genro_builders.data import DataBuilderBase
 
 
 def test_html_builder_is_registered():
@@ -28,15 +28,17 @@ def test_svg_builder_is_registered():
     assert BagBuilderBase.get_builder_class("svg") is SvgBuilder
 
 
-def test_data_builder_is_registered():
-    assert BagBuilderBase.get_builder_class("data") is DataBuilder
+def test_data_base_is_not_registered():
+    """``DataBuilderBase`` is a base (``_name = None``): never registered."""
+    assert DataBuilderBase._name is None
+    for cls in BagBuilderBase._registry.values():
+        assert cls is not DataBuilderBase
 
 
 def test_real_builders_have_explicit_name():
     """Each public dialect declares ``_name`` as a class attribute."""
     assert HtmlBuilder._name == "html"
     assert SvgBuilder._name == "svg"
-    assert DataBuilder._name == "data"
 
 
 def test_lookup_unknown_name_raises_lookup_error():

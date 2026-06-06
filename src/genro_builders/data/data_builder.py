@@ -1,17 +1,18 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""DataBuilder — builder for structured data schemas.
+"""DataBuilderBase — base for structured data schemas.
 
-A builder without renderers or compilers. Its grammar defines data
+A builder base without renderers or compilers. Its grammar defines data
 structure, not presentation. Uses the standard ``@element`` mechanism.
 
 The ``field`` element is the fundamental unit — a typed descriptor with
 optional metadata (dtype, name_long, name_short, format, default).
 
 Override ``on_configure()`` to declare the schema automatically at
-registration time.
+registration time. Left unregistered (``_name = None``): it is a base to
+subclass, not a usable dialect on its own.
 
 Example:
-    >>> class InvoiceData(DataBuilder):
+    >>> class InvoiceData(DataBuilderBase):
     ...     def on_configure(self):
     ...         self.source.field("name", dtype="text", name_long="Customer Name")
     ...         self.source.field("vat", dtype="text", name_long="VAT Number")
@@ -24,14 +25,15 @@ from genro_builders.builder import BagBuilderBase
 from genro_builders.builder._decorators import element
 
 
-class DataBuilder(BagBuilderBase):
-    """Builder for structured data schemas.
+class DataBuilderBase(BagBuilderBase):
+    """Base for structured data schemas.
 
     Defines data structure via ``field`` elements. No renderers or
-    compilers — pure schema definition.
+    compilers — pure schema definition. Abstract anchor: left
+    unregistered (``_name = None``), subclassed by concrete schemas.
     """
 
-    _name = "data"
+    _name = None
 
     @element()
     def field(
