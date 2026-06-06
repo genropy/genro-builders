@@ -12,8 +12,7 @@ from __future__ import annotations
 import pytest
 
 from genro_builders import BagBuilderBase
-from genro_builders.builder import element
-from genro_builders.builder_handler import BuilderHandler
+from genro_builders.builder import BuilderHandler, element
 
 yaml = pytest.importorskip("yaml")
 

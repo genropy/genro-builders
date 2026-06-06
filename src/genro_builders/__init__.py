@@ -16,8 +16,7 @@ Core classes:
         ``handler.render()``.
 """
 
-from genro_builders.builder import BagBuilderBase, struct_method
-from genro_builders.builder_bag import BuilderBag, BuilderBagNode
+from genro_builders.builder import BagBuilderBase, BuilderBag, BuilderBagNode, struct_method
 
 __version__ = "0.16.0"
 

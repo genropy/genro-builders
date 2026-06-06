@@ -20,7 +20,7 @@ Example::
 
 from __future__ import annotations
 
-from ...builder_handler import BuilderHandler
+from ...builder import BuilderHandler
 from .svg_builder import SvgBuilder
 
 

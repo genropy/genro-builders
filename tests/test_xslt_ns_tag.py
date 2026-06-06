@@ -13,8 +13,7 @@ output type is XML (``XmlRenderer`` via ``renderer_xml``).
 """
 from __future__ import annotations
 
-from genro_builders.builder import BagBuilderBase, element
-from genro_builders.builder_handler import BuilderHandler
+from genro_builders.builder import BagBuilderBase, BuilderHandler, element
 
 XSL_URI = "http://www.w3.org/1999/XSL/Transform"
 

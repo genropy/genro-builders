@@ -19,7 +19,7 @@ import pytest
 from genro_bag import Bag
 
 from genro_builders import BuilderBag
-from genro_builders.builder_handler import BuilderHandler
+from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilderHandler
 
 

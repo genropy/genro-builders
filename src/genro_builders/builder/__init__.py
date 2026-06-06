@@ -12,9 +12,14 @@ from ._decorators import (
 )
 from ._validators import Range, Regex
 from .base import BagBuilderBase
+from .handler import BuilderHandler
+from .source_bag import BuilderBag, BuilderBagNode
 
 __all__ = [
     "BagBuilderBase",
+    "BuilderBag",
+    "BuilderBagNode",
+    "BuilderHandler",
     "Range",
     "Regex",
     "abstract",

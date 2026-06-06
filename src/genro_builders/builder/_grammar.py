@@ -16,13 +16,13 @@ from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
 
-from ..builder_bag import BuilderBag
 from ._utilities import _check_type, _parse_parent_tags_spec, _parse_sub_tags_spec
+from .source_bag import BuilderBag
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
 
-    from ..builder_bag import BuilderBagNode
+    from .source_bag import BuilderBagNode
 
 
 class _GrammarMixin:

@@ -39,7 +39,7 @@ except ImportError as exc:  # pragma: no cover - exercised only when extra missi
 else:
     _YAML_IMPORT_ERROR = None
 
-from .builder_bag import BuilderBag, BuilderBagNode
+from .builder.source_bag import BuilderBag, BuilderBagNode
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
 _ATTR_ESCAPE = str.maketrans(

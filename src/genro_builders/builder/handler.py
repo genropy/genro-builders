@@ -45,8 +45,8 @@ from typing import Any
 
 from genro_bag import Bag
 
-from .builder import BagBuilderBase
-from .builder_bag import BuilderBag, BuilderBagNode
+from .base import BagBuilderBase
+from .source_bag import BuilderBag, BuilderBagNode
 
 
 class BuilderHandler:

@@ -22,7 +22,7 @@ Example::
 
 from __future__ import annotations
 
-from ...builder_handler import BuilderHandler
+from ...builder import BuilderHandler
 from .css_builder import CssBuilder
 
 

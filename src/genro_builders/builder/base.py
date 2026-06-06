@@ -24,7 +24,6 @@ from typing import Any, ClassVar
 
 from genro_bag import Bag
 
-from ..builder_bag import BuilderBag
 from ..renderer import XmlRenderer, YamlRenderer
 from ._decorators import element
 from ._grammar import _GrammarMixin
@@ -34,6 +33,7 @@ from ._utilities import (
     _iter_data_element_methods,
     _pop_decorated_methods,
 )
+from .source_bag import BuilderBag
 
 
 class BagBuilderBase(

@@ -18,8 +18,7 @@ with pointers resolved and framework markers filtered.
 
 from __future__ import annotations
 
-from genro_builders.builder import BagBuilderBase
-from genro_builders.builder_handler import BuilderHandler
+from genro_builders.builder import BagBuilderBase, BuilderHandler
 
 
 class XmlBuilderBase(BagBuilderBase):
