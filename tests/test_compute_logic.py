@@ -20,9 +20,28 @@ Signatures:
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import pytest
 
 from genro_builders.contrib.html import HtmlBuilderHandler
+
+
+@contextmanager
+def reactive(page_cls: type) -> Iterator[HtmlBuilderHandler]:
+    """Start a page canonically and yield it inside a live() section.
+
+    Reactivity lives inside an app: create, do the first render (which
+    finishes startup and enables live), then enter live(). Mutations made
+    on the yielded page inside the block drive the reactive cascade.
+    """
+    page = page_cls(application=object())
+    page.create()
+    page.render(target=False)
+    with page.live(target=False):
+        yield page
+
 
 # ---------------------------------------------------------------------------
 # formula recomputes on a dependency update
@@ -45,15 +64,10 @@ def test_formula_recomputes_on_dependency_update():
                 ".area", "calc_area", base="^.base", altezza="^.altezza",
             )
 
-    page = P()
-    page.create()
-    page.render()
-    # The first render (data_elements()) is off in this slice, so data is empty.
-    # Seed the dependency (creation = ins, no compute, like legacy autocreate),
-    # then change it (a real upd) to fire the reactive compute.
-    page.data.set_item("tri.altezza", 6)
-    page.data.set_item("tri.base", 10)
-    page.data.set_item("tri.base", 20)
+    with reactive(P) as page:
+        page.data.set_item("tri.altezza", 6)
+        page.data.set_item("tri.base", 10)
+        page.data.set_item("tri.base", 20)
     assert page.data.get_item("tri.area") == 60
 
 
@@ -73,12 +87,10 @@ def test_func_by_name_resolves_staticmethod():
                 ".area", "calc_area", base="^.base", altezza="^.altezza",
             )
 
-    page = P()
-    page.create()
-    page.render()
-    page.data.set_item("tri.altezza", 4)
-    page.data.set_item("tri.base", 5)
-    page.data.set_item("tri.base", 10)
+    with reactive(P) as page:
+        page.data.set_item("tri.altezza", 4)
+        page.data.set_item("tri.base", 5)
+        page.data.set_item("tri.base", 10)
     assert page.data.get_item("tri.area") == 20
 
 
@@ -102,13 +114,11 @@ def test_func_not_staticmethod_raises():
                 ".area", "calc_area", base="^.base", altezza="^.altezza",
             )
 
-    page = P()
-    page.create()
-    page.render()
-    page.data.set_item("tri.altezza", 6)
-    page.data.set_item("tri.base", 10)
-    with pytest.raises(TypeError):
-        page.data.set_item("tri.base", 20)
+    with reactive(P) as page:
+        page.data.set_item("tri.altezza", 6)
+        page.data.set_item("tri.base", 10)
+        with pytest.raises(TypeError):
+            page.data.set_item("tri.base", 20)
 
 
 def test_func_missing_raises():
@@ -122,12 +132,10 @@ def test_func_missing_raises():
                 ".area", "nope", base="^.base",
             )
 
-    page = P()
-    page.create()
-    page.render()
-    page.data.set_item("tri.base", 10)
-    with pytest.raises(AttributeError):
-        page.data.set_item("tri.base", 20)
+    with reactive(P) as page:
+        page.data.set_item("tri.base", 10)
+        with pytest.raises(AttributeError):
+            page.data.set_item("tri.base", 20)
 
 
 # ---------------------------------------------------------------------------
@@ -157,11 +165,9 @@ def test_data_logic_left_to_right_first_wins():
             body.data_setter(".base", 10)
             body.data_formula(".area", "calc", base="^.base")
 
-    page = P()
-    page.create()
-    page.render()
-    page.data.set_item("tri.base", 10)
-    page.data.set_item("tri.base", 5)
+    with reactive(P) as page:
+        page.data.set_item("tri.base", 10)
+        page.data.set_item("tri.base", 5)
     assert page.data.get_item("tri.area") == 10  # LogicA wins (5*2), not 500
 
 
@@ -187,11 +193,9 @@ def test_data_logic_skips_source_without_attr():
             body.data_setter(".base", 10)
             body.data_formula(".area", "calc", base="^.base")
 
-    page = P()
-    page.create()
-    page.render()
-    page.data.set_item("tri.base", 10)
-    page.data.set_item("tri.base", 7)
+    with reactive(P) as page:
+        page.data.set_item("tri.base", 10)
+        page.data.set_item("tri.base", 7)
     assert page.data.get_item("tri.area") == 21  # LogicB.calc (7*3)
 
 
@@ -213,11 +217,9 @@ def test_controller_receives_node():
             body.data_setter(".base", 10)
             body.data_controller("ctrl", base="^.base")
 
-    page = P()
-    page.create()
-    page.render()
-    page.data.set_item("tri.base", 10)
-    page.data.set_item("tri.base", 9)
+    with reactive(P) as page:
+        page.data.set_item("tri.base", 10)
+        page.data.set_item("tri.base", 9)
     assert page.data.get_item("tri.doubled") == 18
 
 
@@ -241,11 +243,9 @@ def test_view_node_not_recomputed():
             # a plain view node that reads the computed value
             body.p("^.area")
 
-    page = P()
-    page.create()
-    page.render()
-    page.data.set_item("tri.base", 10)
-    page.data.set_item("tri.base", 4)
+    with reactive(P) as page:
+        page.data.set_item("tri.base", 10)
+        page.data.set_item("tri.base", 4)
     # the formula recomputed (base*2)
     assert page.data.get_item("tri.area") == 8
     # the view <p> is not a data-element: it carries no destination/func and
