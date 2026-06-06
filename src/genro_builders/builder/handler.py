@@ -411,6 +411,32 @@ class BuilderHandler:
         """
         return self.builder.new_root()
 
+    def pyrequires(self, *mixins: type | list[type] | tuple[type, ...]) -> None:
+        """Declare the component mixins this page requires.
+
+        Enriches this handler's builder grammar with the @component
+        methods carried by the given mixin classes. Call before
+        ``create()`` (e.g. at the top of ``setup``/``main``).
+
+        Polymorphic: accepts classes as varargs or a single list/tuple
+        of classes (flattened one level):
+
+            self.pyrequires(MyComponents, ExtraComp)
+            self.pyrequires([MyComponents, ExtraComp])
+
+        First member of the ``<domain>requires`` family (py / js / css /
+        ...): ``pyrequires`` lives on the base because enriching the
+        grammar with components is dialect-agnostic; ``jsrequires`` /
+        ``cssrequires`` belong to the web layer.
+        """
+        flat: list[type] = []
+        for item in mixins:
+            if isinstance(item, (list, tuple)):
+                flat.extend(item)
+            else:
+                flat.append(item)
+        self.builder.include_components(*flat)
+
     # ------------------------------------------------------------------
     # Sub-builder access (decision 2)
     # ------------------------------------------------------------------

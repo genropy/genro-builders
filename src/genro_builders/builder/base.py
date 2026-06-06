@@ -310,6 +310,42 @@ class BuilderBase(
         root.set_backref()
         return root
 
+    def include_components(self, *mixins: type) -> None:
+        """Enrich THIS instance's grammar with the @component methods
+        of the given mixin classes.
+
+        Per-instance: the class schema (and its tag-name map) is copied
+        on first use, so other instances of the same builder are left
+        untouched. Each component method is bound onto the instance
+        (it is already callable — components are never delattr'd) and
+        registered in the schema marked ``_meta['component']``, so the
+        node API (``node.<name>(...)``) finds it. A component overrides
+        a same-named plain element (last-wins, like data-elements).
+
+        Called by ``BuilderHandler.pyrequires`` before ``create()``.
+        """
+        if self._schema is type(self)._class_schema:
+            self._schema = Bag(source=self._schema)
+            self._schema_tag_names = dict(self._schema_tag_names)
+        for mixin in mixins:
+            for name, obj in vars(mixin).items():
+                decorator = getattr(obj, "_decorator", None)
+                if not decorator:
+                    continue
+                if not (decorator.get("_meta") or {}).get("component"):
+                    continue
+                setattr(self, name, obj.__get__(self))
+                self._schema.set_item(
+                    name, None,
+                    sub_tags=decorator.get("sub_tags", ""),
+                    parent_tags=decorator.get("parent_tags"),
+                    inherits_from=decorator.get("inherits_from", ""),
+                    _meta=decorator.get("_meta"),
+                    documentation=obj.__doc__,
+                    call_args_validations=_extract_validators_from_signature(obj),
+                )
+                self._schema_tag_names[name.lower()] = name
+
     # -----------------------------------------------------------------------
     # Data-elements (core, every dialect inherits them). Plain @element marked
     # ``_meta['data_element']``: bodies ignored (like every @element), injected
