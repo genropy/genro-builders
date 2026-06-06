@@ -146,10 +146,10 @@ class BuilderHandler:
         # ``abs_datapath``); valore = dict ``{id(node): node}`` (SourceBagNode
         # non è hashable, indicizziamo per ``id`` per add/remove O(1)).
         self.pointer_map: dict[str, dict[int, SourceBagNode]] = {}
-        # RX livello 0 — flag di abilitazione reattività: acceso da
-        # create() dopo aver armato le subscribe. live() lo esige (DR5):
-        # senza, una mutazione resterebbe muta (subscribe non armate) e
-        # render() su un documento non costruito darebbe stringa vuota.
+        # RX livello 0 — flag di abilitazione reattività: acceso dal PRIMO
+        # render (non da create()). Segna che l'avviamento è finito: la
+        # pointer_map è popolata (lettura a render time) e live() è permesso.
+        # live() lo esige (DR5): una pagina non resa non è reattiva.
         self._live_enabled: bool = False
         # RX livello 0 — stato della sezione live (DR4/DR6/DR7). Privati,
         # non parte dell'API: l'unico accesso pubblico è il context
@@ -217,7 +217,6 @@ class BuilderHandler:
             update=self._on_data_event,
             delete=self._on_data_event,
         )
-        self._live_enabled = True
 
     @contextmanager
     def live(self, target: Any = None) -> Iterator[BuilderHandler]:
@@ -247,11 +246,13 @@ class BuilderHandler:
         a batch of mutations. Both default to no-ops.
 
         Raises:
-            RuntimeError: reactivity not enabled — create() not run (DR5).
+            RuntimeError: reactivity not enabled — no render yet (DR5). A
+            page must do its first render to finish startup before live().
         """
         if not self._live_enabled:
             raise RuntimeError(
-                "live() called before create(); reactivity not enabled",
+                "live() called before the first render; render once to "
+                "finish startup, then enter live()",
             )
         with self._live_lock:
             prev_active = self._live_active
@@ -319,6 +320,9 @@ class BuilderHandler:
         the walk (per-node options like ``pretty``) and ``finalize``
         (document-level options like ``doc_header``).
         """
+        # The first render finishes startup: from here the pointer_map is
+        # populated (read-time) and live() is allowed.
+        self._live_enabled = True
         main_renderer = self._get_renderer(mode)
         effective_target = self._get_target(target, main_renderer)
         if startnode:

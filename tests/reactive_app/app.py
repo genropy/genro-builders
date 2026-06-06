@@ -63,6 +63,9 @@ class MiniApp:
         # handler knows its application (and is therefore reactive).
         self.handler = TrianglePage(application=self)
         self.handler.create()
+        # First render finishes startup: it populates the pointer_map (read
+        # time) and enables live(). Until a page has rendered it is not reactive.
+        self.handler.render(target=False)
 
     def set_render_target(self, mode: str, target: Any, default: bool = False) -> None:
         """Register a render target on the owned handler."""

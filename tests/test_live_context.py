@@ -37,6 +37,7 @@ def test_live_before_create_raises() -> None:
 def test_live_uses_default_target(tmp_path) -> None:
     page = Page()
     page.create()
+    page.render(target=False)
     out = tmp_path / "out.html"
     page.set_render_target("html", str(out), default=True)
     with page.live():
@@ -56,6 +57,7 @@ def test_no_render_without_with(tmp_path) -> None:
 def test_data_mutation_renders_to_file(tmp_path) -> None:
     page = Page()
     page.create()
+    page.render(target=False)
     out = tmp_path / "out.html"
     with page.live(str(out)):
         page.data.set_item("page.title", "Hello")
@@ -70,6 +72,7 @@ def test_data_mutation_renders_to_file(tmp_path) -> None:
 def test_source_attr_mutation_renders_to_file(tmp_path) -> None:
     page = Page()
     page.create()
+    page.render(target=False)
     out = tmp_path / "out.html"
     with page.live(str(out)):
         page.data.set_item("page.title", "Hello")
@@ -82,6 +85,7 @@ def test_source_attr_mutation_renders_to_file(tmp_path) -> None:
 def test_reentry_restores_outer_target(tmp_path) -> None:
     page = Page()
     page.create()
+    page.render(target=False)
     t1 = str(tmp_path / "t1.html")
     t2 = str(tmp_path / "t2.html")
     with page.live(t1):
@@ -130,6 +134,7 @@ def test_live_enter_exit_hooks_fire_once_per_section() -> None:
 
     page = HookedPage()
     page.create()
+    page.render(target=False)
     with page.live():
         page.data.set_item("page.t", "A")
         page.data.set_item("page.t", "B")
