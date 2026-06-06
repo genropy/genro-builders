@@ -1,8 +1,10 @@
 # Datapath variabile, collection store e master-detail frattale
 
-**Versione**: 0.1.0
+**Versione**: 0.2.0
 **Ultimo aggiornamento**: 2026-06-06
-**Status**: 🔴 DA REVISIONARE — documento di visione, non ancora approvato.
+**Status**: 🔴 DA REVISIONARE — documento di visione. La §11 (esito spike,
+registrazione alla lettura) è REALIZZATA e in develop (`45ec6a7`); il resto
+(datapath variabile, collection store, master-detail frattale) è ancora visione.
 
 Documento di **design dell'evoluzione futura** del data binding di
 genro-builders. Raccoglie la visione discussa: il *datapath variabile*
@@ -247,6 +249,51 @@ introdurre i component. Piano:
 
 Sorgente dei test: collection caricata una volta + dato `current_state`
 scrivibile (campo / `set_item`); resolver lazy come variante.
+
+---
+
+## 11. Esito dello spike (2026-06-06) — PROMOSSO, in develop
+
+Il punto 1 del piano è stato realizzato e **promosso in develop** (commit
+`45ec6a7`). I punti 3-4 (datapath variabile vero) restano evoluzione futura;
+lo spike ha validato il *meccanismo di registrazione* che li abiliterà.
+
+Cosa è entrato:
+
+- **registrazione alla lettura**: `runtime_values` registra ogni `^` mentre lo
+  legge (`handler.register_path(node, abs_path)`); `=` viene letto ma NON
+  registrato. Tolta la walk a-priori `register_pointer` in `create()`.
+- **`render()` registra anche i data-element**: la riga `runtime_values` è stata
+  spostata PRIMA del `return None` della trasparenza data-element, così anche un
+  data-element registra i suoi pointer quando il ramo viene reso.
+- **invariante nuovo**: una pagina **deve fare il primo render per finire
+  l'avviamento**. Finché non ha reso, `pointer_map` è vuota e non è reattiva. Il
+  render avviene comunque (è l'output da mandare al client), quindi la
+  registrazione non è un giro extra: è effetto di ciò che si fa già.
+
+Asimmetria scoperta (il cuore del risultato):
+
+- **aggiungere** alla mappa = effetto del render (il render sa cosa esiste *ora*,
+  perché lo legge);
+- **togliere** dalla mappa = azione **esplicita** su mutazione di source (il
+  render NON sa cosa esisteva *prima*: i nodi spariti non li visita più).
+
+Conseguenza per il refactor futuro della reattività (NON ancora fatto):
+`register_pointer` lato *add* è superfluo; di quella macchina serve solo il lato
+**unregister**. `_on_upd_value`/`_on_upd_attrs` si riducono al solo ramo di
+de-registrazione del ramo vecchio; la ri-registrazione la fa il re-render del
+ramo (quando esisterà il render parziale di regione; oggi `live()` rende tutto,
+quindi la ri-registrazione avviene comunque rileggendo l'intero documento).
+
+Prova in positivo: `create()` + `render()` + tre `set_item` su una dipendenza →
+la `data_formula` ricalcola (`area == 60`). I test che mutavano senza rendere
+sono stati adeguati (render prima della mutazione); l'errore di pointer relativo
+senza ancora ora emerge al render, non al `create()`.
+
+Cleanup di leggibilità entrati con lo spike (a comportamento invariato):
+`SourceBagNode.pointer_type` (→ `^`/`=`/`None`), `fixed_attr_items`,
+`runtime_to_evaluate`; `runtime_values` legge via `get_relative_data` con un
+unico flusso attr+value.
 
 ---
 
