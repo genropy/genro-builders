@@ -1,0 +1,28 @@
+=== html (default, compact) ===
+<body><div class="card"><h3>Title</h3><p style="color: #333">Some text</p></div></body>
+
+=== html (pretty) ===
+<body>
+  <div class="card">
+    <h3>Title</h3>
+    <p style="color: #333">Some text</p>
+  </div>
+</body>
+
+
+=== xml ===
+<body>
+  <div class="card">
+    <h3>Title</h3>
+    <p color="#333">Some text</p>
+  </div>
+</body>
+
+
+=== yaml ===
+body:
+  div:
+    class: card
+    h3: Title
+    p: Some text
+
