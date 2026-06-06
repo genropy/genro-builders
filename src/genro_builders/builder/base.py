@@ -24,7 +24,8 @@ from typing import Any, ClassVar
 
 from genro_bag import Bag
 
-from ..renderer import XmlRenderer, YamlRenderer
+from ..renderer.xml import XmlRenderer
+from ..renderer.yaml import YamlRenderer
 from ._decorators import element
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
