@@ -25,7 +25,7 @@ from typing import Any, ClassVar
 from genro_bag import Bag
 
 from ..builder_bag import BuilderBag
-from ..renderer import XmlRenderer
+from ..renderer import XmlRenderer, YamlRenderer
 from ._decorators import element
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
@@ -278,6 +278,16 @@ class BagBuilderBase(
         available as a render mode.
         """
         return XmlRenderer(builder=self)
+
+    @property
+    def renderer_yaml(self) -> YamlRenderer:
+        """Fresh ``YamlRenderer`` instance bound to this builder.
+
+        Inherited by every dialect so ``yaml`` is always available as a
+        render mode. PyYAML is an optional dependency (extra ``[yaml]``):
+        the renderer raises a clear error at render time if it is absent.
+        """
+        return YamlRenderer(builder=self)
 
     def new_root(self) -> BuilderBag:
         """Return a fresh, throw-away ``BuilderBag`` driven by this builder.
