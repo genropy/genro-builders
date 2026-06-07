@@ -303,8 +303,8 @@ class BuilderBase(
 
         Typical use: pre-build a subtree offline, then attach it as the
         value of some node in a live source — the resulting ``ins`` event
-        on the live source triggers ``register_pointer`` for the new
-        subtree. The throw-away root itself is not retained by anything.
+        re-renders, and the render registers the new subtree's pointers at
+        read time. The throw-away root itself is not retained by anything.
         """
         root = SourceBag(builder=self, handler=None)
         root.set_backref()

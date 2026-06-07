@@ -43,6 +43,19 @@ def reactive(page_cls: type) -> Iterator[HtmlBuilderHandler]:
         yield page
 
 
+def assert_no_stale_pointers(page: HtmlBuilderHandler) -> None:
+    """Every node registered in pointer_map must still be alive in the source.
+
+    Closing invariant for reactive tests: a wrong output is caught by the
+    behavioural asserts, but a leak (pointers of vanished nodes never
+    de-registered) is invisible there. Reads pointer_map only to check the
+    invariant; the set of live nodes comes from the canonical query.
+    """
+    live = {id(n) for n in page.source.query(what="#n", deep=True)}
+    registered = {nid for inner in page.pointer_map.values() for nid in inner}
+    assert registered <= live, "pointer_map holds stale (vanished) nodes"
+
+
 # ---------------------------------------------------------------------------
 # formula recomputes on a dependency update
 # ---------------------------------------------------------------------------
@@ -69,6 +82,7 @@ def test_formula_recomputes_on_dependency_update():
         page.data.set_item("tri.base", 10)
         page.data.set_item("tri.base", 20)
     assert page.data.get_item("tri.area") == 60
+    assert_no_stale_pointers(page)
 
 
 def test_func_by_name_resolves_staticmethod():

@@ -384,7 +384,7 @@ class _SourceBagNodeMixin:
             if ptype:
                 resolved[k] = self.get_relative_data(v)
                 if ptype == "^":
-                    handler.register_path(self, self.abs_datapath(v))
+                    handler._register_path(self, self.abs_datapath(v))
             else:
                 resolved[k] = v
 

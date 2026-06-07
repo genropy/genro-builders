@@ -141,10 +141,10 @@ class BuilderHandler:
         self.renderers: dict[str, Any] = {}
         self._default_targets: dict[str, Any] = {}
         self._default_render_mode: str | None = None
-        # DAT.2 — mappa delle dipendenze pointer popolata da
-        # ``register_pointer``. Chiave esterna = path assoluto (output di
-        # ``abs_datapath``); valore = dict ``{id(node): node}`` (SourceBagNode
-        # non è hashable, indicizziamo per ``id`` per add/remove O(1)).
+        # DAT.2 — mappa delle dipendenze pointer. Chiave = path assoluto;
+        # valore = dict ``{id(node): node}``. Popolata alla lettura
+        # (``_register_path`` durante il render); ripulita dei nodi spariti
+        # da ``_unregister_pointer`` su mutazione di source.
         self.pointer_map: dict[str, dict[int, SourceBagNode]] = {}
         # RX livello 0 — flag di abilitazione reattività: acceso dal PRIMO
         # render (non da create()). Segna che l'avviamento è finito: la
@@ -177,9 +177,9 @@ class BuilderHandler:
             2. ``self.main(self.source)`` builds the document. Subscribes
                are not active yet, so the inserts from the builder API
                do NOT dispatch to ``on_source_change``.
-            3. ``register_pointer`` walks the subtree rooted at the
-               source wrapper node (``self.source.parent_node``) and
-               populates ``self.pointer_map`` once.
+            3. ``self.pointer_map`` is populated lazily at read time, when
+               the first render reads the pointers (not here): see
+               ``_register_path``.
             4. First calculation: query the source for the data-elements to
                run at start — every ``data_setter`` (it seeds the data) plus
                any ``data_formula`` / ``data_controller`` flagged
@@ -470,10 +470,9 @@ class BuilderHandler:
         whole document to the live target (RX livello 0, DR3).
         """
         if evt == "ins":
-            self.register_pointer(node)
             self.on_source_change(node, "ins", evt_detail=None, **kw)
         elif evt == "del":
-            self.register_pointer(node, unregister=True)
+            self._unregister_pointer(node)
             self.on_source_change(node, "del", evt_detail=None, **kw)
         else:
             detail = evt[4:] if evt.startswith("upd_") else evt
@@ -691,71 +690,42 @@ class BuilderHandler:
     # Pointer map (DAT.2)
     # ------------------------------------------------------------------
 
-    def register_pointer(self, node: SourceBagNode, unregister: bool = False) -> None:
-        """Update ``self.pointer_map`` for the subtree rooted at ``node``.
+    def _unregister_pointer(self, node: SourceBagNode) -> None:
+        """Drop ``node`` (and its subtree) from ``self.pointer_map``.
 
-        Walks the subtree recursively. For each visited node, collects
-        every pointer string it carries (a ``str`` value starting with
-        ``^``, either as ``node.value`` or as any entry of ``node.attr``)
-        and updates ``self.pointer_map`` accordingly.
-
-        Map key — the granularity is **per-attribute**, so a consumer of
-        the future reactive notification knows exactly which attribute
-        of the node changed (and can update only that, without
-        rebuilding):
-
-            - pointer on ``node.value``    → key = ``abs_datapath(node, pointer)``
-            - pointer on ``node.attr[a]``  → key = ``abs_datapath(node, pointer) + "?" + a``
-
-        Map value: ``{id(node): node}`` (``SourceBagNode`` is not
-        hashable, so we index by ``id`` for O(1) add/remove).
-
-        ``unregister=False`` (default) — add. ``unregister=True`` —
-        remove; the path entry is pruned from ``self.pointer_map`` when
-        it becomes empty. Remove is **silent** when the path or the
-        node is not registered: tolerates partial-registration scenarios
-        (e.g. a subtree built outside the normal flow).
-
-        Errors from ``abs_datapath`` (``ValueError`` for unresolved
-        relative paths, ``KeyError`` for unknown symbolic anchors) are
-        propagated.
+        The add side is the render's job (read-time ``_register_path``);
+        removal is the explicit action, because a re-render never visits
+        the nodes that disappeared. Recurses into the ``SourceBag``
+        subtree so a removed branch is fully purged. Silent when a path
+        or node is not registered.
         """
-        self._update_pointer_map(node, node.pointers(), unregister)
-        # Recurse only into builder structure (SourceBag), never into a plain
-        # Bag value: that is data payload (e.g. a data_setter whose value is a
-        # Bag), whose children are plain BagNodes without ``pointers()``. The
-        # source tree to index is made of SourceBag/SourceBagNode.
+        self._update_pointer_map(node, node.pointers())
         if isinstance(node.value, SourceBag):
             for child in node.value:
-                self.register_pointer(child, unregister=unregister)
+                self._unregister_pointer(child)
 
     def _update_pointer_map(
         self,
         node: SourceBagNode,
         pointers: list[tuple[str, str]],
-        unregister: bool,
     ) -> None:
-        """Apply add/remove on ``self.pointer_map`` for ``pointers`` of ``node``.
+        """Remove ``pointers`` of ``node`` from ``self.pointer_map``.
 
-        Each entry of ``pointers`` is ``(attrname, pointer_str)``:
-        ``attrname=""`` for a pointer on ``node.value``, otherwise the
-        attribute name. The key composition rule is documented in
-        :meth:`register_pointer`.
+        Each entry is ``(attrname, pointer_str)``: ``attrname=""`` for a
+        pointer on ``node.value``, otherwise the attribute name. The path
+        entry is pruned when it becomes empty.
         """
         for attrname, pointer in pointers:
             path = node.abs_datapath(pointer)
             if attrname:
                 path = f"{path}?{attrname}"
-            if unregister:
-                inner = self.pointer_map.get(path)
-                if inner is not None:
-                    inner.pop(id(node), None)
-                    if not inner:
-                        del self.pointer_map[path]
-            else:
-                self.pointer_map.setdefault(path, {})[id(node)] = node
+            inner = self.pointer_map.get(path)
+            if inner is not None:
+                inner.pop(id(node), None)
+                if not inner:
+                    del self.pointer_map[path]
 
-    def register_path(self, node: SourceBagNode, abs_path: str) -> None:
+    def _register_path(self, node: SourceBagNode, abs_path: str) -> None:
         """Register ``node`` as a reader of ``abs_path`` (read-time tracking)."""
         self.pointer_map.setdefault(abs_path, {})[id(node)] = node
 
@@ -772,15 +742,14 @@ class BuilderHandler:
         return "scalar"
 
     def _on_upd_value(self, node: SourceBagNode, oldvalue: Any) -> None:
-        """Keep ``self.pointer_map`` coherent across an ``upd_value`` event.
+        """De-register the old value's pointers across an ``upd_value`` event.
 
         Dispatches over the 9 transitions of (old kind, new kind) where
-        each kind is one of ``"scalar"``, ``"pointer"``, ``"bag"`` —
-        see :meth:`_value_nature`. The actions are:
-
-        - on ``"scalar"`` boundary: nothing to do for that side
-        - on ``"pointer"`` boundary: add/remove the direct entry of ``node``
-        - on ``"bag"`` boundary: walk the (old or new) subtree
+        each kind is one of ``"scalar"``, ``"pointer"``, ``"bag"`` — see
+        :meth:`_value_nature`. Only the OLD side acts: registration of the
+        new value is the render's job (read-time ``_register_path``). The
+        empty branches are kept explicit as anchor points for the future
+        partial-render refactor.
         """
         new = node.value
         old_kind = self._value_nature(oldvalue)
@@ -789,48 +758,37 @@ class BuilderHandler:
             case ("scalar", "scalar"):
                 pass
             case ("scalar", "pointer"):
-                self._update_pointer_map(node, [("", new)], unregister=False)
+                pass
             case ("scalar", "bag"):
-                for child in new:
-                    self.register_pointer(child)
+                pass
             case ("pointer", "scalar"):
-                self._update_pointer_map(node, [("", oldvalue)], unregister=True)
+                self._update_pointer_map(node, [("", oldvalue)])
             case ("pointer", "pointer"):
-                self._update_pointer_map(node, [("", oldvalue)], unregister=True)
-                self._update_pointer_map(node, [("", new)], unregister=False)
+                self._update_pointer_map(node, [("", oldvalue)])
             case ("pointer", "bag"):
-                self._update_pointer_map(node, [("", oldvalue)], unregister=True)
-                for child in new:
-                    self.register_pointer(child)
+                self._update_pointer_map(node, [("", oldvalue)])
             case ("bag", "scalar"):
                 for old_child in oldvalue:
-                    self.register_pointer(old_child, unregister=True)
+                    self._unregister_pointer(old_child)
             case ("bag", "pointer"):
                 for old_child in oldvalue:
-                    self.register_pointer(old_child, unregister=True)
-                self._update_pointer_map(node, [("", new)], unregister=False)
+                    self._unregister_pointer(old_child)
             case ("bag", "bag"):
                 for old_child in oldvalue:
-                    self.register_pointer(old_child, unregister=True)
-                for child in new:
-                    self.register_pointer(child)
+                    self._unregister_pointer(old_child)
 
     def _on_upd_attrs(self, node: SourceBagNode, attrs_diff: dict) -> None:
-        """Keep ``self.pointer_map`` coherent across an ``upd_attrs`` event.
+        """De-register old attr-pointers across an ``upd_attrs`` event.
 
         ``attrs_diff`` is the per-attribute diff produced by ``genro_bag``:
         ``{attr_name: {"old": old_value, "new": new_value}, ...}``. Only
-        changed keys appear. For each entry, deregister the old pointer
-        (if the old value was a pointer) and register the new one (if
-        the new value is a pointer). Non-pointer values are ignored.
+        the old pointer is de-registered; the new one is re-registered by
+        the render that follows.
         """
         for attrname, change in attrs_diff.items():
             old_v = change.get("old")
-            new_v = change.get("new")
             if isinstance(old_v, str) and old_v.startswith("^"):
-                self._update_pointer_map(node, [(attrname, old_v)], unregister=True)
-            if isinstance(new_v, str) and new_v.startswith("^"):
-                self._update_pointer_map(node, [(attrname, new_v)], unregister=False)
+                self._update_pointer_map(node, [(attrname, old_v)])
 
     # ------------------------------------------------------------------
     # Runtime evaluation (slice 0)
