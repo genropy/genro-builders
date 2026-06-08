@@ -690,7 +690,7 @@ class SourceBag(Bag, _SourceBagMixin):
             source: Optional dict to seed the Bag (mirrors ``Bag.__init__``).
             builder: BuilderBase instance whose schema drives attribute
                 dispatch on this bag (and on nodes attached to it).
-            handler: OldBuilderHandler that owns the tree this bag belongs to.
+            handler: BuilderHandler that owns the tree this bag belongs to.
         """
         super().__init__(source=source)
         self._builder = builder

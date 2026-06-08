@@ -8,8 +8,9 @@ A builder declares the grammar of a dialect via decorators
 (data_setter / data_formula / data_controller) are ordinary @element
 declared on this base and marked ``_meta['data_element']``. A builder
 renders itself: it owns its source (under the ``main`` segment of a
-wrapper root) and the create/render phases. Data, reactivity and
-node_id lookup across mounted builders live on the OldBuilderHandler.
+wrapper root), the create/render phases, the first calculation and the
+per-builder node_id lookup. The data store is supplied by the
+BuilderHandler; reactivity (live render) is a later phase.
 
 Exports:
     BuilderBase: Base class for all builders.
@@ -64,8 +65,8 @@ class BuilderBase(
     this base and injected into every dialect's schema by
     ``__init_subclass__`` (see ``_iter_data_element_methods``).
 
-    Engine concerns (source, lifecycle phases, render_target,
-    node_id) belong to the OldBuilderHandler.
+    Source, lifecycle phases, render_target and node_id belong to the
+    builder itself; the data store comes from the BuilderHandler.
     """
 
     _class_schema: Bag  # Schema built from decorators at class definition
@@ -530,13 +531,12 @@ class BuilderBase(
     def runtime_values(self, node: Any) -> tuple[Any, dict[str, Any]]:
         """Resolve the pointers/templates carried by ``node``.
 
-        Returns ``(runtime_value, runtime_attrs)``. The builder owns the
-        data (``self.data`` segment) and the handler (``self.handler``,
-        for read-time path registration), so resolution lives here and
-        ``node`` is just the subject. ``^``/``=`` strings are looked up in
-        the data via the node's relative-path composition; ``^`` readers
-        register in the pointer_map; ``${name}`` templates expand against
-        the resolved attrs.
+        Returns ``(runtime_value, runtime_attrs)``. Resolution lives on
+        the builder (it reaches the handler via ``self.handler``); ``node``
+        is just the subject whose pointers are resolved. ``^``/``=``
+        strings are read from ``handler.data`` at the node's absolute path;
+        ``^`` readers register in the pointer_map; ``${name}`` templates
+        expand against the resolved attrs.
         """
         resolved: dict[Any, Any] = {}
         for k, v in node.runtime_to_evaluate().items():
