@@ -1,0 +1,34 @@
+# Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
+"""05 — Struct methods: blocks invoked from a node. See readme.md."""
+from __future__ import annotations
+
+from genro_builders import struct_method
+from genro_builders.contrib.html import HtmlBuilder
+
+
+class CustomPage(HtmlBuilder):
+    @struct_method
+    def card(self, pane, title, body, color="#3498db"):
+        box = pane.div(class_="card", border_top=f"3px solid {color}")
+        box.h3(title)
+        box.p(body)
+
+    @struct_method
+    def ui_badge(self, pane, text):
+        pane.span(text, class_="badge")
+
+    def main(self, root):
+        body = root.body()
+        body.card("Designer", "Alice", color="#e74c3c")
+        body.card("Engineer", "Bob", color="#2ecc71")
+        body.card("Manager", "Carol")
+        body.badge("from ui_badge")     # prefix 'ui_' stripped -> 'badge'
+        body.Badge("case insensitive")  # 'Badge' dispatches the same
+
+
+if __name__ == "__main__":
+    page = CustomPage()
+    page.set_render_target("output.html")
+    page.create()
+    page.render(pretty=True)
+    print(page.rendered_target)

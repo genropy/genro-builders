@@ -1,0 +1,6 @@
+<recipe>
+  <ingredient qty="500">flour</ingredient>
+  <ingredient qty="300">water</ingredient>
+  <step>Mix flour and water</step>
+  <step>Knead for ten minutes</step>
+</recipe>

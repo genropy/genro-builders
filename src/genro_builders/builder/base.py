@@ -423,15 +423,45 @@ class BuilderBase(
             return None
         return target or self._default_targets.get(renderer.mode)
 
-    def set_render_target(self, mode: str, target: Any) -> None:
-        """Register a render target for ``mode``.
+    def set_render_target(self, target: Any, mode: str | None = None) -> None:
+        """Register a render target, by default for the dialect's own mode.
 
-        Overrides any previous registration under the same mode. A target
+        ``mode`` defaults to the dialect's ``_default_render_mode`` (e.g.
+        ``"html"`` for HtmlBuilder), so the common case is just
+        ``set_render_target("output.html")``. Pass ``mode`` to register a
+        target for a different render mode (e.g. an ``xml`` view). A target
         passed explicitly to :meth:`render` still wins over the registered
-        one. The dialect's ``_default_render_mode`` is the rendering mode
-        and is not changed here.
+        one.
         """
-        self._default_targets[mode] = target
+        self._default_targets[mode or self._default_render_mode] = target
+
+    @property
+    def rendered_target(self) -> str:
+        """Read back the file written by the last render to the default mode.
+
+        Returns the text content of the file registered as the target for
+        the dialect's ``_default_render_mode`` (a string renderer writes
+        its output there). Use after :meth:`render` to inspect what was
+        produced without re-rendering.
+
+        Raises:
+            KeyError: no target registered for the default mode.
+            TypeError: the registered target is not a file path (e.g. a
+                writable or a callable) — there is no file to read back.
+        """
+        mode = self._default_render_mode
+        target = self._default_targets.get(mode)
+        if target is None:
+            raise KeyError(
+                f"no render target registered for mode {mode!r}; "
+                "call set_render_target first",
+            )
+        if not isinstance(target, (str, Path)):
+            raise TypeError(
+                f"render target for mode {mode!r} is not a file path; "
+                "there is no file to read back",
+            )
+        return Path(target).read_text(encoding="utf-8")
 
     def include_components(self, *mixins: type) -> None:
         """Enrich THIS instance's grammar with the @component methods

@@ -49,15 +49,18 @@ the pull-based slice above is the current contract.
 
 ## Examples
 
-See [examples/](examples/) — three tutorials, each shipped as
-`.py` + `.ipynb` + rendered `.html`:
+See [examples/](examples/). Each example is a folder with one page
+(`<name>.py`), its rendered output, and a `readme.md`. They are grouped
+by what the page needs:
 
-- **01_introduction** — minimal HtmlBuilderHandler with `main` /
-  `create` / `render`.
-- **02_inline_styling** — CSS kwargs, Genro macros (`rounded`,
-  `gradient`, ...), `style_*` escapes.
-- **03_subbuilders** — host SVG inside HTML and vice versa
-  (`<foreignObject>` wrapping).
+- **no_data/** — pages that are pure structure, no pointers, no handler:
+  `00_hello_world`, `01_inline_styling`, `02_nested_structure`,
+  `03_subbuilders`, `04_methods`, `05_struct_method`, `06_render_modes`,
+  `07_validation`.
+- **with_data/** — pages that bind to data via pointers (`^`/`=`,
+  data-elements). _(work in progress)_
+
+Run an example from its folder: `python <name>.py`.
 
 ## Documentation
 
