@@ -11,7 +11,6 @@ from typing import Annotated
 
 from genro_builders.builder import (
     BuilderBase,
-    BuilderHandler,
     Range,
     Regex,
     abstract,
@@ -45,18 +44,14 @@ class RecipeBuilder(BuilderBase):
     ): ...
 
 
-class RecipeHandler(BuilderHandler):
-    builder_class = RecipeBuilder
-
-
 def _build_valid():
-    h = RecipeHandler()
-    r = h.source.recipe()
+    b = RecipeBuilder()
+    r = b.source.recipe()
     r.ingredient("flour", qty=500)
     r.ingredient("water", qty=300)
     r.step("Mix flour and water")
     r.step("Knead for ten minutes")
-    return h.render()
+    return b.render()
 
 
 def _capture(fn):
@@ -69,13 +64,13 @@ def _capture(fn):
 
 
 def _bad_parent():
-    h = RecipeHandler()
-    h.source.step("orphan step")  # step requires parent 'recipe'
+    b = RecipeBuilder()
+    b.source.step("orphan step")  # step requires parent 'recipe'
 
 
 def _bad_qty():
-    h = RecipeHandler()
-    r = h.source.recipe()
+    b = RecipeBuilder()
+    r = b.source.recipe()
     r.ingredient("salt", qty=-5)  # Range(gt=0) violated
 
 

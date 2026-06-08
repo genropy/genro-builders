@@ -6,9 +6,10 @@ A builder declares the grammar of a dialect via decorators
 (sub_tags, parent_tags). Sub-builders and data-elements are ordinary
 @element marked in their ``_meta`` (no dedicated decorator). The three data-elements
 (data_setter / data_formula / data_controller) are ordinary @element
-declared on this base and marked ``_meta['data_element']``. Engine
-responsibilities — source, the create/render phases, render_target,
-node_id lookup — live on the BuilderHandler (decisions 1, 8, 9).
+declared on this base and marked ``_meta['data_element']``. A builder
+renders itself: it owns its source (under the ``main`` segment of a
+wrapper root) and the create/render phases. Data, reactivity and
+node_id lookup across mounted builders live on the BuilderHandler.
 
 Exports:
     BuilderBase: Base class for all builders.
@@ -87,6 +88,13 @@ class BuilderBase(
     #: is known at class scope (it cannot be annotated on the ``cls`` target).
     #: Not a ClassVar: ``__init__`` binds it onto each instance as well.
     _schema_tag_names: dict[str, str]
+
+    #: @struct_method dispatch map (lowercase dispatch name -> attr name),
+    #: rebuilt per subclass in :meth:`__init_subclass__`. A struct-method is
+    #: a callable block invocable from any node (``node.card(...)``); the
+    #: dispatcher resolves it through the active builder (legacy
+    #: gnrwebstruct parity).
+    _struct_methods: dict[str, str]
 
     # -----------------------------------------------------------------------
     # Initialization
@@ -200,6 +208,39 @@ class BuilderBase(
                 )
             cls._schema_tag_names[key] = label
 
+        # @struct_method dispatch map (legacy gnrwebstruct parity): dispatch
+        # name = explicit ``@struct_method('alias')`` if given, else attr name
+        # with the prefix-before-first-underscore stripped, else attr name;
+        # stored lowercase; reverse-MRO merge for inheritance; same dispatch
+        # name on a different attr name collides. Struct methods are skipped
+        # by _pop_decorated_methods, so they stay callable on the class.
+        merged: dict[str, str] = {}
+        for klass in reversed(cls.__mro__):
+            parent_map = klass.__dict__.get("_struct_methods")
+            if parent_map:
+                merged.update(parent_map)
+        for attr_name, obj in cls.__dict__.items():
+            decorator = getattr(obj, "_decorator", None)
+            if decorator is None or not decorator.get("struct_method"):
+                continue
+            explicit = decorator.get("name")
+            if explicit is not None:
+                dispatch_name = explicit
+            elif "_" in attr_name:
+                dispatch_name = attr_name.split("_", 1)[1]
+            else:
+                dispatch_name = attr_name
+            key = dispatch_name.lower()
+            existing = merged.get(key)
+            if existing is not None and existing != attr_name:
+                raise ValueError(
+                    f"@struct_method '{dispatch_name}' is already tied to "
+                    f"implementation method '{existing}' (cannot rebind to "
+                    f"'{attr_name}')"
+                )
+            merged[key] = attr_name
+        cls._struct_methods = merged
+
         name = cls.__dict__.get("_name")
         if name is not None:
             if not isinstance(name, str):
@@ -261,15 +302,26 @@ class BuilderBase(
         )
 
     def __init__(self) -> None:
-        """Initialize the builder. Grammar-only state (decisions 1, 8 v0.4.0).
+        """Initialize the builder: grammar state plus the source wrapper.
 
         Renderers are exposed as ``renderer_<mode>`` properties on the
         builder class. The base class declares ``renderer_xml`` so the
         ``xml`` mode is always available; concrete dialects declare
         their own (``renderer_html`` on ``HtmlBuilder`` etc.).
+
+        The source lives under a stable ``main`` segment of a wrapper
+        root, exactly as the handler arranges it: ``self.source`` is the
+        payload the ``main`` recipe populates, ``_sourceroot`` the wrapper
+        that carries it. ``handler=None`` — a bare builder renders itself
+        with no data and no reactivity.
         """
         self._schema = type(self)._class_schema
         self._schema_tag_names = type(self)._schema_tag_names
+        self._sourceroot: SourceBag = SourceBag(builder=self, handler=None)
+        self._sourceroot["main"] = SourceBag(builder=self, handler=None)
+        self.source: SourceBag = self._sourceroot["main"]
+        self._sourceroot.set_backref()
+        self._default_targets: dict[str, Any] = {}
 
     @property
     def renderer_xml(self) -> XmlRenderer:
@@ -309,6 +361,77 @@ class BuilderBase(
         root = SourceBag(builder=self, handler=None)
         root.set_backref()
         return root
+
+    def get_subbuilder(self, name: str) -> Any:
+        """Return a sub-builder instance by canonical name.
+
+        Looks up the class in the global registry via
+        :meth:`get_builder_class` and instantiates it. Used when a
+        ``_meta['subbuilder']`` element switches the active dialect
+        mid-document (e.g. ``body.svg(...)`` inside HTML).
+        """
+        return type(self).get_builder_class(name)()
+
+    def main(self, root: SourceBag) -> None:
+        """Build the document into ``root``. Override on a page subclass.
+
+        The base raises: a bare builder is grammar, not a renderable page.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} has no 'main': it is grammar, not a "
+            "renderable page",
+        )
+
+    def create(self) -> None:
+        """Build the document by running ``main`` on the source.
+
+        The source wrapper is set up in ``__init__``; ``create`` only runs
+        the recipe. Kept separate from ``render`` so the build phase stays
+        distinct (and so data can seed it in later phases).
+        """
+        self.main(self.source)
+
+    def render(self, mode: str | None = None, target: Any = None, **opts: Any) -> Any:
+        """Render the built source via ``renderer_<mode>``.
+
+        Pointer-free path: the builder renders itself, no handler needed.
+        ``mode`` defaults to the dialect's ``_default_render_mode``;
+        ``target`` follows :meth:`_get_target` (``False`` returns the
+        string, a falsy value falls back to a registered target, a truthy
+        value is used directly).
+        """
+        mode = mode or self._default_render_mode
+        renderer = getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
+        result = renderer.render_children(renderer.preprocess(self.source), **opts)
+        return renderer.finalize(result, self._get_target(target, renderer), **opts)
+
+    def _get_target(self, target: Any, renderer: Any) -> Any:
+        """Resolve the render target for a render call.
+
+        - ``False`` → return-as-value: ``None`` for a string renderer, an
+          error for an object renderer (no string to return);
+        - any other falsy value → the target registered for the renderer's
+          mode via :meth:`set_render_target` (``None`` if none);
+        - a truthy value → used as-is.
+        """
+        if target is False:
+            if renderer.render_type != "string":
+                raise TypeError(
+                    f"target=False (return-as-value) is not valid for an "
+                    f"object renderer ({type(renderer).__name__})",
+                )
+            return None
+        return target or self._default_targets.get(renderer.mode)
+
+    def set_render_target(self, mode: str, target: Any) -> None:
+        """Register a render target for ``mode``.
+
+        Overrides any previous registration under the same mode. A target
+        passed explicitly to :meth:`render` still wins over the registered
+        one. The dialect's ``_default_render_mode`` is the rendering mode
+        and is not changed here.
+        """
+        self._default_targets[mode] = target
 
     def include_components(self, *mixins: type) -> None:
         """Enrich THIS instance's grammar with the @component methods

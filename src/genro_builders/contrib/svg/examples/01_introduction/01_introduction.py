@@ -1,10 +1,10 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""01 — Introduction: the simplest possible image with SvgBuilderHandler.
+"""01 — Introduction: the simplest possible image with SvgBuilder.
 
 What you learn:
-    - Subclass `SvgBuilderHandler` and bind the SVG dialect to the handler.
+    - Subclass `SvgBuilder` and write the image in `main(self, root)`.
     - Populate the `source` Bag inside `main(self, root)`.
-    - The three-phase lifecycle: `create()` -> `build()` -> `render()`.
+    - The two-phase lifecycle: `create()` -> `render()`.
 
 Prerequisites: None. This is the SVG starting point.
 
@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.contrib.svg import SvgBuilderHandler
+from genro_builders.contrib.svg import SvgBuilder
 
 
-class HelloSvg(SvgBuilderHandler):
+class HelloSvg(SvgBuilder):
     """Minimal SVG image with a coloured square and a circle on top."""
 
     def main(self, root):

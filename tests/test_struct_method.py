@@ -18,7 +18,8 @@ import inspect
 import pytest
 
 from genro_builders import struct_method
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
+from genro_builders.contrib.svg import SvgBuilder
 
 # --- Sotto-step 2: metadata ---------------------------------------------------
 
@@ -55,7 +56,7 @@ def test_struct_method_importable_top_level():
 # --- Sotto-step 3: dispatch ---------------------------------------------------
 
 def test_struct_method_invoked_via_node():
-    class P(HtmlBuilderHandler):
+    class P(HtmlBuilder):
         @struct_method
         def block(self, pane):
             pane.h1("ok")
@@ -69,10 +70,10 @@ def test_struct_method_invoked_via_node():
     assert "<h1>ok</h1>" in page.render()
 
 
-def test_struct_method_receives_handler_as_self_and_node_as_pane():
+def test_struct_method_receives_builder_as_self_and_node_as_pane():
     received = {}
 
-    class P(HtmlBuilderHandler):
+    class P(HtmlBuilder):
         @struct_method
         def record(self, pane):
             received["self"] = self
@@ -90,7 +91,7 @@ def test_struct_method_receives_handler_as_self_and_node_as_pane():
 
 
 def test_struct_method_args_kwargs_forwarded():
-    class P(HtmlBuilderHandler):
+    class P(HtmlBuilder):
         @struct_method
         def card(self, pane, title, color="blue"):
             pane.div(class_=f"card {color}").h2(title)
@@ -107,7 +108,7 @@ def test_struct_method_args_kwargs_forwarded():
 
 
 def test_struct_method_case_insensitive():
-    class P(HtmlBuilderHandler):
+    class P(HtmlBuilder):
         @struct_method
         def my_block(self, pane):
             pane.span("ok")
@@ -126,7 +127,7 @@ def test_struct_method_case_insensitive():
 def test_struct_method_prefix_strip():
     """def iv_widget(self, pane) -> registrato come 'widget' (legacy)."""
 
-    class P(HtmlBuilderHandler):
+    class P(HtmlBuilder):
         @struct_method
         def iv_widget(self, pane):
             pane.span("stripped")
@@ -143,7 +144,7 @@ def test_struct_method_prefix_strip():
 def test_struct_method_explicit_name():
     """@struct_method('alias') sovrascrive il naming automatico."""
 
-    class P(HtmlBuilderHandler):
+    class P(HtmlBuilder):
         @struct_method('alias')
         def some_internal_name(self, pane):
             pane.span("aliased")
@@ -162,7 +163,7 @@ def test_struct_method_collision_different_funcs_raises():
     di dispatch → ValueError (legacy)."""
     with pytest.raises(ValueError, match="(?i)already tied|already registered|duplicate"):
 
-        class _Bad(HtmlBuilderHandler):
+        class _Bad(HtmlBuilder):
             @struct_method('widget')
             def first_impl(self, pane):
                 pane.div()
@@ -179,7 +180,7 @@ def test_struct_method_subclass_override_same_name_is_ok():
     """Una subclass che ridichiara @struct_method con stesso func.__name__
     del parent → override Python normale, NO errore (legacy idempotente)."""
 
-    class A(HtmlBuilderHandler):
+    class A(HtmlBuilder):
         @struct_method
         def widget(self, pane):
             pane.span("parent")
@@ -199,12 +200,12 @@ def test_struct_method_subclass_override_same_name_is_ok():
     assert "parent" not in page.render()
 
 
-def test_struct_method_invoked_inside_subbuilder_subtree():
-    """Q6: handler top-level sempre. Blocco decorato su handler HTML
-    invocabile da dentro un <svg> subtree, e i pane.<tag> dentro il body
-    si risolvono nella grammar del subtree (SVG)."""
+def test_struct_method_dispatched_via_active_builder():
+    """A struct method is resolved through the builder of the node it is
+    invoked on. Defined on an SVG page, it is reachable from an SVG node
+    and its ``pane.<tag>`` calls resolve in the SVG grammar."""
 
-    class P(HtmlBuilderHandler):
+    class P(SvgBuilder):
         @struct_method
         def stamp(self, pane, label):
             pane.rect(width=10, height=10)
@@ -215,7 +216,7 @@ def test_struct_method_invoked_inside_subbuilder_subtree():
 
     page = P()
     page.create()
-    svg = page.source.body().svg(viewBox="0 0 100 100")
+    svg = page.source.svg(viewBox="0 0 100 100")
     svg.stamp("hi")
     out = page.render()
     assert "<rect" in out
@@ -224,7 +225,7 @@ def test_struct_method_invoked_inside_subbuilder_subtree():
 
 
 def test_struct_method_return_value_passed_through():
-    class P(HtmlBuilderHandler):
+    class P(HtmlBuilder):
         @struct_method
         def card(self, pane, title):
             pane.h2(title)

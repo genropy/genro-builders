@@ -259,11 +259,6 @@ def _decorated_method_info(
 ) -> tuple[list[str], str | None, Any, dict]:
     """Build (tag_list, method_name, obj, decorator_info) for a decorated method."""
     decorator_info = obj._decorator
-    if decorator_info.get("struct_method"):
-        raise ValueError(
-            f"@struct_method '{name}' must live on a BuilderHandler "
-            "subclass, not on a builder",
-        )
     if decorator_info.get("abstract"):
         return [name], None, obj, decorator_info
     else:
@@ -299,6 +294,8 @@ def _pop_decorated_methods(cls: type, builder_base: type):
 
     for name, obj in list(cls.__dict__.items()):
         if hasattr(obj, "_decorator"):
+            if obj._decorator.get("struct_method"):
+                continue
             seen.add(name)
             is_component = (obj._decorator.get("_meta") or {}).get("component")
             if not is_component:
@@ -319,6 +316,8 @@ def _pop_decorated_methods(cls: type, builder_base: type):
             if name in seen:
                 continue
             if hasattr(obj, "_decorator"):
+                if obj._decorator.get("struct_method"):
+                    continue
                 seen.add(name)
                 yield _decorated_method_info(name, obj)
 

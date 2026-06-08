@@ -3,7 +3,7 @@
 
 What you learn:
     - Switch dialect mid-document with ``@subbuilder``: from inside an
-      ``HtmlBuilderHandler`` call ``body.svg()`` and continue building
+      ``HtmlBuilder`` call ``body.svg()`` and continue building
       with the SVG grammar.
     - Re-enter HTML inside SVG with ``svg.html(...).div(...)``: the
       framework wraps the HTML subtree in ``<foreignObject>`` with the
@@ -23,14 +23,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.contrib.html import HtmlBuilder, HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 # ---------------------------------------------------------------------------
 # 1. HTML hosting SVG: a single shape inline
 # ---------------------------------------------------------------------------
 
 
-class Section1(HtmlBuilderHandler):
+class Section1(HtmlBuilder):
     """A red circle and a blue rectangle sitting inside an HTML body.
 
     Note how ``body.svg(...)`` opens the SVG dialect: from there on
@@ -50,7 +50,7 @@ class Section1(HtmlBuilderHandler):
 # ---------------------------------------------------------------------------
 
 
-class Section2(HtmlBuilderHandler):
+class Section2(HtmlBuilder):
     """A "status badge": an SVG icon next to an HTML label, all in one
     flow. The icon uses an ``<svg>`` with a coloured background, a
     centred circle and a checkmark drawn as a ``<path>``."""
@@ -73,7 +73,7 @@ class Section2(HtmlBuilderHandler):
 # ---------------------------------------------------------------------------
 
 
-class Section3(HtmlBuilderHandler):
+class Section3(HtmlBuilder):
     """A small infographic: gradient-free shapes used together. The
     point is that every shape (rect, circle, ellipse, line, polygon)
     is offered by the SVG grammar, and the host HTML page does not
@@ -103,7 +103,7 @@ class Section3(HtmlBuilderHandler):
 # ---------------------------------------------------------------------------
 
 
-class Section4(HtmlBuilderHandler):
+class Section4(HtmlBuilder):
     """Inside an SVG drawing, place rich HTML content (paragraphs, lists,
     styled text) without leaving the page flow.
 
@@ -137,7 +137,7 @@ class Section4(HtmlBuilderHandler):
 # ---------------------------------------------------------------------------
 
 
-class Section5(HtmlBuilderHandler):
+class Section5(HtmlBuilder):
     """A miniature "dashboard card": HTML title and footer, SVG bar
     chart in the middle, and inside the chart a small HTML caption
     via the ``svg.html()`` re-entry. Three dialect switches in one
@@ -183,10 +183,10 @@ class Section5(HtmlBuilderHandler):
 # ---------------------------------------------------------------------------
 
 
-class Section6(HtmlBuilderHandler):
+class Section6(HtmlBuilder):
     """Render-side example for the framework introspection cell.
 
-    This handler exists only so the inspection snippet has something
+    This page exists only so the inspection snippet has something
     to walk: ``body.svg().rect(...)``. The interesting content of
     Section 6 lives in the notebook narrative cell (schema lookup +
     node._builder check)."""
@@ -203,8 +203,8 @@ class Section6(HtmlBuilderHandler):
 # ---------------------------------------------------------------------------
 
 
-def _render_section(handler_cls, *, pretty=True):
-    page = handler_cls()
+def _render_section(builder_cls, *, pretty=True):
+    page = builder_cls()
     page.create()
     return page.render(pretty=pretty)
 

@@ -2,7 +2,7 @@
 """01 — Introduction: a guided tour of CssBuilder (level 1).
 
 What you learn:
-    - Subclass `CssBuilderHandler` and populate the source bag in
+    - Subclass `CssBuilder` and populate the source bag in
       `main(self, root)`.
     - Declare a `selector` at the top, attach a `rule` for the
       property block.
@@ -22,10 +22,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.contrib.css import CssBuilderHandler
+from genro_builders.contrib.css import CssBuilder
 
 
-class HelloCss(CssBuilderHandler):
+class HelloCss(CssBuilder):
     """A small showcase of every level-1 feature."""
 
     def main(self, root):

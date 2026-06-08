@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class Page(HtmlBuilderHandler):
+class Page(HtmlBuilder):
     """One small document, rendered in several modes."""
 
     def main(self, root):

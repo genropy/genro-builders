@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from genro_builders import struct_method
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class Section1(HtmlBuilderHandler):
+class Section1(HtmlBuilder):
     """A reusable card block invoked several times from any node."""
 
     @struct_method
@@ -24,7 +24,7 @@ class Section1(HtmlBuilderHandler):
         body.card("Manager", "Carol")
 
 
-class Section2(HtmlBuilderHandler):
+class Section2(HtmlBuilder):
     """Case-insensitive dispatch and prefix-stripped explicit names."""
 
     @struct_method
@@ -37,8 +37,8 @@ class Section2(HtmlBuilderHandler):
         body.Badge("case insensitive")  # 'Badge' dispatches the same
 
 
-def _render_section(handler_cls, *, pretty=True):
-    page = handler_cls()
+def _render_section(builder_cls, *, pretty=True):
+    page = builder_cls()
     page.create()
     return page.render(pretty=pretty)
 

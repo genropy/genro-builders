@@ -18,10 +18,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class StylingShowcase(HtmlBuilderHandler):
+class StylingShowcase(HtmlBuilder):
     """A single page that demonstrates each inline-styling form."""
 
     def main(self, root):

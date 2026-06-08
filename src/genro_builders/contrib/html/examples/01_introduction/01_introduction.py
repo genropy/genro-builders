@@ -1,10 +1,10 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""01 — Introduction: the simplest possible page with HtmlBuilderHandler.
+"""01 — Introduction: the simplest possible page with HtmlBuilder.
 
 What you learn:
-    - Subclass `HtmlBuilderHandler` and bind a dialect to the handler.
+    - Subclass `HtmlBuilder` and write the page in `main(self, root)`.
     - Populate the `source` Bag inside `main(self, root)`.
-    - The three-phase lifecycle: `create()` -> `build()` -> `render()`.
+    - The two-phase lifecycle: `create()` -> `render()`.
 
 Prerequisites: None. This is the starting point.
 
@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class HelloPage(HtmlBuilderHandler):
+class HelloPage(HtmlBuilder):
     """Minimal HTML page with a heading and a paragraph."""
 
     def main(self, root):

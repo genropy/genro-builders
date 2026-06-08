@@ -2,7 +2,7 @@
 """Badge sheet — demo di @struct_method.
 
 What you learn:
-    - Decorate a handler method with @struct_method to expose it as a
+    - Decorate a builder method with @struct_method to expose it as a
       block invocable from any node in the source bag.
     - The first arg after self (convention: ``pane``) is the node from
       which the block was invoked.
@@ -18,10 +18,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from genro_builders import struct_method
-from genro_builders.contrib.svg import SvgBuilderHandler
+from genro_builders.contrib.svg import SvgBuilder
 
 
-class BadgeSheet(SvgBuilderHandler):
+class BadgeSheet(SvgBuilder):
     """Sheet of three name badges arranged in a grid."""
 
     @struct_method

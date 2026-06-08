@@ -31,19 +31,21 @@ from genro_bag import Bag, BagNode
 _TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
-def _dispatch_struct_method(handler: Any, target: Any, name: str) -> Any | None:
-    """Resolve ``name`` as a ``@struct_method`` on ``handler``.
+def _dispatch_struct_method(builder: Any, target: Any, name: str) -> Any | None:
+    """Resolve ``name`` as a ``@struct_method`` on ``builder``.
 
     Returns a callable bound to ``target`` (bag or node) when the name
-    matches a registered struct method on the handler; ``None`` if no
-    match (caller falls through to whatever else it wants to try).
+    matches a registered struct method on the builder; ``None`` if no
+    match (caller falls through to whatever else it wants to try). The
+    struct method runs with ``self`` = the builder and ``target`` as its
+    first positional (the node it was invoked from).
     """
-    if handler is None:
+    if builder is None:
         return None
-    method_name = handler._struct_methods.get(name.lower())
+    method_name = builder._struct_methods.get(name.lower())
     if method_name is None:
         return None
-    bound = getattr(handler, method_name)
+    bound = getattr(builder, method_name)
     return lambda *args, **kwargs: bound(target, *args, **kwargs)
 
 
@@ -558,7 +560,7 @@ class _SourceBagNodeMixin:
         node is flagged ``_is_data_element``; a plain element keeps the
         single-positional ``node_value`` behaviour. If no grammar tag
         matches, fall back to a ``@struct_method`` dispatched via the
-        owning handler (legacy gnrwebstruct parity).
+        active builder (legacy gnrwebstruct parity).
         """
         if name.startswith("_"):
             raise AttributeError(
@@ -571,7 +573,7 @@ class _SourceBagNodeMixin:
             )
         original_tag = builder._schema_tag_names.get(name.lower())
         if original_tag is None:
-            struct = _dispatch_struct_method(self._resolve_handler(), self, name)
+            struct = _dispatch_struct_method(builder, self, name)
             if struct is not None:
                 return struct
             raise AttributeError(
@@ -613,9 +615,8 @@ class _SourceBagNodeMixin:
             # descent then resolves the foreign grammar instead of the host's.
             sub_name = meta.get("subbuilder")
             if sub_name is not None:
-                handler = self._resolve_handler()
-                child._builder = handler.get_subbuilder(sub_name)
-                child._handler = handler
+                child._builder = builder.get_subbuilder(sub_name)
+                child._handler = self._resolve_handler()
             return child
 
         return element_call
@@ -665,14 +666,14 @@ class _SourceBagMixin:
 
     def __getattr__(self, name: str) -> Any:
         """Fallback after the regular attribute lookup fails: dispatch a
-        ``@struct_method`` via the owning handler (legacy gnrwebstruct
+        ``@struct_method`` via the active builder (legacy gnrwebstruct
         parity).
         """
         if name.startswith("_"):
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
-        struct = _dispatch_struct_method(getattr(self, "_handler", None), self, name)
+        struct = _dispatch_struct_method(getattr(self, "_builder", None), self, name)
         if struct is not None:
             return struct
         raise AttributeError(
