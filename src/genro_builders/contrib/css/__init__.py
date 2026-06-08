@@ -22,11 +22,11 @@ Example::
 
 from __future__ import annotations
 
-from ...builder import BuilderHandler
+from ...builder import OldBuilderHandler
 from .css_builder import CssBuilder
 
 
-class CssBuilderHandler(BuilderHandler):
+class CssBuilderHandler(OldBuilderHandler):
     """Preset handler bound to ``CssBuilder``.
 
     CSS rides the standard handler render flow: the universal walk turns

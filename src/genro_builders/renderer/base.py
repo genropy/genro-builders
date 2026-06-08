@@ -138,7 +138,7 @@ class RendererBase:
             raise TypeError(
                 f"render() requires a SourceBagNode, got {type(node).__name__}",
             )
-        item, ra = node.runtime_values()
+        item, ra = node.builder.runtime_values(node)
         if node._get_meta("data_element"):
             return None
         tag, ra = self._handle_meta(node, ra)

@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""BuilderHandler — engine that drives a single Builder (decisions 4, 5, 9).
+"""OldBuilderHandler — engine that drives a single Builder (decisions 4, 5, 9).
 
 The handler owns:
     - one ``builder`` instance (decision 4: handler manages its builder);
@@ -48,7 +48,7 @@ from genro_bag import Bag
 from .source_bag import SourceBag, SourceBagNode
 
 
-class BuilderHandler:
+class OldBuilderHandler:
     """Engine that drives one builder through the create/render lifecycle.
 
     Holds two wrapper bags (``_sourceroot`` and ``_dataroot``), each with
@@ -172,7 +172,7 @@ class BuilderHandler:
         )
 
     @contextmanager
-    def live(self, target: Any = None) -> Iterator[BuilderHandler]:
+    def live(self, target: Any = None) -> Iterator[OldBuilderHandler]:
         """Open a critical section where every source/data mutation
         triggers a fresh full render (RX livello 0, DR1-DR7).
 
@@ -570,7 +570,7 @@ class BuilderHandler:
         """
         info = self.builder._get_schema_info(node.node_tag)
         fields = set(info.get("call_args_validations") or {})
-        _, resolved = node.runtime_values()
+        _, resolved = node.builder.runtime_values(node)
         return {
             name: value
             for name, value in resolved.items()

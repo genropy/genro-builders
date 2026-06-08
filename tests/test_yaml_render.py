@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from genro_builders import BuilderBase
-from genro_builders.builder import BuilderHandler, element
+from genro_builders.builder import OldBuilderHandler, element
 
 yaml = pytest.importorskip("yaml")
 
@@ -32,7 +32,7 @@ class CfgBuilder(BuilderBase):
     def setting(self, value: str = ""): ...
 
 
-class CfgHandler(BuilderHandler):
+class CfgHandler(OldBuilderHandler):
     builder_class = CfgBuilder
 
     def __init__(self, build, **kwargs):

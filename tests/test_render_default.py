@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for ``BuilderHandler.render`` dispatch on a real dialect.
+"""Tests for ``OldBuilderHandler.render`` dispatch on a real dialect.
 
 Verifies the framework-level rendering behavior using ``HtmlBuilder``:
 default mode resolution, the always-available ``xml`` mode, pretty

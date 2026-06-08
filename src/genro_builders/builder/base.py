@@ -9,7 +9,7 @@ A builder declares the grammar of a dialect via decorators
 declared on this base and marked ``_meta['data_element']``. A builder
 renders itself: it owns its source (under the ``main`` segment of a
 wrapper root) and the create/render phases. Data, reactivity and
-node_id lookup across mounted builders live on the BuilderHandler.
+node_id lookup across mounted builders live on the OldBuilderHandler.
 
 Exports:
     BuilderBase: Base class for all builders.
@@ -18,9 +18,11 @@ Exports:
 from __future__ import annotations
 
 import contextlib
+import inspect
 import json
+import re
 from abc import ABC
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -37,6 +39,9 @@ from ._utilities import (
     _pop_decorated_methods,
 )
 from .source_bag import SourceBag
+
+# Template token spotted by ``runtime_values`` for ``${name}`` placeholders.
+_TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
 class BuilderBase(
@@ -60,7 +65,7 @@ class BuilderBase(
     ``__init_subclass__`` (see ``_iter_data_element_methods``).
 
     Engine concerns (source, lifecycle phases, render_target,
-    node_id) belong to the BuilderHandler.
+    node_id) belong to the OldBuilderHandler.
     """
 
     _class_schema: Bag  # Schema built from decorators at class definition
@@ -322,6 +327,14 @@ class BuilderBase(
         self.source: SourceBag = self._sourceroot["main"]
         self._sourceroot.set_backref()
         self._default_targets: dict[str, Any] = {}
+        # Data source. ``handler`` is set when a BuilderHandler mounts this
+        # builder (add_builder); ``data`` is its segment bag. A bare
+        # builder (no_data) keeps handler=None and an empty data bag, so
+        # setup(self.data) is harmless.
+        self.handler: Any = None
+        self.data: Bag = Bag()
+        # data-element logic sources, resolved lazily by ``data_logic``.
+        self._data_logic: list[Any] | None = None
 
     @property
     def renderer_xml(self) -> XmlRenderer:
@@ -382,14 +395,172 @@ class BuilderBase(
             "renderable page",
         )
 
-    def create(self) -> None:
-        """Build the document by running ``main`` on the source.
+    def setup(self, data: Any) -> None:
+        """Override point: populate this builder's data segment.
 
-        The source wrapper is set up in ``__init__``; ``create`` only runs
-        the recipe. Kept separate from ``render`` so the build phase stays
-        distinct (and so data can seed it in later phases).
+        Receives the builder's own data bag (its segment when mounted,
+        an empty bag otherwise). Default no-op — a page with pointers
+        overrides it to seed the values its ``main`` reads. Called by
+        :meth:`create` before ``main``.
         """
+
+    def create(self) -> None:
+        """Build the document, then run the first calculation.
+
+        Sequence: ``setup(self.data)`` seeds the data, ``main(self.source)``
+        builds the document, then the first calculation runs every
+        ``data_setter`` (it seeds the data) plus any ``data_formula`` /
+        ``data_controller`` flagged ``_on_start``. Reactivity (source/data
+        subscribes) is armed later and is out of scope here.
+        """
+        self.setup(self.data)
         self.main(self.source)
+        self.compute_logic(
+            self.source.query(
+                what="#n", deep=True,
+                condition=lambda n: bool(
+                    n._get_meta("data_element")
+                    and (n.node_tag == "data_setter" or n.attr.get("_on_start"))
+                ),
+            )
+        )
+        # Reactivity of the SOURCE (structure) lives on the builder —
+        # predisposed for the live phase, not armed yet.
+        # self._sourceroot.subscribe(
+        #     "builder_source",
+        #     insert=self._on_source_event,
+        #     update=self._on_source_event,
+        #     delete=self._on_source_event,
+        # )
+
+    def node_by_id(self, node_id: str) -> Any:
+        """Return the source node carrying ``node_id`` in this builder.
+
+        Walk-based lookup over this builder's source tree (the node_id
+        namespace is per-builder). Raises ``KeyError`` if no node carries
+        the requested id.
+        """
+        node = self.source.get_node_by_attr("node_id", node_id)
+        if node is None:
+            raise KeyError(node_id)
+        return node
+
+    # ------------------------------------------------------------------
+    # Data-element logic (first calculation; reactive cascade later)
+    # ------------------------------------------------------------------
+
+    def compute_logic(self, nodes: Iterable[Any]) -> None:
+        """Execute a list of data-element nodes through ``_compute_node``."""
+        for node in nodes:
+            self._compute_node(node)
+
+    def _compute_node(self, node: Any) -> None:
+        """Execute a single data-element node according to its kind.
+
+        - ``data_setter`` seeds the data: write its value at destination;
+        - ``data_formula`` is pure: ``func(**bindings)`` -> destination;
+        - ``data_controller`` has side effects: ``func(node, **bindings)``.
+        """
+        match node.node_tag:
+            case "data_setter":
+                node.set_relative_data(node.attr["destination"], node.attr["value"])
+            case "data_formula":
+                func = self._resolve_logic_func(node.attr["func"])
+                node.set_relative_data(
+                    node.attr["destination"], func(**self._bindings(node)),
+                )
+            case "data_controller":
+                func = self._resolve_logic_func(node.attr["func"])
+                func(node, **self._bindings(node))
+
+    def _bindings(self, node: Any) -> dict[str, Any]:
+        """Resolve a data-element node's bindings via ``runtime_values``.
+
+        ``runtime_values`` resolves ``^``/``=`` and ``${}``; here we strip
+        the element's own schema fields (``destination`` / ``func`` /
+        ``value`` / ``_on_start``), so what remains are the func bindings.
+        """
+        fields = set(self._get_schema_info(node.node_tag).get(
+            "call_args_validations") or {})
+        _, resolved = self.runtime_values(node)
+        return {k: v for k, v in resolved.items() if k not in fields}
+
+    @property
+    def data_logic(self) -> list[Any]:
+        """Sources searched (left-to-right) to resolve a data-element func.
+
+        Default is ``[self]`` (the builder owns its logic). Subclasses
+        override ``_build_data_logic`` to add more sources.
+        """
+        if self._data_logic is None:
+            built = self._build_data_logic()
+            self._data_logic = (
+                list(built) if isinstance(built, (list, tuple)) else [built]
+            )
+        return self._data_logic
+
+    def _build_data_logic(self) -> Any:
+        """Override point: return the data_logic source(s). Default ``self``."""
+        return self
+
+    def _resolve_logic_func(self, name: str) -> Any:
+        """Resolve ``name`` to a ``@staticmethod`` over ``data_logic`` sources.
+
+        Left-to-right, first-wins. A source owning the name but NOT as a
+        staticmethod raises TypeError; miss on every source raises
+        AttributeError.
+        """
+        for source in self.data_logic:
+            try:
+                attr = inspect.getattr_static(source, name)
+            except AttributeError:
+                continue
+            if not isinstance(attr, staticmethod):
+                raise TypeError(
+                    f"data-element func {name!r} on {type(source).__name__} "
+                    "must be a @staticmethod",
+                )
+            return getattr(source, name)
+        sources = ", ".join(type(s).__name__ for s in self.data_logic)
+        raise AttributeError(
+            f"data-element func {name!r} not found on any data_logic "
+            f"source ({sources})",
+        )
+
+    def runtime_values(self, node: Any) -> tuple[Any, dict[str, Any]]:
+        """Resolve the pointers/templates carried by ``node``.
+
+        Returns ``(runtime_value, runtime_attrs)``. The builder owns the
+        data (``self.data`` segment) and the handler (``self.handler``,
+        for read-time path registration), so resolution lives here and
+        ``node`` is just the subject. ``^``/``=`` strings are looked up in
+        the data via the node's relative-path composition; ``^`` readers
+        register in the pointer_map; ``${name}`` templates expand against
+        the resolved attrs.
+        """
+        resolved: dict[Any, Any] = {}
+        for k, v in node.runtime_to_evaluate().items():
+            ptype = node.pointer_type(v)
+            if ptype:
+                abs_path = node.abs_datapath(v)
+                resolved[k] = self.handler.data.get_item(abs_path)
+                if ptype == "^":
+                    self.handler._register_path(node, abs_path)
+            else:
+                resolved[k] = v
+
+        def _expand(s: str) -> str:
+            def repl(m: re.Match[str]) -> str:
+                val = resolved[m.group(1)]
+                return "" if val is None else str(val)
+            return _TEMPLATE_RE.sub(repl, s)
+
+        for k, v in resolved.items():
+            if isinstance(v, str) and "${" in v:
+                resolved[k] = _expand(v)
+
+        runtime_value: Any = resolved.pop(None)
+        return runtime_value, resolved
 
     def render(self, mode: str | None = None, target: Any = None, **opts: Any) -> Any:
         """Render the built source via ``renderer_<mode>``.
@@ -475,7 +646,7 @@ class BuilderBase(
         node API (``node.<name>(...)``) finds it. A component overrides
         a same-named plain element (last-wins, like data-elements).
 
-        Called by ``BuilderHandler.pyrequires`` before ``create()``.
+        Called by ``OldBuilderHandler.pyrequires`` before ``create()``.
         """
         if self._schema is type(self)._class_schema:
             self._schema = Bag(source=self._schema)

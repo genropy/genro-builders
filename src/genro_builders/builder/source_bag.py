@@ -6,16 +6,16 @@ combining ``Bag`` with ``_SourceBagMixin`` and ``BagNode`` with
 ``_SourceBagNodeMixin``. The grammar-aware logic lives in the mixins;
 the base classes from ``genro-bag`` stay untouched.
 
-Decision 10: every node carries two slots, ``_builder`` and
-``_handler``. ``_builder`` is the active dialect for that node;
-``_handler`` is the BuilderHandler that owns the tree. They are set
-at attach time. Immutability is convention-only during the restart
-(see ``feedback_lightweight_nodes.md``).
+Decision 10: every node carries the ``_builder`` slot — the active
+dialect for that node, set at attach time. The owning handler is not a
+node slot: it lives on the source root and a node reaches it through the
+``handler`` property (``Bag.root``). Immutability is convention-only
+during the restart (see ``feedback_lightweight_nodes.md``).
 
 This module defines the bag/node pair (``SourceBag`` /
-``SourceBagNode``): a Bag/BagNode carrying the active builder and
-handler plus grammar-aware attribute resolution. The handler populates
-one as ``self.source``.
+``SourceBagNode``): a Bag/BagNode carrying the active builder plus
+grammar-aware attribute resolution. The builder populates one as
+``self.source``.
 """
 from __future__ import annotations
 
@@ -105,37 +105,58 @@ class _SourceBagNodeMixin:
             return meta.get(names[0])
         return [meta.get(n) for n in names]
 
-    def _resolve_handler(self) -> Any:
-        """Return the handler that owns this tree, falling back to the parent bag."""
-        try:
-            value = object.__getattribute__(self, "_handler")
-        except AttributeError:
-            value = None
-        if value is not None:
-            return value
-        parent = self.parent_bag
-        return getattr(parent, "_handler", None) if parent is not None else None
+    @property
+    def handler(self) -> Any:
+        """Return the handler that owns this tree.
+
+        The handler is unique for the whole document (host plus any
+        sub-builders), so it lives on the source root and is read from
+        there via ``Bag.root`` — unlike ``_resolve_builder``, which is a
+        single hop because the active builder is local to the node (an
+        ``<svg>`` subtree resolves to the SVG builder).
+        """
+        return self.parent_bag.root._handler
+
+    @property
+    def root_builder(self) -> Any:
+        """Return the page builder that owns this tree.
+
+        Unlike ``_resolve_builder`` (the local dialect, an ``<svg>``
+        subtree resolves to the SVG builder), this is the builder mounted
+        on the document — read from the source root via ``Bag.root``. It
+        owns the data segment, so data resolution goes through here.
+        """
+        return self.parent_bag.root._builder
+
+    @property
+    def root_builder_name(self) -> Any:
+        """Return the data-segment name of the page builder.
+
+        The builder is mounted under this name in the handler's
+        ``_dataroot`` (the segment that holds its data), so it is the
+        leading segment of an absolute data path for this tree.
+        """
+        return self.root_builder.data.parent_node.label
 
     def _check_unique_id(self, node_id: Any) -> None:
         """Raise ValueError if ``node_id`` is already taken in this
-        handler's source space. No-op when ``node_id`` is None.
+        builder's source space. No-op when ``node_id`` is None.
 
         Called before adding a child, so the candidate id is checked
-        against the existing tree only. Uniqueness scope is the owning
-        handler (one node_id namespace per handler, subbuilders included).
+        against the existing tree only. Uniqueness scope is the active
+        builder (one node_id namespace per builder; a sub-builder keeps
+        its own).
 
-        When the bag has no handler attached (off-line subtree built via
-        ``BuilderBase.new_root``), the check is a no-op: uniqueness
-        will be enforced — and is the user's responsibility to respect —
-        only once the subtree is attached to a live source.
+        When the node has no builder resolved yet (off-line subtree built
+        via ``BuilderBase.new_root``), the check is a no-op.
         """
         if node_id is None:
             return
-        handler = self._resolve_handler()
-        if handler is None:
+        builder = self._resolve_builder()
+        if builder is None:
             return
         try:
-            handler.node_by_id(node_id)
+            builder.node_by_id(node_id)
         except KeyError:
             return
         raise ValueError(f"Duplicate node_id '{node_id}'.")
@@ -192,7 +213,7 @@ class _SourceBagNodeMixin:
         return items
 
     # ------------------------------------------------------------------
-    # Path composition (DAT.2) — moved here from BuilderHandler
+    # Path composition (DAT.2) — moved here from OldBuilderHandler
     # ------------------------------------------------------------------
 
     def abs_datapath(self, path: str) -> str:
@@ -201,16 +222,17 @@ class _SourceBagNodeMixin:
         Pure address composition: returns *where* a datum lives as a
         string, never reads the datastore. Supported syntactic forms:
 
-            ``field``               — absolute, returned as-is
+            ``field``               — absolute on this builder's segment;
+                                       the segment name is prepended
             ``^...`` / ``=...``     — pointer mark stripped, recurses.
                                        ``abs_datapath`` is neutral wrt
                                        the prefix; the lazy/eager
                                        distinction (``^`` vs ``=``)
                                        lives in ``runtime_values``
                                        and in the pointer-map registry
-            ``volume:field``        — absolute in another builder; the
-                                       ``volume:`` prefix is preserved,
-                                       routing happens at read time
+            ``volume:field``        — ``volume`` is the leading segment
+                                       instead of this builder's own (so
+                                       ``_:x`` reaches the common segment)
             ``field?attr``          — ``?attr`` is preserved at the tail
             ``.field`` / ``.x``     — relative: walk ancestors and
                                        chain their ``datapath`` attribute
@@ -237,28 +259,34 @@ class _SourceBagNodeMixin:
         if self.pointer_type(path):
             path = path[1:]
 
-        if path.startswith("#"):
-            return self._resolve_symbolic_datapath(path, raw)
-
-        volume: str | None = None
-        if ":" in path and not path.startswith("."):
-            volume, path = path.split(":", 1)
-
         attr: str | None = None
         if "?" in path:
             path, attr = path.split("?", 1)
 
+        volume = self.root_builder_name
+        if ":" in path and not path.startswith("."):
+            volume, path = path.split(":", 1)
+            return self._compose_abs_path(volume, path, attr)
+
+        if path.startswith("#"):
+            return self._resolve_symbolic_datapath(path, raw)
+
         if path.startswith("."):
             path = self._compose_relative_datapath(path, raw)
+        return self._compose_abs_path(volume, path, attr)
 
-        composed = path
-        if volume is not None:
-            composed = f"{volume}:{composed}"
-        if attr is not None:
-            composed = f"{composed}?{attr}"
-        if "#parent" in composed:
-            composed = self._collapse_parent_datapath(composed, raw)
-        return composed
+    def _compose_abs_path(
+        self, volume: str, path: str, attr: str | None,
+    ) -> str:
+        """Compose ``volume.path`` into an absolute datastore path.
+
+        ``path`` is collapsed (``#parent`` segments resolved) before the
+        leading ``volume`` segment is prepended, so the segment is never
+        cancelled; ``?attr`` is re-attached at the tail when present.
+        """
+        path = self._collapse_parent_datapath(path, path)
+        base = f"{volume}.{path}"
+        return f"{base}?{attr}" if attr else base
 
     def _compose_relative_datapath(self, path: str, raw: str) -> str:
         """Resolve a relative path by walking ancestors.
@@ -332,77 +360,19 @@ class _SourceBagNodeMixin:
                 form=False, anchor=True, raw=raw,
             )
         else:
-            handler = self._resolve_handler()
-            if handler is None:
+            builder = self._resolve_builder()
+            if builder is None:
                 raise KeyError(
-                    f"#<id>: cannot resolve {raw!r} on a node without handler"
+                    f"#<id>: cannot resolve {raw!r} on a node without builder"
                 )
-            anchor = handler.node_by_id(symbol)
+            anchor = builder.node_by_id(symbol)
         rel = f".{relpath}" if relpath else "."
         result: str = anchor.abs_datapath(rel)
         return result
 
     # ------------------------------------------------------------------
-    # Runtime evaluation (DAT.2, slice0) — moved here from BuilderHandler
+    # Runtime evaluation (DAT.2, slice0) — moved here from OldBuilderHandler
     # ------------------------------------------------------------------
-
-    def runtime_values(self) -> tuple[Any, dict[str, Any]]:
-        """Resolve pointers and templates carried by this node.
-
-        Returns ``(runtime_value, runtime_attrs)`` — the actualized view
-        of the node's *domain* attributes. Structural meta-attributes
-        (``builder._meta_attrs``: ``node_id``, ``_is_data_element``,
-        ``_anchor``) are excluded: they stay on ``node.attr`` for their
-        readers (``node_by_id``, ``abs_datapath``) but never reach a
-        renderer or a data-element binding. Two-phase pipeline
-        (DB-D5, DB-D11):
-
-        Phase 1 — pointer resolution. Any string starting with ``^`` or
-        ``=`` (on ``self.value`` or on ``self.attr[name]``) is composed
-        through :meth:`abs_datapath` and looked up in ``handler.data``
-        via ``Bag.get_item``; non-pointer values pass through verbatim.
-
-        Phase 2 — template expansion. After phase 1, any string still
-        carrying ``${name}`` placeholders is expanded against the
-        resolved attrs from phase 1: ``${name}`` becomes
-        ``str(resolved[name])``, or the empty string ``""`` when
-        ``resolved[name]`` is ``None`` (DB-D11.6). ``KeyError`` is
-        raised if ``name`` is not in ``resolved``.
-
-        DB-D11 forbids cascade: an attribute is either a pointer OR a
-        template OR a literal — never two at once. Phase 2 only acts on
-        strings that did NOT match the pointer prefix in phase 1, so
-        the invariant holds by construction.
-
-        Errors raised by :meth:`abs_datapath`
-        (``ValueError`` / ``KeyError``) propagate unchanged. Absent
-        data on a valid path resolves to ``None`` (DB-D10: no internal
-        try/except; the caller decides whether ``None`` is meaningful).
-        """
-        handler = self._resolve_handler()
-        resolved: dict[Any, Any] = {}
-        for k, v in self.runtime_to_evaluate().items():
-            ptype = self.pointer_type(v)
-            if ptype:
-                resolved[k] = self.get_relative_data(v)
-                if ptype == "^":
-                    handler._register_path(self, self.abs_datapath(v))
-            else:
-                resolved[k] = v
-
-        def _expand(s: str) -> str:
-            def repl(m: re.Match[str]) -> str:
-                val = resolved[m.group(1)]
-                return "" if val is None else str(val)
-            return _TEMPLATE_RE.sub(repl, s)
-
-        for k, v in resolved.items():
-            if isinstance(v, str) and "${" in v:
-                resolved[k] = _expand(v)
-
-        runtime_value: Any = resolved.pop(None)
-
-        return runtime_value, resolved
 
     def _find_marked_datapath_ancestor(
         self,
@@ -439,24 +409,23 @@ class _SourceBagNodeMixin:
         autocreate: bool = False,
         default: Any = None,
     ) -> Any:
-        """Read ``handler.data`` at ``path`` resolved relative to this node.
+        """Read the datastore at ``path`` resolved relative to this node.
 
-        ``path`` is composed via :meth:`abs_datapath`, so
-        it accepts the same syntactic forms (absolute, relative ``.x``,
-        ``#FORM``, ``#ANCHOR``, ``#<node_id>``, with or without the
-        ``^``/``=`` prefix). The lookup is performed against the live
-        ``handler.data`` Bag.
+        ``path`` is composed via :meth:`abs_datapath` into an absolute
+        path on ``handler.data`` (the segmented ``_dataroot``); it accepts
+        the same syntactic forms (absolute, relative ``.x``, ``#FORM``,
+        ``#ANCHOR``, ``#<node_id>``, ``volume:rest``, with or without the
+        ``^``/``=`` prefix).
 
-        When ``autocreate=True``, if the current value at ``path`` is
-        ``None`` (either missing or explicitly stored as ``None``),
-        ``default`` is written to ``handler.data`` before the read —
+        When ``autocreate=True``, a ``None`` value at ``path`` (missing or
+        explicitly ``None``) is seeded with ``default`` before the read —
         the two cases are intentionally not distinguished (DBS-D1).
         """
-        handler = self._resolve_handler()
+        data = self.handler.data
         abs_path = self.abs_datapath(path)
-        if autocreate and handler.data.get_item(abs_path) is None:
-            handler.data.set_item(abs_path, default)
-        return handler.data.get_item(abs_path, default=default)
+        if autocreate and data.get_item(abs_path) is None:
+            data.set_item(abs_path, default)
+        return data.get_item(abs_path, default=default)
 
     def set_relative_data(
         self,
@@ -466,19 +435,19 @@ class _SourceBagNodeMixin:
         fired: bool = False,
         reason: Any = None,
     ) -> None:
-        """Write ``value`` into ``handler.data`` at ``path``.
+        """Write ``value`` into the datastore at ``path``.
 
-        ``path`` is composed via :meth:`abs_datapath`
-        (same forms as :meth:`get_relative_data`). ``attributes``,
-        ``fired`` and ``reason`` are forwarded to ``Bag.set_item`` as
-        the corresponding underscore-prefixed parameters. ``reason``
-        is polymorphic (DB-D8): the subscriber receives whatever
-        object is passed here. Legacy parity (``gnrdomsource.js`` ``reason
-        == null ? true``): an omitted ``reason`` (``None``) becomes ``True``,
-        so a plain write declares itself as the origin of the change; pass an
-        explicit ``reason`` (e.g. ``False`` for ``PUT``) to override.
+        ``path`` is composed via :meth:`abs_datapath` into an absolute
+        path on ``handler.data`` (same forms as :meth:`get_relative_data`).
+        ``attributes``/``fired``/``reason`` are forwarded to
+        ``Bag.set_item`` as the underscore-prefixed parameters. ``reason``
+        is polymorphic (DB-D8): the subscriber receives whatever object is
+        passed. Legacy parity (``gnrdomsource.js`` ``reason == null ?
+        true``): an omitted ``reason`` becomes ``True``, so a plain write
+        declares itself the origin; pass ``reason=False`` (``PUT``) to
+        override.
         """
-        handler = self._resolve_handler()
+        handler = self.handler
         abs_path = self.abs_datapath(path)
         handler.data.set_item(
             abs_path,
@@ -616,7 +585,6 @@ class _SourceBagNodeMixin:
             sub_name = meta.get("subbuilder")
             if sub_name is not None:
                 child._builder = builder.get_subbuilder(sub_name)
-                child._handler = self._resolve_handler()
             return child
 
         return element_call
@@ -692,13 +660,12 @@ class _SourceBagMixin:
 class SourceBagNode(BagNode, _SourceBagNodeMixin):
     """BagNode with builder-aware attribute dispatch."""
 
-    __slots__ = ("_builder", "_handler")
+    __slots__ = ("_builder",)
 
-    # Type annotations for the __slots__ above so type checkers recognize
-    # these as members (slots alone are not typed). They hold a builder
-    # instance / BuilderHandler, both untyped here.
+    # Type annotation for the __slots__ above so type checkers recognize
+    # this as a member (slots alone are not typed). Holds the active
+    # builder instance, untyped here.
     _builder: Any
-    _handler: Any
 
 
 class SourceBag(Bag, _SourceBagMixin):
@@ -723,7 +690,7 @@ class SourceBag(Bag, _SourceBagMixin):
             source: Optional dict to seed the Bag (mirrors ``Bag.__init__``).
             builder: BuilderBase instance whose schema drives attribute
                 dispatch on this bag (and on nodes attached to it).
-            handler: BuilderHandler that owns the tree this bag belongs to.
+            handler: OldBuilderHandler that owns the tree this bag belongs to.
         """
         super().__init__(source=source)
         self._builder = builder

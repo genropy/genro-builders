@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BuilderHandler (decisions 4, 5, 6, 9, 11 — contract v0.4.0).
+"""Tests for OldBuilderHandler (decisions 4, 5, 6, 9, 11 — contract v0.4.0).
 
 The handler is the engine that drives a single Builder through the
 create/render lifecycle. These tests exercise:
@@ -19,7 +19,7 @@ import pytest
 from genro_bag import Bag
 
 from genro_builders import SourceBag
-from genro_builders.builder import BuilderHandler
+from genro_builders.builder import OldBuilderHandler
 from genro_builders.contrib.html import HtmlBuilderHandler
 
 
@@ -64,7 +64,7 @@ class _RecordingBuilder:
         return _RecordingRenderer(builder=self)
 
 
-class _StubHandler(BuilderHandler):
+class _StubHandler(OldBuilderHandler):
     builder_class = _RecordingBuilder
 
     def main(self, root) -> None:
@@ -75,7 +75,7 @@ class _StubHandler(BuilderHandler):
 def test_handler_requires_builder_class():
     """Decision 9: a handler subclass must declare a builder_class."""
 
-    class NoBuilder(BuilderHandler):
+    class NoBuilder(OldBuilderHandler):
         pass
 
     with pytest.raises(TypeError):
@@ -106,7 +106,7 @@ def test_create_invokes_main_with_source():
 def test_main_default_raises_not_implemented_error():
     """Subclasses must implement main()."""
 
-    class HandlerWithoutMain(BuilderHandler):
+    class HandlerWithoutMain(OldBuilderHandler):
         builder_class = _RecordingBuilder
 
     h = HandlerWithoutMain()

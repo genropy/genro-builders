@@ -1,0 +1,48 @@
+# Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
+"""01 — Triangles + total: a loop of formulas and a sum. See readme.md."""
+from __future__ import annotations
+
+from genro_builders.builder import BuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
+
+
+class CustomPage(HtmlBuilder):
+    @staticmethod
+    def triangle_area(base, height):
+        return base * height / 2
+
+    @staticmethod
+    def sum_areas(**areas):
+        return sum(v for v in areas.values() if v is not None)
+
+    def main(self, root):
+        body = root.body()
+        triangoli = body.div(datapath="triangoli")
+        for i in range(1, 6):
+            row = triangoli.div(datapath=f".tr{i}")
+            row.data_setter(".base", i * 2)
+            row.data_setter(".height", i)
+            row.data_formula(
+                destination=".area", func="triangle_area",
+                base="^.base", height="^.height", _on_start=True,
+            )
+            row.span("^.base")
+            row.span("^.height")
+            row.span("^.area")
+        body.data_formula(
+            destination="total", func="sum_areas",
+            a1="^triangoli.tr1.area", a2="^triangoli.tr2.area",
+            a3="^triangoli.tr3.area", a4="^triangoli.tr4.area",
+            a5="^triangoli.tr5.area", _on_start=True,
+        )
+        body.div("^total")
+
+
+if __name__ == "__main__":
+    page = CustomPage()
+    handler = BuilderHandler()
+    handler.add_builder(main=page)
+    page.set_render_target("output.html")
+    page.create()
+    page.render(pretty=True)
+    print(page.rendered_target)

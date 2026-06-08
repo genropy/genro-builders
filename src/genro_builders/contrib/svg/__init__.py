@@ -20,11 +20,11 @@ Example::
 
 from __future__ import annotations
 
-from ...builder import BuilderHandler
+from ...builder import OldBuilderHandler
 from .svg_builder import SvgBuilder
 
 
-class SvgBuilderHandler(BuilderHandler):
+class SvgBuilderHandler(OldBuilderHandler):
     """Preset handler bound to ``SvgBuilder`` (decision 9)."""
 
     builder_class = SvgBuilder

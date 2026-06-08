@@ -283,7 +283,7 @@ class HtmlRenderer(RendererBase):
             return ""
         if not node.pointers():
             return ""
-        handler = node._resolve_handler()
+        handler = node.handler
         if handler is None:
             return ""
         path = handler.source.relative_path(node)

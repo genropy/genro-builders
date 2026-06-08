@@ -13,7 +13,7 @@ output type is XML (``XmlRenderer`` via ``renderer_xml``).
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderBase, BuilderHandler, element
+from genro_builders.builder import BuilderBase, OldBuilderHandler, element
 
 XSL_URI = "http://www.w3.org/1999/XSL/Transform"
 
@@ -41,7 +41,7 @@ class _NsBuilder(BuilderBase):
     def a(self): ...
 
 
-class _NsHandler(BuilderHandler):
+class _NsHandler(OldBuilderHandler):
     builder_class = _NsBuilder
 
 

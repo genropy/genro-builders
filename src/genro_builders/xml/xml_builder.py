@@ -18,7 +18,7 @@ with pointers resolved and framework markers filtered.
 
 from __future__ import annotations
 
-from genro_builders.builder import BuilderBase, BuilderHandler
+from genro_builders.builder import BuilderBase, OldBuilderHandler
 
 
 class XmlBuilderBase(BuilderBase):
@@ -34,7 +34,7 @@ class XmlBuilderBase(BuilderBase):
     _default_render_mode = "xml"
 
 
-class XmlHandler(BuilderHandler):
+class XmlHandler(OldBuilderHandler):
     """Handler base for XML-on-the-wire dialects.
 
     A concrete ``<Dialect>Handler`` binds its ``builder_class`` to the

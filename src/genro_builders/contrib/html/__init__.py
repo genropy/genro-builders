@@ -19,11 +19,11 @@ Example::
 
 from __future__ import annotations
 
-from ...builder import BuilderHandler
+from ...builder import OldBuilderHandler
 from .html_builder import HtmlBuilder
 
 
-class HtmlBuilderHandler(BuilderHandler):
+class HtmlBuilderHandler(OldBuilderHandler):
     """Preset handler bound to ``HtmlBuilder`` (decision 9)."""
 
     builder_class = HtmlBuilder
