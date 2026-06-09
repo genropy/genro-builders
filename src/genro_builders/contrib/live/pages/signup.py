@@ -19,7 +19,7 @@ class Demo(InteractiveDemo):
     ``<option>`` children carry the values the select will offer.
     """
 
-    def setup(self):
+    def setup(self, data):
         self.set_data("form.heading", "Create your account")
         self.set_data("form.name", "")
         self.set_data("form.email", "")

@@ -34,6 +34,8 @@ from typing import Any
 from genro_asgi import AsgiApplication
 from genro_routes import route
 
+from genro_builders.builder import BuilderHandler
+
 from . import pages
 from .interactive_demo import InteractiveDemo
 
@@ -87,26 +89,29 @@ class LiveDemoApp(AsgiApplication):
         super().__init__(**kwargs)
 
     def on_init(self, **kwargs: Any) -> None:
-        """Discover and instantiate all demo pages, render the current one.
+        """Discover the demo pages, mount them on one handler, render current.
 
-        Every page is created, seeded, given ``out.html`` as default render
-        target, and rendered once. ``self.demos`` maps key → handler,
-        ``self.titles`` key → title, ``self.namespaces`` key → persistent
-        REPL namespace. ``self.current`` is the selected key (the first one
-        by sort order). The initial ``render()`` makes ``out.html`` exist
+        Every demo page is a builder mounted on a single ``BuilderHandler``
+        (the app is its application, so the handler is reactive). Mounting
+        creates each page (``setup`` + ``main`` + first calculation); the
+        page's HTML render target is ``out.html``. ``self.demos`` maps key →
+        builder, ``self.titles`` key → title, ``self.namespaces`` key →
+        persistent REPL namespace. ``self.current`` is the selected key (the
+        first by sort order). The initial render makes ``out.html`` exist
         before the browser's iframe loads it.
         """
         discovered = pages.discover()
+        self.handler = BuilderHandler(application=self)
         self.demos: dict[str, InteractiveDemo] = {}
         self.titles: dict[str, str] = {}
         self.namespaces: dict[str, dict[str, Any]] = {}
         for key, (title, demo_class) in discovered.items():
             page = demo_class()
-            page.set_render_target("html", str(_OUT_HTML), default=True)
-            page.create()   # runs setup() then main(); data ready for main
+            page.set_render_target(str(_OUT_HTML), "html")
             self.demos[key] = page
             self.titles[key] = title
             self.namespaces[key] = {"__builtins__": _REPL_BUILTINS, "page": page}
+        self.handler.add_builder(**self.demos)   # mount + create each page
         self.current: str = next(iter(self.demos))
         self._render_current()
 
@@ -196,14 +201,14 @@ class LiveDemoApp(AsgiApplication):
     def repl(self, source: str) -> dict[str, Any]:
         """Run a Python ``source`` snippet against the current demo.
 
-        The snippet runs inside ``page.live()``, so every mutation
-        re-renders to ``out.html``. Uses the current demo's persistent
-        namespace (variables survive across runs, per demo). Returns the
-        source/data tree snapshots; the HTML is picked up by the browser
-        reloading ``out.html``. On error returns the exception text.
+        The snippet runs inside ``handler.live()``, so every mutation
+        re-renders the touched page to ``out.html``. Uses the current demo's
+        persistent namespace (variables survive across runs, per demo).
+        Returns the source/data tree snapshots; the HTML is picked up by the
+        browser reloading ``out.html``. On error returns the exception text.
         """
         try:
-            with self.page.live():
+            with self.handler.live():
                 exec(source, self.namespaces[self.current])
         except Exception as exc:
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
@@ -220,11 +225,11 @@ class LiveDemoApp(AsgiApplication):
 
         The write-back endpoint for two-way binding: the browser sends the
         absolute path (read from a ``data-<name>-pointer`` attribute) and
-        the edited value when an input changes. Runs inside ``page.live()``
+        the edited value when an input changes. Runs inside ``handler.live()``
         so the document re-renders. ``path`` is absolute, as resolved at
         render time — no relative composition here.
         """
-        with self.page.live():
+        with self.handler.live():
             self.page.data.set_item(path, value)
         self._write_raw_xml()
         return {

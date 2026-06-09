@@ -17,7 +17,7 @@ class Demo(InteractiveDemo):
     look the node up later. The paragraph needs none, so it has none.
     """
 
-    def setup(self):
+    def setup(self, data):
         self.set_data("page.title", "Hello")
         self.set_data("page.message", "Scrivi codice Python nella REPL.")
 

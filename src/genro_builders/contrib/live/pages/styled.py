@@ -46,7 +46,7 @@ class Demo(InteractiveDemo):
     Data lives under ``page``: ``page.title``, ``page.body``.
     """
 
-    def setup(self):
+    def setup(self, data):
         self.set_data("page.title", "Self-contained card")
         self.set_data("page.body", "This page carries its own CSS.")
 

@@ -34,7 +34,7 @@ class Demo(InteractiveDemo):
     line up (flex with fixed widths, in ``demo.css``).
     """
 
-    def setup(self):
+    def setup(self, data):
         # Each CSV row is a dict; a Bag built from it becomes one state's
         # subtree in a single set_data — its columns (name, capital, ...)
         # are the pointer targets the row reads with ``^.name`` etc.

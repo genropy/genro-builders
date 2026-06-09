@@ -24,7 +24,7 @@ class Demo(InteractiveDemo):
     swatch reads it as ``border-color``.
     """
 
-    def setup(self):
+    def setup(self, data):
         self.set_data("style.border", "#2c5f8a")
 
     def main(self, root):

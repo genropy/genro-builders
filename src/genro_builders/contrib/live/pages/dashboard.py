@@ -28,7 +28,7 @@ class Demo(InteractiveDemo):
     nav buttons, the footer — stay anonymous.
     """
 
-    def setup(self):
+    def setup(self, data):
         self.set_data("ui.title", "Dashboard")
         self.set_data("ui.users", "1 248 active")
         self.set_data("ui.revenue", "€ 84,500")

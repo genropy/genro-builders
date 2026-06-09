@@ -20,7 +20,7 @@ class Demo(InteractiveDemo):
     Data lives under ``shape``: ``shape.label``, ``shape.fill``.
     """
 
-    def setup(self):
+    def setup(self, data):
         self.set_data("shape.label", "SVG")
         self.set_data("shape.fill", "#2c5f8a")
 
