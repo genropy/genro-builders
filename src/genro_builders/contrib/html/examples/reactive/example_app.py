@@ -12,14 +12,22 @@ from genro_builders.builder import BuilderHandler
 
 
 class ExampleApp:
-    """Minimal Application: owns one reactive handler for one page."""
+    """Minimal Application: owns one reactive handler for one or more pages."""
 
-    def __init__(self, page, target):
+    def __init__(self, *pages):
         self.handler = BuilderHandler(application=self)   # reactive by default
-        self.page = page
-        page.set_render_target(target)
-        self.handler.add_builder(main=page)      # mount + create each builder
+        # each item is (pagename, page, target); a lone (page, target) is "main".
+        if len(pages) == 1 and len(pages[0]) == 2:
+            page, target = pages[0]
+            pages = (("main", page, target),)
+        mounted = {}
+        for pagename, page, target in pages:
+            page.set_render_target(target)
+            mounted[pagename] = page
+        self.handler.add_builder(**mounted)      # mount + create each builder
         self.handler.activate()                  # render all, then subscribe
+        self.pages = [self.handler.builders[name] for name in mounted]
+        self.page = self.pages[0]                # first page (single-page convenience)
 
     def source(self, name=None):
         """Return the source of a mounted builder (default: the first one)."""
@@ -52,4 +60,5 @@ class ExampleApp:
             if name.startswith("change_"):
                 with self.live():
                     getattr(self, name)(self.source(), self.data())
-                print(self.page.rendered_target)
+                for page in self.pages:
+                    print(page.rendered_target)

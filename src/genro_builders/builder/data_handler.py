@@ -110,23 +110,48 @@ class BuilderHandler:
         self, node: SourceBagNode, evt: str, pathlist: list[str] | None = None,
         **kw: Any,
     ) -> None:
-        """A data mutation queues the source nodes that read that path.
+        """A data mutation recomputes the dependent logic, then queues renders.
 
         Derives the changed data path (ins/del: pathlist + the node's label;
-        upd: the pathlist itself), then for each reader found via
-        :meth:`_relevant_nodes` queues its source path for the end-of-live
-        render. Step one: only the ``node`` match (a reader of exactly the
-        mutated datum). ``container`` / ``child`` and the data-element
-        compute cascade come later.
+        upd: the pathlist itself), collects the readers grouped by builder via
+        :meth:`_relevant_nodes`, runs :meth:`execute_logic` (data_formula /
+        data_controller recompute, whose writes re-enter here and cascade),
+        then queues the ``node`` readers for the end-of-live render. ``node``
+        is a reader of exactly the mutated datum; ``container`` / ``child``
+        come later.
         """
         if evt in ("ins", "del"):
             path = ".".join([*pathlist, node.label])
         else:
             path = ".".join(pathlist)
-        for kind, view_node in self._relevant_nodes(path):
-            if kind == "node":
-                builder_name, _, view_path = view_node.fullpath.partition(".")
-                self.add_render_path(builder_name, view_path)
+        relevant = self._relevant_nodes(path)
+        self.execute_logic(relevant)
+        for builder, items in relevant.items():
+            for kind, view_node in items:
+                if kind == "node":
+                    self.add_render_path(
+                        view_node.root_builder_name, view_node.fullpath,
+                    )
+
+    def execute_logic(
+        self, relevant: dict[Any, list[tuple[str, SourceBagNode]]],
+    ) -> None:
+        """Recompute the data-element readers, delegating to each builder.
+
+        ``relevant`` is grouped by builder (from :meth:`_relevant_nodes`);
+        for each builder the data-element nodes (``data_formula`` /
+        ``data_controller``) are passed to its own ``compute_logic`` — the
+        logic lives on the builder, the handler only routes each node to its
+        owner. Plain view readers (no ``data_element`` meta) are skipped here:
+        they only re-render. The compute writes downstream data, which
+        re-enters :meth:`_on_data_event` and cascades.
+        """
+        for builder, items in relevant.items():
+            nodes = [
+                node for _, node in items if node._get_meta("data_element")
+            ]
+            if nodes:
+                builder.compute_logic(nodes)
 
     @contextmanager
     def live(self, target: Any = None) -> Iterator[BuilderHandler]:
@@ -218,8 +243,10 @@ class BuilderHandler:
                 if not inner:
                     del self.pointer_map[path]
 
-    def _relevant_nodes(self, path: str) -> list[tuple[str, SourceBagNode]]:
-        """Source nodes that read the mutated data ``path`` (via pointer_map).
+    def _relevant_nodes(
+        self, path: str,
+    ) -> dict[Any, list[tuple[str, SourceBagNode]]]:
+        """Source nodes that read the mutated data ``path``, grouped by builder.
 
         Each match is classified against the registered path ``kp`` (the
         pointer_map key, minus any ``?attr`` suffix):
@@ -229,11 +256,13 @@ class BuilderHandler:
         - ``child``     — ``path`` starts with ``kp``: reads a container whose
           child changed.
 
-        Returns ``(kind, node)`` pairs, deduped by node id (a node may match
-        from several keys). The caller decides what to do with each — compute,
-        render, or both.
+        Returns ``{builder: [(kind, node), ...]}``, deduped by node id. One
+        data path may be read by nodes of several builders (a shared ``_``
+        datum), so grouping by ``node.builder`` lets the caller delegate the
+        compute to each owning builder and render each one.
         """
-        seen: dict[int, tuple[str, SourceBagNode]] = {}
+        seen: set[int] = set()
+        grouped: dict[Any, list[tuple[str, SourceBagNode]]] = {}
         for key, inner in self.pointer_map.items():
             kp = key.split("?", 1)[0]
             if kp == path:
@@ -245,5 +274,8 @@ class BuilderHandler:
             else:
                 continue
             for node_id, node in inner.items():
-                seen[node_id] = (kind, node)
-        return list(seen.values())
+                if node_id in seen:
+                    continue
+                seen.add(node_id)
+                grouped.setdefault(node.builder, []).append((kind, node))
+        return grouped
