@@ -84,8 +84,10 @@ def _check_type(value: Any, tp: Any) -> bool:
             return True
         try:
             return isinstance(value, tp)
-        except TypeError:
-            return True
+        except TypeError as exc:
+            raise TypeError(
+                f"unsupported type annotation {tp!r} in element signature"
+            ) from exc
 
     if origin is list:
         if not isinstance(value, list):
@@ -124,8 +126,10 @@ def _check_type(value: Any, tp: Any) -> bool:
 
     try:
         return isinstance(value, origin)
-    except TypeError:
-        return True
+    except TypeError as exc:
+        raise TypeError(
+            f"unsupported type annotation {tp!r} in element signature"
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -151,8 +155,10 @@ def _extract_validators_from_signature(fn: Callable) -> dict[str, tuple[Any, lis
 
     try:
         hints = get_type_hints(fn, include_extras=True)
-    except Exception:
-        return {}
+    except Exception as exc:
+        raise TypeError(
+            f"cannot resolve type hints for element {fn.__qualname__!r}: {exc}"
+        ) from exc
 
     result = {}
     sig = inspect.signature(fn)

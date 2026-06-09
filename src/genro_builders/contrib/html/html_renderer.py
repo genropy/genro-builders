@@ -358,7 +358,8 @@ class HtmlRenderer(RendererBase):
                 corners["bottom_right"] = sub_value
             elif sub in {"top_left", "top_right", "bottom_left", "bottom_right"}:
                 corners[sub] = sub_value
-            # unknown sub names are silently ignored
+            else:
+                raise ValueError(f"rounded: unknown sub-kwarg {sub!r}")
         for corner, v in corners.items():
             css[f"border-{corner.replace('_', '-')}-radius"] = _px(v)
 
@@ -489,16 +490,20 @@ def _is_style_attr(name: str) -> bool:
 def _parse_style_string(value: Any) -> dict[str, str]:
     """Parse a ``style="key: value; key: value"`` literal into a dict.
 
-    Empty/blank entries are skipped. Whitespace is stripped. Properties
-    seen multiple times: last one wins (rare in practice).
+    Empty/blank entries (e.g. from a trailing ``;``) are skipped; an
+    entry without ``:`` is malformed CSS and raises. Whitespace is
+    stripped. Properties seen multiple times: last one wins (rare in
+    practice).
     """
     result: dict[str, str] = {}
     if not value:
         return result
     for entry in str(value).split(";"):
         entry = entry.strip()
-        if not entry or ":" not in entry:
+        if not entry:
             continue
+        if ":" not in entry:
+            raise ValueError(f"malformed style declaration {entry!r}")
         key, val = entry.split(":", 1)
         result[key.strip()] = val.strip()
     return result

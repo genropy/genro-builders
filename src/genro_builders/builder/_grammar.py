@@ -245,11 +245,13 @@ class _GrammarMixin:
                 )
                 continue
 
-            # Validator checks (Regex, Range, etc.)
+            # Validator checks (Regex, Range, etc.). Only the exceptions a
+            # validator raises by contract are collected as validation
+            # errors; anything else is a bug in the validator and propagates.
             for v in validators:
                 try:
                     v(attr_value)
-                except Exception as e:
+                except (TypeError, ValueError) as e:
                     errors.append(f"'{attr_name}': {e}")
 
         if errors:
