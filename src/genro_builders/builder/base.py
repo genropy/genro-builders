@@ -491,7 +491,7 @@ class BuilderBase(
             if detail in ("attrs", "value_attr"):
                 self._on_upd_attrs(node, kw.get("attrs_diff") or {})
             self.on_source_change(node, "upd", evt_detail=detail, **kw)
-        self.handler.add_render_node(pathlist)
+        self.handler.add_render_path(pathlist[0], ".".join(pathlist[1:]))
 
     def on_source_change(
         self, node: Any, evt: str, evt_detail: str | None = None, **kw: Any
@@ -582,7 +582,12 @@ class BuilderBase(
         """
         match node.node_tag:
             case "data_setter":
-                node.set_relative_data(node.attr["destination"], node.attr["value"])
+                attrs = {k: v for k, v in node.attr.items()
+                         if k not in ("destination", "value")}
+                node.set_relative_data(
+                    node.attr["destination"], node.attr["value"],
+                    attributes=attrs or None,
+                )
             case "data_formula":
                 func = self._resolve_logic_func(node.attr["func"])
                 node.set_relative_data(
@@ -810,7 +815,7 @@ class BuilderBase(
     # -----------------------------------------------------------------------
 
     @element(_meta={"data_element": True})
-    def data_setter(self, destination: str, value: Any): ...
+    def data_setter(self, destination: str, value: Any, **attr: Any): ...
 
     @element(_meta={"data_element": True})
     def data_formula(

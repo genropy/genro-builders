@@ -21,34 +21,34 @@ class CustomPage(HtmlBuilder):
 
 
 class CustomApp(ExampleApp):
-    def change_00_add_one_div(self, source):
+    def change_00_add_one_div(self, source, data):
         source["body"].div("one div")
 
-    def change_01_remove_the_div(self, source):
+    def change_01_remove_the_div(self, source, data):
         source["body"].del_item("div_0")
 
-    def change_02_add_four_divs(self, source):
+    def change_02_add_four_divs(self, source, data):
         body = source["body"]
         for i in range(4):
             body.div(f"div {i}")
 
-    def change_03_add_div_at_position_four(self, source):
+    def change_03_add_div_at_position_four(self, source, data):
         source["body"].div("at four", node_position=4)
 
-    def change_04_remove_three_divs(self, source):
+    def change_04_remove_three_divs(self, source, data):
         body = source["body"]
         divs = [node.label for node in body if node.node_tag == "div"]
         for label in divs[:3]:
             body.del_item(label)
 
-    def change_05_inject_block_wrapped(self, source):
+    def change_05_inject_block_wrapped(self, source, data):
         # The prepared block becomes the content of a new <div> wrapper.
         block = self.page.new_root()
         block.div("prepared", class_="card")
         block.p("inside the block")
         source["body"].div(block)
 
-    def change_06_inject_block_merged(self, source):
+    def change_06_inject_block_merged(self, source, data):
         # The prepared block's nodes are merged straight into the body
         # (no wrapper); update() fires an 'ins' per node, so it is reactive.
         # CAVEAT: update() merges by label — a block node whose label already
@@ -59,12 +59,12 @@ class CustomApp(ExampleApp):
         block.p("merged in place")
         source["body"].update(block)
 
-    def change_07_set_existing_div(self, source):
+    def change_07_set_existing_div(self, source, data):
         # An explicit node_label that already exists is an UPDATE, not an
         # insert: the value of div_0 is rewritten (no new node).
         source["body"].div("check set", node_label="div_0")
 
-    def change_08_set_only_attributes(self, source):
+    def change_08_set_only_attributes(self, source, data):
         # Same label, only attributes, no value: the attribute is set and the
         # value is reset to None (no value passed -> the node is rewritten).
         source["body"].div(node_label="div_0", class_="hot")

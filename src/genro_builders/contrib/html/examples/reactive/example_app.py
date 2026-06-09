@@ -15,18 +15,26 @@ class ExampleApp:
     """Minimal Application: owns one reactive handler for one page."""
 
     def __init__(self, page, target):
-        self.handler = BuilderHandler()
-        self.handler.application = self          # makes the handler reactive
-        self.handler.add_builder(main=page)
+        self.handler = BuilderHandler(application=self)   # reactive by default
         self.page = page
         page.set_render_target(target)
-        page.create()
-        page.render(pretty=True)                 # first render: startup
+        self.handler.add_builder(main=page)      # mount + create each builder
+        self.handler.activate()                  # render all, then subscribe
 
     def source(self, name=None):
         """Return the source of a mounted builder (default: the first one)."""
         name = name or self.handler.default_builder_name
         return self.handler.builders[name].source
+
+    def data(self):
+        """Return the whole segmented datastore.
+
+        Data is global to the handler, not per-builder: a write can affect
+        nodes of several builders (via the pointer_map), so the change gets
+        the full datastore and writes with an absolute path (e.g.
+        ``data.set_item("main.message", ...)``).
+        """
+        return self.handler.data
 
     def live(self):
         """Open a live section on the owned handler."""
@@ -35,12 +43,13 @@ class ExampleApp:
     def run(self):
         """Run each ``change_*`` method, one per live section, in order.
 
-        A subclass declares numbered ``change_NN_*`` methods that mutate the
-        source; each runs inside its own ``with self.live():`` and the
-        document is printed after the section closes.
+        A subclass declares numbered ``change_NN_*(self, source, data)``
+        methods that mutate the source and/or the data; each runs inside its
+        own ``with self.live():`` and the document is printed after the
+        section closes.
         """
         for name in dir(self):
             if name.startswith("change_"):
                 with self.live():
-                    getattr(self, name)(self.source())
+                    getattr(self, name)(self.source(), self.data())
                 print(self.page.rendered_target)

@@ -28,10 +28,10 @@ from .source_bag import SourceBag, SourceBagNode
 class BuilderHandler:
     """Data source for mounted builders. One segmented ``_dataroot``."""
 
-    def __init__(self) -> None:
+    def __init__(self, application: Any = None) -> None:
         self.builders: dict[str, Any] = {}
         self.default_builder_name: str | None = None
-        self.application: Any = None
+        self.application: Any = application
         self._dataroot: Bag = Bag()
         self._dataroot["_"] = Bag()        # shared/common segment
         self._dataroot.set_backref()
@@ -66,11 +66,14 @@ class BuilderHandler:
         """
 
     def add_builder(self, **builders: Any) -> None:
-        """Mount one or more builders by name (name = data segment).
+        """Mount builders by name (name = data segment) and create each.
 
         Each builder is registered, given its own segment in the
-        ``_dataroot``, and plugged with ``handler`` (this) and ``data``
-        (its segment bag), so its pointers resolve against that segment.
+        ``_dataroot``, plugged with ``handler`` (this) and ``data`` (its
+        segment bag), and created (``setup`` + ``main`` + first calculation,
+        which seeds the data_setters). ``create`` arms the source subscribe
+        when reactive; the data subscribe is armed later by :meth:`activate`,
+        after the first render has populated the pointer_map.
         """
         for name, instance in builders.items():
             if self.default_builder_name is None:
@@ -83,14 +86,55 @@ class BuilderHandler:
             # source root so every node (host or sub-builder) reaches it
             # via the ``handler`` property (Bag.root).
             instance._sourceroot._handler = self
+            instance.create()
+
+    def activate(self) -> None:
+        """Finish startup: render every builder, then arm data reactivity.
+
+        The first render populates the pointer_map (read-time tracking), so
+        the data subscribe — which uses it to find the readers of a mutated
+        path — is armed only afterwards. The source subscribe is armed by
+        each builder's ``create``. No-op without an application.
+        """
+        for instance in self.builders.values():
+            instance.render()
+        if self.application:
+            self._dataroot.subscribe(
+                "builder_data",
+                insert=self._on_data_event,
+                update=self._on_data_event,
+                delete=self._on_data_event,
+            )
+
+    def _on_data_event(
+        self, node: SourceBagNode, evt: str, pathlist: list[str] | None = None,
+        **kw: Any,
+    ) -> None:
+        """A data mutation queues the source nodes that read that path.
+
+        Derives the changed data path (ins/del: pathlist + the node's label;
+        upd: the pathlist itself), then for each reader found via
+        :meth:`_relevant_nodes` queues its source path for the end-of-live
+        render. Step one: only the ``node`` match (a reader of exactly the
+        mutated datum). ``container`` / ``child`` and the data-element
+        compute cascade come later.
+        """
+        if evt in ("ins", "del"):
+            path = ".".join([*pathlist, node.label])
+        else:
+            path = ".".join(pathlist)
+        for kind, view_node in self._relevant_nodes(path):
+            if kind == "node":
+                builder_name, _, view_path = view_node.fullpath.partition(".")
+                self.add_render_path(builder_name, view_path)
 
     @contextmanager
     def live(self, target: Any = None) -> Iterator[BuilderHandler]:
         """Open a section that batches mutations and renders on exit.
 
         Entering resets the render queue and marks the section active. Each
-        source mutation (handled on the builder) records its touched node
-        via :meth:`add_render_node`. On exit, every builder with at least
+        source mutation (handled on the builder) records its touched path
+        via :meth:`add_render_path`. On exit, every builder with at least
         one touched node is rendered: the queued nodes pass through
         :meth:`_optimize_render` and then ``builder.render_nodes(...)``.
 
@@ -110,16 +154,16 @@ class BuilderHandler:
                 if nodes:
                     self.builders[name].render_nodes(self._optimize_render(nodes))
 
-    def add_render_node(self, pathlist: list[str]) -> None:
+    def add_render_path(self, builder_name: str, path: str) -> None:
         """Record a touched path for the end-of-live render.
 
-        ``pathlist`` is the genro_bag event path: the first segment is the
-        builder name, the rest is the path inside that builder (joined with
-        ``.``). For ins/del it points at the container, for upd at the node
-        itself. The end-of-live flush renders every builder whose queue is
-        non-empty.
+        ``builder_name`` is the segment the path belongs to; ``path`` is the
+        path inside that builder. A source event queues the changed node's
+        path (container for ins/del, the node for upd); a data event queues
+        each reader's path. The end-of-live flush renders every builder
+        whose queue is non-empty.
         """
-        self._nodes_to_render.setdefault(pathlist[0], []).append(".".join(pathlist[1:]))
+        self._nodes_to_render.setdefault(builder_name, []).append(path)
 
     def _optimize_render(self, nodes: list) -> list:
         """Reduce the touched nodes to the minimal render set.
@@ -173,3 +217,33 @@ class BuilderHandler:
                 inner.pop(id(node), None)
                 if not inner:
                     del self.pointer_map[path]
+
+    def _relevant_nodes(self, path: str) -> list[tuple[str, SourceBagNode]]:
+        """Source nodes that read the mutated data ``path`` (via pointer_map).
+
+        Each match is classified against the registered path ``kp`` (the
+        pointer_map key, minus any ``?attr`` suffix):
+
+        - ``node``      — ``kp == path``: reads exactly the mutated datum;
+        - ``container`` — ``kp`` starts with ``path``: reads a leaf inside it;
+        - ``child``     — ``path`` starts with ``kp``: reads a container whose
+          child changed.
+
+        Returns ``(kind, node)`` pairs, deduped by node id (a node may match
+        from several keys). The caller decides what to do with each — compute,
+        render, or both.
+        """
+        seen: dict[int, tuple[str, SourceBagNode]] = {}
+        for key, inner in self.pointer_map.items():
+            kp = key.split("?", 1)[0]
+            if kp == path:
+                kind = "node"
+            elif kp.startswith(path + "."):
+                kind = "container"
+            elif path.startswith(kp + "."):
+                kind = "child"
+            else:
+                continue
+            for node_id, node in inner.items():
+                seen[node_id] = (kind, node)
+        return list(seen.values())
