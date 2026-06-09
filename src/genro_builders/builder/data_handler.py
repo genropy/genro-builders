@@ -110,13 +110,16 @@ class BuilderHandler:
                 if nodes:
                     self.builders[name].render_nodes(self._optimize_render(nodes))
 
-    def add_render_node(self, node: SourceBagNode) -> None:
-        """Record a touched source node for the end-of-live render.
+    def add_render_node(self, pathlist: list[str]) -> None:
+        """Record a touched path for the end-of-live render.
 
-        Queued under the node's builder name (``root_builder_name``). The
-        end-of-live flush renders every builder whose queue is non-empty.
+        ``pathlist`` is the genro_bag event path: the first segment is the
+        builder name, the rest is the path inside that builder (joined with
+        ``.``). For ins/del it points at the container, for upd at the node
+        itself. The end-of-live flush renders every builder whose queue is
+        non-empty.
         """
-        self._nodes_to_render.setdefault(node.root_builder_name, []).append(node)
+        self._nodes_to_render.setdefault(pathlist[0], []).append(".".join(pathlist[1:]))
 
     def _optimize_render(self, nodes: list) -> list:
         """Reduce the touched nodes to the minimal render set.

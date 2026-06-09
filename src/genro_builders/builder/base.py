@@ -465,7 +465,9 @@ class BuilderBase(
     # maintenance delegated to the handler)
     # ------------------------------------------------------------------
 
-    def _on_source_event(self, node: Any, evt: str, **kw: Any) -> None:
+    def _on_source_event(
+        self, node: Any, evt: str, pathlist: list[str] | None = None, **kw: Any
+    ) -> None:
         """Internal dispatcher for events on this builder's ``_sourceroot``.
 
         Maintains the handler's ``pointer_map`` coherent across the
@@ -473,8 +475,9 @@ class BuilderBase(
         property), then forwards a normalized event to the user hook
         :meth:`on_source_change`. Mapkeep is structural, not user-facing:
         it MUST happen even if the user does not override the public hook.
-        Finally records the touched node on the handler's render queue, so
-        the end-of-live flush re-renders this builder.
+        Finally records the touched ``pathlist`` on the handler's render
+        queue: for ins/del it points at the container, for upd at the node
+        itself, so the end-of-live flush re-renders the right place.
         """
         if evt == "ins":
             self.on_source_change(node, "ins", evt_detail=None, **kw)
@@ -488,7 +491,7 @@ class BuilderBase(
             if detail in ("attrs", "value_attr"):
                 self._on_upd_attrs(node, kw.get("attrs_diff") or {})
             self.on_source_change(node, "upd", evt_detail=detail, **kw)
-        self.handler.add_render_node(node)
+        self.handler.add_render_node(pathlist)
 
     def on_source_change(
         self, node: Any, evt: str, evt_detail: str | None = None, **kw: Any
