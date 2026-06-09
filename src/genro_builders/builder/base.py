@@ -384,9 +384,13 @@ class BuilderBase(
         Looks up the class in the global registry via
         :meth:`get_builder_class` and instantiates it. Used when a
         ``_meta['subbuilder']`` element switches the active dialect
-        mid-document (e.g. ``body.svg(...)`` inside HTML).
+        mid-document (e.g. ``body.svg(...)`` inside HTML). The host's
+        handler is passed on so the sub-builder resolves pointers against
+        the same document data; it cascades to nested sub-builders.
         """
-        return type(self).get_builder_class(name)()
+        subbuilder = type(self).get_builder_class(name)()
+        subbuilder.handler = self.handler
+        return subbuilder
 
     def main(self, root: SourceBag) -> None:
         """Build the document into ``root``. Override on a page subclass.
