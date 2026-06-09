@@ -18,7 +18,7 @@ Core classes:
 
 from genro_builders.builder import BuilderBase, SourceBag, SourceBagNode, struct_method
 
-__version__ = "0.16.0"
+__version__ = "0.18.0"
 
 __all__ = [
     "BuilderBase",
