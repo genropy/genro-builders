@@ -13,10 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders.xml.examples.fatturapa import (
-    FatturaElettronicaBuilder,
-    FatturaElettronicaHandler,
-)
+from genro_builders.builder import BuilderHandler
+from genro_builders.xml.examples.fatturapa import FatturaElettronicaBuilder
 
 _FATTURAPA_DIR = (
     Path(__file__).resolve().parents[2]
@@ -72,28 +70,28 @@ def test_handler_renders_minimal_document_to_xml():
     longer emitted as broken validators (issue #30): the codegen comments
     them out, so construction succeeds."""
 
-    class MinimalInvoice(FatturaElettronicaHandler):
+    class MinimalInvoice(FatturaElettronicaBuilder):
         def main(self, root):
             root.FatturaElettronica(versione="FPA12", SistemaEmittente="TESTSW")
 
-    h = MinimalInvoice()
-    h.create()
-    xml = h.render(mode="xml", target=False)
+    page = MinimalInvoice()
+    BuilderHandler().add_builder(main=page)
+    xml = page.render(mode="xml", target=False)
     assert "<FatturaElettronica" in xml
     assert 'versione="FPA12"' in xml
     assert 'SistemaEmittente="TESTSW"' in xml
 
 
 def test_handler_writes_xml_to_file(tmp_path):
-    class MinimalInvoice(FatturaElettronicaHandler):
+    class MinimalInvoice(FatturaElettronicaBuilder):
         def main(self, root):
             root.FatturaElettronica(versione="FPA12", SistemaEmittente="TESTSW")
 
     out = tmp_path / "invoice.xml"
-    h = MinimalInvoice()
-    h.set_render_target("xml", str(out), default=True)
-    h.create()
-    h.render()
+    page = MinimalInvoice()
+    page.set_render_target(str(out), "xml")
+    BuilderHandler().add_builder(main=page)
+    page.render()
     body = out.read_text()
     assert body.startswith("<FatturaElettronica")
 

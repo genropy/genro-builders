@@ -13,7 +13,7 @@ output type is XML (``XmlRenderer`` via ``renderer_xml``).
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderBase, OldBuilderHandler, element
+from genro_builders.builder import BuilderBase, BuilderHandler, element
 
 XSL_URI = "http://www.w3.org/1999/XSL/Transform"
 
@@ -41,20 +41,16 @@ class _NsBuilder(BuilderBase):
     def a(self): ...
 
 
-class _NsHandler(OldBuilderHandler):
-    builder_class = _NsBuilder
-
-
 def _render(main):
-    """Build a one-off handler around ``main`` and return its XML string."""
+    """Mount a one-off ``_NsBuilder`` around ``main`` and return its XML."""
 
-    class _H(_NsHandler):
+    class _H(_NsBuilder):
         pass
 
     _H.main = lambda self, root: main(root)
-    h = _H()
-    h.create()
-    return h.render(target=False)
+    page = _H()
+    BuilderHandler().add_builder(main=page)
+    return page.render(target=False)
 
 
 def test_ns_local_composes_prefixed_tag():
@@ -73,16 +69,16 @@ def test_local_with_hyphen():
 def test_node_tag_stays_python_legal():
     """The node tag is the Python name; only the emitted markup is prefixed."""
 
-    class _H(_NsHandler):
+    class _H(_NsBuilder):
         def main(self, root):
             root.stylesheet(xmlns_xsl=XSL_URI).for_each(select="url")
 
-    h = _H()
-    h.create()
-    sheet = next(iter(h.source))
+    page = _H()
+    BuilderHandler().add_builder(main=page)
+    sheet = next(iter(page.source))
     fe = next(iter(sheet.value))
     assert fe.node_tag == "for_each"
-    assert "<xsl:for-each" in h.render(target=False)
+    assert "<xsl:for-each" in page.render(target=False)
 
 
 def test_xmlns_attr_underscore_to_colon():

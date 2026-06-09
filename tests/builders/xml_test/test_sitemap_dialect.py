@@ -13,10 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders.xml.examples.sitemap import (
-    SitemapBuilder,
-    SitemapHandler,
-)
+from genro_builders.builder import BuilderHandler
+from genro_builders.xml.examples.sitemap import SitemapBuilder
 
 _SITEMAP_DIR = (
     Path(__file__).resolve().parents[2]
@@ -39,7 +37,7 @@ def test_builder_schema_contains_known_elements():
 
 
 def test_handler_renders_a_sitemap_document():
-    class MySitemap(SitemapHandler):
+    class MySitemap(SitemapBuilder):
         def main(self, root):
             s = root.urlset()
             home = s.url()
@@ -47,9 +45,9 @@ def test_handler_renders_a_sitemap_document():
             home.changefreq("daily")
             home.priority(Decimal("1.0"))
 
-    h = MySitemap()
-    h.create()
-    xml = h.render(mode="xml", target=False)
+    page = MySitemap()
+    BuilderHandler().add_builder(main=page)
+    xml = page.render(mode="xml", target=False)
     assert xml == (
         "<urlset><url>"
         "<loc>https://www.example.com/</loc>"
@@ -60,13 +58,13 @@ def test_handler_renders_a_sitemap_document():
 
 
 def test_pretty_render_is_multiline():
-    class MySitemap(SitemapHandler):
+    class MySitemap(SitemapBuilder):
         def main(self, root):
             root.urlset().url().loc("https://x/")
 
-    h = MySitemap()
-    h.create()
-    pretty = h.render(mode="xml", pretty=True, target=False)
+    page = MySitemap()
+    BuilderHandler().add_builder(main=page)
+    pretty = page.render(mode="xml", pretty=True, target=False)
     assert "\n" in pretty
     assert pretty.startswith("<urlset>")
 

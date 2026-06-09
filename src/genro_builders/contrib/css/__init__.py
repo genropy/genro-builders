@@ -1,14 +1,14 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""CSS contrib — CssBuilder + CssBuilderHandler.
+"""CSS contrib — CssBuilder.
 
-Public entry point for CSS output. Users subclass
-``CssBuilderHandler`` and implement ``main(self, root)``.
+Public entry point for CSS output. Users subclass ``CssBuilder`` and
+implement ``main(self, root)``.
 
 Example::
 
-    from genro_builders.contrib.css import CssBuilderHandler
+    from genro_builders.contrib.css import CssBuilder
 
-    class Theme(CssBuilderHandler):
+    class Theme(CssBuilder):
         def main(self, root):
             sheet = root.stylesheet()
             r = sheet.rule(background_color="#3498db", color="white",

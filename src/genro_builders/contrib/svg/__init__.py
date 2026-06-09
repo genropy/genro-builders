@@ -1,14 +1,14 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""SVG contrib — SvgBuilder + SvgBuilderHandler.
+"""SVG contrib — SvgBuilder.
 
-Public entry point for SVG output. Users subclass
-``SvgBuilderHandler`` and implement ``main(self, root)``.
+Public entry point for SVG output. Users subclass ``SvgBuilder`` and
+implement ``main(self, root)``.
 
 Example::
 
-    from genro_builders.contrib.svg import SvgBuilderHandler
+    from genro_builders.contrib.svg import SvgBuilder
 
-    class MyChart(SvgBuilderHandler):
+    class MyChart(SvgBuilder):
         def main(self, root):
             svg = root.svg(viewBox="0 0 100 100")
             svg.rect(x=0, y=0, width=100, height=100, fill="red")

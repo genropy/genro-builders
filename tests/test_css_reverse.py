@@ -10,6 +10,7 @@ import pytest
 
 pytest.importorskip("tree_sitter_css")
 
+from genro_builders.builder import BuilderHandler  # noqa: E402
 from genro_builders.contrib.css import CssBuilder  # noqa: E402
 from genro_builders.contrib.css.transpiler import CssTranspiler  # noqa: E402
 from genro_builders.contrib.css.transpiler.backend import _parse_css  # noqa: E402
@@ -51,10 +52,9 @@ def _roundtrip(css: str) -> str:
     code = _reverse(css)
     namespace: dict = {}
     exec(code, namespace)
-    handler_cls = namespace["ReversedCss"]
-    handler = handler_cls()
-    handler.create()
-    return handler.render() or ""
+    page = namespace["ReversedCss"]()
+    BuilderHandler().add_builder(main=page)
+    return page.render() or ""
 
 
 def test_class_selector_simple():
@@ -127,14 +127,14 @@ def test_empty_source_emits_stylesheet_only_main():
     """Empty input still opens a stylesheet — the reverse always
     targets a whole CSS document, never a fragment."""
     code = _reverse("")
-    assert "class ReversedCss(CssBuilderHandler):" in code
+    assert "class ReversedCss(CssBuilder):" in code
     assert "def main(self, root):" in code
     assert "sheet = root.stylesheet()" in code
 
 
 def test_custom_class_name():
     code = _reverse(".a { color: red; }", class_name="Theme")
-    assert "class Theme(CssBuilderHandler):" in code
+    assert "class Theme(CssBuilder):" in code
 
 
 def test_roundtrip_simple_rule():
@@ -317,7 +317,7 @@ CSS_FIXTURE = ".card { color: red; padding: 8px; }"
 def test_from_css_returns_python_string_when_dest_none():
     out = CssBuilder.from_css(CSS_FIXTURE)
     assert isinstance(out, str)
-    assert "class ReversedCss(CssBuilderHandler):" in out
+    assert "class ReversedCss(CssBuilder):" in out
     assert "sheet = root.stylesheet()" in out
     assert "class_='card'" in out
 
@@ -367,7 +367,7 @@ def test_from_css_rejects_unsupported_dest():
 def test_from_css_custom_class_name():
     out = CssBuilder.from_css(CSS_FIXTURE, class_name="MyTheme")
     assert out is not None
-    assert "class MyTheme(CssBuilderHandler):" in out
+    assert "class MyTheme(CssBuilder):" in out
 
 
 def test_from_css_file_reads_from_path(tmp_path):
@@ -375,7 +375,7 @@ def test_from_css_file_reads_from_path(tmp_path):
     src.write_text(CSS_FIXTURE, encoding="utf-8")
     out = CssBuilder.from_css_file(src)
     assert isinstance(out, str)
-    assert "class ThemeStyle(CssBuilderHandler):" in out
+    assert "class ThemeStyle(CssBuilder):" in out
 
 
 def test_from_css_file_derives_class_name_from_stem(tmp_path):
@@ -383,7 +383,7 @@ def test_from_css_file_derives_class_name_from_stem(tmp_path):
     src.write_text(CSS_FIXTURE, encoding="utf-8")
     out = CssBuilder.from_css_file(src)
     assert out is not None
-    assert "class DarkModeStyle(CssBuilderHandler):" in out
+    assert "class DarkModeStyle(CssBuilder):" in out
 
 
 def test_from_css_file_skips_leading_numeric_segment(tmp_path):
@@ -394,7 +394,7 @@ def test_from_css_file_skips_leading_numeric_segment(tmp_path):
     src.write_text(CSS_FIXTURE, encoding="utf-8")
     out = CssBuilder.from_css_file(src)
     assert out is not None
-    assert "class GnrResetsStyle(CssBuilderHandler):" in out
+    assert "class GnrResetsStyle(CssBuilder):" in out
     # the generated code must be valid Python
     compile(out, "<test>", "exec")
 
@@ -404,7 +404,7 @@ def test_from_css_file_class_name_override(tmp_path):
     src.write_text(CSS_FIXTURE, encoding="utf-8")
     out = CssBuilder.from_css_file(src, class_name="Branded")
     assert out is not None
-    assert "class Branded(CssBuilderHandler):" in out
+    assert "class Branded(CssBuilder):" in out
 
 
 def test_from_css_file_writes_dest(tmp_path):
@@ -429,7 +429,7 @@ def test_cli_writes_output_file(tmp_path):
     rc = main(["--css", str(src), "--class-name", "MyStyle", "--output", str(out)])
     assert rc == 0
     code = out.read_text(encoding="utf-8")
-    assert "class MyStyle(CssBuilderHandler):" in code
+    assert "class MyStyle(CssBuilder):" in code
     # the canonical class_ keyword form is emitted, and the code runs
     assert "selector(class_='card')" in code
     namespace: dict[str, object] = {}

@@ -2,7 +2,7 @@
 # GENERATED FILE - DO NOT EDIT MANUALLY.
 # Regenerate with: python -m genro_builders.xml.transpiler --xsd <path> --dialect-name Sitemap --output <path>
 # Source targetNamespace: http://www.sitemaps.org/schemas/sitemap/0.9
-"""Auto-generated XSD dialect for Sitemap."""
+"""XML Sitemap dialect, generated from sitemap.xsd (modelled on the public Sitemaps protocol 0.9). A small real-world XSD example: nested urlset/url, enumerated changefreq, bounded priority."""
 
 from __future__ import annotations
 

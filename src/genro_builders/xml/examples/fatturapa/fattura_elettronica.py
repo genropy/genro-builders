@@ -2,7 +2,7 @@
 # GENERATED FILE - DO NOT EDIT MANUALLY.
 # Regenerate with: python -m genro_builders.xml.transpiler --xsd <path> --dialect-name FatturaElettronica --output <path>
 # Source targetNamespace: http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2
-"""Auto-generated XSD dialect for FatturaElettronica."""
+"""FatturaPA v1.2.3 dialect (Italian PA electronic invoice). Generated from the official Schema_VFPA12_V1.2.3.xsd published by Agenzia delle Entrate. Some XSD patterns use Unicode block properties that Python re cannot compile; those validators are commented out for hand-refinement."""
 
 from __future__ import annotations
 

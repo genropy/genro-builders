@@ -39,8 +39,8 @@ def main(argv: list[str] | None = None) -> int:
         "--class-name",
         default=None,
         help=(
-            "Class name of the generated handler (subclasses "
-            "CssBuilderHandler). Defaults to a name derived from the "
+            "Class name of the generated builder (subclasses "
+            "CssBuilder). Defaults to a name derived from the "
             "file stem."
         ),
     )

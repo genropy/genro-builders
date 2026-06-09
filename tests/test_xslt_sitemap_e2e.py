@@ -12,13 +12,14 @@ from __future__ import annotations
 
 from lxml import etree
 
-from genro_builders.contrib.xslt import XsltBuilderHandler
-from genro_builders.xml.examples.sitemap import SitemapHandler
+from genro_builders.builder import BuilderHandler
+from genro_builders.contrib.xslt import XsltBuilder
+from genro_builders.xml.examples.sitemap import SitemapBuilder
 
 XSL = "http://www.w3.org/1999/XSL/Transform"
 
 
-class _SitemapToHtml(XsltBuilderHandler):
+class _SitemapToHtml(XsltBuilder):
     """Stylesheet: render a <urlset> as an HTML table of its URLs."""
 
     def main(self, root):
@@ -41,7 +42,7 @@ class _SitemapToHtml(XsltBuilderHandler):
         row.td().value_of(select="priority")
 
 
-class _Sitemap(SitemapHandler):
+class _Sitemap(SitemapBuilder):
     """A small sitemap document used as transform input."""
 
     def main(self, root):
@@ -56,13 +57,13 @@ class _Sitemap(SitemapHandler):
 
 def _stylesheet_str() -> str:
     sheet = _SitemapToHtml()
-    sheet.create()
+    BuilderHandler().add_builder(main=sheet)
     return sheet.render(target=False, doc_header=True)
 
 
 def _sitemap_str() -> str:
     sm = _Sitemap()
-    sm.create()
+    BuilderHandler().add_builder(main=sm)
     return sm.render(mode="xml", target=False, doc_header=True)
 
 

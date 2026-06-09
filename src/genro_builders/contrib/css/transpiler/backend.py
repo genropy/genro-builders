@@ -286,7 +286,7 @@ def _kebab_to_snake(name: str) -> str:
 
 class CssTranspiler:
     """Walk a tree-sitter CSS tree and emit an ``ast.Module`` whose
-    execution rebuilds an equivalent CSS via ``CssBuilderHandler``."""
+    execution rebuilds an equivalent CSS via ``CssBuilder``."""
 
     def __init__(self, *, class_name: str = "ReversedCss") -> None:
         self._class_name = class_name
@@ -328,7 +328,7 @@ class CssTranspiler:
         )
         class_def = ast.ClassDef(
             name=self._class_name,
-            bases=[ast.Name(id="CssBuilderHandler", ctx=ast.Load())],
+            bases=[ast.Name(id="CssBuilder", ctx=ast.Load())],
             keywords=[],
             body=[main_func],
             decorator_list=[],
@@ -337,7 +337,7 @@ class CssTranspiler:
             body=[
                 ast.ImportFrom(
                     module="genro_builders.contrib.css",
-                    names=[ast.alias(name="CssBuilderHandler", asname=None)],
+                    names=[ast.alias(name="CssBuilder", asname=None)],
                     level=0,
                 ),
                 class_def,

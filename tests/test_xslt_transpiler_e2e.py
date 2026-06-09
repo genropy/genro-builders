@@ -17,6 +17,7 @@ from pathlib import Path
 
 from lxml import etree
 
+from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.xslt.transpiler import XsltTranspiler
 from genro_builders.contrib.xslt.transpiler.__main__ import main
 
@@ -49,9 +50,9 @@ def _regenerate(xslt_source: str) -> str:
     code = XsltTranspiler(handler_name="RoundTrip").transpile(xslt_source)
     namespace: dict[str, object] = {}
     exec(code, namespace)  # noqa: S102 - executing our own generated code
-    handler = namespace["RoundTrip"]()
-    handler.create()
-    return handler.render(target=False, doc_header=True)
+    page = namespace["RoundTrip"]()
+    BuilderHandler().add_builder(main=page)
+    return page.render(target=False, doc_header=True)
 
 
 def test_round_trip_is_structurally_identical():
@@ -76,11 +77,11 @@ def test_cli_writes_output_file(tmp_path):
     rc = main(["--xslt", str(_EXAMPLE), "--handler-name", "Sitemap", "--output", str(out)])
     assert rc == 0
     code = out.read_text(encoding="utf-8")
-    assert "class Sitemap(XsltBuilderHandler):" in code
+    assert "class Sitemap(XsltBuilder):" in code
     # the generated module executes and rebuilds an equivalent sheet
     namespace: dict[str, object] = {}
     exec(code, namespace)  # noqa: S102
-    handler = namespace["Sitemap"]()
-    handler.create()
-    regenerated = handler.render(target=False, doc_header=True)
+    page = namespace["Sitemap"]()
+    BuilderHandler().add_builder(main=page)
+    regenerated = page.render(target=False, doc_header=True)
     assert _canon(regenerated) == _canon(_EXAMPLE.read_text(encoding="utf-8"))

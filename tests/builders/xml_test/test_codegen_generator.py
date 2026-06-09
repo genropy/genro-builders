@@ -11,6 +11,7 @@ from decimal import Decimal
 
 import pytest
 
+from genro_builders.builder import BuilderHandler
 from genro_builders.xml.transpiler import (
     AttributeModel,
     ChildModel,
@@ -26,14 +27,12 @@ def gen():
     return PythonGenerator()
 
 
-def test_empty_model_yields_builder_and_handler_classes(gen):
+def test_empty_model_yields_builder_class(gen):
     model = NamespaceModel(target_namespace="http://example.com/x")
     src = gen.render(model, "Demo")
     assert "class DemoBuilder(XmlBuilderBase):" in src
-    assert "class DemoHandler(XmlHandler):" in src
-    assert "builder_class = DemoBuilder" in src
     assert "from genro_builders.builder import element" in src
-    assert "from genro_builders.xml import XmlBuilderBase, XmlHandler" in src
+    assert "from genro_builders.xml import XmlBuilderBase" in src
     assert "GENERATED FILE" in src
 
 
@@ -179,7 +178,7 @@ def test_unknown_tag_names_are_slugged(gen):
 
 
 def test_generated_module_is_executable_and_renders(gen):
-    """The generated source compiles, its handler builds a document, and
+    """The generated source compiles, its builder builds a document, and
     a real ``xml`` render walks the grammar end to end."""
     model = NamespaceModel(
         target_namespace="http://example.com/demo",
@@ -194,14 +193,14 @@ def test_generated_module_is_executable_and_renders(gen):
     src = gen.render(model, "Demo")
     namespace: dict[str, object] = {}
     exec(compile(src, "<generated>", "exec"), namespace)
-    handler_class = namespace["DemoHandler"]
+    builder_class = namespace["DemoBuilder"]
 
-    class MyDoc(handler_class):  # type: ignore[valid-type, misc]
+    class MyDoc(builder_class):  # type: ignore[valid-type, misc]
         def main(self, root):
             root.Greeting().Subject("hi")
 
     doc = MyDoc()
-    doc.create()
+    BuilderHandler().add_builder(main=doc)
     assert doc.render(mode="xml", target=False) == (
         "<Greeting><Subject>hi</Subject></Greeting>"
     )

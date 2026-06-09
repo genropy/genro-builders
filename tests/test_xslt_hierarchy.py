@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from genro_builders.builder import BuilderBase
-from genro_builders.contrib.xslt import XsltBuilder, XsltBuilderHandler
+from genro_builders.builder import BuilderBase, BuilderHandler
+from genro_builders.contrib.xslt import XsltBuilder
 from genro_builders.xml import XmlBuilderBase
 
 
@@ -24,21 +24,20 @@ def test_xslt_registered():
 
 
 def test_renderer_is_xmlrenderer():
-    class _S(XsltBuilderHandler):
+    class _S(XsltBuilder):
         def main(self, root):
             root.stylesheet()
 
-    h = _S()
-    h.create()
-    renderer = h._get_renderer("xml")
-    assert type(renderer).__name__ == "XmlRenderer"
+    page = _S()
+    BuilderHandler().add_builder(main=page)
+    assert type(page.renderer_xml).__name__ == "XmlRenderer"
 
 
 def test_grammar_rejects_unknown_element():
-    class _S(XsltBuilderHandler):
+    class _S(XsltBuilder):
         def main(self, root):
             root.stylesheet().foobar()
 
-    h = _S()
+    page = _S()
     with pytest.raises(AttributeError):
-        h.create()
+        BuilderHandler().add_builder(main=page)
