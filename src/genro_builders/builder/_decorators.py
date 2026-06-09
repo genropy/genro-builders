@@ -116,6 +116,7 @@ def element(
     sub_tags: str | tuple[str, ...] | None = None,
     parent_tags: str | None = None,
     inherits_from: str | None = None,
+    fixed_node_label: str | None = None,
     _meta: dict[str, Any] | None = None,
 ) -> Callable:
     """Decorator to mark a method as element handler.
@@ -132,6 +133,9 @@ def element(
         parent_tags: Valid parent tags (comma-separated). If specified,
             element can only be placed inside one of these parents.
         inherits_from: Abstract element name to inherit sub_tags from.
+        fixed_node_label: Fixed node label for a singleton element (e.g.
+            ``body``), so it is reachable by a stable key instead of an
+            auto-generated one. Omitted -> the node gets an auto-label.
         _meta: Dict of metadata for renderers/compilers (e.g.
             compile_class, compile_module, renderer_svg_style).
 
@@ -157,6 +161,7 @@ def element(
                 "sub_tags": sub_tags,
                 "parent_tags": parent_tags,
                 "inherits_from": inherits_from,
+                "fixed_node_label": fixed_node_label,
                 "_meta": _meta,
             }.items()
             if v is not None

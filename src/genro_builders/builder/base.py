@@ -138,6 +138,7 @@ class BuilderBase(
             meta = decorator_info.get("_meta")
             documentation = obj.__doc__
             call_args_validations = _extract_validators_from_signature(obj)
+            fixed_node_label = decorator_info.get("fixed_node_label")
 
             for tag in tag_list:
                 if is_abstract:
@@ -158,6 +159,7 @@ class BuilderBase(
                         _meta=meta,
                         documentation=documentation,
                         call_args_validations=call_args_validations,
+                        fixed_node_label=fixed_node_label,
                     )
 
         # Inject the data-element stubs declared on BuilderBase into this
@@ -425,14 +427,26 @@ class BuilderBase(
                 ),
             )
         )
-        # Reactivity of the SOURCE (structure) lives on the builder —
-        # predisposed for the live phase, not armed yet.
-        # self._sourceroot.subscribe(
-        #     "builder_source",
-        #     insert=self._on_source_event,
-        #     update=self._on_source_event,
-        #     delete=self._on_source_event,
-        # )
+        # Reactivity of the SOURCE (structure) lives on the builder. Armed
+        # only when reactive: the live phase (subscribe + queue +
+        # end-of-live render) is paid by reactive pages, not one-shot ones.
+        if self._is_reactive:
+            self._sourceroot.subscribe(
+                "builder_source",
+                insert=self._on_source_event,
+                update=self._on_source_event,
+                delete=self._on_source_event,
+            )
+
+    @property
+    def _is_reactive(self) -> bool:
+        """True when mounted on a handler that has an application.
+
+        A builder with no data has no handler: it renders one-shot and is
+        not reactive. Only a builder on a handler with an application arms
+        source reactivity (subscribe + live render).
+        """
+        return bool(self.handler and self.handler.application)
 
     def node_by_id(self, node_id: str) -> Any:
         """Return the source node carrying ``node_id`` in this builder.
@@ -445,6 +459,107 @@ class BuilderBase(
         if node is None:
             raise KeyError(node_id)
         return node
+
+    # ------------------------------------------------------------------
+    # Source reactivity (change handling on the builder; pointer-map
+    # maintenance delegated to the handler)
+    # ------------------------------------------------------------------
+
+    def _on_source_event(self, node: Any, evt: str, **kw: Any) -> None:
+        """Internal dispatcher for events on this builder's ``_sourceroot``.
+
+        Maintains the handler's ``pointer_map`` coherent across the
+        mutation (mapkeep is delegated to the handler — the map is its
+        property), then forwards a normalized event to the user hook
+        :meth:`on_source_change`. Mapkeep is structural, not user-facing:
+        it MUST happen even if the user does not override the public hook.
+        Finally records the touched node on the handler's render queue, so
+        the end-of-live flush re-renders this builder.
+        """
+        if evt == "ins":
+            self.on_source_change(node, "ins", evt_detail=None, **kw)
+        elif evt == "del":
+            self.handler._unregister_pointer(node)
+            self.on_source_change(node, "del", evt_detail=None, **kw)
+        else:
+            detail = evt[4:] if evt.startswith("upd_") else evt
+            if detail in ("value", "value_attr"):
+                self._on_upd_value(node, kw.get("oldvalue"))
+            if detail in ("attrs", "value_attr"):
+                self._on_upd_attrs(node, kw.get("attrs_diff") or {})
+            self.on_source_change(node, "upd", evt_detail=detail, **kw)
+        self.handler.add_render_node(node)
+
+    def on_source_change(
+        self, node: Any, evt: str, evt_detail: str | None = None, **kw: Any
+    ) -> None:
+        """Override point: a node in the source tree changed.
+
+        Normalized event: ``evt`` is ``"ins"`` / ``"del"`` / ``"upd"``,
+        ``evt_detail`` carries the update kind for ``"upd"``. Default
+        no-op. Runs AFTER the structural pointer-map maintenance.
+        """
+
+    def _value_nature(self, v: Any) -> str:
+        """Classify a value as ``"bag"``, ``"pointer"`` or ``"scalar"``.
+
+        Used by :meth:`_on_upd_value` to dispatch over the 9-cases matrix
+        of value transitions (old kind × new kind).
+        """
+        if isinstance(v, Bag):
+            return "bag"
+        if isinstance(v, str) and v.startswith("^"):
+            return "pointer"
+        return "scalar"
+
+    def _on_upd_value(self, node: Any, oldvalue: Any) -> None:
+        """De-register the old value's pointers across an ``upd_value`` event.
+
+        Dispatches over the 9 transitions of (old kind, new kind) where
+        each kind is one of ``"scalar"``, ``"pointer"``, ``"bag"`` — see
+        :meth:`_value_nature`. Only the OLD side acts: registration of the
+        new value is the render's job (read-time ``_register_path``). The
+        empty branches are kept explicit as anchor points for the future
+        partial-render refactor.
+        """
+        new = node.value
+        old_kind = self._value_nature(oldvalue)
+        new_kind = self._value_nature(new)
+        match (old_kind, new_kind):
+            case ("scalar", "scalar"):
+                pass
+            case ("scalar", "pointer"):
+                pass
+            case ("scalar", "bag"):
+                pass
+            case ("pointer", "scalar"):
+                self.handler._update_pointer_map(node, [("", oldvalue)])
+            case ("pointer", "pointer"):
+                self.handler._update_pointer_map(node, [("", oldvalue)])
+            case ("pointer", "bag"):
+                self.handler._update_pointer_map(node, [("", oldvalue)])
+            case ("bag", "scalar"):
+                for old_child in oldvalue:
+                    self.handler._unregister_pointer(old_child)
+            case ("bag", "pointer"):
+                for old_child in oldvalue:
+                    self.handler._unregister_pointer(old_child)
+            case ("bag", "bag"):
+                for old_child in oldvalue:
+                    self.handler._unregister_pointer(old_child)
+
+    def _on_upd_attrs(self, node: Any, attrs_diff: dict) -> None:
+        """De-register old attr-pointers across an ``upd_attrs`` event.
+
+        ``attrs_diff`` is the per-attribute diff produced by ``genro_bag``:
+        ``{attr_name: {"old": old_value, "new": new_value}, ...}``. Only
+        the old pointer is de-registered; the new one is re-registered by
+        the render that follows.
+        """
+        for attrname, change in attrs_diff.items():
+            old_v = change.get("old")
+            if isinstance(old_v, str) and old_v.startswith("^"):
+                self.handler._update_pointer_map(node, [(attrname, old_v)])
 
     # ------------------------------------------------------------------
     # Data-element logic (first calculation; reactive cascade later)
@@ -575,6 +690,15 @@ class BuilderBase(
         renderer = getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
         result = renderer.render_children(renderer.preprocess(self.source), **opts)
         return renderer.finalize(result, self._get_target(target, renderer), **opts)
+
+    def render_nodes(self, nodes: list, **opts: Any) -> Any:
+        """Render the touched nodes accumulated during a ``live`` section.
+
+        Step one: ignores the node list and does a full render of the whole
+        builder — partial render (one ``renderer.render(node)`` per node) is
+        a later refinement.
+        """
+        return self.render(**opts)
 
     def _get_target(self, target: Any, renderer: Any) -> Any:
         """Resolve the render target for a render call.

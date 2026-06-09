@@ -135,7 +135,11 @@ class _GrammarMixin:
             if meta:
                 attr["_meta"] = meta
 
-        node_label = node_label or self._auto_label(build_where, node_tag)
+        node_label = (
+            node_label
+            or child_info.get("fixed_node_label")
+            or self._auto_label(build_where, node_tag)
+        )
         child_node = build_where.set_item(
             node_label, node_value, _attributes=dict(attr),
             node_position=node_position, node_tag=node_tag,

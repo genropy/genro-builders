@@ -124,7 +124,7 @@ def test_node_id_kwarg_round_trip():
     page = P()
     page.create()
     node = page.node_by_id("anchor-1")
-    assert node is page.source.get_node("body_0")
+    assert node is page.source.get_node("body")
 
 
 def test_node_id_kwarg_collision_raises():
@@ -151,7 +151,7 @@ def test_node_id_cleaned_on_delete():
     page = P()
     page.create()
     assert page.node_by_id("tagged") is not None
-    body = page.source.get_node("body_0").value
+    body = page.source.get_node("body").value
     del body["div_0"]
     with pytest.raises(KeyError):
         page.node_by_id("tagged")

@@ -15,11 +15,14 @@ The ``_`` segment is created up front as the shared/common space.
 """
 from __future__ import annotations
 
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from genro_bag import Bag
 
-from .source_bag import SourceBagNode
+from .source_bag import SourceBag, SourceBagNode
 
 
 class BuilderHandler:
@@ -27,6 +30,7 @@ class BuilderHandler:
 
     def __init__(self) -> None:
         self.builders: dict[str, Any] = {}
+        self.default_builder_name: str | None = None
         self.application: Any = None
         self._dataroot: Bag = Bag()
         self._dataroot["_"] = Bag()        # shared/common segment
@@ -34,6 +38,19 @@ class BuilderHandler:
         # Read-time pointer tracking: key = absolute data path, value =
         # {id(node): node}. Populated by _register_path during render.
         self.pointer_map: dict[str, dict[int, SourceBagNode]] = {}
+        # RX livello 0 — flag di abilitazione reattività: acceso dal PRIMO
+        # render (non da create()). Segna che l'avviamento è finito: la
+        # pointer_map è popolata (lettura a render time) e live() è permesso.
+        # live() lo esige (DR5): una pagina non resa non è reattiva.
+        self._live_enabled: bool = False
+        # RX livello 0 — stato della sezione live (DR4/DR6/DR7). Privati,
+        # non parte dell'API: l'unico accesso pubblico è il context
+        # manager live(). Il lock serializza le sezioni (sync, re-entry).
+        self._live_target: Any = None
+        self._live_active: bool = False
+        self._live_lock: threading.RLock = threading.RLock()
+        # End-of-live render queue: builder name -> touched source nodes.
+        self._nodes_to_render: dict[str, list] = {}
         self.setup(self._dataroot["_"])
 
     @property
@@ -56,6 +73,8 @@ class BuilderHandler:
         (its segment bag), so its pointers resolve against that segment.
         """
         for name, instance in builders.items():
+            if self.default_builder_name is None:
+                self.default_builder_name = name
             self.builders[name] = instance
             self._dataroot[name] = Bag()
             instance.handler = self
@@ -64,6 +83,48 @@ class BuilderHandler:
             # source root so every node (host or sub-builder) reaches it
             # via the ``handler`` property (Bag.root).
             instance._sourceroot._handler = self
+
+    @contextmanager
+    def live(self, target: Any = None) -> Iterator[BuilderHandler]:
+        """Open a section that batches mutations and renders on exit.
+
+        Entering resets the render queue and marks the section active. Each
+        source mutation (handled on the builder) records its touched node
+        via :meth:`add_render_node`. On exit, every builder with at least
+        one touched node is rendered: the queued nodes pass through
+        :meth:`_optimize_render` and then ``builder.render_nodes(...)``.
+
+        Step one: ``_optimize_render`` is a pass-through and
+        ``render_nodes`` does a full render — partial render is a later
+        refinement. The lock is held by the Application around this section,
+        not here.
+        """
+        self._nodes_to_render = {}
+        self._live_active = True
+        self._live_target = target
+        try:
+            yield self
+        finally:
+            self._live_active = False
+            for name, nodes in self._nodes_to_render.items():
+                if nodes:
+                    self.builders[name].render_nodes(self._optimize_render(nodes))
+
+    def add_render_node(self, node: SourceBagNode) -> None:
+        """Record a touched source node for the end-of-live render.
+
+        Queued under the node's builder name (``root_builder_name``). The
+        end-of-live flush renders every builder whose queue is non-empty.
+        """
+        self._nodes_to_render.setdefault(node.root_builder_name, []).append(node)
+
+    def _optimize_render(self, nodes: list) -> list:
+        """Reduce the touched nodes to the minimal render set.
+
+        Step one: pass-through (returns ``nodes`` unchanged). A later
+        refinement drops nodes covered by a queued ancestor and dedupes.
+        """
+        return nodes
 
     def _register_path(self, node: SourceBagNode, abs_path: str) -> None:
         """Register ``node`` as a reader of ``abs_path`` (read-time tracking).
@@ -74,3 +135,38 @@ class BuilderHandler:
         if not self.application:
             return
         self.pointer_map.setdefault(abs_path, {})[id(node)] = node
+
+    def _unregister_pointer(self, node: SourceBagNode) -> None:
+        """Drop ``node`` (and its subtree) from ``self.pointer_map``.
+
+        The add side is the render's job (read-time ``_register_path``);
+        removal is the explicit action, because a re-render never visits
+        the nodes that disappeared. Recurses into the ``SourceBag``
+        subtree so a removed branch is fully purged. Silent when a path
+        or node is not registered.
+        """
+        self._update_pointer_map(node, node.pointers())
+        if isinstance(node.value, SourceBag):
+            for child in node.value:
+                self._unregister_pointer(child)
+
+    def _update_pointer_map(
+        self,
+        node: SourceBagNode,
+        pointers: list[tuple[str, str]],
+    ) -> None:
+        """Remove ``pointers`` of ``node`` from ``self.pointer_map``.
+
+        Each entry is ``(attrname, pointer_str)``: ``attrname=""`` for a
+        pointer on ``node.value``, otherwise the attribute name. The path
+        entry is pruned when it becomes empty.
+        """
+        for attrname, pointer in pointers:
+            path = node.abs_datapath(pointer)
+            if attrname:
+                path = f"{path}?{attrname}"
+            inner = self.pointer_map.get(path)
+            if inner is not None:
+                inner.pop(id(node), None)
+                if not inner:
+                    del self.pointer_map[path]
