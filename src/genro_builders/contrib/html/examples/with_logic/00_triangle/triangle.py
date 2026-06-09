@@ -31,6 +31,5 @@ if __name__ == "__main__":
     handler = BuilderHandler()
     handler.add_builder(main=page)
     page.set_render_target("output.html")
-    page.create()
     page.render(pretty=True)
     print(page.rendered_target)

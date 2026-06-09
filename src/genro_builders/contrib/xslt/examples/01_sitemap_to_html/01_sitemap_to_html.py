@@ -28,13 +28,14 @@ from pathlib import Path
 
 from lxml import etree
 
-from genro_builders.contrib.xslt import XsltBuilderHandler
-from genro_builders.xml.examples.sitemap import SitemapHandler
+from genro_builders.builder import BuilderHandler
+from genro_builders.contrib.xslt import XsltBuilder
+from genro_builders.xml.examples.sitemap import SitemapBuilder
 
 XSL = "http://www.w3.org/1999/XSL/Transform"
 
 
-class SitemapToHtml(XsltBuilderHandler):
+class SitemapToHtml(XsltBuilder):
     """A stylesheet that renders a <urlset> as an HTML table of URLs."""
 
     def main(self, root):
@@ -60,7 +61,7 @@ class SitemapToHtml(XsltBuilderHandler):
         row.td().value_of(select="priority")
 
 
-class SampleSitemap(SitemapHandler):
+class SampleSitemap(SitemapBuilder):
     """A small sitemap used as the transform input."""
 
     def main(self, root):
@@ -76,7 +77,7 @@ class SampleSitemap(SitemapHandler):
 if __name__ == "__main__":
     # 1. Build the stylesheet and render it (XML output, doc header on).
     sheet = SitemapToHtml()
-    sheet.create()
+    BuilderHandler().add_builder(main=sheet)
     stylesheet_xml = sheet.render(target=False, doc_header=True, pretty=True)
 
     output_xslt = Path(__file__).with_suffix(".xslt")
@@ -85,7 +86,7 @@ if __name__ == "__main__":
 
     # 2. Build a sample sitemap document.
     sm = SampleSitemap()
-    sm.create()
+    BuilderHandler().add_builder(main=sm)
     sitemap_xml = sm.render(mode="xml", target=False, doc_header=True)
 
     # 3. Apply the stylesheet to the sitemap with lxml — the real XSLT

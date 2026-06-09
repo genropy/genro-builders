@@ -14,14 +14,12 @@ from ._decorators import (
 from ._validators import Range, Regex
 from .base import BuilderBase
 from .data_handler import BuilderHandler
-from .handler import OldBuilderHandler
 from .source_bag import SourceBag, SourceBagNode
 
 __all__ = [
     "BuilderBase",
     "SourceBag",
     "SourceBagNode",
-    "OldBuilderHandler",
     "BuilderHandler",
     "Range",
     "Regex",

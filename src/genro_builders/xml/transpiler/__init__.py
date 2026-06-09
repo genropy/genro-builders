@@ -10,9 +10,9 @@ Python module declaring an XML dialect grammar:
       -> PythonGenerator.render
       -> Python source text  (committed in the repo, e.g. sitemap.py)
 
-The generated module declares a ``<Dialect>Builder(XmlBuilderBase)`` +
-``<Dialect>Handler(XmlHandler)`` pair — no hand-written glue. The user
-subclasses the handler and implements ``main`` (see the bundled
+The generated module declares one ``<Dialect>Builder(XmlBuilderBase)``
+class — no hand-written glue. The user subclasses it, implements ``main``,
+and mounts it on the generic ``BuilderHandler`` (see the bundled
 ``xml/examples/sitemap/`` and ``xml/examples/fatturapa/``).
 
 The transpiler produces a *starting base*, not a guaranteed-complete dialect.

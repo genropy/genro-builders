@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""XmlBuilderBase + XmlHandler — shared base for XML-on-the-wire dialects.
+"""XmlBuilderBase — shared grammar base for XML-on-the-wire dialects.
 
 A growing family of dialects serialize to XML: schemas (XSD), transforms
 (XSLT), and any future XML vocabulary. They share one trait the markup
@@ -18,7 +18,7 @@ with pointers resolved and framework markers filtered.
 
 from __future__ import annotations
 
-from genro_builders.builder import BuilderBase, OldBuilderHandler
+from genro_builders.builder import BuilderBase
 
 
 class XmlBuilderBase(BuilderBase):
@@ -32,15 +32,6 @@ class XmlBuilderBase(BuilderBase):
     """
 
     _default_render_mode = "xml"
-
-
-class XmlHandler(OldBuilderHandler):
-    """Handler base for XML-on-the-wire dialects.
-
-    A concrete ``<Dialect>Handler`` binds its ``builder_class`` to the
-    matching builder. Nothing else is needed here: the engine, the
-    lifecycle, and the XML render all come from the core.
-    """
 
 
 if __name__ == "__main__":

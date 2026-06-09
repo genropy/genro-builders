@@ -2,7 +2,7 @@
 # GENERATED FILE - DO NOT EDIT MANUALLY.
 # Regenerate with: python -m genro_builders.xml.transpiler --xsd <path> --dialect-name FatturaElettronica --output <path>
 # Source targetNamespace: http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2
-"""FatturaPA v1.2.3 dialect (Italian PA electronic invoice). Generated from the official Schema_VFPA12_V1.2.3.xsd published by Agenzia delle Entrate. Some XSD patterns use Unicode block properties that Python re cannot compile; those validators are commented out for hand-refinement."""
+"""Auto-generated XSD dialect for FatturaElettronica."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 
 from genro_builders.builder import Range, Regex, element
-from genro_builders.xml import XmlBuilderBase, XmlHandler
+from genro_builders.xml import XmlBuilderBase
 
 
 class FatturaElettronicaBuilder(XmlBuilderBase):
@@ -1243,8 +1243,3 @@ class FatturaElettronicaBuilder(XmlBuilderBase):
         """Args: Id, MimeType, Encoding."""
         ...
 
-
-class FatturaElettronicaHandler(XmlHandler):
-    """Preset handler bound to :class:`FatturaElettronicaBuilder`."""
-
-    builder_class = FatturaElettronicaBuilder

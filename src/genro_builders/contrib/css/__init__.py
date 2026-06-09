@@ -22,21 +22,6 @@ Example::
 
 from __future__ import annotations
 
-from ...builder import OldBuilderHandler
 from .css_builder import CssBuilder
 
-
-class CssBuilderHandler(OldBuilderHandler):
-    """Preset handler bound to ``CssBuilder``.
-
-    CSS rides the standard handler render flow: the universal walk turns
-    each node into a dict fragment (``CssRenderer.rendered_item``) and
-    ``finalize`` composes the stylesheet from those fragments (cssvar
-    grouping, importcss ordering, ``@media``/``@supports``). No custom
-    ``render`` override is needed.
-    """
-
-    builder_class = CssBuilder
-
-
-__all__ = ["CssBuilder", "CssBuilderHandler"]
+__all__ = ["CssBuilder"]

@@ -21,6 +21,9 @@ if __name__ == "__main__":
         ("html (pretty)", page.render(target=False, pretty=True)),
         ("xml", page.render("xml", target=False, pretty=True)),
         ("yaml", page.render("yaml", target=False)),
+        # The source itself serializes too: the raw recipe (attributes not
+        # yet canonicalized, no pointer/keyword resolution) — not a render.
+        ("source.to_xml (raw recipe)", page.source.to_xml()),
     ]
     for label, out in blocks:
         print(f"=== {label} ===")

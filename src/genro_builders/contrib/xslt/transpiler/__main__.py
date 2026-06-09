@@ -38,8 +38,8 @@ def main(argv: list[str] | None = None) -> int:
         "--handler-name",
         default="GeneratedStylesheet",
         help=(
-            "Class name of the generated handler (subclasses "
-            "XsltBuilderHandler). Defaults to GeneratedStylesheet."
+            "Class name of the generated builder (subclasses "
+            "XsltBuilder). Defaults to GeneratedStylesheet."
         ),
     )
     parser.add_argument(

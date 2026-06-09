@@ -18,7 +18,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from genro_builders.xml import XmlBuilderBase, XmlHandler
+from genro_builders.builder import BuilderHandler
+from genro_builders.xml import XmlBuilderBase
 
 from ..html.html5_elements import Html5Elements
 from .xslt_elements import XsltElements
@@ -37,13 +38,9 @@ class XsltBuilder(XmlBuilderBase, XsltElements, Html5Elements):
         return not (node._get_meta("render_tag") or "").startswith("xslt:")
 
 
-class XsltBuilderHandler(XmlHandler):
-    """Preset handler bound to :class:`XsltBuilder`."""
-
-    builder_class = XsltBuilder
-
-
 if __name__ == "__main__":
-    handler = XsltBuilderHandler()
-    handler.create()
-    print(handler.render(target=False))
+    page = XsltBuilder()
+    handler = BuilderHandler()
+    handler.add_builder(main=page)
+    page.create()
+    print(page.render(target=False))

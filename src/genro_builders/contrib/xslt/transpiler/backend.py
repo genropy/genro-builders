@@ -50,9 +50,9 @@ _ATTR_KEYWORD_MAP = {"class": "class_", "for": "for_"}
 class XsltTranspiler:
     """Transpile an XSLT stylesheet to Python source rebuilding it.
 
-    ``handler_name`` is the class name of the generated handler; the
-    generated module subclasses ``XsltBuilderHandler`` and writes the
-    stylesheet in ``main``.
+    ``handler_name`` is the class name of the generated builder; the
+    generated module subclasses ``XsltBuilder`` and writes the stylesheet
+    in ``main``. The builder is mounted on the generic ``BuilderHandler``.
     """
 
     def __init__(self, handler_name: str = "GeneratedStylesheet"):
@@ -105,14 +105,14 @@ class XsltTranspiler:
         )
         class_def = ast.ClassDef(
             name=self.handler_name,
-            bases=[ast.Name(id="XsltBuilderHandler", ctx=ast.Load())],
+            bases=[ast.Name(id="XsltBuilder", ctx=ast.Load())],
             keywords=[],
             body=[main_def],
             decorator_list=[],
         )
         import_stmt = ast.ImportFrom(
             module="genro_builders.contrib.xslt",
-            names=[ast.alias(name="XsltBuilderHandler", asname=None)],
+            names=[ast.alias(name="XsltBuilder", asname=None)],
             level=0,
         )
         return ast.Module(body=[import_stmt, class_def], type_ignores=[])

@@ -46,17 +46,15 @@ class PythonGenerator:
         """Return the full Python source for the generated dialect.
 
         ``dialect_name`` is the dialect's base name (e.g. ``Gpx``,
-        ``FatturaElettronica``); the module declares two classes derived
-        from it: ``<dialect_name>Builder(XmlBuilderBase)`` carrying the
-        ``@element`` grammar, and ``<dialect_name>Handler(XmlHandler)``
-        bound to it via ``builder_class``. The user subclasses the
-        handler and implements ``main``.
+        ``FatturaElettronica``); the module declares one class:
+        ``<dialect_name>Builder(XmlBuilderBase)`` carrying the ``@element``
+        grammar. The user subclasses it, implements ``main``, and mounts it
+        on the generic ``BuilderHandler`` (``handler.add_builder(...)``).
         """
         out = StringIO()
         self._write_header(out, model, dialect_name, module_docstring)
         self._write_imports(out, model)
         self._write_builder(out, model, dialect_name)
-        self._write_handler(out, dialect_name)
         return out.getvalue()
 
     # ------------------------------------------------------------------
@@ -122,7 +120,7 @@ class PythonGenerator:
             f"from genro_builders.builder import {', '.join(builder_imports)}\n"
         )
         out.write(
-            "from genro_builders.xml import XmlBuilderBase, XmlHandler\n\n\n"
+            "from genro_builders.xml import XmlBuilderBase\n\n\n"
         )
 
     def _write_builder(
@@ -147,14 +145,6 @@ class PythonGenerator:
 
         for element in model.elements:
             self._write_element(out, element)
-
-    def _write_handler(self, out: StringIO, dialect_name: str) -> None:
-        out.write("\n")
-        out.write(f"class {dialect_name}Handler(XmlHandler):\n")
-        out.write(
-            f'    """Preset handler bound to :class:`{dialect_name}Builder`."""\n\n'
-        )
-        out.write(f"    builder_class = {dialect_name}Builder\n")
 
     def _write_element(self, out: StringIO, element: ElementModel) -> None:
         sub_tags = self._build_sub_tags(element.children)
