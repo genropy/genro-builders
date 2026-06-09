@@ -324,7 +324,6 @@ class RendererBase:
         happened to contain a dot would skew indentation by one level —
         never correctness.
         """
-        fullpath = node.fullpath
-        return max(fullpath.count(".") - 1, 0) if fullpath else 0
+        return max(node.fullpath.count(".") - 1, 0)
 
 

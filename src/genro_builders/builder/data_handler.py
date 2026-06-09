@@ -107,8 +107,7 @@ class BuilderHandler:
             )
 
     def _on_data_event(
-        self, node: SourceBagNode, evt: str, pathlist: list[str] | None = None,
-        **kw: Any,
+        self, node: SourceBagNode, evt: str, pathlist: list[str], **kw: Any,
     ) -> None:
         """A data mutation recomputes the dependent logic, then queues renders.
 

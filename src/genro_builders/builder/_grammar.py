@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 from genro_bag import Bag
 
 from ._utilities import _check_type, _parse_parent_tags_spec, _parse_sub_tags_spec
-from .source_bag import SourceBag
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
@@ -118,9 +117,9 @@ class _GrammarMixin:
         Raises ValueError if validation fails, KeyError if parent tag not in schema.
         """
         parent_node = build_where.parent_node
-        parent_info: dict | None = None
+        parent_check: tuple[BagNode, dict] | None = None
         if parent_node and parent_node.node_tag:
-            parent_info = self._get_schema_info(parent_node.node_tag)
+            parent_check = (parent_node, self._get_schema_info(parent_node.node_tag))
 
         child_info = self._get_schema_info(node_tag)
         self._validate_parent_tags(child_info, parent_node)
@@ -146,11 +145,8 @@ class _GrammarMixin:
         )
 
         try:
-            if parent_info is not None:
-                # parent_info is set only inside `if parent_node and ...` above,
-                # so a non-None parent_info guarantees a non-None parent_node.
-                assert parent_node is not None
-                self._validate_sub_tags(parent_node, parent_info)
+            if parent_check is not None:
+                self._validate_sub_tags(*parent_check)
             self._validate_sub_tags(child_node, child_info)
         except ValueError:
             build_where.pop(node_label)
@@ -187,12 +183,10 @@ class _GrammarMixin:
             # down into the freshly-created sub-bag instead of leaking
             # the host dialect.
             parent_bag = node.parent_bag
-            sub_bag_cls = type(parent_bag) if parent_bag is not None else SourceBag
-            sub_bag = sub_bag_cls(
+            node.value = type(parent_bag)(
                 builder=node._resolve_builder(),
-                handler=getattr(parent_bag, "_handler", None) if parent_bag else None,
+                handler=parent_bag._handler,
             )
-            node.value = sub_bag
 
         node._check_unique_id(attrs.get("node_id"))
 

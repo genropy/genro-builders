@@ -78,13 +78,9 @@ def _parse_inherits_from(raw: Any) -> list[str]:
     return [p.strip() for p in str(raw).split(",") if p.strip()]
 
 
-def _meta_copy(meta: Any) -> Any:
-    """Shallow-copy `_meta` pass-through. Return `None` if empty."""
-    if not meta:
-        return None
-    if isinstance(meta, dict):
-        return dict(meta)
-    return meta
+def _meta_copy(meta: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Shallow-copy ``_meta``. Return ``None`` if empty."""
+    return dict(meta) if meta else None
 
 
 def _abstract_form(node: Any) -> dict[str, Any]:
@@ -183,7 +179,7 @@ def _class_schema_to_grammar_document(cls: type) -> dict[str, Any]:
             "version": FORMAT_VERSION,
         },
         "grammar": {
-            "name": getattr(cls, "_name", None),
+            "name": cls._name,  # type: ignore[attr-defined]
             "version": None,
             "title": None,
             "description": None,

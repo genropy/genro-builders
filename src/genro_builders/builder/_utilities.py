@@ -256,11 +256,11 @@ def _parse_sub_tags_spec(spec: str) -> dict[str, tuple[int, int]] | str:
 
 def _decorated_method_info(
     name: str, obj: Any,
-) -> tuple[list[str], str | None, Any, dict]:
-    """Build (tag_list, method_name, obj, decorator_info) for a decorated method."""
+) -> tuple[list[str], Any, dict]:
+    """Build (tag_list, obj, decorator_info) for a decorated method."""
     decorator_info = obj._decorator
     if decorator_info.get("abstract"):
-        return [name], None, obj, decorator_info
+        return [name], obj, decorator_info
     else:
         tag_list: list[str] = [] if name.startswith("_") else [name]
         tags_raw = decorator_info.get("tags")
@@ -269,7 +269,7 @@ def _decorated_method_info(
                 tag_list.extend(t.strip() for t in tags_raw.split(",") if t.strip())
             else:
                 tag_list.extend(tags_raw)
-        return tag_list, None, obj, decorator_info
+        return tag_list, obj, decorator_info
 
 
 def _pop_decorated_methods(cls: type, builder_base: type):
@@ -340,5 +340,5 @@ def _iter_data_element_methods(builder_base: type):
         meta = decorator.get("_meta") or {}
         if "data_element" not in meta:
             continue
-        tag_list, _method_name, _obj, decorator_info = _decorated_method_info(name, obj)
+        tag_list, _obj, decorator_info = _decorated_method_info(name, obj)
         yield tag_list, obj, decorator_info

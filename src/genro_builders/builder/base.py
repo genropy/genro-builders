@@ -127,10 +127,7 @@ class BuilderBase(
         if cls._class_schema.get_node("_abstracts") is None:
             cls._class_schema.set_item("_abstracts", Bag())
 
-        for tag_list, method_name, obj, decorator_info in _pop_decorated_methods(cls, BuilderBase):
-            if method_name:
-                setattr(cls, method_name, obj)
-
+        for tag_list, obj, decorator_info in _pop_decorated_methods(cls, BuilderBase):
             is_abstract = decorator_info.get("abstract", False)
             sub_tags = decorator_info.get("sub_tags", "")
             parent_tags = decorator_info.get("parent_tags")
@@ -470,7 +467,7 @@ class BuilderBase(
     # ------------------------------------------------------------------
 
     def _on_source_event(
-        self, node: Any, evt: str, pathlist: list[str] | None = None, **kw: Any
+        self, node: Any, evt: str, pathlist: list[str], **kw: Any
     ) -> None:
         """Internal dispatcher for events on this builder's ``_sourceroot``.
 

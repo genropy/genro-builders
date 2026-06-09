@@ -16,10 +16,9 @@ Features:
 - Keyword-collision attributes: ``_class`` → ``class``, ``_for`` →
   ``for``. Underscore-prefix attributes outside this map are dropped
   (they belong to bag internals, not to HTML).
-- Three-state booleans: ``True`` / ``False`` / ``None`` attribute
-  values are serialised as JS literals (``"true"``, ``"false"``,
-  ``"null"``). ``None`` is currently filtered upstream by the grammar
-  dispatch, so it never reaches the renderer in practice.
+- Boolean attribute values are serialised as JS literals (``"true"`` /
+  ``"false"``). ``None`` never reaches the renderer: it is filtered
+  upstream by the grammar dispatch.
 - CSS kwarg support (Genro-style inline styling):
   - A kwarg is treated as a CSS property if its name appears in
     ``_STYLE_ROOTS`` or starts with one of those roots followed by
@@ -308,13 +307,11 @@ class HtmlRenderer(RendererBase):
         return "".join(parts)
 
     def _html_attr_value(self, value: Any) -> str:
-        """Render a non-CSS attribute value (three-state booleans + escape)."""
+        """Render a non-CSS attribute value (booleans + escape)."""
         if value is True:
             return "true"
         if value is False:
             return "false"
-        if value is None:
-            return "null"
         return str(value).translate(_ATTR_VALUE_ESCAPE)
 
     def _css_value(self, value: Any) -> str:
@@ -323,8 +320,6 @@ class HtmlRenderer(RendererBase):
             return "true"
         if value is False:
             return "false"
-        if value is None:
-            return "null"
         return str(value)
 
     # ------------------------------------------------------------------

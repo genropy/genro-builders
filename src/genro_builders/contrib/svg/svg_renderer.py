@@ -97,8 +97,6 @@ class SvgRenderer(RendererBase):
                 rendered = "true"
             elif value is False:
                 rendered = "false"
-            elif value is None:
-                rendered = "null"
             else:
                 rendered = self._escape_attr(value)
             parts.append(f' {name}="{rendered}"')

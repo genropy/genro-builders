@@ -554,8 +554,7 @@ class _SourceBagNodeMixin:
             # the field names declared in the schema so they reach the named
             # parameters instead of collapsing into node_value/node_position.
             # Plain elements keep the single-positional node_value behaviour.
-            schema_info = getattr(builder, "_get_schema_info", None)
-            info = schema_info(original_tag) if schema_info is not None else {}
+            info = builder._get_schema_info(original_tag)
             meta = info.get("_meta") or {}
             # The element's schema ``_meta`` rides onto the node in
             # ``set_child`` (the one point the bag and node dispatch paths
