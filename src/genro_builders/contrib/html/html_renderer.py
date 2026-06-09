@@ -283,10 +283,7 @@ class HtmlRenderer(RendererBase):
             return ""
         if not node.pointers():
             return ""
-        handler = node.handler
-        if handler is None:
-            return ""
-        path = handler.source.relative_path(node)
+        path = node.root_builder.source.relative_path(node)
         if path is None:
             return ""
         return f' id="{self._html_attr_value(path)}"'
