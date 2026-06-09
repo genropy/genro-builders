@@ -308,7 +308,8 @@ def _pop_decorated_methods(cls: type, builder_base: type):
         if base is builder_base:
             # BuilderBase contributes no schema elements via this path:
             # the three data-elements it declares are injected into every
-            # subclass schema by BuilderBase._add_data_elements.
+            # subclass schema by __init_subclass__ via
+            # _iter_data_element_methods.
             continue
         if issubclass(base, builder_base):
             continue

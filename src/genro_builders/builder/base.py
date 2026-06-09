@@ -778,8 +778,6 @@ class BuilderBase(
         registered in the schema marked ``_meta['component']``, so the
         node API (``node.<name>(...)``) finds it. A component overrides
         a same-named plain element (last-wins, like data-elements).
-
-        Called by ``OldBuilderHandler.pyrequires`` before ``create()``.
         """
         if self._schema is type(self)._class_schema:
             self._schema = Bag(source=self._schema)
@@ -808,7 +806,7 @@ class BuilderBase(
     # ``_meta['data_element']``: bodies ignored (like every @element), injected
     # into each dialect schema by __init_subclass__ via
     # _iter_data_element_methods, and dispatched through the same
-    # _command_on_node as any element (element_call flags _is_data_element).
+    # _command_on_node as any element.
     # The signature carries the kind's fields (destination/value/func). The
     # func-bearing kinds (formula/controller) also declare ``_on_start``: a
     # control flag (compute at first calculation), excluded from the func

@@ -4,7 +4,7 @@
 A single-page app served by ``genro-asgi`` that hosts several
 ``InteractiveDemo`` pages (auto-discovered from ``pages/``) and exposes a
 Python REPL over WSX. Snippets typed in the page's editor run inside
-``page.live()`` on the current demo; the rendered HTML is written to
+``handler.live()`` on the current demo; the rendered HTML is written to
 ``out.html`` and shown in an iframe.
 
 Useful as both a developer playground and an end-to-end integration test

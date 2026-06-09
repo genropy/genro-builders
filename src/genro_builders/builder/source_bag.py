@@ -20,15 +20,10 @@ grammar-aware attribute resolution. The builder populates one as
 from __future__ import annotations
 
 import keyword
-import re
 import warnings
 from typing import Any
 
 from genro_bag import Bag, BagNode
-
-# Template token used by ``runtime_values`` to spot ``${name}``
-# placeholders in attribute values and node values (DB-D11).
-_TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 
 def _dispatch_struct_method(builder: Any, target: Any, name: str) -> Any | None:
@@ -213,7 +208,7 @@ class _SourceBagNodeMixin:
         return items
 
     # ------------------------------------------------------------------
-    # Path composition (DAT.2) — moved here from OldBuilderHandler
+    # Path composition (DAT.2)
     # ------------------------------------------------------------------
 
     def abs_datapath(self, path: str) -> str:
@@ -371,7 +366,7 @@ class _SourceBagNodeMixin:
         return result
 
     # ------------------------------------------------------------------
-    # Runtime evaluation (DAT.2, slice0) — moved here from OldBuilderHandler
+    # Runtime evaluation (DAT.2, slice0)
     # ------------------------------------------------------------------
 
     def _find_marked_datapath_ancestor(
@@ -525,9 +520,9 @@ class _SourceBagNodeMixin:
         when the active builder carries a tag named ``div`` in its
         schema. For a data-element tag (``_meta['data_element']``) the
         positional args are mapped onto the schema field names
-        (``data_setter('x', 1)`` → ``destination='x', value=1``) and the
-        node is flagged ``_is_data_element``; a plain element keeps the
-        single-positional ``node_value`` behaviour. If no grammar tag
+        (``data_setter('x', 1)`` → ``destination='x', value=1``); a
+        plain element keeps the single-positional ``node_value``
+        behaviour. If no grammar tag
         matches, fall back to a ``@struct_method`` dispatched via the
         active builder (legacy gnrwebstruct parity).
         """

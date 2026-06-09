@@ -1,10 +1,9 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """HtmlRenderer — renderer for the HTML5 dialect.
 
-Walks the source bag and produces HTML5 markup. Registered on
-``HtmlBuilder`` under the ``"html"`` mode (decision 6+8 v0.4.0).
-Exposed on the handler as ``handler.renderer`` (with
-``handler.render(...)`` as shortcut).
+Walks the source bag and produces HTML5 markup. Exposed by the
+``HtmlBuilder.renderer_html`` property and served by
+``builder.render(mode="html")``.
 
 Features:
 
@@ -13,9 +12,10 @@ Features:
   idiomatic HTML5 form ``<img src="x">``.
 - Pretty-print: ``pretty=True`` produces multi-line indented output
   (2 spaces per level), text-only leaves stay on a single line.
-- Keyword-collision attributes: ``_class`` → ``class``, ``_for`` →
-  ``for``. Underscore-prefix attributes outside this map are dropped
-  (they belong to bag internals, not to HTML).
+- Keyword-collision attributes (``class_`` → ``class``, ``for_`` →
+  ``for``) are canonicalized upstream by the node's
+  ``fixed_attr_items``; structural meta-attributes are filtered out
+  by ``runtime_values`` and never reach the renderer.
 - Boolean attribute values are serialised as JS literals (``"true"`` /
   ``"false"``). ``None`` never reaches the renderer: it is filtered
   upstream by the grammar dispatch.
@@ -175,10 +175,10 @@ class HtmlRenderer(RendererBase):
                 style_attrs[raw_name] = value
                 continue
 
-            # 2. Plain HTML attribute. Keyword-collision names (``class_`` /
-            #    ``_class``) are normalized later, at serialization, by
-            #    _fix_pylike; structural meta-attrs are already filtered
-            #    upstream in runtime_values.
+            # 2. Plain HTML attribute. Keyword-collision names (``class_``)
+            #    arrive already canonicalized by fixed_attr_items;
+            #    structural meta-attrs are filtered upstream in
+            #    runtime_values.
             out[raw_name] = value
 
         style = self._adapt_style(style_attrs)
