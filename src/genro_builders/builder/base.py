@@ -583,8 +583,12 @@ class BuilderBase(
         """
         match node.node_tag:
             case "data_setter":
+                # The setter's schema fields and the framework markers
+                # stay on the source node; only user attributes ride
+                # onto the datum being seeded.
                 attrs = {k: v for k, v in node.attr.items()
-                         if k not in ("destination", "value")}
+                         if k not in ("destination", "value")
+                         and k not in self._meta_attrs}
                 node.set_relative_data(
                     node.attr["destination"], node.attr["value"],
                     attributes=attrs or None,
