@@ -214,8 +214,14 @@ class RendererBase:
                 )
             return self.render(roots[0], **opts)
 
-        if iterable is None:
+        # The mode is declared by the AUTHOR (the attribute's presence),
+        # never decided by the data: with ``iterate`` an empty collection
+        # means zero blocks — the data-driven termination that lets a
+        # self-recursive component (a tree) stop at the leaves.
+        if "iterate" not in node.attr:
             return expand(**runtime_attrs)
+        if iterable is None:
+            return []
 
         # iterate: one expansion per child of the collection, each round
         # gets ONLY the child's label (the body anchors its root with

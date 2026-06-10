@@ -79,6 +79,46 @@ def test_iterate_must_resolve_to_a_bag():
         page.render()
 
 
+def test_nesting_matrix_single_in_single_and_single_in_iterate():
+    """D10 matrix cells not covered by the examples (10 covers
+    iterate-in-iterate, 11 covers self-recursion): a single component
+    inside a single one, and a single component inside an iterate."""
+    from genro_builders.builder import BuilderHandler
+
+    class Components:
+        @component
+        def badge(self, root, text=None):
+            root.span(text, class_="badge")
+
+        @component
+        def titled(self, root, title=None):
+            box = root.div(class_="box")
+            box.badge(text=title)              # single in single
+
+        @component
+        def row(self, root, node_label=None):
+            tr = root.tr(datapath="." + node_label)
+            td = tr.td()
+            td.badge(text="^.name")            # single in iterate
+
+    class Page(HtmlBuilder, Components):
+        def setup(self, data):
+            data.set_item("rows.r1.name", "one")
+            data.set_item("rows.r2.name", "two")
+
+        def main(self, root):
+            body = root.body()
+            body.titled(title="Hello")
+            body.table().tbody().row(iterate="^rows")
+
+    page = Page(name="p")
+    handler = BuilderHandler()
+    handler.add_builder(page)
+    out = page.render()
+    assert out.count('<span class="badge">') == 3
+    assert "Hello" in out and "one" in out and "two" in out
+
+
 def test_component_empty_expansion_raises():
     class Components:
         @component
