@@ -76,7 +76,8 @@ def test_handler_renders_minimal_document_to_xml():
 
     page = MinimalInvoice()
     BuilderHandler().add_builder(page)
-    xml = page.render(mode="xml", target=False)
+    # attribute-serialization test on a deliberately partial document
+    xml = page.render(mode="xml", target=False, validate=False)
     assert "<FatturaElettronica" in xml
     assert 'versione="FPA12"' in xml
     assert 'SistemaEmittente="TESTSW"' in xml
@@ -91,7 +92,7 @@ def test_handler_writes_xml_to_file(tmp_path):
     page = MinimalInvoice()
     page.set_render_target(str(out), "xml")
     BuilderHandler().add_builder(page)
-    page.render()
+    page.render(validate=False)   # deliberately partial document
     body = out.read_text()
     assert body.startswith("<FatturaElettronica")
 
@@ -162,3 +163,17 @@ def test_regeneration_is_byte_identical():
         f"python -m genro_builders.xml.transpiler --xsd {FATTURAPA_XSD} "
         f"--dialect-name FatturaElettronica --output {FATTURAPA_GENERATED}"
     )
+
+
+def test_render_rejects_an_incomplete_invoice():
+    """Pre-render validation: the XSD minimums become real guarantees."""
+    import pytest
+
+    class MinimalInvoice(FatturaElettronicaBuilder):
+        def main(self, root):
+            root.FatturaElettronica(versione="FPA12")
+
+    page = MinimalInvoice()
+    BuilderHandler().add_builder(page)
+    with pytest.raises(ValueError, match="FatturaElettronicaHeader"):
+        page.render(mode="xml", target=False)

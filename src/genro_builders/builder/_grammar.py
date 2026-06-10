@@ -296,11 +296,15 @@ class _GrammarMixin:
         # Warnings for missing required elements (min > 0 after decrement)
         return [tag for tag, (n_min, _) in bounds.items() if n_min > 0]
 
-    def _validate_sub_tags(self, node: BagNode, info: dict) -> None:
+    def _validate_sub_tags(self, node: BagNode, info: dict) -> list[str]:
         """Validate sub_tags constraints on node's existing children.
 
-        Gets children_tags from node's actual children, calls _validate_children_tags,
-        and sets node._invalid_reasons.
+        Raises on a child not allowed or over its maximum (incremental
+        check, fired at every insertion). Returns the list of child tags
+        whose MINIMUM cardinality is not yet satisfied: meaningless while
+        building (the document is naturally incomplete), collected by
+        ``BuilderBase.validate`` when the document is declared finished
+        (pre-render).
 
         Args:
             node: The node to validate.
@@ -308,25 +312,22 @@ class _GrammarMixin:
         """
         # Subbuilder nodes are transparent containers for the embedded dialect.
         if node._get_meta("subbuilder"):
-            node._invalid_reasons = []
-            return
+            return []
 
         sub_tags_compiled = info.get("sub_tags_compiled")
         if sub_tags_compiled is None:
-            node._invalid_reasons = []
-            return
+            return []
 
         # Wildcard "*" accepts any children - no validation needed
         if sub_tags_compiled == "*":
-            node._invalid_reasons = []
-            return
+            return []
 
         children_tags = [
             n.node_tag for n in node.value.nodes
             if self.require_sub_tag_validation(n)
         ] if isinstance(node.value, Bag) else []
 
-        node._invalid_reasons = self._validate_children_tags(
+        return self._validate_children_tags(
             node.node_tag, sub_tags_compiled, children_tags
         )
 

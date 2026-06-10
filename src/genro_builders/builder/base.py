@@ -761,7 +761,10 @@ class BuilderBase(
         resolved.update(carried)
         return runtime_value, resolved
 
-    def render(self, mode: str | None = None, target: Any = None, **opts: Any) -> Any:
+    def render(
+        self, mode: str | None = None, target: Any = None,
+        validate: bool = True, **opts: Any,
+    ) -> Any:
         """Render the built source via ``renderer_<mode>``.
 
         Pointer-free path: the builder renders itself, no handler needed.
@@ -769,10 +772,24 @@ class BuilderBase(
         ``target`` follows :meth:`_get_target` (``False`` returns the
         string, a falsy value falls back to a registered target, a truthy
         value is used directly).
+
+        Pre-render validation: the walk recomputes every node's minimum
+        child cardinality; the maximum is enforced at insertion, the
+        minimum only makes sense when the document is declared finished —
+        which is here, the moment it leaves the system. One error lists
+        every incomplete node. ``validate=False`` emits a partial
+        document deliberately. For XSD dialects this is the structural
+        first net, not a replacement for full XSD validation downstream.
         """
         mode = mode or self._default_render_mode
         renderer = getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
         result = renderer.render_children(renderer.preprocess(self.source), **opts)
+        if validate and renderer.incomplete:
+            problems = "\n".join(
+                f"  {path}: missing required children: {', '.join(missing)}"
+                for path, missing in renderer.incomplete
+            )
+            raise ValueError(f"incomplete document:\n{problems}")
         return renderer.finalize(result, self._get_target(target, renderer), **opts)
 
     def render_nodes(self, nodes: list, **opts: Any) -> Any:

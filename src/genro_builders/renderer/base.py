@@ -70,6 +70,11 @@ class RendererBase:
         # itself for its own builder, so the walk hits the cache for
         # native nodes and only resolves foreign (sub-builder) nodes.
         self.renders: dict[int, RendererBase] = {id(builder): self}
+        # Nodes whose minimum child cardinality is not satisfied,
+        # collected fresh during the walk (no stored state to go stale):
+        # ``(fullpath, [missing tags])``. The builder raises after the
+        # walk unless the render was called with ``validate=False``.
+        self.incomplete: list[tuple[str, list[str]]] = []
 
     @property
     def builder(self) -> Any:
@@ -144,6 +149,15 @@ class RendererBase:
         item, ra = node.builder.runtime_values(node)
         if node._get_meta("data_element"):
             return None
+        # Recompute the node's minimum-cardinality check on the fly (the
+        # walk visits every node anyway, the count is cheap) instead of
+        # trusting an annotation that a later child removal would have
+        # left stale. Collected on R0, raised after the walk.
+        missing = node.builder._validate_sub_tags(
+            node, node.builder._get_schema_info(node.node_tag),
+        )
+        if missing:
+            self.incomplete.append((node.fullpath, missing))
         renderer = self.get_render(node.builder)
         tag, ra = renderer._handle_meta(node, ra)
         if not node._get_meta("subbuilder"):
