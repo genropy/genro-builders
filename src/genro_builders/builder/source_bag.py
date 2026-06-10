@@ -518,13 +518,11 @@ class _SourceBagNodeMixin:
 
         ``node.div('hello')`` becomes ``builder._command_on_node(...)``
         when the active builder carries a tag named ``div`` in its
-        schema. For a data-element tag (``_meta['data_element']``) the
-        positional args are mapped onto the schema field names
-        (``data_setter('x', 1)`` → ``destination='x', value=1``); a
-        plain element keeps the single-positional ``node_value``
-        behaviour. If no grammar tag
-        matches, fall back to a ``@struct_method`` dispatched via the
-        active builder (legacy gnrwebstruct parity).
+        schema. The grammar semantics (data-element field mapping,
+        ``node_id`` uniqueness, sub-builder switch) live in the shared
+        wrapper both entry points converge on — this is pure routing.
+        If no grammar tag matches, fall back to a ``@struct_method``
+        dispatched via the active builder (legacy gnrwebstruct parity).
         """
         if name.startswith("_"):
             raise AttributeError(
@@ -543,43 +541,12 @@ class _SourceBagNodeMixin:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
+
         def element_call(*args: Any, node_position: Any = None, **attrs: Any) -> Any:
-            # Data-elements take named positional fields (e.g.
-            # data_setter(destination, node_value)); map the positionals onto
-            # the field names declared in the schema so they reach the named
-            # parameters instead of collapsing into node_value/node_position.
-            # Plain elements keep the single-positional node_value behaviour.
-            info = builder._get_schema_info(original_tag)
-            meta = info.get("_meta") or {}
-            # The element's schema ``_meta`` rides onto the node in
-            # ``set_child`` (the one point the bag and node dispatch paths
-            # converge). Here ``meta`` is only read to drive the
-            # data-element field mapping and the sub-builder attach below.
-            if "data_element" in meta:
-                # Map the data-element positional fields (e.g.
-                # data_setter(destination, value)) onto their schema field
-                # names so they reach the named parameters instead of
-                # collapsing into node_value. Fields (incl. a Bag ``value``)
-                # stay flat as attrs; a Bag attribute is not walked, so the
-                # data payload is not captured into the source tree.
-                fields = list(info.get("call_args_validations") or {})
-                for field_name, field_value in zip(fields, args, strict=False):
-                    attrs[field_name] = field_value
-                node_value = None
-            else:
-                node_value = args[0] if args else None
-            child = builder._command_on_node(
-                self, original_tag,
-                node_position=node_position, node_value=node_value, **attrs,
+            return builder._command_on_node(
+                self, original_tag, *args,
+                node_position=node_position, **attrs,
             )
-            # Sub-builder element: ``_meta['subbuilder']`` names the dialect
-            # active from this node down. Switch the child's active builder
-            # (Decision 10: the node carries its own ``_builder``); the
-            # descent then resolves the foreign grammar instead of the host's.
-            sub_name = meta.get("subbuilder")
-            if sub_name is not None:
-                child._builder = builder.get_subbuilder(sub_name)
-            return child
 
         return element_call
 

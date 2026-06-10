@@ -34,13 +34,14 @@ class _GrammarMixin:
     def _bag_call(self, bag: Bag, name: str) -> Any:
         """Return callable that creates a schema element in the bag.
 
-        Precondition: name is in self._schema.
+        Precondition: name is in self._schema. Positional args reach the
+        wrapper raw: the data-element field mapping needs them.
         """
         handler = self.__getattr__(name)
-        return lambda node_value=None, node_label=None, node_position=None, **attr: handler(
+        return lambda *args, node_label=None, node_position=None, **attr: handler(
             bag,
+            *args,
             _tag=name,
-            node_value=node_value,
             node_label=node_label,
             node_position=node_position,
             **attr,
@@ -51,7 +52,15 @@ class _GrammarMixin:
     # -----------------------------------------------------------------------
 
     def __getattr__(self, name: str) -> Any:
-        """Look up tag in _schema and return handler with validation."""
+        """Look up tag in _schema and return handler with validation.
+
+        The wrapper is the single semantic path for element creation:
+        both entry points — a node (``body.div(...)``, via
+        ``_command_on_node``) and a bag (``root.div(...)``, via
+        ``__getattribute__`` → ``_bag_call``) — converge here, so the
+        grammar semantics (data-element field mapping, ``node_id``
+        uniqueness, sub-builder switch) apply identically to both.
+        """
         if name.startswith("_"):
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
@@ -61,14 +70,48 @@ class _GrammarMixin:
             except KeyError as err:
                 raise AttributeError(f"'{type(self).__name__}' has no element '{node_tag}'") from err
 
+            meta = info.get("_meta") or {}
+            if "data_element" in meta:
+                # Map the data-element positional fields (e.g.
+                # data_setter(destination, value)) onto their schema field
+                # names so they reach the named parameters instead of
+                # collapsing into node_value. Fields (incl. a Bag ``value``)
+                # stay flat as attrs; a Bag attribute is not walked, so the
+                # data payload is not captured into the source tree.
+                fields = list(info.get("call_args_validations") or {})
+                for field_name, field_value in zip(fields, args, strict=False):
+                    kwargs[field_name] = field_value
+                node_value = None
+            else:
+                node_value = args[0] if args else kwargs.get("node_value")
+
+            # node_id is a per-builder primary key: verify uniqueness at
+            # creation, whichever entry point creates the node.
+            node_id = kwargs.get("node_id")
+            if node_id is not None:
+                try:
+                    self.node_by_id(node_id)
+                except KeyError:
+                    pass
+                else:
+                    raise ValueError(f"Duplicate node_id '{node_id}'.")
+
             # Validate original kwargs BEFORE the method call
-            node_value = args[0] if args else kwargs.get("node_value")
             self._validate_call_args(info, node_value, kwargs)
 
             # Element: no adapter, register directly with original kwargs
             kwargs.pop("node_value", None)
             kwargs.pop("_tag", None)  # internal marker, never an attribute
-            return self._add_element(destination_bag, node_value, node_tag=node_tag, **kwargs)
+            child = self._add_element(destination_bag, node_value, node_tag=node_tag, **kwargs)
+
+            # Sub-builder element: ``_meta['subbuilder']`` names the dialect
+            # active from this node down. Switch the child's active builder
+            # (the node carries its own ``_builder``); the descent then
+            # resolves the foreign grammar instead of the host's.
+            sub_name = meta.get("subbuilder")
+            if sub_name is not None:
+                child._builder = self.get_subbuilder(sub_name)
+            return child
 
         return wrapper
 
@@ -165,14 +208,15 @@ class _GrammarMixin:
         self,
         node: SourceBagNode,
         child_tag: str,
+        *args: Any,
         node_position: str | int | None = None,
-        node_value: Any = None,
         **attrs: Any,
     ) -> Any:
         """Add a child to a node.
 
-        Uses _bag_call for schema elements (handles tag renames).
-        Falls back to self.set_child() for unknown tags (provides validation errors).
+        Uses _bag_call for schema elements (handles tag renames); the
+        grammar semantics live in the shared wrapper. Falls back to
+        self.set_child() for unknown tags (provides validation errors).
         """
         if not isinstance(node.value, Bag):
             # Sub-bag must be the same type as the parent bag (e.g. a
@@ -188,21 +232,22 @@ class _GrammarMixin:
                 handler=parent_bag._handler,
             )
 
-        node._check_unique_id(attrs.get("node_id"))
-
         if child_tag in self._schema:
             callable_handler = self._bag_call(node.value, child_tag)
             return callable_handler(
-                node_value=node_value,
+                *args,
                 node_position=node_position,
                 **attrs,
             )
 
-        # Tag not in schema: use set_child() which will validate and raise
+        # Tag not in schema: use set_child() which will validate and raise.
+        # This path never reaches the shared wrapper, so the node_id
+        # uniqueness check runs here.
+        node._check_unique_id(attrs.get("node_id"))
         return self.set_child(
             node.value,
             child_tag,
-            node_value=node_value,
+            node_value=args[0] if args else None,
             node_position=node_position,
             **attrs,
         )
