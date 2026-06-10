@@ -27,7 +27,7 @@ class CustomPage(HtmlBuilder):
 if __name__ == "__main__":
     page = CustomPage()
     handler = BuilderHandler()
-    handler.add_builder(main=page)
+    handler.add_builder(page)
     page.set_render_target("output.html")
     page.render(include_datapath=True)
     print(page.rendered_target)

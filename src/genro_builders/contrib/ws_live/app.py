@@ -54,7 +54,7 @@ class WsLiveApp(AsgiApplication):
         title, page_class = self.pages[key]
         builder = page_class()
         handler = BuilderHandler(application=self)
-        handler.add_builder(main=builder)
+        handler.add_builder(builder)
         handler.activate()
         return builder
 

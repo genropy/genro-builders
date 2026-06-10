@@ -7,7 +7,7 @@ dialects today. It carries no namespace state of its own: the
 namespace-tag mechanism (``_meta`` ``ns``/``local`` → ``<prefix:local>``,
 ``xmlns_<prefix>`` attributes) lives on the core ``XmlRenderer``. A
 dialect builder is mounted on the generic ``BuilderHandler`` like any
-other (``handler.add_builder(main=MyBuilder())``).
+other (``handler.add_builder(MyBuilder())``).
 """
 
 from __future__ import annotations

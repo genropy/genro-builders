@@ -199,8 +199,8 @@ def test_generated_module_is_executable_and_renders(gen):
         def main(self, root):
             root.Greeting().Subject("hi")
 
-    doc = MyDoc()
-    BuilderHandler().add_builder(main=doc)
+    doc = MyDoc()   # name defaults to the generated _name typology ("demo")
+    BuilderHandler().add_builder(doc)
     assert doc.render(mode="xml", target=False) == (
         "<Greeting><Subject>hi</Subject></Greeting>"
     )

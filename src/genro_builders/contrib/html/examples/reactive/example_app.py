@@ -16,17 +16,13 @@ class ExampleApp:
 
     def __init__(self, *pages):
         self.handler = BuilderHandler(application=self)   # reactive by default
-        # each item is (pagename, page, target); a lone (page, target) is "main".
-        if len(pages) == 1 and len(pages[0]) == 2:
-            page, target = pages[0]
-            pages = (("main", page, target),)
-        mounted = {}
-        for pagename, page, target in pages:
+        # each item is (page, target); the page carries its own mount name
+        # (passed at construction, default the dialect typology).
+        for page, target in pages:
             page.set_render_target(target)
-            mounted[pagename] = page
-        self.handler.add_builder(**mounted)      # mount + create each builder
+        self.handler.add_builder(*[page for page, _ in pages])
         self.handler.activate()                  # render all, then subscribe
-        self.pages = [self.handler.builders[name] for name in mounted]
+        self.pages = list(self.handler.builders.values())
         self.page = self.pages[0]                # first page (single-page convenience)
 
     def source(self, name=None):

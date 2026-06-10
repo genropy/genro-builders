@@ -57,13 +57,13 @@ class _Sitemap(SitemapBuilder):
 
 def _stylesheet_str() -> str:
     sheet = _SitemapToHtml()
-    BuilderHandler().add_builder(main=sheet)
+    BuilderHandler().add_builder(sheet)
     return sheet.render(target=False, doc_header=True)
 
 
 def _sitemap_str() -> str:
     sm = _Sitemap()
-    BuilderHandler().add_builder(main=sm)
+    BuilderHandler().add_builder(sm)
     return sm.render(mode="xml", target=False, doc_header=True)
 
 

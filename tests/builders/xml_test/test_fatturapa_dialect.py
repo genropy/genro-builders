@@ -75,7 +75,7 @@ def test_handler_renders_minimal_document_to_xml():
             root.FatturaElettronica(versione="FPA12", SistemaEmittente="TESTSW")
 
     page = MinimalInvoice()
-    BuilderHandler().add_builder(main=page)
+    BuilderHandler().add_builder(page)
     xml = page.render(mode="xml", target=False)
     assert "<FatturaElettronica" in xml
     assert 'versione="FPA12"' in xml
@@ -90,7 +90,7 @@ def test_handler_writes_xml_to_file(tmp_path):
     out = tmp_path / "invoice.xml"
     page = MinimalInvoice()
     page.set_render_target(str(out), "xml")
-    BuilderHandler().add_builder(main=page)
+    BuilderHandler().add_builder(page)
     page.render()
     body = out.read_text()
     assert body.startswith("<FatturaElettronica")

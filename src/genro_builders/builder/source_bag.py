@@ -125,13 +125,13 @@ class _SourceBagNodeMixin:
 
     @property
     def root_builder_name(self) -> Any:
-        """Return the data-segment name of the page builder.
+        """Return the mount name of the page builder.
 
-        The builder is mounted under this name in the handler's
-        ``_dataroot`` (the segment that holds its data), so it is the
-        leading segment of an absolute data path for this tree.
+        The builder carries its name from construction; ``add_builder``
+        mounts it under that name in the handler's ``_dataroot``, so it
+        is the leading segment of an absolute data path for this tree.
         """
-        return self.root_builder.data.parent_node.label
+        return self.root_builder.name
 
     def _check_unique_id(self, node_id: Any) -> None:
         """Raise ValueError if ``node_id`` is already taken in this

@@ -25,7 +25,7 @@ Example::
             tpl.html().body().h1("Sitemap")
 
     sheet = SitemapToHtml()
-    BuilderHandler().add_builder(main=sheet)
+    BuilderHandler().add_builder(sheet)
     sheet.create()
     print(sheet.render(target=False, doc_header=True))
 """

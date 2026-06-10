@@ -9,7 +9,7 @@ on the builder (create/render). The handler only provides the data and
 (at read time) tracks which nodes read which paths.
 
     handler = BuilderHandler()
-    handler.add_builder(main=page)   # segment "main"; page.data is its bag
+    handler.add_builder(page)   # mounted under page.name; page.data is its bag
 
 The ``_`` segment is created up front as the shared/common space.
 """
@@ -65,8 +65,14 @@ class BuilderHandler:
         overrides it to seed data shared across the mounted builders.
         """
 
-    def add_builder(self, **builders: Any) -> None:
-        """Mount builders by name (name = data segment) and create each.
+    def add_builder(self, *builders: Any) -> None:
+        """Mount builders under their own ``name`` and create each.
+
+        The name belongs to the builder (passed at construction, default
+        the dialect typology): mounting reads it, never assigns it, so the
+        registration name and the builder name cannot diverge. Mounting a
+        second builder with the same name, or one named ``_`` (the shared
+        segment), raises.
 
         Each builder is registered, given its own segment in the
         ``_dataroot``, plugged with ``handler`` (this) and ``data`` (its
@@ -75,7 +81,21 @@ class BuilderHandler:
         when reactive; the data subscribe is armed later by :meth:`activate`,
         after the first render has populated the pointer_map.
         """
-        for name, instance in builders.items():
+        for instance in builders:
+            name = instance.name
+            if not name:
+                raise ValueError(
+                    f"{type(instance).__name__} has no name: pass one at "
+                    "construction or declare a dialect _name",
+                )
+            if name == "_":
+                raise ValueError(
+                    "'_' is the shared data segment, not a mount name",
+                )
+            if name in self.builders:
+                raise ValueError(
+                    f"a builder named {name!r} is already mounted",
+                )
             if self.default_builder_name is None:
                 self.default_builder_name = name
             self.builders[name] = instance
@@ -128,8 +148,12 @@ class BuilderHandler:
         for builder, items in relevant.items():
             for kind, view_node in items:
                 if kind == "node":
+                    # Same convention as the source events: key = mount
+                    # name, path relative to the builder's source (the
+                    # structural wrapper segment never appears).
                     self.add_render_path(
-                        view_node.root_builder_name, view_node.fullpath,
+                        view_node.root_builder_name,
+                        view_node.root_builder.source.relative_path(view_node),
                     )
 
     def execute_logic(

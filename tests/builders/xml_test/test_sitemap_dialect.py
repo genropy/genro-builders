@@ -46,7 +46,7 @@ def test_handler_renders_a_sitemap_document():
             home.priority(Decimal("1.0"))
 
     page = MySitemap()
-    BuilderHandler().add_builder(main=page)
+    BuilderHandler().add_builder(page)
     xml = page.render(mode="xml", target=False)
     assert xml == (
         "<urlset><url>"
@@ -63,7 +63,7 @@ def test_pretty_render_is_multiline():
             root.urlset().url().loc("https://x/")
 
     page = MySitemap()
-    BuilderHandler().add_builder(main=page)
+    BuilderHandler().add_builder(page)
     pretty = page.render(mode="xml", pretty=True, target=False)
     assert "\n" in pretty
     assert pretty.startswith("<urlset>")

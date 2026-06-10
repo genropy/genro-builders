@@ -49,7 +49,7 @@ def _render(main):
 
     _H.main = lambda self, root: main(root)
     page = _H()
-    BuilderHandler().add_builder(main=page)
+    BuilderHandler().add_builder(page)
     return page.render(target=False)
 
 
@@ -74,7 +74,7 @@ def test_node_tag_stays_python_legal():
             root.stylesheet(xmlns_xsl=XSL_URI).for_each(select="url")
 
     page = _H()
-    BuilderHandler().add_builder(main=page)
+    BuilderHandler().add_builder(page)
     sheet = next(iter(page.source))
     fe = next(iter(sheet.value))
     assert fe.node_tag == "for_each"

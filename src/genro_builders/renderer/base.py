@@ -316,8 +316,8 @@ class RendererBase:
         """Wrapper-rooted depth of ``node`` (user top-level sits at 0).
 
         Read off ``node.fullpath``: the path is dot-separated from the
-        backref root, e.g. ``main.div_0.span_0``. The ``main`` wrapper
-        (``self._sourceroot["main"]``) always contributes the leading
+        backref root, e.g. ``_root_.div_0.span_0``. The structural
+        wrapper segment (``SOURCE_ROOT``) always contributes the leading
         segment, so ``dots - 1`` gives the user-visible depth. Backref
         is always on, so ``fullpath`` is never ``None`` for a placed
         node. Only used for ``pretty`` indentation, so a label that

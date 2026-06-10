@@ -44,6 +44,13 @@ from .source_bag import SourceBag
 # Template token spotted by ``runtime_values`` for ``${name}`` placeholders.
 _TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
+#: Structural key of the source wrapper. It exists only so the source is
+#: a tree, not a forest; it is NOT an address. Queue keys and every
+#: cross-builder identity use the builder's mount ``name`` instead, and
+#: paths that travel outside the builder are composed relative to
+#: ``builder.source`` (this segment never appears in them).
+SOURCE_ROOT = "_root_"
+
 
 class BuilderBase(
     _GrammarMixin,
@@ -306,25 +313,32 @@ class BuilderBase(
             encoding="utf-8",
         )
 
-    def __init__(self) -> None:
-        """Initialize the builder: grammar state plus the source wrapper.
+    def __init__(self, name: str | None = None) -> None:
+        """Initialize the builder: identity, grammar state, source wrapper.
+
+        ``name`` is the builder's identity towards a handler: the mount
+        name, i.e. the label of its data segment. Omitted, it defaults to
+        the dialect typology (``_name``, e.g. ``"html"``) — fine for a
+        bare builder (no data) or for a single mounted builder; a handler
+        mounting two builders with the same name raises at ``add_builder``.
 
         Renderers are exposed as ``renderer_<mode>`` properties on the
         builder class. The base class declares ``renderer_xml`` so the
         ``xml`` mode is always available; concrete dialects declare
         their own (``renderer_html`` on ``HtmlBuilder`` etc.).
 
-        The source lives under a stable ``main`` segment of a wrapper
-        root, exactly as the handler arranges it: ``self.source`` is the
-        payload the ``main`` recipe populates, ``_sourceroot`` the wrapper
-        that carries it. ``handler=None`` — a bare builder renders itself
-        with no data and no reactivity.
+        The source lives under the structural ``SOURCE_ROOT`` segment of
+        a wrapper root (tree-not-forest guarantee, never an address):
+        ``self.source`` is the payload the ``main`` recipe populates,
+        ``_sourceroot`` the wrapper that carries it. ``handler=None`` —
+        a bare builder renders itself with no data and no reactivity.
         """
+        self.name: str | None = name or type(self)._name
         self._schema = type(self)._class_schema
         self._schema_tag_names = type(self)._schema_tag_names
         self._sourceroot: SourceBag = SourceBag(builder=self, handler=None)
-        self._sourceroot["main"] = SourceBag(builder=self, handler=None)
-        self.source: SourceBag = self._sourceroot["main"]
+        self._sourceroot[SOURCE_ROOT] = SourceBag(builder=self, handler=None)
+        self.source: SourceBag = self._sourceroot[SOURCE_ROOT]
         self._sourceroot.set_backref()
         self._default_targets: dict[str, Any] = {}
         # Data source. ``handler`` is set when a BuilderHandler mounts this
@@ -492,7 +506,9 @@ class BuilderBase(
             if detail in ("attrs", "value_attr"):
                 self._on_upd_attrs(node, kw.get("attrs_diff") or {})
             self.on_source_change(node, "upd", evt_detail=detail, **kw)
-        self.handler.add_render_path(pathlist[0], ".".join(pathlist[1:]))
+        # Queue key = mount name (the only cross-builder identity); the
+        # leading structural segment (SOURCE_ROOT) is dropped from the path.
+        self.handler.add_render_path(self.name, ".".join(pathlist[1:]))
 
     def on_source_change(
         self, node: Any, evt: str, evt_detail: str | None = None, **kw: Any

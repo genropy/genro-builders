@@ -53,7 +53,7 @@ def _roundtrip(css: str) -> str:
     namespace: dict = {}
     exec(code, namespace)
     page = namespace["ReversedCss"]()
-    BuilderHandler().add_builder(main=page)
+    BuilderHandler().add_builder(page)
     return page.render() or ""
 
 

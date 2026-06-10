@@ -142,6 +142,9 @@ class PythonGenerator:
             for imp in model.imports:
                 out.write(f"        - {imp.uri}\n")
         out.write('    """\n\n')
+        # The dialect typology: default mount name for instances and key
+        # in the builder registry.
+        out.write(f'    _name = "{dialect_name.lower()}"\n\n')
 
         for element in model.elements:
             self._write_element(out, element)

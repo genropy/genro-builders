@@ -17,9 +17,9 @@ Covers all supported path forms:
     ``#ANCHOR.x``       — nearest ancestor with attr _anchor present
     ``#<node_id>.x``    — node carrying that node_id
 
-Test pattern: a CustomPage(HtmlBuilder) seeds the tree in ``main``,
-mounted via ``BuilderHandler.add_builder(main=page)``; assert on the
-string returned by abs_datapath, never on private helpers.
+Test pattern: a CustomPage(HtmlBuilder) named ``main`` is mounted via
+``BuilderHandler.add_builder(page)``; assert on the string returned by
+abs_datapath, never on private helpers.
 """
 from __future__ import annotations
 
@@ -38,10 +38,9 @@ def _leaf(main_fn: Callable, node_id: str = "leaf"):
         def main(self, root) -> None:
             main_fn(root)
 
-    page = Page()
+    page = Page(name="main")
     handler = BuilderHandler()
-    handler.add_builder(main=page)
-    page.create()
+    handler.add_builder(page)   # mounts under page.name and runs create()
     return page, page.node_by_id(node_id)
 
 

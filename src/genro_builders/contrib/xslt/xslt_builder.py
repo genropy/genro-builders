@@ -41,6 +41,6 @@ class XsltBuilder(XmlBuilderBase, XsltElements, Html5Elements):
 if __name__ == "__main__":
     page = XsltBuilder()
     handler = BuilderHandler()
-    handler.add_builder(main=page)
+    handler.add_builder(page)
     page.create()
     print(page.render(target=False))

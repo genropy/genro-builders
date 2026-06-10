@@ -20,6 +20,8 @@ class FatturaElettronicaBuilder(XmlBuilderBase):
         - http://www.w3.org/2000/09/xmldsig#
     """
 
+    _name = "fatturaelettronica"
+
     # NOTE: SistemaEmittente: XSD pattern not Python-re-compatible, validation commented out (refine by hand):
     # NOTE:     Regex('(\\p{IsBasicLatin}{1,10})')
     @element(

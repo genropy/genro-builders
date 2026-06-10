@@ -17,6 +17,8 @@ class SitemapBuilder(XmlBuilderBase):
     """XSD dialect grammar generated from namespace ``http://www.sitemaps.org/schemas/sitemap/0.9``.
     """
 
+    _name = "sitemap"
+
     @element(
         sub_tags='url[1:]',
     )

@@ -38,9 +38,9 @@ class CustomApp(ExampleApp):
 
 if __name__ == "__main__":
     app = CustomApp(
-        ("page1", PageOne(), "page1.html"),
-        ("page2", PageTwo(), "page2.html"),
-        ("page3", PageThree(), "page3.html"),
+        (PageOne(name="page1"), "page1.html"),
+        (PageTwo(name="page2"), "page2.html"),
+        (PageThree(name="page3"), "page3.html"),
     )
     for page in app.pages:
         print(page.rendered_target)
