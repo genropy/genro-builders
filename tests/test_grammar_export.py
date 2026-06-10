@@ -219,3 +219,14 @@ def test_abstracts_section_is_topologically_ordered() -> None:
         "extended_phrasing"
     ), abstracts_keys
     del document  # silence unused-var warning
+
+
+def test_unrecognized_sub_tags_item_raises_at_class_definition():
+    import pytest
+
+    from genro_builders.builder import BuilderBase, element
+
+    with pytest.raises(ValueError, match="unrecognized sub_tags item"):
+        class Broken(BuilderBase):
+            @element(sub_tags="div [1]")
+            def box(self): ...

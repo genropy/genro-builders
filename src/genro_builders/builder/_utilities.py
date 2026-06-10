@@ -253,6 +253,11 @@ def _parse_sub_tags_spec(spec: str) -> dict[str, tuple[int, int]] | str:
         if match:
             tag = match.group(1)
             result[tag] = (0, sys.maxsize)
+            continue
+        # A spec item that matches no form is a grammar typo: the
+        # constraint the author believes declared would silently not
+        # exist. Fail at class definition time instead.
+        raise ValueError(f"unrecognized sub_tags item {item!r}")
     return result
 
 

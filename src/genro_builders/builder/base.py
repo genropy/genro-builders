@@ -37,6 +37,7 @@ from ._grammar_export import _class_schema_to_grammar_document
 from ._utilities import (
     _extract_validators_from_signature,
     _iter_data_element_methods,
+    _parse_sub_tags_spec,
     _pop_decorated_methods,
 )
 from .source_bag import SourceBag
@@ -205,6 +206,19 @@ class BuilderBase(
                         f"inherits_from={parent!r} not found among abstracts; "
                         f"available: {sorted(known_abstracts)}"
                     )
+
+        # Validate sub_tags specs eagerly: a grammar typo must surface at
+        # class definition, not at the first lazy _get_schema_info. The
+        # parse is discarded here; the cached compile happens lazily.
+        for node in cls._class_schema:
+            spec = node.get_attr("sub_tags")
+            if spec:
+                try:
+                    _parse_sub_tags_spec(spec)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"{cls.__name__}.{node.label}: {exc}"
+                    ) from None
 
         cls._schema_tag_names = {}
         for node in cls._class_schema.nodes:
