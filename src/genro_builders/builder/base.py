@@ -691,16 +691,29 @@ class BuilderBase(
         to be BOTH emitted and reused goes through a template itself:
         ``t="hello", title="${t}", aria_label="${t} world"``.
         """
+        is_data_element = bool(node._get_meta("data_element"))
         resolved: dict[Any, Any] = {}
         for k, v in node.runtime_to_evaluate().items():
             ptype = node.pointer_type(v)
-            if ptype:
-                abs_path = node.abs_datapath(v)
-                resolved[k] = self.handler.data.get_item(abs_path)
-                if ptype == "^":
-                    self.handler._register_path(node, abs_path)
-            else:
+            if not ptype:
                 resolved[k] = v
+                continue
+            abs_path = node.abs_datapath(v)
+            value = self.handler.data.get_item(abs_path)
+            if ptype == "^":
+                self.handler._register_path(node, abs_path)
+            # The datum knows how to present itself: a ``mask`` attribute
+            # on the data node wraps the value (legacy gnrformatter
+            # vocabulary, ``%s`` = the value). Presentation only: never
+            # for a data-element's bindings (formulas want the raw
+            # datum) and never for ``?attr`` reads (raw by definition).
+            if not is_data_element and "?" not in abs_path:
+                data_node = self.handler.data.get_node(abs_path)
+                if data_node is not None:
+                    mask = data_node.attr.get("mask")
+                    if mask and value is not None and not isinstance(value, Bag):
+                        value = str(mask).replace("%s", str(value))
+            resolved[k] = value
 
         consumed: set[str] = set()
 
