@@ -66,3 +66,32 @@ def test_mask_composes_with_recipe_templates():
 
     out = _mounted(Page).render(target=False)
     assert 'title="costa € 99"' in out
+
+
+def test_wdg_attributes_travel_with_the_datum_and_win():
+    class Page(HtmlBuilder):
+        def main(self, root) -> None:
+            body = root.body()
+            body.data_setter(
+                "temperatura", 39.2, mask="%s°",
+                _wdg={"color": "red", "font_weight": "bold"},
+            )
+            # the recipe says blue; the datum carries the exception: red wins
+            body.div("^temperatura", color="blue")
+
+    out = _mounted(Page).render(target=False)
+    assert (
+        '<div style="color: red; font-weight: bold">39.2°</div>' in out
+    )
+
+
+def test_wdg_does_not_travel_on_attribute_pointers():
+    class Page(HtmlBuilder):
+        def main(self, root) -> None:
+            body = root.body()
+            body.data_setter("temp", 10, _wdg={"color": "red"})
+            body.div("x", title="^temp")
+
+    out = _mounted(Page).render(target=False)
+    assert 'title="10"' in out
+    assert "color" not in out

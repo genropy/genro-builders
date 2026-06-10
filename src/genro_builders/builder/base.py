@@ -693,6 +693,7 @@ class BuilderBase(
         """
         is_data_element = bool(node._get_meta("data_element"))
         resolved: dict[Any, Any] = {}
+        carried: dict[str, Any] = {}
         for k, v in node.runtime_to_evaluate().items():
             ptype = node.pointer_type(v)
             if not ptype:
@@ -702,17 +703,24 @@ class BuilderBase(
             value = self.handler.data.get_item(abs_path)
             if ptype == "^":
                 self.handler._register_path(node, abs_path)
-            # The datum knows how to present itself: a ``mask`` attribute
-            # on the data node wraps the value (legacy gnrformatter
-            # vocabulary, ``%s`` = the value). Presentation only: never
-            # for a data-element's bindings (formulas want the raw
+            # The datum knows how to present itself. Presentation only:
+            # never for a data-element's bindings (formulas want the raw
             # datum) and never for ``?attr`` reads (raw by definition).
+            # - ``mask`` wraps the value (legacy gnrformatter vocabulary,
+            #   ``%s`` = the value);
+            # - ``_wdg`` (value reads only) is a dict of attributes the
+            #   datum carries onto its reader — the exception that
+            #   travels with the data (e.g. an alarm color).
             if not is_data_element and "?" not in abs_path:
                 data_node = self.handler.data.get_node(abs_path)
                 if data_node is not None:
                     mask = data_node.attr.get("mask")
                     if mask and value is not None and not isinstance(value, Bag):
                         value = str(mask).replace("%s", str(value))
+                    if k is None:
+                        wdg = data_node.attr.get("_wdg")
+                        if wdg:
+                            carried.update(wdg)
             resolved[k] = value
 
         consumed: set[str] = set()
@@ -733,6 +741,10 @@ class BuilderBase(
         # Template inputs were consumed by the expansion above; they are
         # not part of the node's runtime attrs.
         resolved = {k: v for k, v in resolved.items() if k not in consumed}
+        # ``_wdg`` attributes carried by the datum override the recipe's:
+        # what travels with the data is the exception, and the exception
+        # wins over the static default.
+        resolved.update(carried)
         return runtime_value, resolved
 
     def render(self, mode: str | None = None, target: Any = None, **opts: Any) -> Any:
