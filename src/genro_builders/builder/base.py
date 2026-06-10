@@ -405,7 +405,7 @@ class BuilderBase(
         root.set_backref()
         return root
 
-    def _expansion_root(self) -> SourceBag:
+    def _expansion_root(self, datapath: str | None = None) -> SourceBag:
         """Fresh throw-away root for a component expansion (CMP.2).
 
         Same structural shape as the document source — a payload under
@@ -415,9 +415,18 @@ class BuilderBase(
         fullpaths (pretty depth, future path arithmetic). Unlike
         :meth:`new_root`, the result is not meant to be attached
         anywhere: it is built, rendered and dropped.
+
+        ``datapath`` is the expansion's data anchor (the component's
+        ``store``, CMP.3): stamped on the structural node — the wrapper
+        is the machinery's own object — so the body's relative pointers
+        (``^.company``) find it through the ordinary ancestor climb.
         """
         wrapper = SourceBag(builder=self, handler=None)
-        wrapper[SOURCE_ROOT] = SourceBag(builder=self, handler=None)
+        attrs = {"datapath": datapath} if datapath else {}
+        wrapper.set_item(
+            SOURCE_ROOT, SourceBag(builder=self, handler=None),
+            _attributes=attrs,
+        )
         wrapper.set_backref()
         return wrapper[SOURCE_ROOT]
 
@@ -742,7 +751,13 @@ class BuilderBase(
                 continue
             abs_path = node.abs_datapath(v)
             value = self.handler.data.get_item(abs_path)
-            if ptype == "^":
+            # Read-time registration — but only for nodes of the live
+            # document. Expansion nodes (their root wrapper carries no
+            # handler) read and resolve like anyone else, yet never enter
+            # the pointer_map: the subscription stays on the component
+            # node, whose declared pointers (store/iterate/params) DID
+            # register (CMP.7 — coarse subscription, fine resolution).
+            if ptype == "^" and node.handler is not None:
                 self.handler._register_path(node, abs_path)
             # The datum knows how to present itself. Presentation only:
             # never for a data-element's bindings (formulas want the raw

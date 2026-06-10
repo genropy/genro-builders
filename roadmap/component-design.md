@@ -4,6 +4,14 @@
 **Last Updated**: 2026-06-10
 **Status**: 🟢 APPROVATO — confluito nel contratto v0.8.0 (area `CMP`)
 
+> **Nota 2026-06-10 (implementazione)** — la parola `value` delle forme
+> di chiamata (D4) è stata rinominata **`store`** (collisione con
+> `node_value` e con l'attributo HTML `value`). L'ancoraggio della
+> forma a record (punto aperto §4) è stato chiuso: `store` non si
+> risolve a valore, è l'ancora — la macchina la stampa come `datapath`
+> sul wrapper a perdere, i pointer relativi del body vi risalgono.
+> Contratto `CMP.3` aggiornato.
+
 Verbale della discussione di design del 2026-06-10. La forma contrattuale
 vive in `architecture-contract.md` (area `CMP`; lo `@slot` complementare
 in `PAG.6`); questo documento conserva il ragionamento, l'archeologia e i

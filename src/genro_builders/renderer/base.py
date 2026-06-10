@@ -183,7 +183,21 @@ class RendererBase:
         """
         builder = node.builder
         body = getattr(type(builder), node.node_tag).__get__(builder, type(builder))
-        root = builder._expansion_root()
+        # ``store`` is the data anchor, not a value: read it RAW from the
+        # node (runtime_values would resolve it to the record itself) and
+        # compose the segmentless path the wrapper carries as datapath.
+        # The resolved copy is dropped from the body's kwargs — machinery
+        # word, consumed. The component node's own '^store' pointer DID
+        # register in the pointer_map (CMP.7): when the record changes,
+        # the block re-renders.
+        runtime_attrs.pop("store", None)
+        anchor = node.attr.get("store")
+        if anchor is not None:
+            if node.pointer_type(anchor):
+                anchor = anchor[1:]
+            if anchor.startswith("."):
+                anchor = node._compose_relative_datapath(anchor, anchor)
+        root = builder._expansion_root(datapath=anchor)
         body(root, **runtime_attrs)
         roots = list(root.nodes)
         if len(roots) != 1:

@@ -31,6 +31,32 @@ def test_component_forest_raises():
         page.render()
 
 
+def test_expansion_pointers_never_register():
+    """CMP.7: the pointer_map holds the component node's own pointers
+    (here the ``store`` anchor); the expansion's relative pointers
+    resolve at render but register nothing."""
+    from genro_builders.builder import BuilderHandler
+
+    class Components:
+        @component
+        def card(self, root):
+            root.div("^.label")
+
+    class Page(HtmlBuilder, Components):
+        def setup(self, data):
+            data.set_item("rec.label", "x")
+
+        def main(self, root):
+            root.body().card(store="^rec")
+
+    page = Page(name="p")
+    handler = BuilderHandler(application=object())   # tracking needs an app
+    handler.add_builder(page)
+    page.render()
+    assert "p.rec" in handler.pointer_map          # the anchor, on the node
+    assert "p.rec.label" not in handler.pointer_map  # the expansion: nothing
+
+
 def test_component_empty_expansion_raises():
     class Components:
         @component

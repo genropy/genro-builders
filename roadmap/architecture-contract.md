@@ -484,17 +484,28 @@ attributi della radice = competenza dell'autore del component).
 **Albero, non foresta**: esattamente un figlio nella new_root,
 violazione = errore esplicito. L'espansione si rende e si butta.
 
-### CMP.3 — Tre forme di chiamata; `value` e `iterate` distinti
+### CMP.3 — Tre forme di chiamata; `store` e `iterate` distinti
 
 1. singolo a parametri: `pane.address_block(company='^.company', ...)`;
-2. singolo a record: `pane.address_block(value='^.company_record')`;
+2. singolo a record: `pane.address_block(store='^sender')` — `store` è
+   **l'ancora dati** del component (rinominato da `value` il
+   2026-06-10: evita la collisione con `node_value` e con l'attributo
+   HTML `value`);
 3. multiplo: `pane.div().state_row(iterate='^.states')` — un'espansione
    per figlio della Bag.
 
-`value` non itera MAI: la cardinalità la dichiara l'autore con
+`store` non itera MAI: la cardinalità la dichiara l'autore con
 `iterate`. Il contenitore esterno dell'iterate è del chiamante
-(grammatica ordinaria). `iterate`/`value` sono parole della macchina:
-consumate, mai passate al body né emesse.
+(grammatica ordinaria). `iterate`/`store` sono parole della macchina:
+consumate, mai passate al body né emesse. `store` non si risolve a
+valore: è un path — la macchina lo stampa come `datapath` sul wrapper
+a perdere dell'espansione (oggetto SUO), e i pointer relativi del body
+(`^.company`) vi si ancorano per la normale risalita. Due piani:
+contesto-base sul wrapper (macchina), ancoraggio fine nel body (la
+label nell'iterate, niente nel singolo). I `^` dell'espansione si
+risolvono al render ma NON si registrano (`CMP.7`); in pointer_map
+resta il nodo component col suo `store` — al cambio del record il
+blocco si ri-rende.
 
 ### CMP.4 — Dispatch nel walk e firma del body
 
@@ -502,9 +513,11 @@ consumate, mai passate al body né emesse.
 oggi) / **component** (terza gamba) / subbuilder. Component con
 `iterate` risolto a Bag → un giro per figlio passando **solo
 `node.label`**; senza → un giro coi kwargs della chiamata che saturano
-la firma. Firma: `def nome(self, root, node_label=None, **parametri)`.
-Il body aggancia la radice al dato (`datapath` dalla label) e dentro
-usa pointer relativi.
+la firma. Firma: `def nome(self, root, node_label=None, **parametri)`
+(`node_label` solo nei component iterabili; un singolo non lo
+dichiara). Il body aggancia la radice al dato (`datapath` dalla label,
+relativa all'ancora `store`/`iterate` sul wrapper) e dentro usa
+pointer relativi.
 
 ### CMP.5 — Nessuna validazione
 
