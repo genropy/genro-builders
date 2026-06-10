@@ -315,7 +315,11 @@ class HtmlRenderer(RendererBase):
         return str(value).translate(_ATTR_VALUE_ESCAPE)
 
     def _css_value(self, value: Any) -> str:
-        """Render a CSS property value. No unit injection: raw stringification."""
+        """Render a CSS property value verbatim. Units (and CSS validity
+        in general) are the author's responsibility: the renderer is a
+        serializer, not a CSS validator — write ``width="100px"``, or
+        compose a computed datum with an authored unit via a template
+        input (``w="^mywidth", width="${w}px"``)."""
         if value is True:
             return "true"
         if value is False:

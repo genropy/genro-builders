@@ -681,6 +681,15 @@ class BuilderBase(
         strings are read from ``handler.data`` at the node's absolute path;
         ``^`` readers register in the pointer_map; ``${name}`` templates
         expand against the resolved attrs.
+
+        An attribute referenced by a ``${...}`` template of the same node
+        is a template input: once expanded it has been consumed, and it is
+        dropped from the returned attrs — no renderer emits it. The name
+        is free (``w``, ``foo``); it is the usage, visible in the recipe,
+        that marks it. Canonical idiom for "computed datum + authored
+        unit": ``div(w="^mywidth", width="${w}px")``. An attribute meant
+        to be BOTH emitted and reused goes through a template itself:
+        ``t="hello", title="${t}", aria_label="${t} world"``.
         """
         resolved: dict[Any, Any] = {}
         for k, v in node.runtime_to_evaluate().items():
@@ -693,9 +702,13 @@ class BuilderBase(
             else:
                 resolved[k] = v
 
+        consumed: set[str] = set()
+
         def _expand(s: str) -> str:
             def repl(m: re.Match[str]) -> str:
-                val = resolved[m.group(1)]
+                name = m.group(1)
+                consumed.add(name)
+                val = resolved[name]
                 return "" if val is None else str(val)
             return _TEMPLATE_RE.sub(repl, s)
 
@@ -704,6 +717,9 @@ class BuilderBase(
                 resolved[k] = _expand(v)
 
         runtime_value: Any = resolved.pop(None)
+        # Template inputs were consumed by the expansion above; they are
+        # not part of the node's runtime attrs.
+        resolved = {k: v for k, v in resolved.items() if k not in consumed}
         return runtime_value, resolved
 
     def render(self, mode: str | None = None, target: Any = None, **opts: Any) -> Any:
