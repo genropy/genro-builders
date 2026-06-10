@@ -116,7 +116,11 @@ class BuilderHandler:
         The first render populates the pointer_map (read-time tracking), so
         the data subscribe — which uses it to find the readers of a mutated
         path — is armed only afterwards. The source subscribe is armed by
-        each builder's ``create``. No-op without an application.
+        each builder's ``create``.
+
+        Liveness presupposes an application: without one no subscribe is
+        armed and ``_live_enabled`` stays off, so ``live()`` raises instead
+        of running a critical section where nothing can react.
         """
         for instance in self.builders.values():
             instance.render()
@@ -127,7 +131,7 @@ class BuilderHandler:
                 update=self._on_data_event,
                 delete=self._on_data_event,
             )
-        self._live_enabled = True
+            self._live_enabled = True
 
     def _on_data_event(
         self, node: SourceBagNode, evt: str, pathlist: list[str], **kw: Any,
@@ -198,8 +202,9 @@ class BuilderHandler:
         toward ``target`` when given (it wins over the registered
         default for this section only).
 
-        Requires :meth:`activate` (RuntimeError otherwise): a page never
-        rendered has no pointer_map, nothing would react.
+        Requires an application and :meth:`activate` (RuntimeError
+        otherwise): liveness is forbidden outside an application — a
+        handler without one has no subscribes, nothing would react.
 
         Step one: ``_optimize_render`` is a pass-through and
         ``render_nodes`` does a full render — partial render is a later
@@ -207,8 +212,8 @@ class BuilderHandler:
         """
         if not self._live_enabled:
             raise RuntimeError(
-                "live() before activate(): the page has never been "
-                "rendered, nothing is reactive yet",
+                "live() requires an activated handler with an application: "
+                "without them nothing is subscribed, nothing would react",
             )
         with self._live_lock:
             if self._live_depth and target is not None:

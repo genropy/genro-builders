@@ -45,6 +45,14 @@ def test_live_before_activate_raises():
             pass
 
 
+def test_live_without_application_raises():
+    renders: list = []
+    handler, page = _mounted(renders, application=False)
+    with pytest.raises(RuntimeError, match="application"):
+        with handler.live():
+            pass
+
+
 def test_flush_renders_once_with_the_whole_batch():
     renders: list = []
     handler, page = _mounted(renders)
