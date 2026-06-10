@@ -27,6 +27,6 @@ class CustomApp(ExampleApp):
 
 
 if __name__ == "__main__":
-    app = CustomApp((CustomPage(), "output.html"))
+    app = CustomApp((CustomPage(name="main"), "output.html"))
     print(app.page.rendered_target)
     app.run()
