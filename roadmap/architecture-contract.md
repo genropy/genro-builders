@@ -63,7 +63,8 @@ la minor del contratto, si conserva la versione superata in
   passivo), risolto a render time leggendo la data bag.
 - **Resolver** (pull): nodo con computazione lazy, eseguita alla lettura.
 - **node_id**: identità opzionale e immutabile di un nodo, come una
-  primary key; unicità **per builder** (`BAG.4`).
+  primary key; unicità **per documento**, garantita dal root builder
+  (`BAG.4`).
 
 ## I tre scenari d'uso
 
@@ -215,13 +216,24 @@ all'inserimento.)
 al passo uno ignora la lista e rende tutto il builder; il render
 parziale per nodo è un raffinamento successivo (`RX.1`).
 
-### PAG.5 — `node_by_id` sul builder, unicità per builder
+### PAG.5 — `node_by_id` sul builder; l'unicità la garantisce il root builder
 
-Il lookup `node_by_id` e il controllo di unicità di `node_id` vivono
-**sul builder** (la stessa pagina montata due volte non collide con se
-stessa su handler diversi). Lookup walk-based senza indice mantenuto
-(`BAG.5`); il riferimento simbolico `^#<id>.path` risolve nello stesso
-perimetro.
+Il lookup `node_by_id` vive **sul builder di pagina** e attraversa i
+confini di dialetto (cammina la source vera del documento, sottoalberi
+sub-builder inclusi). L'unicità di `node_id` ha lo stesso perimetro: **un
+namespace per documento, garantito dal root builder** — il check alla
+creazione interroga il root builder dell'albero di destinazione,
+qualunque dialetto o punto d'ingresso crei il nodo. La stessa pagina
+montata due volte non collide con se stessa su handler diversi. Lookup
+walk-based senza indice mantenuto (`BAG.5`); il riferimento simbolico
+`^#<id>.path` risolve nello stesso perimetro.
+
+I sub-builder non hanno un namespace proprio: sono grammatica, non
+identità — un'istanza per ospite per dialetto, **cached** sul builder
+ospite (stesso pattern della cache dei renderer, `RND.1`), così ogni
+sottoalbero `<svg>` del documento condivide lo stesso `SvgBuilder` e la
+cache dei renderer (chiave `id(builder)`) li serve con un solo
+sub-renderer.
 
 ### PAG.6 — `@slot(node_id)`: riempimento per id alla nascita (da implementare)
 
@@ -336,12 +348,12 @@ sono property che risalgono a `Bag.root` — l'handler è unico per
 documento e vive sul source-root (`HND.3`). Nodi leggeri: nessun dato
 duplicato, si risale la catena ancestor.
 
-### BAG.4 — `node_id` come primary key, unicità per builder
+### BAG.4 — `node_id` come primary key, unicità per documento
 
-- **Unicità → controllo attivo** alla creazione da grammar
-  (`_command_on_node`), nel perimetro del builder (`PAG.5`): con due id
-  uguali `node_by_id` sarebbe ambiguo. Costo O(N) solo per i nodi che
-  portano un `node_id`.
+- **Unicità → controllo attivo** alla creazione da grammar (nel wrapper
+  unico di creazione), nel perimetro del documento = root builder
+  (`PAG.5`): con due id uguali `node_by_id` sarebbe ambiguo. Costo O(N)
+  solo per i nodi che portano un `node_id`.
 - **Immutabilità → nessun controllo**: mutare un `node_id` esistente è
   responsabilità del developer (walk stateless, nessuno stato derivato
   da proteggere).
@@ -643,8 +655,8 @@ Chiuse (per memoria):
   opaco è un normale `@element` in un mixin (`BLD.1`).
 - **`@struct_method`** (zucchero, parità legacy); **`to_grammar`**
   export.
-- **Unicità/immutabilità `node_id`** asimmetriche, per builder
-  (`BAG.4`/`PAG.5`).
+- **Unicità/immutabilità `node_id`** asimmetriche, per documento
+  (root builder) (`BAG.4`/`PAG.5`).
 - **Registrazione alla lettura** (niente walk a priori; invariante del
   primo render) (`DAT.2`).
 - **Template inputs per consumo** (non per prefisso) (`DAT.6`).

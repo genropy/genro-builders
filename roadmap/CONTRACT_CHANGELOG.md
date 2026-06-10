@@ -11,6 +11,22 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — correzione del 2026-06-10 (stessa giornata del bump)
+
+`BAG.4`/`PAG.5` dichiaravano l'unicità di `node_id` "per builder, il
+sub-builder ha il suo namespace". Era una finzione mai esistita nel
+funzionamento reale: la source del sub-builder è vuota per costruzione
+(il check non vi trovava mai nulla → duplicati silenziosi nei
+sottoalberi svg), mentre il lookup di pagina e i pointer simbolici
+attraversano i confini di dialetto. Corretto in-place: **unicità per
+documento, garantita dal root builder**; i sub-builder sono grammatica
+senza identità propria, un'istanza per ospite per dialetto cached sul
+builder ospite (pattern della cache dei renderer). Implementazione nel
+branch `refactor/grammar-dispatch` insieme all'unificazione del
+dispatch bag/nodo (wrapper unico di creazione).
+
+---
+
 ## v0.7.0 → v0.8.0 (2026-06-10)
 
 Bump **strutturale**: il refactor multibuilder (2026-06-08/09) ha spostato
