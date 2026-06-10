@@ -78,7 +78,7 @@ all = [
 ]
 
 [project.scripts]
-genro-live = "genro_builders.contrib.live.cli:main"
+genro-ws-live = "genro_builders.contrib.ws_live.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/genropy/genro-builders"
@@ -117,10 +117,6 @@ ignore = [
 # Example notebooks favour compact one-liners (e.g. ``p = Page(); p.create()``)
 # for didactic density. Multi-statement-on-one-line is intentional there.
 "**/examples/**/*.ipynb" = ["E702"]
-# The live demo tests are skipped at module level (live not yet migrated to
-# BuilderHandler); their imports legitimately follow the skip guard.
-"tests/test_live_demo.py" = ["E402"]
-"tests/test_live_demo_e2e.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.10"
