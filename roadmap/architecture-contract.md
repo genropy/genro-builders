@@ -1,22 +1,24 @@
-# Architecture contract — genro-builders — v0.7.0
+# Architecture contract — genro-builders — v0.8.0
 
-**Status**: 🟢 IN VIGORE dal 2026-06-02.
-**Sostituisce**: v0.6.0 (archiviata in
-`roadmap/outdated_versions/architecture-contract-v0.6.0.md`).
+**Status**: 🟢 IN VIGORE dal 2026-06-10.
+**Sostituisce**: v0.7.0 (archiviata in
+`roadmap/outdated_versions/architecture-contract-v0.7.0.md`).
 
 Il diff logico tra versioni del contratto vive in
 `roadmap/CONTRACT_CHANGELOG.md`.
 
-**Stato del codice rispetto al contratto**: il codice è allineato sui punti
-chiave dell'identità dei nodi, del render subsystem, del data binding
-pull-based, dei data-element e del loro compute, e della reattività push di
-Livello 0 (`live()`). Sono implementati: la risoluzione lazy dei pointer a
-render time (`DAT.2`), i data-element come `@element` marcati (`DAT.3`), il
-compute "fetta 1" — primo calcolo in `create()` e singola ondata di ricalcolo
-su mutazione (`DAT.4`), e il re-render totale verso target dentro una sezione
-`live()` (`RX.1`, Livello 0). Restano da implementare: la cascata reattiva
-multi-ondata dei data-element ("fetta 2", `DAT.4`), i livelli di reattività push
-con granularità SRC/DATA (`RX`), e l'orchestratore multi-handler (`SUITE`).
+**Stato del codice rispetto al contratto**: il codice è allineato su:
+identità dei nodi, render subsystem (walk universale, dispatch per-nodo,
+minimi di cardinalità), data binding pull-based con registrazione alla
+lettura, data-element e compute "fetta 1", handler multibuilder
+(`add_builder`/`activate`), reattività push Livello 0 con `live()` come
+sezione critica e coda di render per mount. Restano da implementare: la
+cascata reattiva multi-ondata dei data-element ("fetta 2", `DAT.4`), il
+render parziale per nodo nel flush di `live()` (`RX.1`), i livelli di
+reattività con granularità SRC/DATA (`RX`), il **component** (`CMP`,
+design completo, codice assente salvo residui), lo **`@slot`**
+(`PAG.6`, design completo, codice assente) e lo strato Application
+(`APP`).
 
 ---
 
@@ -28,74 +30,72 @@ Questo documento fissa i contratti architettonici di `genro-builders`.
 È il **punto di arrivo** verso cui il codice converge, non la fotografia
 istante-per-istante dello stato (quella vive negli handoff e in git).
 
-Il contratto descrive **come deve essere fatto** il sistema. Quando il
-lavoro sarà completo, questo documento coinciderà con la documentazione
-architetturale del prodotto: chi lo legge capisce com'è strutturato
-genro-builders e perché.
-
-Le decisioni sono organizzate per **aree tematiche**. Ogni decisione è
-identificata da un codice `<AREA>.<n>` (es. `HND.1`, `RX.2`). Una
-rinegoziazione si fa esplicitamente: si bump-a la minor del contratto, si
-conserva la versione superata in `roadmap/outdated_versions/` e si registra il
-delta in `roadmap/CONTRACT_CHANGELOG.md`.
+Le decisioni sono organizzate per **aree tematiche**, identificate da un
+codice `<AREA>.<n>`. Una rinegoziazione si fa esplicitamente: si bump-a
+la minor del contratto, si conserva la versione superata in
+`roadmap/outdated_versions/` e si registra il delta in
+`roadmap/CONTRACT_CHANGELOG.md`.
 
 ## Glossario
 
-- **Builder**: la grammar pura di un dialetto (`HtmlBuilder`,
-  `MarkdownBuilder`, `SvgBuilder`, `XsdBuilder`). Definisce `@element`,
-  `@abstract`, `@subbuilder`, lo schema di validazione, le regole di
-  serializzazione. Solo dichiarazione, nessun engine.
-- **BuilderHandler**: la macchina che consuma un builder. Possiede i
-  wrapper-root `_sourceroot` / `_dataroot`, le due fasi `create`/`render`,
-  il dict `renderers: mode → {target, instance}`, la `pointer_map` e il
-  compute dei data-element.
-- **Preset** (`HtmlBuilderHandler`, ecc.): sottoclassi di `BuilderHandler`
-  con `builder_class` già fissata. L'utente eredita da uno di questi.
-- **Source**: il bag (`BuilderSource`) popolato in `create`, serializzato
-  in `render`. È la forma unica del documento.
-- **Data**: il bag dei dati associato all'handler (`_dataroot["main"]`),
-  letto dai pointer a render time e scritto dal compute.
-- **Data-element**: un nodo della source che non rappresenta markup ma una
-  **logica sui dati** — un valore di seed, una formula, un effetto. Sono
-  `@element` ordinari marcati `_meta['data_element']` (`DAT.3`),
-  trasparenti al render, eseguiti dal compute (`DAT.4`). I tre kind sono
-  `data_setter` / `data_formula` / `data_controller`.
+- **Builder**: la grammar di un dialetto (`HtmlBuilder`, `SvgBuilder`,
+  `CssBuilder`, `XsdBuilder`, ...) E l'identità di un documento: porta
+  `name` (nome di mount), `source`, `create()`/`render()`. Una **pagina**
+  è una subclass di builder con `main(self, root)`.
+- **BuilderHandler**: la sorgente dati dei builder montati. Possiede UN
+  `_dataroot` segmentato, monta N builder per nome (`add_builder`),
+  possiede `pointer_map`, `activate()` e la sezione critica `live()`.
+  Non si sottoclassa e non è un render engine.
+- **Application**: lo strato fra il mondo esterno (websocket, REPL,
+  thread) e l'handler. La reattività live presuppone un'Application
+  (`APP`).
+- **Source**: il bag (`SourceBag`) popolato in `create`, serializzato in
+  `render`. Vive sotto il segmento strutturale `SOURCE_ROOT` (`_root_`).
+- **Data**: il datastore segmentato dell'handler; ogni builder montato
+  legge/scrive il proprio segmento (`builder.data`), `_` è il comune.
+- **Data-element**: `@element` marcato `_meta['data_element']` che porta
+  logica sui dati (kind: `data_setter`/`data_formula`/`data_controller`),
+  trasparente al render, eseguito dal compute (`DAT.3`/`DAT.4`).
+- **Component**: elemento di grammatica **nominato con body** (`CMP`):
+  il nodo resta nominato nella source, l'espansione è un fatto effimero
+  del render.
+- **Pointer**: riferimento a un dato (`^path` reattivo, `=path`
+  passivo), risolto a render time leggendo la data bag.
 - **Resolver** (pull): nodo con computazione lazy, eseguita alla lettura.
-- **Trigger** (push): notifica scatenata da una mutazione verso i
-  sottoscrittori. Vive nell'area `RX` e nel sotto-documento
-  `roadmap/reactivity/`.
-- **Pointer**: riferimento a un dato (`^path`), risolto a render time
-  leggendo la data bag.
 - **node_id**: identità opzionale e immutabile di un nodo, come una
-  primary key.
+  primary key; unicità **per builder** (`BAG.4`).
 
-## Scenari d'uso
+## I tre scenari d'uso
 
-Molte decisioni hanno senso solo riferite a uno scenario. Sono nominati
-qui una volta e richiamati dove servono.
+1. **Senza dati** — builder nudo: nessun handler, `name` omissibile
+   (default: la tipologia del dialetto). Costruisce e rende, nessun
+   pointer. Script, generazione statica.
+2. **Con dati** — builder montato su un `BuilderHandler` (nessuna
+   Application): pointer `^`/`=` risolti al render, data-element,
+   compute. Pull-only: nessun auto-render.
+3. **Con live** — handler + **Application**: `activate()` arma la
+   reattività, le mutazioni avvengono dentro `live()` e producono
+   render automatici. Il mondo esterno parla con l'Application.
 
-- **S1 — Sync one-shot strutturale**: script/batch. Handler costruito,
-  renderizzato, scartato. Nessun pointer dinamico, nessun consumer dopo
-  `render()`. Es. generazione di un Markdown statico.
-- **S2 — Sync con lettura dati (pointer)**: come S1 ma la source contiene
-  pointer `^path`; al render si leggono i dati dalla data bag. Nessuna
-  reattività. Es. report Word/PDF con campi da un dataset.
-- **S3 — Sync con derivazioni**: la data bag contiene resolver/formule
-  che si auto-risolvono. Eventuale reattività push interna durante la
-  costruzione. Es. lo script che calcola valori derivati prima del render.
-- **S4 — Web sync per-request (Gunicorn-style)**: handler isolato per
-  request, vita corta. Variante di S1/S2/S3 a seconda dell'uso. Nessuna
-  concorrenza sull'handler.
-- **S5 — Web sync con handler condiviso**: handler in cache fra request,
-  concorrenza reale fra thread. Caso marginale. Sincronizzazione a carico
-  dello sviluppatore (vedi `HND.5`).
-- **S6 — Async con consumer vivo**: Textual TUI, ASGI websocket/SSE. Il
-  loop è il proprietario naturale. Reattività push attiva.
-- **S7 — Async + RPC da thread esterno**: come S6 più mutazioni da thread
-  fuori dal loop. Richiede marshalling verso il loop.
+Il dettaglio per scenario della reattività vive in `roadmap/reactivity/`.
 
-La reattività push (`RX`) è dettagliata per scenario nel sotto-documento
-`roadmap/reactivity/`.
+## Principio cross-runtime: un linguaggio, due interpreti
+
+**Mai runtime misto.** O tutto Python (ricetta + render), o ricetta
+Python + tutto il resto in JS (bag/builder JS sul client). Conseguenze:
+
+- la macchina reattiva Python è dimensionata sul solo binario
+  all-Python;
+- la source è il **contratto semantico** fra gli interpreti: stessa
+  ricetta + stesse mutazioni → stesso albero (golden test cross-runtime,
+  da costruire);
+- i component restano **nominati** nella source: ogni interprete ha la
+  propria implementazione del body per quel nome (`CMP.1`).
+
+**Identità per path.** Il server è autoritativo; l'id di un elemento DOM
+è il path del nodo che lo genera. La mutazione strutturale è una
+sostituzione di contenitore (trade-off alla Hotwire, accettato). Residui
+noti: label auto-generate monotone, stato client effimero.
 
 ---
 
@@ -106,670 +106,576 @@ La reattività push (`RX`) è dettagliata per scenario nel sotto-documento
 ### BLD.1 — Builder come subclass; grammatica estesa via mixin
 
 Ogni builder è una subclass del builder base e definisce il proprio
-dialetto (tag, `sub_tags`, `parent_tags`, validazione, regole di render).
-Il pacchetto fornisce mixin opzionali per **estendere la grammatica** con
-tag aggiuntivi; il dialetto base resta sempre nel builder.
-
-Il builder è **solo** dichiarazione. Tutte le responsabilità di engine
-vivono sul `BuilderHandler` (`HND.1`).
+dialetto (tag, `sub_tags`, `parent_tags`, regole di render). Il
+pacchetto fornisce mixin opzionali per estendere la grammatica; il
+dialetto base resta sempre nel builder. La grammatica si può arricchire
+anche **per istanza** a runtime con i component di un mixin
+(`include_components`, `CMP.6`): la schema di classe resta intatta.
 
 ### BLD.2 — Sub-builder via decoratore dedicato `@subbuilder`
 
-Lo switch di builder a metà albero è dichiarato esplicitamente con un
-decoratore separato da `@element`, perché "definire un tag del proprio
-dialetto" e "passare il testimone a un altro builder" sono responsabilità
-distinte.
+Lo switch di dialetto a metà albero è dichiarato con un decoratore
+separato da `@element`. Da `<svg>` in giù il builder attivo è
+`SvgBuilder`; cambia solo lo slot `_builder` dei nodi del sottoalbero
+(`BAG.3`).
 
-```python
-class HtmlBuilder(BagBuilderBase):
-    @subbuilder(SvgBuilder)
-    def svg(self): ...
-```
+- **Propagazione dell'handler**: `get_subbuilder` istanzia il
+  sub-builder e gli passa l'handler del padre (a cascata sui sub-builder
+  annidati), così i pointer del sottoalbero risolvono sugli stessi dati
+  del documento. Il sub-builder è solo grammatica: non ha un segmento
+  dati proprio.
+- **Confine letterale**: il nodo-involucro di confine fra dialetti
+  (`svg` dentro html, `foreignObject` dentro svg) emette i propri
+  attributi **letterali nei due sensi**: non appartiene per intero a
+  nessuno dei due dialetti, quindi nessuna trasformazione
+  dialetto-specifica vi si applica.
 
-Da `<svg>` in giù il builder attivo è `SvgBuilder`. Lo switch resta dentro
-lo stesso `BuilderHandler`, lo stesso albero, la stessa identità. Cambia
-solo lo slot `_builder` dei nodi del sottoalbero (`BAG.3`). Il `parent_tags`
-del builder ospite resta valido (HTML dichiara dove `<svg>` può apparire);
-da `<svg>` in giù la validazione passa allo schema del sub-builder.
+### BLD.3 — Builder = grammar; renderer come property `renderer_<mode>`
 
-`@subbuilder` è **autonomo**: non passa per `__init_subclass__` e non
-appare in `_class_schema`; il suo wrapper vive sulla classe builder come
-metodo regolare, dispatchato da `_BuilderBagNodeMixin.__getattr__` che
-ricade su `_attach_subbuilder`.
+I renderer di un dialetto sono **property `renderer_<mode>`** sulla
+classe builder; ogni accesso restituisce un'istanza fresca ed effimera
+(vive lo spazio di una `render()`). La base dichiara `renderer_xml` e
+`renderer_yaml` (ereditati da ogni dialetto); i concreti aggiungono i
+propri (`renderer_html`, `renderer_svg`, `renderer_css`). Alias = una
+riga di classe (`renderer_xhtml = renderer_html`). Niente registry: i
+mode si scoprono per introspezione dei nomi `renderer_*`; mode
+inesistente → errore esplicito.
 
-### BLD.3 — Builder = grammar pura; renderer come property `renderer_<mode>`
+`render(mode="xml")` è un render vero (pointer risolti, marker
+filtrati); la vista grezza della source è `source.to_xml()` — non è un
+render mode.
 
-Il builder contiene **solo** la grammar: decoratori, schema, validazione.
-I renderer disponibili per quel dialetto sono dichiarati come
-**property `renderer_<mode>`** sulla classe builder. Ogni accesso alla
-property restituisce un'**istanza fresca** del renderer concreto, legata
-al builder via `builder=self`. Le istanze sono pensate per essere
-**effimere**: vivono lo spazio di una `handler.render(...)` e poi sono
-scartate.
+### BLD.4 — Grammatica severa a definizione di classe
 
-Il rendering vive in `RendererBase` e nei concreti (`XmlRenderer`,
-`HtmlRenderer`, `SvgRenderer`, `CssRenderer`). `BagBuilderBase`
-dichiara `renderer_xml` (ereditato da ogni dialetto); i builder
-concreti aggiungono i propri (`HtmlBuilder.renderer_html`,
-`SvgBuilder.renderer_svg`, `CssBuilder.renderer_css`).
-
-`XmlRenderer` è un **render vero**, non un dump: cavalca il walk
-universale di `RendererBase` (quindi `runtime_values` risolve i
-pointer e filtra i marker di framework, come ogni altro dialetto) e
-compone via `rendered_item`. `pretty` indenta per profondità in
-`rendered_item`; `doc_header` antepone la dichiarazione XML in
-`finalize`. La **vista grezza** strutturale della source — marker e
-pointer non risolti inclusi — è un'altra cosa: si ottiene chiamando
-`source.to_xml()` direttamente sulla bag. `render(mode="xml")` ≠
-`source.to_xml()` (decisione: il raw NON è un render mode, area RX/§5).
-
-Aliasare un mode su un renderer esistente è una riga di classe:
-`renderer_xhtml = renderer_html`. L'utente che vuole esporre un mode
-in più sul proprio subbuilder usa lo stesso pattern (descriptor
-sharing).
-
-Niente registry `_renderers` né metodo `register_renderer`: la lista
-dei mode supportati si scopre per introspezione dei nomi che iniziano
-per `renderer_` sulla classe builder. Errore esplicito
-(`AttributeError`/`KeyError`) quando il mode richiesto non corrisponde
-ad alcuna property.
-
-Conseguenze: il builder è testabile in isolamento; aggiungere un mode
-significa aggiungere una property o un alias, non un metodo
-imperativo; estendere un dialetto è una subclass del builder con
-property aggiuntive.
+Un item di `sub_tags` non riconosciuto dallo schema solleva
+`ValueError` **alla definizione della classe** (validazione eager in
+`__init_subclass__`, messaggio `Classe.elemento:`). Gli errori di
+grammatica sono errori dell'autore del dialetto: emergono subito, non
+alla prima chiamata.
 
 ---
 
-## Area HND — BuilderHandler (engine)
+## Area PAG — Il builder come documento/pagina
 
-### HND.1 — Handler gestisce il suo builder; preset per dominio
+### PAG.1 — Il nome appartiene al builder
 
-Ogni `BuilderHandler` gestisce un proprio builder e funziona da solo. Il
-pacchetto fornisce un preset per ogni builder (`HtmlBuilderHandler`,
-`MarkdownBuilderHandler`, ...) con `builder_class` fissata. L'utente
-eredita dal preset e implementa `main(self, root)`.
+`BuilderBase(name=...)`: `name` è l'identità di mount verso l'handler
+(la label del suo segmento dati). Omesso, default = tipologia del
+dialetto (`_name`, es. `"html"`). `add_builder` **legge** il nome, mai
+lo assegna; unico vincolo = collisione (e `_`, riservato al segmento
+comune). Una pagina = una subclass di builder con `main(self, root)`.
 
-Se servono più handler coordinati con dati condivisi, si introduce un
-**orchestratore** esplicito come strato sopra (area `SUITE`, ancora in
-discussione).
+### PAG.2 — Source sotto `SOURCE_ROOT` (`_root_`)
 
-### HND.2 — Wrapper-root simmetrico `_sourceroot` / `_dataroot`
+La source vive sotto il segmento strutturale `SOURCE_ROOT = "_root_"`
+di un wrapper-root: garanzia albero-non-foresta. È una **costante
+strutturale, MAI un indirizzo**: la partizione semantica del documento
+è il primo livello della DATA bag (nomi di mount + `_`), non della
+source. `self.source` è il payload che `main` popola; il wrapper ha il
+backref acceso (necessario ad `abs_datapath` e a ogni risalita
+ancestor).
 
-Il `BuilderHandler` possiede alla nascita due wrapper strutturali:
-
-- `_sourceroot` — bag wrapper che ospita la source sotto `["main"]`.
-- `_dataroot` — bag wrapper che ospita i dati sotto `["main"]`.
-
-Il **payload utente** vive sotto la chiave `["main"]`:
-
-- `_sourceroot["main"]` è la `BuilderSource`;
-- `_dataroot["main"]` è la data bag.
-
-L'API utente espone i payload come `handler.source` e `handler.data`.
-
-Il wrapper-root è **stabile come oggetto** per tutta la vita dell'handler:
-il payload sotto `["main"]` può essere sostituito (hot-swap) senza che il
-wrapper cambi identità. Questo abilita reset / cambio sessione senza
-ricostruire l'handler, e fa sopravvivere le sottoscrizioni fatte sul
-wrapper.
-
-Gli slot aggiuntivi del wrapper (`["workspace"]`, `["meta"]`, ...) sono
-**predisposti** ma non usati nel base. Sono punti di estensione futuri.
-
-**Backref**: entrambi i wrapper-root hanno il backref di `genro_bag`
-acceso esplicitamente in `__init__` (`set_backref()`). È parte del
-contratto strutturale: serve a `abs_datapath` (`DAT.2`) e a ogni
-risalita ancestor sui nodi, indipendentemente dalla reattività.
-
-`HND.2` è puramente strutturale: il backref è acceso sempre. L'armamento
-delle subscribe push avviene in `create()` (`HND.4`), non in `__init__`.
-
-### HND.3 — Render con `mode` e `target`, multipli e nominati
-
-`render` esiste sia sul builder che sull'handler.
-
-**Sul builder** — property `renderer_<mode>` per ogni mode supportato
-(`BLD.3`). `BagBuilderBase` dichiara `renderer_xml` (ereditato); i
-dialetti aggiungono i propri (`renderer_html`, `renderer_svg`,
-`renderer_css`). Niente registry imperativo.
-
-**Sull'handler** — `self.renderers: dict[str, dict]` con entry
-`{"target": ..., "instance": RendererBase}` per ogni mode toccato
-dall'handler. Popolata lazy dall'helper interno `_ensure_mode(mode)`:
-alla prima `set_render_target(mode, ...)` o alla prima `render(mode=...)`,
-l'handler accede alla property `builder.renderer_<mode>` (via
-class-level descriptor, per bypassare il dispatch grammar che
-intercetta gli attributi sul nodo), inietta `self` come `handler` e
-salva l'entry. `set_render_target(mode, target, default=False)` riusa
-la stessa entry per scrivere il target.
-
-Semantica del `target`:
-
-- `False` → forza ritorno stringa, ignora target registrato;
-- altro falsy (`None`, `""`, `0`) → usa il target registrato sotto il mode;
-- truthy → usato direttamente per quella chiamata.
-
-Risoluzione del `mode`: argomento esplicito > `_default_render_mode`
-dell'handler > `_default_render_mode` del builder.
-
-**Flusso di `handler.render(startnode=None, mode=None, target=None, **opts)`**:
-
-1. risolve `effective_mode` e `effective_target` come sopra;
-2. recupera R₀ via `_ensure_mode(effective_mode)` (l'istanza è cached
-   per mode in `self.renderers`);
-3. setta `r0.mode = effective_mode` e `r0.add_render(self.builder, r0)`
-   (seed della cache di R₀ con sé stesso);
-4. chiama `result = r0.render(startnode or self.source, **opts)`;
-5. chiama `r0.finalize(result, effective_target)`.
-
-`r0.render` è il walk universale di `RendererBase`: per ogni nodo
-chiama `node.runtime_values()`, ricorre sui figli, e produce il
-frammento locale tramite `rendered_item(node, item, runtime_attrs,
-**opts)`. La cache `renders` di R₀ (chiave `id(builder)`) gestisce
-i sub-builder polimorfici.
-
-`r0.finalize(result, target, **opts)` è un metodo unico (niente più
-dispatch `finalize_<shape>`): la base compone la lista di frammenti
-(`"".join`) e consuma il target (writeable → file path, file-like o
-callable; `None` → ritorna il valore). Gli `**opts` del render
-raggiungono sia il walk (opzioni per-nodo, es. `pretty`) sia
-`finalize` (opzioni di documento); la base li ignora, un dialetto che
-ne ha uno proprio lo dichiara nell'override (`XmlRenderer` legge
-`doc_header`). I dialetti object-based sovrascrivono `finalize` con la
-propria composizione.
-
-L'API utente è **una sola**: `handler.render(startnode, mode, target, **kw)`.
-Niente shortcut `render_<mode>(...)`.
-
-Sub-builder (BLD.2): il sub-renderer è risolto dal walk universale
-via `RendererBase.get_render(builder)` di R₀ — accesso alla property
-`builder.renderer_<default_mode>` del sub-builder, iniezione
-dell'handler, memoizzazione nella cache `renders` di R₀ con chiave
-`id(builder)`. Non entra in `self.renderers` (che riguarda solo i
-mode del builder primario).
-
-### HND.4 — Lifecycle: `create()` in sei passi, poi `render()`
+### PAG.3 — Lifecycle: `create()` = setup + main + primo calcolo
 
 ```python
-page = CustomerPage()
-page.create()                                # vedi i sei passi sotto
-page.set_render_target('html', 'out.html', default=True)
-page.render()                                # serializza la source sul target
+page = CustomerPage(name="customer")
+handler = BuilderHandler()
+handler.add_builder(page)        # monta, semina il segmento, crea
+page.render(target="out.html")
 ```
 
-`create()` esegue, in ordine:
+`create()` esegue: `setup(self.data)` (semina i dati del segmento),
+`main(self.source)` (costruisce il documento), poi il **primo calcolo**
+(ogni `data_setter` + formula/controller marcati `_on_start`, via
+`compute_logic`). Se il contesto è reattivo (`APP`), `create()` arma
+anche la subscribe della **source**; la subscribe dei **dati** la arma
+`activate()` sull'handler (`HND.4`) — dopo il primo render, perché la
+`pointer_map` si popola leggendo (`DAT.2`).
 
-1. **`setup()`** — override-point (no-op di default): popola i dati
-   iniziali **prima** che `main` costruisca la struttura, così `main`
-   può leggere `self.data` (es. ciclare sulle chiavi per generare
-   struttura ripetuta). Tiene i dati (setup) e la struttura (main) come
-   due passi nettamente separati.
-2. **`main(self.source)`** — costruisce il documento. Le subscribe non
-   sono ancora attive: gli insert dell'API builder **non** dispatchano a
-   `on_source_change`.
-3. **`register_pointer(self.source.parent_node)`** — cammina il sottoalbero
-   della source e popola `self.pointer_map` una volta (`DAT.2`).
-4. **Primo calcolo** — interroga la source per i data-element da eseguire
-   allo start, via `source.query`: ogni `data_setter` (semina il dato) più
-   ogni `data_formula` / `data_controller` marcato `_on_start`; li esegue
-   con `compute_logic` (`DAT.4`). Le subscribe non sono ancora armate, così
-   queste scritture seminano i dati **senza** innescare una cascata reattiva.
-5. **Subscribe** — `_sourceroot` / `_dataroot` vengono sottoscritti: da qui
-   in poi ogni mutazione fluisce a `on_source_change` / `on_data_change` e,
-   sul lato data, al compute reattivo (`DAT.4`).
-6. **`_live_enabled = True`** — la reattività è armata; `live()` è ammesso
-   (`RX.1`).
+Un builder nudo (scenario 1) fa `create()` + `render()` da solo:
+`handler=None`, data bag vuota, `setup` innocuo.
 
-`render(startnode, mode, target, **kwargs)` dispatcha al renderer del mode
-e gli affida la source (`HND.3`).
+### PAG.4 — `render(mode, target, validate=True, **opts)` sul builder
 
-Quando un sottoalbero ha un sub-builder (`BLD.2`), il `_builder` sui nodi
-del sottoalbero determina quale builder è attivo localmente, e il render
-segue automaticamente il builder corretto (`HND.3` + `BAG.3`).
+Il render appartiene al builder. `mode` default =
+`_default_render_mode` del dialetto; `target`: `False` → ritorna la
+stringa ignorando i target registrati; falsy → target registrato
+(`set_render_target`); truthy → usato direttamente.
 
-### HND.5 — Thread safety non promessa
+**Minimi di cardinalità verificati nel walk pre-render**: il walk
+ricalcola fresco per nodo i figli minimi richiesti (NESSUNO stato
+memorizzato: la rimozione di un figlio renderebbe stantio qualunque
+flag). Un solo errore con l'elenco completo dei nodi incompleti.
+`validate=False` emette deliberatamente un documento parziale. Per i
+dialetti XSD è la prima rete strutturale, non sostituisce la
+validazione XSD a valle. (Il massimo di cardinalità è verificato
+all'inserimento.)
 
-`BuilderHandler` e le classi correlate **non sono thread-safe**. La
-proprietà è ereditata da `genro_bag.Bag`. Il framework **non introduce
-lock** sui mutatori né su `render()` (l'unica eccezione è l'`RLock` che
-serializza le sezioni `live()`, `RX.1`).
+`render_nodes(nodes, **opts)` è l'ingresso del flush di `live()`:
+al passo uno ignora la lista e rende tutto il builder; il render
+parziale per nodo è un raffinamento successivo (`RX.1`).
 
-Chi condivide un handler fra thread (scenario S5) è responsabile della
-sincronizzazione: scelta di lock, granularità, gestione deadlock. I
-callback dei trigger sync, quando attivi (`RX`), girano **nel thread del
-writer**, sincroni rispetto alla mutazione.
+### PAG.5 — `node_by_id` sul builder, unicità per builder
 
-Motivazione: promettere thread-safety senza che `Bag` la garantisca
-sarebbe disonesto; il costo zero serve la maggioranza degli scenari
-(S1-S4, S6) che non condividono handler; la condivisione fra thread è una
-decisione architetturale esplicita.
+Il lookup `node_by_id` e il controllo di unicità di `node_id` vivono
+**sul builder** (la stessa pagina montata due volte non collide con se
+stessa su handler diversi). Lookup walk-based senza indice mantenuto
+(`BAG.5`); il riferimento simbolico `^#<id>.path` risolve nello stesso
+perimetro.
+
+### PAG.6 — `@slot(node_id)`: riempimento per id alla nascita (da implementare)
+
+Complementare di `main`: un metodo della **pagina** (builder) decorato
+`@slot("<node_id>")` viene invocato dal framework nell'istante in cui,
+durante la costruzione, nasce un nodo con quel `node_id` esplicito — il
+nodo è la radice su cui il metodo costruisce. Match esatto e letterale
+(l'id è documentato da chi crea la struttura: "la grammar è
+documentazione"); ordine indotto dalla costruzione (chi crea il nodo fa
+scattare il riempitivo); composizione ricorsiva (uno slot crea nodi-id
+che fanno scattare altri slot); le label auto-generate non scattano mai.
+
+Caso guida: la **cornice** di una live app (`contrib/ws_live`) dichiara
+i suoi punti di riempimento con id documentati (`ws-header`, `ws-left`,
+`ws-footer`, ...); la pagina si abbona solo a quelli che le servono —
+con un solo punto basta l'override di `main`, con N punti l'override
+unico non scala. Inversione del controllo speculare al component
+(`CMP`): il component è una struttura riusabile che l'autore piazza;
+lo slot riempie un punto di una struttura creata da altri.
+
+Spec di dettaglio: `roadmap/slot-decorator.md` (da riallineare: scritta
+quando i metodi vivevano sull'handler; oggi vivono sulla pagina).
+Decisioni implementative (punto di aggancio dell'hook, raccolta dei
+metodi, comportamento dello slot orfano) in fase TDD.
+
+---
+
+## Area HND — BuilderHandler (datastore)
+
+### HND.1 — L'handler è la sorgente dati, non un engine
+
+Una pagina è un builder; un builder che legge pointer ha bisogno di una
+sorgente dati. Il `BuilderHandler` è quella sorgente: possiede UN
+`_dataroot` segmentato e monta i builder per nome consegnando a ognuno
+il proprio segmento. **Non si sottoclassa e non è un render engine**:
+il render vive sul builder. L'handler fornisce i dati e (alla lettura)
+traccia chi legge cosa (`pointer_map`).
+
+L'orchestratore multi-handler ("SUITE") è **dissolto**: il caso che lo
+motivava (documenti eterogenei su dati condivisi — excel+word,
+traefik/compose/k8s) è coperto dal multibuilder (N builder su segmenti
++ `_` comune).
+
+### HND.2 — `_dataroot` segmentato; `_` è il segmento comune
+
+Primo livello del datastore = nomi di mount + `_` (creato alla nascita,
+spazio condiviso fra i builder montati). `handler.data` espone l'intero
+datastore segmentato; `builder.data` il proprio segmento.
+`handler.setup(data)` è l'override-point per seminare il comune.
+Il backref è acceso alla nascita (parte del contratto strutturale).
+
+### HND.3 — `add_builder(*builders)`: monta per nome e crea
+
+Per ogni builder: verifica il nome (assente → errore; `_` → errore;
+duplicato → errore), registra, crea il segmento, inietta `handler` e
+`data` (il segmento), mette l'handler sul source-root (ogni nodo lo
+raggiunge via property `handler`, `BAG.3`), e chiama `create()`
+(`PAG.3`). Il primo builder montato è il default.
+
+### HND.4 — `activate()`: chiude l'avviamento
+
+`activate()` rende ogni builder montato (il **primo render popola la
+pointer_map**, `DAT.2`), poi — se c'è un'Application — arma la
+subscribe dei **dati** e accende `_live_enabled`. `live()` prima di
+`activate()` → `RuntimeError` (una pagina mai resa non è reattiva:
+mappa vuota, nulla reagirebbe).
+
+### HND.5 — Thread safety non promessa; `live()` è l'unica serializzazione
+
+`BuilderHandler` e le classi correlate non sono thread-safe (proprietà
+ereditata da `genro_bag.Bag`). Il framework non introduce lock sui
+mutatori né su `render()`; l'unica eccezione è l'`RLock` che fa di
+`live()` la sezione critica di mutazione (`RX.1`). Chi condivide un
+handler fra thread muta **dentro `live()`**; la sincronizzazione di
+ogni altro accesso è responsabilità sua.
+
+---
+
+## Area APP — Application (da formalizzare in dettaglio)
+
+L'Application è lo strato fra il mondo esterno e l'handler: possiede il
+ciclo di vita (websocket, REPL, scheduler), incanala ogni mutazione
+dentro `live()` (il lock lo prende `live()`, l'Application non lo tocca
+mai), tutto sync. La reattività live **presuppone** un'Application
+(`activate()` arma la subscribe dei dati solo se presente).
+L'implementazione di riferimento attuale è `contrib/ws_live` (live app
+su websocket, script `genro-ws-live`). La formalizzazione fine
+dell'area (API, hook, multi-sessione) è rimandata a quando ws_live si
+stabilizza.
 
 ---
 
 ## Area BAG — Bag e nodi
 
-### BAG.1 — BuilderBag e BuilderBagNode via mixin
+### BAG.1 — SourceBag e SourceBagNode via mixin
 
-`BuilderBag` = `Bag` + `_BuilderBagMixin`; `BuilderBagNode` = `BagNode` +
-`_BuilderBagNodeMixin`. La logica builder-aware vive nei mixin; le classi
-base di `genro-bag` restano intatte.
+`SourceBag` = `Bag` + mixin; `SourceBagNode` = `BagNode` + mixin. La
+logica builder-aware vive nei mixin; le classi di `genro-bag` restano
+intatte.
 
-### BAG.2 — Layering a due livelli
+### BAG.2 — Layering
 
-**Livello 1 — base comune**: `BuilderBag`, `BuilderBagNode`. Contengono i
-meccanismi condivisi: slot `_builder`/`_handler` (`BAG.3`), dispatch
-grammar via `__getattr__`/`__dir__`, accesso ai metadati dell'albero.
+Base comune (dispatch grammar, metadati) + specializzazione semantica
+della fase create/render. La data bag è `Bag` pura.
 
-**Livello 2 — specializzazioni semantiche**: `BuilderSource` /
-`BuilderSourceNode` (il bag della fase create/render). Una futura
-`BuilderData` può materializzarsi per dare semantica al payload dati; nel
-base sync minimo, `Bag` puro è sufficiente.
+### BAG.3 — `_builder` slot; `handler`/`root_builder` property via root
 
-Vantaggi del layering: punto di estensione strutturale; tipizzazione
-discriminante (il tipo dice il ruolo); predisposizione per mixin di
-specializzazione.
+Il nodo porta il solo slot `_builder` (il builder attivo: il principale,
+o il sub-builder nei sottoalberi `@subbuilder`). **Niente slot
+`_handler` sui nodi**: `handler`, `root_builder` e `root_builder_name`
+sono property che risalgono a `Bag.root` — l'handler è unico per
+documento e vive sul source-root (`HND.3`). Nodi leggeri: nessun dato
+duplicato, si risale la catena ancestor.
 
-### BAG.3 — Ogni bag e nodo ha `_builder` e `_handler`
+### BAG.4 — `node_id` come primary key, unicità per builder
 
-`BuilderBagNode` e `BuilderBag` hanno due slot:
+- **Unicità → controllo attivo** alla creazione da grammar
+  (`_command_on_node`), nel perimetro del builder (`PAG.5`): con due id
+  uguali `node_by_id` sarebbe ambiguo. Costo O(N) solo per i nodi che
+  portano un `node_id`.
+- **Immutabilità → nessun controllo**: mutare un `node_id` esistente è
+  responsabilità del developer (walk stateless, nessuno stato derivato
+  da proteggere).
 
-- `_handler` → il `BuilderHandler` dell'albero. Uno per albero, settato
-  all'attach. Serve per accedere all'engine.
-- `_builder` → il builder attivo per il nodo. Di default il principale;
-  nei sottoalberi `@subbuilder` (`BLD.2`) è il sub-builder. Settato
-  all'attach.
+### BAG.5 — Lookup walk-based, senza indice mantenuto
 
-Conseguenze: dispatch grammar e render sono O(1) e diretti. I nodi sono
-immutabili nel parent dopo l'attach, perché le ref siano sempre coerenti.
-
-### BAG.4 — `node_id` come primary key del nodo
-
-`node_id` è un attributo **opzionale** dei nodi della source. Per
-analogia con una primary key, dovrebbe essere unico e stabile. I due
-aspetti hanno però trattamento diverso a runtime:
-
-- **Unicità → controllo attivo.** Alla creazione del nodo da grammar
-  (in `_command_on_node`, il punto di dispatch unico: copre element di
-  schema, data-element e tag fuori schema), se l'attr `node_id` è presente
-  si verifica via `BAG.5` (`node._check_unique_id`) che non esista già un
-  nodo con lo stesso id; in caso contrario errore esplicito. Motivo:
-  l'unicità è un **presupposto di funzionamento** di `node_by_id` (con due
-  id uguali il lookup sarebbe ambiguo), non una guardia paternalistica.
-  Costo: O(N) solo per gli inserimenti di nodi **che portano un `node_id`**
-  (minoranza). Trascurabile.
-
-- **Immutabilità → nessun controllo.** Se il developer muta un `node_id`
-  su un nodo esistente, è una sua responsabilità (developer adulto). Il
-  framework **non** intercetta `set_attr("node_id", ...)`. La walk è
-  stateless (`BAG.5`): non c'è stato derivato da proteggere, la lettura
-  successiva trova semplicemente il nuovo valore. Mettere una guardia qui
-  aggiungerebbe codice senza prevenire alcuna incoerenza interna.
-
-### BAG.5 — Lookup per `node_id` walk-based, senza indice mantenuto
-
-Il `BuilderHandler` **non mantiene** una mappa cached degli ID.
-`handler.node_by_id(node_id)` è un lookup ad albero sulla source via l'API
-esistente di `genro_bag`:
-
-```python
-def node_by_id(self, node_id):
-    node = self.source.get_node_by_attr("node_id", node_id)
-    if node is None:
-        raise KeyError(node_id)
-    return node
-```
-
-Complessità O(N) sulla dimensione della source. Per source piccole/medie il
-costo è invisibile. Un'eventuale ottimizzazione (cache opt-in) si introduce
-**senza cambiare l'API** quando uno scenario reale la richiede.
-
-Sub-builder e handler condividono la stessa source: il lookup attraversa
-naturalmente l'albero indipendentemente da quale builder controlla quale
-sottoalbero.
+`node_by_id` è un lookup ad albero via `get_node_by_attr`; miss →
+`KeyError`. Nessuna mappa cached: per source piccole/medie il costo è
+invisibile; un'eventuale cache opt-in si introduce senza cambiare
+l'API. L'assenza di indici rende sicuro by design l'hot-swap del
+payload.
 
 ---
 
-## Area DAT — Dati, resolver, pointer, data-element
+## Area DAT — Dati, pointer, data-element, presentazione
 
-### DAT.1 — Resolver come capability del base, ortogonali ai trigger
+### DAT.1 — Resolver come capability del base
 
-Un nodo può portare una computazione lazy (`BagResolver` di genro_bag),
-eseguita alla lettura. I resolver sono supportati **sempre** (sync e
-async), indipendentemente dalla reattività.
+Un nodo può portare una computazione lazy (`BagResolver`), eseguita
+alla lettura, sempre supportata (sync e async). Con dispatcher push
+attivo i resolver possono diventare dependency-tracked.
 
-- In modalità **sync senza dispatcher push**: resolver "stateless" — ogni
-  lettura ricalcola, o il resolver gestisce internamente la propria cache.
-  Nessun tracking automatico di dipendenze.
-- In modalità **con dispatcher push attivo** (`RX`): i resolver possono
-  diventare **dependency-tracked** — il dispatcher invalida e ricalcola i
-  resolver che dipendono dai dati mutati.
+### DAT.2 — Pointer risolti a render time; registrazione alla lettura
 
-La scelta sync vs async non influisce sulla presenza dei resolver, solo
-sul loro grado di sofisticazione.
+Un nodo della source può contenere un pointer; al render si legge dalla
+data bag. Tassonomia completa: assoluti `^path`; relativi `^.x`/`^..x`;
+simbolici `^#node_id.path` e scope `^#FORM.x` ecc.; con attributo
+`^path?attr`. `^` sottoscrive, `=` legge una-tantum.
 
-### DAT.2 — Pointer risolti a render time
+**La risoluzione vive sul builder** (`builder.runtime_values(node)`,
+che raggiunge l'handler via `self.handler`); il nodo è il soggetto
+(`abs_datapath` compone i path assoluti anteponendo segmento e volume,
+`#parent` collassato). Il trigger è la **walk del render**: il walk
+universale di `RendererBase` chiama `runtime_values` per ogni nodo; un
+renderer speciale può guidare la propria walk.
 
-Il framework abilita la **risoluzione lazy dei pointer a render time**. Un
-nodo della source può contenere un pointer (es. `^customer.name`); al
-render, il renderer interpreta il pointer e legge dalla data bag
-(`_dataroot["main"]`) il valore.
+**Registrazione alla lettura (signals-like).** La `pointer_map`
+dell'handler (`dict[abs_path, dict[id(node), node]]`) NON si popola a
+priori: si auto-popola come **effetto della lettura** — `runtime_values`
+registra ogni `^` mentre lo legge (`handler._register_path`); `=` viene
+letto e basta. Invariante: **una pagina deve fare il primo render per
+finire l'avviamento** (per questo `activate()` rende prima di armare,
+`HND.4`). Asimmetria strutturale: *aggiungere* alla mappa = effetto del
+render; *togliere* = azione esplicita su mutazione della source (il
+render non sa cosa esisteva prima).
 
-Questo livello **non è reattività**: è lookup di dati al momento del
-render. Copre gli scenari S2 e gran parte di S3/S4 senza subscribe,
-callback o cascate.
-
-Sintassi: copre **l'intera tassonomia** dei pointer, riprendendo le forme
-del legacy JS:
-
-- assoluti: `^path` (dalla radice della data bag);
-- relativi: `^.x`, `^..x`, `^...x` (datapath contestuale e risalita);
-- simbolici: `^#node_id.path` (cross-tree, usano `BAG.5` per il lookup),
-  e gli scope `^#FORM.x`, `^#ANCHOR.x`, `^#ROW.x`, `^#WORKSPACE.x`;
-- con attributo: `^path?attr` (accesso all'attributo invece che al valore).
-
-**Soggetto della risoluzione — il nodo.** `abs_datapath(path)` e
-`runtime_values()` vivono su `_BuilderBagNodeMixin`: il nodo compone i
-propri path assoluti e risolve i propri valori runtime (pointer + template
-`${name}`), restituendo `(runtime_value, runtime_attrs)`. L'handler resta
-proprietario di `pointer_map`/`register_pointer` e della data bag.
-
-**Dove avviene la risoluzione** — il trigger è la **walk del render**
-(`BLD.3`/`HND.4`):
-
-- `RendererBase` **offre** un generatore di walk condiviso; il nodo
-  fornisce la risoluzione via `runtime_values()`. È un **servizio**, non
-  una gabbia.
-- Il renderer concreto **normale** consuma la walk offerta → la traversata
-  non è reimplementata e i pointer arrivano già risolti.
-- Un renderer con esigenze speciali (visita non standard, doppia passata)
-  **può** guidare la propria walk e chiamare `runtime_values()` dove serve.
-- **Sempre** del renderer concreto resta l'**emissione del nodo nel
-  proprio dialetto** (markup, escape, open/close, formattazione).
-
-**Mappa dipendenze pointer (`self.pointer_map`)** — l'handler espone
-
-```python
-self.pointer_map: dict[str, dict[int, BuilderBagNode]]
-```
-
-popolata da `register_pointer(node, unregister=False)`. Il metodo
-cammina il sottoalbero a partire da `node` e per ogni pointer trovato
-costruisce la chiave secondo la regola **per-attributo**:
-
-- pointer su `node.value`    → chiave = `node.abs_datapath(pointer)`;
-- pointer su `node.attr[a]`  → chiave = `node.abs_datapath(pointer) + "?" + a`.
-
-La granularità per-attributo è il payload operativo per il consumatore
-reattivo: quando arriva la notifica "è cambiato `path?color`", l'handler sa
-esattamente quale attributo aggiornare sul nodo, senza ricostruire. Il
-valore interno è `dict[int, BuilderBagNode]` indicizzato per `id(node)`
-perché `BuilderBagNode` non è hashable; più nodi possono dipendere dalla
-stessa chiave.
-
-La ricorsione di `register_pointer` scende **solo** dentro la struttura
-builder (`BuilderBag`), mai dentro una `Bag` plain usata come valore (es. il
-payload di un `data_setter`, `DAT.3`): i figli di quella sono `BagNode`
-plain senza `pointers()`.
-
-`register_pointer(..., unregister=True)` è la simmetrica: rimuove le
-entry, prune dei path che diventano vuoti, **silenzioso** su nodi/path
-non registrati (tollera scenari di registrazione parziale).
-
-La mappa è mantenuta coerente automaticamente sugli eventi della source:
-`_on_source_event` chiama register/unregister su `ins`/`del`, e su `upd`
-dispatcha via `_on_upd_value` (matrice 9-casi scalar/pointer/bag ×
-scalar/pointer/bag) e `_on_upd_attrs` (per-attributo). Questo mantiene la
-`pointer_map` allineata anche quando un valore o un attributo cambia natura
-a runtime.
+**Macro reattive sul nodo**: `SET` (scrive, reason default) / `PUT`
+(scrive, `reason=False`) / `FIRE` (evento, `fired=True`, non persiste)
+/ `GET` (legge) — alias maiuscoli di `set/get_relative_data`,
+marcatura deliberata di un DSL reattivo.
 
 ### DAT.3 — Data-element come `@element` marcati
 
-Un data-element è un nodo della source che porta **logica sui dati** invece
-di markup. Non è un binario separato: è un **`@element` ordinario** marcato
-`_meta={"data_element": True}`. I tre kind sono dichiarati su `BagBuilderBase`:
-
-```python
-@element(_meta={"data_element": True})
-def data_setter(self, destination: str, value: Any): ...
-
-@element(_meta={"data_element": True})
-def data_formula(self, destination: str, func: str | Callable, **kwargs): ...
-
-@element(_meta={"data_element": True})
-def data_controller(self, func: str | Callable, **kwargs): ...
-```
-
-- **Iniezione in ogni dialetto.** `__init_subclass__` li inserisce nello
-  schema di ogni dialetto via `_iter_data_element_methods`, **dopo** gli
-  element propri del dialetto: così un data-element (es. `data`) può
-  overridare un tag omonimo del dialetto (es. l'HTML `<data>`). Nessun
-  dialetto deve ri-dichiararli.
-- **Kind dal `node_tag`.** Il tipo del data-element è il tag del nodo
-  (`data_setter` / `data_formula` / `data_controller`); non esiste un
-  parametro `kind` né un decoratore per-kind.
-- **Marker runtime `_is_data_element`.** Quando l'utente chiama
-  `node.data_setter(...)`, `element_call` riconosce `_meta['data_element']`,
-  mappa i positional sui field dichiarati dalla firma, setta
-  `_is_data_element = True` sul nodo, e passa per lo stesso `_command_on_node`
-  degli element normali (nessun dispatch dedicato).
-- **Trasparenza al render.** I renderer saltano i nodi `_is_data_element`:
-  un data-element non emette markup.
-- **Value del setter come attributo.** Il `value` del `data_setter` resta
-  un **attributo piatto** (non `node.value`), anche quando è una `Bag`.
-  Motivo: un attributo che contiene una Bag non viene attraversato dalla
-  walk della source, quindi il payload-dati non viene catturato nell'albero
-  source (nessuna cattura del backref della Bag dell'utente); inoltre la
-  `query(deep=True)` non scende nel payload e la validazione trova `value`
-  tra gli attributi.
+Un data-element porta logica sui dati invece di markup: `@element`
+ordinario marcato `_meta={"data_element": True}`; kind dal `node_tag`
+(`data_setter`/`data_formula`/`data_controller`); iniettati in ogni
+dialetto da `__init_subclass__` (dopo gli element propri: un
+data-element può overridare un tag omonimo); trasparenti al render;
+positional mappati sui field della firma; il `value` del setter resta
+attributo piatto (mai `node.value`), anche quando è una Bag.
 
 ### DAT.4 — Compute dei data-element
 
-I data-element sono eseguiti dal **compute**, un meccanismo unico con due
-punti d'ingresso.
+Esecutore unico `compute_logic(nodes)` **sul builder**; l'handler
+coordina la cascata multi-builder (`execute_logic` raggruppa i nodi
+toccati per builder e delega). Primo calcolo in `create()` (`PAG.3`).
+`_compute_node` dispatcha sul kind: setter → seed; formula **pura**
+`func(**bindings)` → scrive `destination`; controller →
+`func(node, **bindings)` (effetti). I binding si risolvono sempre via
+`runtime_values` (stesso risolutore di ogni reader). `func` =
+`@staticmethod` risolta **per nome** via `data_logic` (sx→dx,
+prima-vince, errori espliciti — forma canonica per il cross-runtime: la
+source serializza il nome, non il callable).
 
-- **Esecutore unico `compute_logic(nodes)`.** Riceve una **lista di nodi**
-  (non un path) e li esegue uno per uno via `_compute_node`. La raccolta sta
-  nel chiamante:
-  - *primo calcolo* (`create()`, `HND.4` passo 4):
-    `source.query(what="#n", deep=True, condition=...)` — ogni `data_setter`,
-    più formula/controller marcati `_on_start`;
-  - *cascata reattiva* (`_on_data_event`): `_nodes_to_compute(path)`.
-- **`_compute_node(node)`** dispatcha `match node.node_tag`:
-  - `data_setter` → `node.set_relative_data(destination, value)` (seed; value
-    è l'attributo piatto, può essere Bag);
-  - `data_formula` → `set_relative_data(destination, func(**bindings))`
-    (func **pura**);
-  - `data_controller` → `func(node, **bindings)` (node esplicito, effetti
-    collaterali).
-- **`_bindings(node)`** risolve i binding **sempre** via
-  `node.runtime_values()` — lo stesso risolutore unico (`^`/`=` pointer,
-  template `${}`, futuri default) che usa ogni reader — poi toglie i field
-  dello schema (`destination`/`func`/`value`) e i marker `_...`; ciò che
-  resta sono i binding passati alla func per nome.
-- **`func` = `@staticmethod` per NOME.** La property `data_logic` (lazy +
-  cached, default `[self]`, override `_build_data_logic` per restituire una
-  logica dedicata o una lista) elenca le sorgenti. `_resolve_logic_func(name)`
-  cerca sx→dx, **prima-vince**, via `inspect.getattr_static`: sorgente che
-  non possiede il nome → skip; possiede ma **non** come `staticmethod` →
-  `TypeError`; miss su tutte → `AttributeError`. Nessun fallback silenzioso.
-  Forma canonica per il futuro cross-language (il source serializza il nome,
-  non il callable).
-- **`data_formula` PURA** `func(**bindings)` (niente `node`); il
-  **`data_controller`** riceve `func(node, **bindings)` (node esplicito; se
-  serve l'handler: `node._resolve_handler()`).
-- **Aggancio reattivo (`_on_data_event`).** Su `upd` compute su
-  `path = pathlist[1:]`; su `ins` di foglia su
-  `path = pathlist[1:] + node.label`; **skip** se `reason == "autocreate"`
-  (nascita di un contenitore intermedio strutturale, da non far reagire
-  finché le foglie non esistono). `del` fuori scope.
+Granularità della raccolta (`_relevant_nodes`): match node / container
+/ child contro la `pointer_map`; si tengono solo i data-element; dedup.
+**Fetta 1 (implementata)**: una sola ondata. **Fetta 2 (rinviata)**:
+coda FIFO breadth-first, anti-loop (dict node→input + backstop),
+cascata completa.
 
-**Granularità della raccolta (`_nodes_to_compute`).** Tre match contro la
-`pointer_map` (chiavi = path assoluti, eventualmente `?attr`), confrontando
-la parte-path `kp = key.split("?",1)[0]` col `path` mutato:
+### DAT.5 — Presentazione lato dati: `mask` e `_wdg`
 
-- *node* — `kp == path`: legge esattamente il dato mutato;
-- *container* — `kp.startswith(path + ".")`: legge una foglia dentro il
-  contenitore mutato;
-- *child* — `path.startswith(kp + ".")`: legge un contenitore di cui è
-  cambiato un figlio.
+Il dato sa presentarsi. Sul **nodo dati** (non sulla ricetta):
 
-Si tengono solo i nodi `_is_data_element` (un div che legge lo stesso path
-non viene ricalcolato); i `data_setter` non portano pointer `^`, quindi non
-sono mai in `pointer_map` ed escono per costruzione. Dedup per `id(node)`.
+- `mask` — maschera col vocabolario legacy di gnrformatter (`%s` = il
+  valore), applicata al valore risolto;
+- `_wdg` — dict di attributi-eccezione che **viaggiano col dato** e si
+  depositano sul nodo lettore, **vincendo** sulla ricetta (l'eccezione
+  batte il default statico). Solo letture di valore.
 
-**Fetta 1 (implementata) vs fetta 2 (rinviata).** Oggi il compute è "fetta 1":
-una sola ondata. La ri-entranza sincrona di `genro_bag` propaga le catene
-quando i valori intermedi esistono (la scrittura di un `_compute_node`
-ri-fira `_on_data_event`, ma la collect annidata filtra `_is_data_element` e,
-nello scope di questa fetta, restituisce lista vuota → passata inerte).
-La **fetta 2** — coda **FIFO** breadth-first, anti-loop (dict
-node→(input, count) + backstop `DEFAULT_MAX_NODE_RUNS`), `ContextVar` per la
-cascata — è rinviata.
+Solo presentazione: mai sui binding delle formule (vogliono il dato
+crudo), mai sulle letture `?attr`, mai su valori Bag.
 
-### Macro reattive sul nodo (`SET` / `GET` / `PUT` / `FIRE`)
+### DAT.6 — Template inputs consumati
 
-`_BuilderBagNodeMixin` espone quattro macro **maiuscole** (marcatura
-deliberata di un DSL reattivo), alias di `set_relative_data` /
-`get_relative_data`:
+Un attributo referenziato da un template `${...}` **dello stesso nodo**
+è un input del template: una volta espanso è stato consumato e non
+viene emesso da nessun renderer. La regola è il **consumo**, non un
+prefisso: il nome è libero, è l'uso — visibile nella ricetta — che lo
+marca. Idioma canonico "dato calcolato + unità d'autore":
+`div(w='^mywidth', width='${w}px')`. Un attributo che deve essere sia
+emesso sia riusato passa anch'esso da template.
 
-- `SET` → scrittura con reason di default;
-- `PUT` → scrittura con `reason=False`;
-- `FIRE` → scrittura con `fired=True` (trigger esplicito);
-- `GET` → lettura.
+---
 
-`set_relative_data` normalizza `reason None → True` (parità col legacy
-`gnrdomsource.js`). Altri valori di `reason` sono lasciati liberi finché un
-consumatore (lato widget/client) non li esiga.
+## Area CMP — Component (design completo; implementazione da fare)
+
+Design completo del 2026-06-10 (verbale:
+`roadmap/component-design.md`, decisioni D1-D10;
+qui la forma contrattuale). Risolve l'asimmetria che fece rimuovere i
+component alla v0.4: l'espansione non entra mai nella ricetta.
+
+### CMP.1 — Elemento di grammatica nominato, con body
+
+`@component` in un mixin (es. `CommonComponents`) entra in grammatica
+come un element. Chiamarlo istanzia un **nodo normale nella source, col
+nome del component e i suoi attributi**: nessuna espansione a
+call-time. Il nome nella source è il contratto cross-runtime: ogni
+interprete (Python oggi, JS domani) ha la propria implementazione del
+body per quel nome.
+
+### CMP.2 — Espansione solo a render-time, effimera
+
+Il walk incontra il nodo component → crea una **new_root con tag fisso
+trasparente a perdere** (costante strutturale, scartata al render) → il
+body costruisce TUTTO dentro di essa, radice vera inclusa (tag e
+attributi della radice = competenza dell'autore del component).
+**Albero, non foresta**: esattamente un figlio nella new_root,
+violazione = errore esplicito. L'espansione si rende e si butta.
+
+### CMP.3 — Tre forme di chiamata; `value` e `iterate` distinti
+
+1. singolo a parametri: `pane.address_block(company='^.company', ...)`;
+2. singolo a record: `pane.address_block(value='^.company_record')`;
+3. multiplo: `pane.div().state_row(iterate='^.states')` — un'espansione
+   per figlio della Bag.
+
+`value` non itera MAI: la cardinalità la dichiara l'autore con
+`iterate`. Il contenitore esterno dell'iterate è del chiamante
+(grammatica ordinaria). `iterate`/`value` sono parole della macchina:
+consumate, mai passate al body né emesse.
+
+### CMP.4 — Dispatch nel walk e firma del body
+
+`render(node)`: runtime_values PRIMA del branch; poi element (come
+oggi) / **component** (terza gamba) / subbuilder. Component con
+`iterate` risolto a Bag → un giro per figlio passando **solo
+`node.label`**; senza → un giro coi kwargs della chiamata che saturano
+la firma. Firma: `def nome(self, root, node_label=None, **parametri)`.
+Il body aggancia la radice al dato (`datapath` dalla label) e dentro
+usa pointer relativi.
+
+### CMP.5 — Nessuna validazione
+
+Né di posizionamento né sul tag emesso dal body. La grammatica registra
+e dispaccia. L'unico vincolo è strutturale (CMP.2).
+
+### CMP.6 — Arricchimento per istanza
+
+`include_components(*mixins)` inietta i component di un mixin nella
+copia per-istanza dello schema (la classe resta intatta). La famiglia
+`<domain>requires` sulla pagina (`pyrequires` per i component Python,
+js/css a seguire) è da ricostruire sul modello attuale (era
+sull'handler pensionato).
+
+### CMP.7 — Reattività: subscription grossa, risoluzione fine
+
+I pointer interni alle espansioni **non entrano mai** nella
+pointer_map. In mappa c'è solo il nodo component (i suoi pointer
+dichiarati). La granularità per-riga si ricava con l'**aritmetica dei
+path**: evento sotto la radice dell'iterate → residuo → primo segmento
+= label del child (quale blocco), resto = cosa è cambiato; id DOM =
+path del nodo component + label. Eventi strutturali con la stessa
+aritmetica. Meccanica da implementare nel filone RX.
+
+### CMP.8 — Componibilità frattale
+
+Component dentro component (normali/iterate, anche auto-ricorsivi su
+dati ad albero), senza limite: stesso dispatch del walk per le
+espansioni, datapath che si compongono attraverso i livelli,
+subscription solo sul component più esterno (correttezza minima =
+ri-rendi il blocco esterno). Terminazione data-driven; eventuale
+backstop a contatore da decidere all'implementazione.
+
+Complemento di selezione (master-detail, datapath variabile
+`datapath="^..."`): `roadmap/reactivity/variable-datapath.md`.
+
+---
+
+## Area RND — Renderer
+
+### RND.1 — Walk universale, dispatch per-nodo sul dialetto del nodo
+
+`RendererBase` offre il walk condiviso: per ogni nodo risolve
+`runtime_values` e produce il frammento via `rendered_item`. **Ogni
+fase per-nodo gira sul renderer del dialetto del nodo** (il `_builder`
+del nodo decide, anche a metà albero); la cache dei sub-renderer è per
+builder. `finalize(result, target, **opts)` compone e consuma il
+target (writeable/callable/path; `None` → ritorna). Gli `**opts`
+raggiungono walk e finalize. I dialetti object-based sovrascrivono la
+composizione.
+
+### RND.2 — Note di dialetto HTML
+
+- **Booleani nativi per presenza**: per gli attributi booleani HTML
+  (`disabled`, `checked`, ...) `True` → attributo nudo, `False` →
+  assente (così `disabled='^locked'` reattivo funziona); `data-*` e gli
+  altri attributi restano literal (`"true"`/`"false"`).
+- **Escape del valore `style`** al punto di immersione nel markup (non
+  nella normalizzazione).
+- **Unità CSS = responsabilità dell'autore**: il renderer è un
+  serializzatore, non un validatore CSS — niente auto-`px`, niente
+  controlli sui numerici.
+
+### RND.3 — CssRenderer legge gli attributi crudi
+
+Il CSS oggi non è reattivo: `CssRenderer` legge `node.attr` crudo
+(niente pointer/keyword). Quando il CSS diventerà reattivo, passerà a
+`runtime_values` come gli altri.
 
 ---
 
 ## Area RX — Reattività push
 
-### RX.1 — Livello 0 (`live()`) implementato; livelli successivi rinviati
+### RX.1 — `live()` è LA sezione critica di mutazione (Livello 0+)
 
-Il contratto **ammette** la reattività push (trigger, dispatcher,
-subscribe utente, resolver dependency-tracked). Il **Livello 0** è
-implementato; il dettaglio dei livelli successivi vive in
-`roadmap/reactivity/`, organizzato **per scenario d'uso** (S1-S7).
+Chi muta il documento (source o data) lo fa dentro
+`with handler.live():` — entrare = acquisire l'`RLock` dell'handler
+(prendere il lock = entrare nella sezione). Le sezioni di altri thread
+si accodano; la cascata reattiva gira **dentro** la sezione (stesso
+stack, nessuna ri-acquisizione). L'annidamento stesso-thread si
+**fonde** nella sezione esterna: una coda, un solo flush all'uscita
+esterna, `target` vietato alla sezione annidata (il target della
+sezione vince sul default registrato, per quella sezione sola).
 
-**Livello 0 — `handler.live(target)` (implementato).** Un context manager
-che apre una sezione critica in cui ogni mutazione su source o data scatena
-un **re-render totale** verso il target:
+**Coda di render unificata**: ogni evento source/data registra il path
+toccato per mount (`add_render_path(builder_name, path)`); fuori
+sezione non si accoda nulla (nessun flush in arrivo). Il flush rende
+ogni builder con almeno un nodo toccato. Al passo uno il flush fa un
+render totale per builder (`render_nodes` ignora la lista);
+`_optimize_render` è pass-through — render parziale per nodo e
+riduzione della lista sono il raffinamento successivo.
 
-```python
-with page.live("out.html"):
-    page.data["title"] = "Updated"   # → render automatico su out.html
-```
+Decoratore **`@live`** (esportato da `genro_builders.builder`): avvolge
+un metodo nella sezione (`self` handler, o `self.handler`).
 
-- Dentro il `with`, `_on_source_event` / `_on_data_event` chiamano
-  `render(target=self._live_target)` dopo aver mantenuto la `pointer_map`
-  (source) o eseguito il compute (data). Con `target` esplicito il render va
-  lì; senza, ricade sul target di default (`set_render_target`).
-- Fuori dal blocco l'handler resta **pull-only**: nessun auto-render.
-- La sezione è **sincrona** e serializzata da un `RLock`; la re-entry sullo
-  stesso thread è ammessa e lo stato del parent è ripristinato all'uscita.
-- Hook `on_live_enter` / `on_live_exit` (no-op di default; `on_live_exit`
-  gira anche se il corpo solleva, dal `finally`) per setup/teardown
-  per-sezione.
-- Richiede `_live_enabled` (acceso da `create()`, `HND.4` passo 6):
-  `live()` prima di `create()` solleva `RuntimeError`.
+Richiede Application + `activate()` (`HND.4`): senza, `RuntimeError`.
+**Vietato il live senza Application** — varrebbe come sezione che gira a
+vuoto (nessuna subscribe armata): anche i test passano dall'App.
 
-Il Livello 0 è un **compromesso esplicito** rispetto alla separazione
-SRC/DATA descritta in `RX.4`: fonde i due dispatch in un unico re-render
-totale; la granularità è obiettivo dei livelli successivi (inclusa la
-cascata fetta 2 dei data-element, `DAT.4`).
+### RX.2 — Il dispatcher push è capability del base
 
-### RX.2 — Il dispatcher push è capability del base, non solo async
-
-Il dispatcher push **non è esclusivo di una sottoclasse async**. È
-capability del base, perché lo scenario S3 (sync con derivazioni che si
-auto-risolvono durante `main()`) lo richiede. La sola differenza fra sync e
-async è lo **scheduling dei callback**: immediato nel writer thread (sync)
-vs schedulato nel loop (async).
+Non esclusivo di una sottoclasse async; la differenza sync/async è solo
+lo scheduling dei callback (immediato nel writer thread vs schedulato
+nel loop).
 
 ### RX.3 — Attivazione per handler
 
-La reattività è governata da un flag per handler, `_live_enabled`. Default
-**`False`**: l'handler nasce strutturale (S1/S2/S4); `create()` lo accende
-dopo aver armato le subscribe. Coerente col principio "nessun costo per chi
-non lo usa".
+`_live_enabled` default `False` (l'handler nasce strutturale); lo
+accende `activate()` dopo il primo render. Nessun costo per chi non usa
+la reattività.
 
 ### RX.4 — Organizzazione di `roadmap/reactivity/`
 
-Ogni scenario documenta: setup, garanzie del framework, responsabilità
-dello sviluppatore, caveat, esempio canonico. La separazione concettuale
-chiave (dall'analisi del legacy JS): **SourceDispatcher** (mutazioni della
-topology → mount/unmount/rebuild) e **DataDispatcher** (mutazioni di
-valore → aggiornamento proprietà) restano **macchine distinte** nei livelli
-con granularità, non fuse — il Livello 0 (`RX.1`) le fonde di proposito.
-
-**Specifica di dettaglio in lavorazione**: `roadmap/reactivity/contract.md`
-(Livello 0, `live()`) e `roadmap/reactivity/data-elements.md` (cascata dei
-data-element, fetta 2).
-
----
-
-## Area SUITE — Orchestratore multi-handler (in discussione)
-
-Livello 2 architettura: orchestratore di N handler con dati condivisi
-(caso guida: un report con più documenti eterogenei). Non formalizzato.
-Resta nel workspace di discussione `temp/subtask/builder_suite/` con
-domande aperte. Citato qui per dare orizzonte.
+SourceDispatcher (topology) e DataDispatcher (valori) restano macchine
+distinte nei livelli con granularità; il Livello 0 le fonde di
+proposito. Specifiche di dettaglio: `reactivity/contract.md`,
+`reactivity/data-elements.md`, `reactivity/variable-datapath.md`
+(visione: datapath variabile, master-detail, collection store).
 
 ---
 
 # PARTE III — DISCUSSIONI APERTE
 
-Restano aperte: tag custom in mixin separati — `requires` sulla pagina —
-manifest dei widget JS — `from_grammar` Python loader (companion del
-producer `to_grammar`, già implementato) — orchestratore multi-handler
-(= `SUITE`).
+Aperte:
 
-Chiuse (cite per memoria):
+- **Preset sì/no**: il pacchetto deve fornire pagine-preset pronte
+  (`HtmlPage`-style) o l'utente parte sempre da `HtmlBuilder` +
+  subclass? (Decide la riscrittura di README/docs.)
+- **`<domain>requires`** sulla pagina (`pyrequires` per i component,
+  js/css per il layer web) — da ricostruire sul modello attuale
+  (`CMP.6`).
+- **Component**: ancoraggio datapath nella forma `value=`; backstop
+  della ricorsione frattale (`CMP.8`).
+- **`format` v2**: maschere per dtype/locale col contratto di
+  formattazione cross-runtime (il legacy ha già il vocabolario,
+  `gnrformatter`).
+- **Application**: formalizzazione fine (`APP`).
+- **from_grammar** Python loader (companion di `to_grammar`).
 
-- `@struct_method` sull'handler — `schema_export` producer
-  (`BagBuilderBase.to_grammar(path)`, formato in
-  `src/genro_builders/builder/GRAMMAR_FORMAT.md`).
-- **Unicità/immutabilità `node_id`**: trattamento asimmetrico —
-  unicità = controllo attivo alla creazione (`_command_on_node`),
-  immutabilità = nessun controllo (developer adulto, walk stateless)
-  (`BAG.4`).
-- **`node_by_id` walk-based** senza indice mantenuto (`BAG.5`).
-- **Tassonomia pointer completa** (`DAT.2`).
-- **Punto di risoluzione pointer = walk del render** (`DAT.2`).
-- **Hot-swap** del payload sotto `["main"]` supportato e sicuro by design
-  (nessun leak grazie all'assenza di mappa, `BAG.5` + `HND.2`).
-- **Data-element come `@element` marcati**: niente decoratore autonomo, kind
-  dal `node_tag`, value del setter come attributo (`DAT.3`).
-- **Compute fetta 1**: esecutore unico, primo calcolo in `create()`,
-  `func` = `@staticmethod` per nome via `data_logic`, formula pura /
-  controller con node, singola ondata (`DAT.4`).
-- **Reattività push Livello 0** (`live()` context manager, re-render totale
-  verso target) implementata (`RX.1`).
+Chiuse (per memoria):
+
+- **SUITE dissolta** nel multibuilder handler (`HND.1`).
+- **Component reintrodotti** col design `CMP` (la rimozione v0.4 è
+  superata: l'asimmetria Python/JS è sciolta dal nodo nominato +
+  espansione effimera per interprete). Il ripiego v0.4 "tag custom JS
+  dichiarati per nome / manifest dei widget" è **assorbito**: il blocco
+  con logica client è un component con body JS (`CMP.1`), il tag nativo
+  opaco è un normale `@element` in un mixin (`BLD.1`).
+- **`@struct_method`** (zucchero, parità legacy); **`to_grammar`**
+  export.
+- **Unicità/immutabilità `node_id`** asimmetriche, per builder
+  (`BAG.4`/`PAG.5`).
+- **Registrazione alla lettura** (niente walk a priori; invariante del
+  primo render) (`DAT.2`).
+- **Template inputs per consumo** (non per prefisso) (`DAT.6`).
+- **Presentazione lato dati** col vocabolario legacy: `mask`/`_wdg`,
+  l'eccezione batte il default (`DAT.5`).
+- **Minimi di cardinalità: ricalcolo nel walk, mai stato memorizzato**
+  (`PAG.4`).
+- **Pensionamento `contrib/live`**: ws_live è la live app.
+- **No difensivo**: condizioni impossibili → errore esplicito; niente
+  fallback silenziosi; `getattr` difensivo solo su duck-typing di API
+  pubblica e oggetti di librerie terze.
 
 ---
 
 ## Riferimenti
 
-Contratto v0.7.0 prodotto e promosso in vigore il 2026-06-02 nella sessione
-Claude Code locale `fc44e7ee-ee56-4600-89f6-1bf5dcf2f5f3`, partendo dal
-contratto v0.6.0 (in vigore dal 2026-06-01, archiviato). Il bump riconcilia
-il contratto con lo stato del codice: data-element come `@element` marcati
-(`DAT.3`), compute dei data-element fetta 1 (`DAT.4`), reattività push
-Livello 0 (`RX.1`), `create()` in sei passi (`HND.4`).
+Bozza v0.8.0 prodotta il 2026-06-10 nella sessione Claude Code locale
+`a47d7ab4-be22-42aa-b2e9-bb0e198e6b40`, a valle del refactor
+multibuilder (2026-06-08/09), della sessione di audit e pulizia
+(2026-06-09/10) e della digressione di design dei component
+(2026-06-10). Versione precedente: v0.7.0 (2026-06-02, sessione
+`fc44e7ee-ee56-4600-89f6-1bf5dcf2f5f3`).
 
 Contesto:
 
-- `roadmap/outdated_versions/architecture-contract-v0.6.0.md` — versione
-  precedente.
 - `roadmap/CONTRACT_CHANGELOG.md` — diff logico tra versioni.
-- `roadmap/reactivity/contract.md`, `roadmap/reactivity/data-elements.md` —
-  specifiche di dettaglio della reattività.
-- `src/genro_builders/builder_handler.py`,
-  `src/genro_builders/builder_bag.py`,
-  `src/genro_builders/builder/base.py` — implementazione di riferimento.
-- Memorie: `feedback_no_fallback_no_silent_recovery`,
-  `feedback_use_existing_apis`, `feedback_cite_session_id_in_docs`,
-  `project_data_elements_model`, `project_data_logic_resolution`,
-  `project_reactive_macros_set_put_fire`.
+- `roadmap/component-design.md` — verbale D1-D10
+  dei component (confluito nell'area `CMP`).
+- `roadmap/reactivity/` — specifiche di dettaglio della reattività.
+- `src/genro_builders/builder/base.py`,
+  `src/genro_builders/builder/data_handler.py`,
+  `src/genro_builders/builder/source_bag.py`,
+  `src/genro_builders/renderer/base.py` — implementazione di
+  riferimento.

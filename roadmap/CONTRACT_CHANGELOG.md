@@ -5,8 +5,71 @@ recente è in testa. Il contratto in vigore descrive **lo stato d'arrivo**,
 pulito e autoconsistente; questo file racconta **come ci si è arrivati**.
 
 Le versioni superate vivono per intero in `roadmap/outdated_versions/`
-(`architecture-contract-v0.3.md` … `-v0.6.0.md`); ciascun header archiviato
-conserva il proprio "cosa cambia" storico.
+(`architecture-contract-v0.3.md` … `-v0.7.0.md`, più l'addendum renderer
+consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
+"cosa cambia" storico.
+
+---
+
+## v0.7.0 → v0.8.0 (2026-06-10)
+
+Bump **strutturale**: il refactor multibuilder (2026-06-08/09) ha spostato
+l'engine dall'handler al builder; il v0.8.0 riallinea il contratto e mette
+a verbale le decisioni della sessione di audit/pulizia e il design dei
+component. Consolida anche l'addendum renderer del 2026-06-03 (archiviato
+in `outdated_versions/contract-addendum-renderer-v0.7.md`).
+
+### Riorganizzato — aree
+
+- Nasce **`PAG`** (il builder come documento/pagina): `name` di mount sul
+  builder, source sotto `SOURCE_ROOT = "_root_"`, `create()` =
+  setup+main+primo calcolo, `render(mode, target, validate)` con minimi di
+  cardinalità nel walk, `node_by_id` per-builder, **`@slot(node_id)`**
+  promosso cittadino di prima classe (`PAG.6`, da implementare).
+- **`HND` ridefinita**: l'handler è la sorgente dati multibuilder
+  (`_dataroot` segmentato + `_` comune, `add_builder(*builders)` monta per
+  `builder.name`, `activate()`), non un engine, non si sottoclassa. I
+  **preset** (`HtmlBuilderHandler` & co.) escono dal contratto (non
+  esistono nel codice; "preset sì/no" è discussione aperta).
+- **`SUITE` eliminata**: dissolta nel multibuilder.
+- Nascono **`APP`** (Application: live presuppone App, da formalizzare),
+  **`CMP`** (component, design completo `roadmap/component-design.md`:
+  nodo nominato, espansione effimera a render-time, `iterate`/`value`,
+  nessuna validazione, reattività per aritmetica dei path, componibilità
+  frattale) e **`RND`** (walk universale, dispatch per-nodo sul dialetto
+  del nodo, confine subbuilder letterale, note HTML: booleani per
+  presenza, escape `style`, niente auto-px).
+- **Premessa**: i **tre scenari** (senza dati / con dati / con live)
+  sostituiscono S1-S7 come asse primario; messi a verbale **"mai runtime
+  misto"** (un linguaggio, due interpreti, golden test cross-runtime) e
+  **identità per path** (server autoritativo, id DOM = path del nodo).
+
+### Riconcettualizzato — pointer (`DAT.2`)
+
+La `pointer_map` non si popola più a priori (`register_pointer` in
+`create()` eliminato): **registrazione alla lettura** — `runtime_values`
+registra ogni `^` mentre lo legge, `=` non registra. Invariante: il primo
+render chiude l'avviamento (per questo `activate()` rende prima di armare
+la subscribe dei dati). Asimmetria: add = effetto del render, remove =
+azione esplicita su mutazione della source.
+
+### Aggiunto
+
+- **`DAT.5`** presentazione lato dati (`mask` col vocabolario legacy,
+  `_wdg` che vince sulla ricetta); **`DAT.6`** template inputs consumati.
+- **`BLD.4`** grammatica severa (`sub_tags` sconosciuto → `ValueError` a
+  definizione classe).
+- **`RX.1` riscritta**: `live()` è LA sezione critica di mutazione (RLock
+  preso da `live()`, annidamento stesso-thread fuso, coda di render per
+  mount con flush all'uscita esterna, decoratore `@live`); **vietato senza
+  Application** (anche per i test si passa dall'App).
+
+### Assorbito / chiuso
+
+- Il ripiego v0.4 "tag custom JS dichiarati per nome / manifest widget" è
+  assorbito da `CMP` (blocco con logica client = component con body JS;
+  tag nativo opaco = `@element` in mixin).
+- Pensionato `contrib/live` (ws_live è la live app).
 
 ---
 
