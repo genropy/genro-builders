@@ -363,6 +363,8 @@ class BuilderBase(
         self.data: Bag = Bag()
         # data-element logic sources, resolved lazily by ``data_logic``.
         self._data_logic: list[Any] | None = None
+        # Sub-builder instances, one per dialect name (see get_subbuilder).
+        self._subbuilders: dict[str, Any] = {}
 
     @property
     def renderer_xml(self) -> XmlRenderer:
@@ -404,16 +406,25 @@ class BuilderBase(
         return root
 
     def get_subbuilder(self, name: str) -> Any:
-        """Return a sub-builder instance by canonical name.
+        """Return THE sub-builder instance for ``name``, cached per host.
 
         Looks up the class in the global registry via
-        :meth:`get_builder_class` and instantiates it. Used when a
-        ``_meta['subbuilder']`` element switches the active dialect
-        mid-document (e.g. ``body.svg(...)`` inside HTML). The host's
-        handler is passed on so the sub-builder resolves pointers against
-        the same document data; it cascades to nested sub-builders.
+        :meth:`get_builder_class`, instantiates it once and memoises it
+        (the same pattern as the renderer cache: one instance per host
+        per dialect, so every ``<svg>`` subtree of the document shares
+        one ``SvgBuilder`` and the renderer cache keyed by
+        ``id(builder)`` serves them all with a single sub-renderer).
+        Used when a ``_meta['subbuilder']`` element switches the active
+        dialect mid-document (e.g. ``body.svg(...)`` inside HTML). The
+        host's handler is passed on so the sub-builder resolves pointers
+        against the same document data; it cascades to nested
+        sub-builders, and is re-synced on every hit so a host mounted
+        after a first bare render keeps the invariant.
         """
-        subbuilder = type(self).get_builder_class(name)()
+        subbuilder = self._subbuilders.get(name)
+        if subbuilder is None:
+            subbuilder = type(self).get_builder_class(name)()
+            self._subbuilders[name] = subbuilder
         subbuilder.handler = self.handler
         return subbuilder
 

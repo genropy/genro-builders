@@ -134,20 +134,22 @@ class _SourceBagNodeMixin:
         return self.root_builder.name
 
     def _check_unique_id(self, node_id: Any) -> None:
-        """Raise ValueError if ``node_id`` is already taken in this
-        builder's source space. No-op when ``node_id`` is None.
+        """Raise ValueError if ``node_id`` is already taken in the
+        document. No-op when ``node_id`` is None.
 
         Called before adding a child, so the candidate id is checked
-        against the existing tree only. Uniqueness scope is the active
-        builder (one node_id namespace per builder; a sub-builder keeps
-        its own).
+        against the existing tree only. Uniqueness is guaranteed by the
+        ROOT builder: one node_id namespace per document, sub-builder
+        subtrees included (the page-level ``node_by_id`` lookup and the
+        symbolic pointers cross dialect boundaries, so the practical
+        identity space is the document).
 
-        When the node has no builder resolved yet (off-line subtree built
-        via ``BuilderBase.new_root``), the check is a no-op.
+        When no root builder is reachable, the check is a no-op.
         """
         if node_id is None:
             return
-        builder = self._resolve_builder()
+        parent = self.parent_bag
+        builder = getattr(parent.root, "_builder", None) if parent is not None else None
         if builder is None:
             return
         try:

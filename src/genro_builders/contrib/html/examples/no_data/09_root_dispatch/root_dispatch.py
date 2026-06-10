@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""08 — Root dispatch: the root bag speaks the full grammar. See readme.md."""
+"""09 — Root dispatch: the root bag speaks the full grammar. See readme.md."""
 from __future__ import annotations
 
 from genro_builders.contrib.html import HtmlBuilder

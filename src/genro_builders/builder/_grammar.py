@@ -85,16 +85,20 @@ class _GrammarMixin:
             else:
                 node_value = args[0] if args else kwargs.get("node_value")
 
-            # node_id is a per-builder primary key: verify uniqueness at
-            # creation, whichever entry point creates the node.
+            # node_id is the document's primary key: uniqueness is
+            # guaranteed by the ROOT builder (one namespace per document,
+            # sub-builder subtrees included), whichever entry point and
+            # whichever dialect creates the node.
             node_id = kwargs.get("node_id")
             if node_id is not None:
-                try:
-                    self.node_by_id(node_id)
-                except KeyError:
-                    pass
-                else:
-                    raise ValueError(f"Duplicate node_id '{node_id}'.")
+                root_builder = getattr(destination_bag.root, "_builder", None)
+                if root_builder is not None:
+                    try:
+                        root_builder.node_by_id(node_id)
+                    except KeyError:
+                        pass
+                    else:
+                        raise ValueError(f"Duplicate node_id '{node_id}'.")
 
             # Validate original kwargs BEFORE the method call
             self._validate_call_args(info, node_value, kwargs)

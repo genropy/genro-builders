@@ -1,4 +1,4 @@
-# 08 — Root dispatch
+# 09 — Root dispatch
 
 The grammar API works on the **root bag** exactly as it works on any
 node. `main(self, root)` receives the source bag, and every element —
