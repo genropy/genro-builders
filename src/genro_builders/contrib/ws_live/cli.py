@@ -3,9 +3,9 @@
 
 Wires an ``AsgiServer`` with a single ``WsLiveApp`` mounted under the
 ``ws_live`` prefix and runs it. A page is served at
-``http://<host>:<port>/ws_live/page/<key>`` (e.g. ``.../page/colorpicker``);
-the first render arrives server-side, later mutations travel over the
-WebSocket.
+``http://<host>:<port>/ws_live/page/<key>`` (e.g. ``.../page/colorpicker``):
+the HTTP response is the fixed startup page (same for every key); the
+content arrives over the WebSocket (``main``), later mutations as patches.
 """
 
 from __future__ import annotations

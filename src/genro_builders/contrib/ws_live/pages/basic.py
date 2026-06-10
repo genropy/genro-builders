@@ -1,10 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Basic page: a heading and a paragraph bound to data under ``left.page``.
-
-The content lives under the ``left`` branch (the cornice gives the left
-pane ``datapath="left"``); a ``page`` div nests below it, so the page data
-is at ``left.page.title`` / ``left.page.message``.
-"""
+"""Basic page: a heading and a paragraph bound to data under ``page``."""
 
 from __future__ import annotations
 
@@ -14,14 +9,13 @@ PAGE_TITLE = "Basic page"
 
 
 class Page(WsLivePage):
-    """A heading and a paragraph, both bound to data under ``left.page``."""
+    """A heading and a paragraph, both bound to data under ``page``."""
 
     def setup(self, data):
-        self.set_data("left.page.title", "Hello")
-        self.set_data("left.page.message", "Scrivi codice Python nella REPL.")
+        self.set_data("page.title", "Hello")
+        self.set_data("page.message", "Scrivi codice Python nella REPL.")
 
     def main(self, root):
-        left_pane = self.cornice(root)
-        pane = left_pane.div(datapath=".page", node_id="page")
+        pane = root.div(datapath="page", node_id="page")
         pane.h1("^.title", node_id="h1")
         pane.p("^.message")

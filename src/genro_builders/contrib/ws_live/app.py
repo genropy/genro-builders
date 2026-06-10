@@ -1,17 +1,22 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""WsLiveApp — POC: server-side SPA, no out.html file, no iframe.
+"""WsLiveApp — server-side reactive SPA on the legacy page cycle.
 
-A page is a single HtmlBuilder (a WsLivePage): its ``main`` builds the SPA
-shell via ``self.cornice(root)`` and populates the left pane. The first
-render is server-side, returned by the ``page`` HTTP route as a full HTML
-string (first paint). Later mutations travel over the WebSocket: the
-``mutate`` WSX route applies the change inside ``handler.live()`` and
-returns the re-rendered HTML, which the JS client injects into the left
-pane. No file is written, no iframe is used.
+The cycle (the GenroPy one, refounded):
 
-HTTP and WebSocket are distinct connections. The GET render is one-shot
-(paint then discard); the WS keeps its own per-connection page instances in
-``ws.state`` (lazy-prepared on the first mutation that names a page).
+1. HTTP serves the SAME startup page for every page key: resource
+   links, an empty ``mainWindow``, the inline GenroClient.
+2. The client connects the websocket and calls ``main``: the server
+   prepares the live page (one builder + handler per connection, the
+   ``WsTargetWrapper`` as render target) and returns the rendered HTML
+   of the main div — the content's first paint.
+3. ``mutate`` applies a data change inside ``handler.live()``; the
+   flush delivers the patch batch to the wrapper (optimizer, component
+   lift and transparent-reader rules included), and the response
+   carries it. The client applies each patch by id.
+
+HTTP and WebSocket are distinct connections: the GET is stateless (the
+skeleton is a constant), the live instances belong to the websocket
+(``ws.state``).
 """
 
 from __future__ import annotations
@@ -26,6 +31,8 @@ from genro_routes import route
 from genro_builders.builder import BuilderHandler
 
 from . import pages
+from .startup_page import STARTUP_HTML
+from .target import WsTargetWrapper
 
 _PACKAGE_DIR = Path(__file__).parent
 
@@ -42,38 +49,20 @@ class WsLiveApp(AsgiApplication):
         """Discover the pages once: ``{key: (title, PageClass)}``."""
         self.pages = pages.discover()
 
-    def _prepare(self, key: str) -> Any:
-        """Instantiate and mount the page ``key`` on its own handler.
-
-        Returns the created builder. Each page is a single builder mounted
-        on its own ``BuilderHandler`` (this app is the application, so the
-        handler is reactive). ``add_builder`` runs ``create`` (setup + main
-        + first calculation); ``activate`` renders once and arms the data
-        subscribe (only this one builder, so it renders only this page).
-        """
-        title, page_class = self.pages[key]
-        builder = page_class()
-        handler = BuilderHandler(application=self)
-        handler.add_builder(builder)
-        handler.activate()
-        return builder
-
     # ------------------------------------------------------------------
-    # HTTP — serve the page shell (first paint, server-side render)
+    # HTTP — the startup page (one fixed skeleton for every page)
     # ------------------------------------------------------------------
 
     @route(meta_mime_type="text/html")
     def page(self, *args: str) -> str:
-        """Render a page to HTML (cornice + content). ``/<app>/page/<key>``.
+        """Serve the startup skeleton. ``/<app>/page/<key>``.
 
-        The page key is the first path segment after ``page`` (defaults to
-        the first discovered page). The builder is one-shot: it paints the
-        first view; the live instance is (re)prepared on the WS side.
+        Always the same document: the page key only parameterizes the
+        client bootstrap; the content arrives later over the websocket.
         """
         key = args[0] if args else next(iter(self.pages))
-        builder = self._prepare(key)
-        html = builder.render(target=False, include_datapath=True)
-        return "<!DOCTYPE html>\n" + html
+        title, _ = self.pages[key]
+        return STARTUP_HTML % {"page": key, "title": title}
 
     @route()
     def static(self, file: str = "") -> Path:
@@ -90,55 +79,60 @@ class WsLiveApp(AsgiApplication):
         return resource_path
 
     # ------------------------------------------------------------------
-    # WSX — mutate the live page (per-connection, lazy-prepared)
+    # WSX — the live page (per-connection, prepared on ``main``)
     # ------------------------------------------------------------------
 
-    @route()
-    def mutate(self, page: str = "", path: str = "", value: Any = None) -> dict[str, Any]:
-        """Apply a data mutation to the live page and return the patches.
+    def _prepare(self, key: str) -> Any:
+        """Instantiate and mount the page ``key`` on its own handler.
 
-        The live page instances live per-connection in ``ws.state.pages``,
-        keyed by page key; the first mutation naming a page prepares it.
-        The write runs inside ``handler.live()`` so the readers are queued;
-        the patches (one ``{id, html}`` per re-rendered node) are collected
-        inside the section — under the handler lock — so a concurrent mutate
-        cannot mix its own touched nodes into this one's queue. The JS client
-        swaps each node by id, leaving the focused input untouched.
+        One builder per page per connection, the ``WsTargetWrapper`` as
+        its render target (the wrapper rides on the builder as
+        ``ws_target``). ``activate`` renders once — the full content
+        lands in the wrapper — and arms the data subscribe.
         """
+        title, page_class = self.pages[key]
+        builder = page_class()
+        builder.ws_target = WsTargetWrapper()
+        builder.set_render_target(builder.ws_target)
+        handler = BuilderHandler(application=self)
+        handler.add_builder(builder)
+        handler.activate()
+        return builder
+
+    def _live_builder(self, key: str) -> Any:
+        """Return the connection's live builder for ``key`` (lazy)."""
         request = get_current_request()
         ws = request.websocket
         if "pages" not in ws.state:
             ws.state.pages = {}
         registry = ws.state.pages
-        builder = registry.get(page)
+        builder = registry.get(key)
         if builder is None:
-            builder = self._prepare(page)
-            registry[page] = builder
+            builder = self._prepare(key)
+            registry[key] = builder
+        return builder
+
+    @route()
+    def main(self, page: str = "") -> dict[str, Any]:
+        """First client call: the rendered HTML of the main div."""
+        key = page or next(iter(self.pages))
+        builder = self._live_builder(key)
+        return {"html": builder.ws_target.last_full}
+
+    @route()
+    def mutate(self, page: str = "", path: str = "", value: Any = None) -> dict[str, Any]:
+        """Apply a data mutation to the live page; respond with the patches.
+
+        The write runs inside ``handler.live()``: the flush delivers the
+        batch to the wrapper — optimizer, component lift and
+        transparent-reader rules included — and the response drains it.
+        The client applies each ``{id, op, html}`` by id.
+        """
+        builder = self._live_builder(page)
         handler = builder.handler
         with handler.live():
             handler.data.set_item(path, value)
-            patches = self._render_patches(builder, handler)
-        return {"ok": True, "patches": patches}
-
-    def _render_patches(self, builder: Any, handler: Any) -> list[dict[str, str]]:
-        """Render only the queued nodes into ``[{id, html}, ...]``.
-
-        Partial render (granularity "node"): for each path in the live
-        render queue, resolve the source node and render just that node;
-        the ``id`` is the builder-relative path, matching the ``id``
-        emitted in the DOM by ``include_datapath``.
-        """
-        renderer = type(builder).renderer_html.__get__(builder, type(builder))
-        patches: list[dict[str, str]] = []
-        for paths in handler._nodes_to_render.values():
-            for full in paths:
-                rel = full.split(".", 1)[1] if "." in full else full
-                node = builder.source.get_node(rel)
-                if node is None:
-                    continue
-                frag = renderer.render(node, include_datapath=True)
-                patches.append({"id": rel, "html": frag})
-        return patches
+        return {"ok": True, "patches": builder.ws_target.take()}
 
 
 if __name__ == "__main__":

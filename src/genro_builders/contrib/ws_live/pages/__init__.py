@@ -11,8 +11,7 @@ with:
 
     class Page(WsLivePage):
         def main(self, root):
-            left_pane = self.cornice(root)
-            ...
+            ...   # CONTENT only: the shell is the fixed startup page
 
 The module file name (without extension) becomes the page's key (its URL
 slug). ``discover()`` returns ``{key: (title, Page)}`` sorted by key.
