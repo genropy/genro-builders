@@ -320,9 +320,12 @@ dentro `live()` (il lock lo prende `live()`, l'Application non lo tocca
 mai), tutto sync. La reattività live **presuppone** un'Application
 (`activate()` arma la subscribe dei dati solo se presente).
 L'implementazione di riferimento attuale è `contrib/ws_live` (live app
-su websocket, script `genro-ws-live`). La formalizzazione fine
-dell'area (API, hook, multi-sessione) è rimandata a quando ws_live si
-stabilizza.
+su websocket, script `genro-ws-live`). Il design del livello
+applicativo — desktop a pane-iframe, registro delle pagine vive (il
+gnrdaemon dissolto dall'async), websocket unico master/satelliti con
+chiave di routing — è approvato in `roadmap/application-registry.md`
+(2026-06-10). La formalizzazione fine dell'area (API, hook,
+multi-sessione) è rimandata a quando ws_live si stabilizza.
 
 ---
 
