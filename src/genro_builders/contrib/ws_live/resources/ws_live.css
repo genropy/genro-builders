@@ -38,3 +38,9 @@ body::after {
   border: 6px solid;
   border-radius: 6px;
 }
+
+.clock {
+  font-family: "SF Mono", Consolas, monospace;
+  font-size: 48px;
+  letter-spacing: 2px;
+}
