@@ -384,11 +384,14 @@ class _GrammarMixin:
         """Whether ``node`` counts as a child for its parent's sub_tags check.
 
         Data-elements and subbuilders are structural: invisible to the
-        containment grammar. Everything else defers to
+        containment grammar. Components too (CMP.5: no placement
+        validation — where the caller puts them is the caller's
+        responsibility; the expansion is ephemeral and never validated).
+        Everything else defers to
         ``custom_require_sub_tag_validation``, the dialect hook.
         """
-        meta = node._get_meta("data_element,subbuilder")
-        if meta[0] or meta[1]:
+        meta = node._get_meta("data_element,subbuilder,component")
+        if meta[0] or meta[1] or meta[2]:
             return False
         return self.custom_require_sub_tag_validation(node)
 

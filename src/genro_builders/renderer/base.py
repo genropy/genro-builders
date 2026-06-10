@@ -149,6 +149,8 @@ class RendererBase:
         item, ra = node.builder.runtime_values(node)
         if node._get_meta("data_element"):
             return None
+        if node._get_meta("component"):
+            return self._render_component(node, ra, **opts)
         # Recompute the node's minimum-cardinality check on the fly (the
         # walk visits every node anyway, the count is cheap) instead of
         # trusting an annotation that a later child removal would have
@@ -165,6 +167,31 @@ class RendererBase:
         if isinstance(node.value, SourceBag):
             item = self.render_children(node.value, **opts)
         return renderer.rendered_item(node, item, ra, tag=tag, **opts)
+
+    def _render_component(self, node: Any, runtime_attrs: dict, **opts: Any) -> Any:
+        """Expand a component node and render the expansion in its place.
+
+        The source carries the component as a named node (the clean
+        recipe); the expansion is a render-time fact and is thrown away.
+        The body — kept callable on the builder class by ``@component`` —
+        receives a fresh throw-away root and builds the real structure
+        into it: exactly ONE tree (one root element), a forest raises.
+        The call's resolved attributes saturate the body's signature
+        (pointers already went through ``runtime_values``); the walk then
+        re-enters on the tree the body built, so dialect dispatch,
+        nested components and sub-builders apply as usual.
+        """
+        builder = node.builder
+        body = getattr(type(builder), node.node_tag).__get__(builder, type(builder))
+        root = builder._expansion_root()
+        body(root, **runtime_attrs)
+        roots = list(root.nodes)
+        if len(roots) != 1:
+            raise ValueError(
+                f"component '{node.node_tag}' must build a tree, not a "
+                f"forest: {len(roots)} root nodes",
+            )
+        return self.render(roots[0], **opts)
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
         """Render each node in ``nodes`` and collect the fragments.

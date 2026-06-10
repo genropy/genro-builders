@@ -405,6 +405,22 @@ class BuilderBase(
         root.set_backref()
         return root
 
+    def _expansion_root(self) -> SourceBag:
+        """Fresh throw-away root for a component expansion (CMP.2).
+
+        Same structural shape as the document source — a payload under
+        ``SOURCE_ROOT`` inside a wrapper: the wrapper is the transparent
+        throw-away container the design names (discarded with the whole
+        expansion, never an address), and the expansion nodes get real
+        fullpaths (pretty depth, future path arithmetic). Unlike
+        :meth:`new_root`, the result is not meant to be attached
+        anywhere: it is built, rendered and dropped.
+        """
+        wrapper = SourceBag(builder=self, handler=None)
+        wrapper[SOURCE_ROOT] = SourceBag(builder=self, handler=None)
+        wrapper.set_backref()
+        return wrapper[SOURCE_ROOT]
+
     def get_subbuilder(self, name: str) -> Any:
         """Return THE sub-builder instance for ``name``, cached per host.
 
