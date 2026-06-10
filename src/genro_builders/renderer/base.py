@@ -381,6 +381,11 @@ class RendererBase:
             result = "".join(result)
         if target is None:
             return result
+        full = getattr(target, "full", None)
+        if callable(full) and not callable(getattr(target, "write", None)):
+            # A TargetWrapper destination: deliver the total render.
+            full(result)
+            return None
         if isinstance(target, (str, Path)):
             path = Path(target)
             path.parent.mkdir(parents=True, exist_ok=True)

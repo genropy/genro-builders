@@ -41,6 +41,7 @@ from ._utilities import (
     _pop_decorated_methods,
 )
 from .source_bag import SourceBag
+from .target_wrapper import TargetWrapper
 
 # Template token spotted by ``runtime_values`` for ``${name}`` placeholders.
 _TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
@@ -825,6 +826,12 @@ class BuilderBase(
         """
         mode = mode or self._default_render_mode
         renderer = getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
+        effective_target = self._get_target(target, renderer)
+        if isinstance(effective_target, TargetWrapper):
+            # The destination dictates the form of every delivery (e.g. a
+            # patch consumer needs the DOM ids): its walk options are the
+            # base, the call's own opts win.
+            opts = {**effective_target.render_opts, **opts}
         result = renderer.render_children(renderer.preprocess(self.source), **opts)
         if validate and renderer.incomplete:
             problems = "\n".join(
@@ -832,16 +839,39 @@ class BuilderBase(
                 for path, missing in renderer.incomplete
             )
             raise ValueError(f"incomplete document:\n{problems}")
-        return renderer.finalize(result, self._get_target(target, renderer), **opts)
+        return renderer.finalize(result, effective_target, **opts)
 
-    def render_nodes(self, nodes: list, **opts: Any) -> Any:
+    def render_nodes(self, nodes: list, target: Any = None, **opts: Any) -> Any:
         """Render the touched nodes accumulated during a ``live`` section.
 
-        Step one: ignores the node list and does a full render of the whole
-        builder — partial render (one ``renderer.render(node)`` per node) is
-        a later refinement.
+        The destination decides the shape of the flush: a partial-capable
+        :class:`TargetWrapper` receives one batch of per-node patches
+        (``{"id": <source-relative path>, "op": "replace", "html":
+        fragment}`` — the id is the same string the reactive render emits
+        as DOM id), anything else gets a full render as before.
         """
-        return self.render(**opts)
+        mode = self._default_render_mode
+        renderer = getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
+        effective_target = self._get_target(target, renderer)
+        if not (
+            isinstance(effective_target, TargetWrapper)
+            and effective_target.accepts_partial
+        ):
+            return self.render(target=target, **opts)
+        opts = {**effective_target.render_opts, **opts}
+        patches = []
+        for path in nodes:
+            node = self.source.get_node(path)
+            if node is None:
+                raise ValueError(
+                    f"queued render path {path!r} is no longer in the source",
+                )
+            fragment = renderer.render(node, **opts)
+            if isinstance(fragment, list):
+                fragment = "".join(fragment)
+            patches.append({"id": path, "op": "replace", "html": fragment})
+        effective_target.partial(patches)
+        return None
 
     def _get_target(self, target: Any, renderer: Any) -> Any:
         """Resolve the render target for a render call.
