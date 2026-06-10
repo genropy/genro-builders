@@ -31,6 +31,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from genro_bag import Bag
+
 from ..builder.source_bag import SourceBag
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
@@ -183,42 +185,67 @@ class RendererBase:
         """
         builder = node.builder
         body = getattr(type(builder), node.node_tag).__get__(builder, type(builder))
-        # ``store`` is the data anchor, not a value: read it RAW from the
-        # node (runtime_values would resolve it to the record itself) and
-        # compose the segmentless path the wrapper carries as datapath.
-        # The resolved copy is dropped from the body's kwargs — machinery
-        # word, consumed. The component node's own '^store' pointer DID
-        # register in the pointer_map (CMP.7): when the record changes,
-        # the block re-renders.
+        # ``store``/``iterate`` are data anchors, not values: read RAW
+        # from the node (runtime_values would resolve them to the data
+        # itself) and compose the segmentless path the wrapper carries as
+        # datapath. The resolved copies are dropped from the body's
+        # kwargs — machinery words, consumed. The component node's own
+        # pointers DID register in the pointer_map (CMP.7): when the
+        # record (or the collection) changes, the block re-renders.
+        iterable = runtime_attrs.pop("iterate", None)
         runtime_attrs.pop("store", None)
-        anchor = node.attr.get("store")
-        if anchor is not None:
+        raw_anchor = node.attr.get("iterate") or node.attr.get("store")
+        anchor = None
+        if raw_anchor is not None:
+            anchor = raw_anchor
             if node.pointer_type(anchor):
                 anchor = anchor[1:]
             if anchor.startswith("."):
                 anchor = node._compose_relative_datapath(anchor, anchor)
-        root = builder._expansion_root(datapath=anchor)
-        body(root, **runtime_attrs)
-        roots = list(root.nodes)
-        if len(roots) != 1:
-            raise ValueError(
-                f"component '{node.node_tag}' must build a tree, not a "
-                f"forest: {len(roots)} root nodes",
+
+        def expand(*body_args: Any, **body_kwargs: Any) -> Any:
+            root = builder._expansion_root(datapath=anchor)
+            body(root, *body_args, **body_kwargs)
+            roots = list(root.nodes)
+            if len(roots) != 1:
+                raise ValueError(
+                    f"component '{node.node_tag}' must build a tree, not "
+                    f"a forest: {len(roots)} root nodes",
+                )
+            return self.render(roots[0], **opts)
+
+        if iterable is None:
+            return expand(**runtime_attrs)
+
+        # iterate: one expansion per child of the collection, each round
+        # gets ONLY the child's label (the body anchors its root with
+        # ``datapath='.' + node_label``, relative to the wrapper anchor).
+        if not isinstance(iterable, Bag):
+            raise TypeError(
+                f"component '{node.node_tag}': iterate must resolve to a "
+                f"Bag, got {type(iterable).__name__}",
             )
-        return self.render(roots[0], **opts)
+        return [expand(node_label=child.label) for child in iterable.nodes]
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
         """Render each node in ``nodes`` and collect the fragments.
 
         Transparent nodes (data-elements) render to ``None`` and are
         dropped, so the list holds only real fragments in the dialect's
-        output type.
+        output type. A node whose render returns a LIST (an iterate
+        component: N expansions for one source node) is flattened in
+        place — the N blocks compose exactly as N siblings would.
         """
-        return [
-            frag
-            for child in nodes
-            if (frag := self.render(child, **opts)) is not None
-        ]
+        fragments: list[Any] = []
+        for child in nodes:
+            frag = self.render(child, **opts)
+            if frag is None:
+                continue
+            if isinstance(frag, list):
+                fragments.extend(frag)
+            else:
+                fragments.append(frag)
+        return fragments
 
     def preprocess(self, source: Any) -> Any:
         """Normalize the source bag before the top-level walk.

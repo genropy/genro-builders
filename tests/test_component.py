@@ -57,6 +57,28 @@ def test_expansion_pointers_never_register():
     assert "p.rec.label" not in handler.pointer_map  # the expansion: nothing
 
 
+def test_iterate_must_resolve_to_a_bag():
+    from genro_builders.builder import BuilderHandler
+
+    class Components:
+        @component
+        def row(self, root, node_label=None):
+            root.div("^.x")
+
+    class Page(HtmlBuilder, Components):
+        def setup(self, data):
+            data.set_item("scalar", 42)
+
+        def main(self, root):
+            root.body().row(iterate="^scalar")
+
+    page = Page(name="p")
+    handler = BuilderHandler()
+    handler.add_builder(page)
+    with pytest.raises(TypeError, match="iterate must resolve to a Bag"):
+        page.render()
+
+
 def test_component_empty_expansion_raises():
     class Components:
         @component
