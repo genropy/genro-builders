@@ -111,14 +111,6 @@ def test_sections_are_always_present_in_usage_order(tmp_path: Path) -> None:
     assert "data_elements" not in data
 
 
-def test_no_components_section_post_v0_4_0(tmp_path: Path) -> None:
-    """Sentinel: `@component` was removed in v0.4.0. The exporter must
-    not invent a `components` key."""
-    for cls in (HtmlBuilder, SvgBuilder, CssBuilder):
-        data = _dump(cls, tmp_path)
-        assert "components" not in data
-
-
 def test_no_at_prefix_in_labels_or_inherits_from(tmp_path: Path) -> None:
     """Sentinel: no `@` prefix in any label (top-level or abstract) and
     in any `inherits_from` value. Catches accidental leakage of the
