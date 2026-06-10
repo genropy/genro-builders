@@ -44,7 +44,8 @@ class CustomPage(HtmlBuilder):
     def main(self, root):
         body = root.body()
         body.h1("Patch demo")
-        body.div("^name", style="^css")
+        card = body.div(style="^css")
+        card.span("^name")
 
 
 if __name__ == "__main__":
@@ -56,11 +57,19 @@ if __name__ == "__main__":
     handler.activate()                  # full render -> output.html
 
     with handler.live():
+        # One mutation: one patch, the span only.
         handler.data.set_item("main.name", "Martin")
 
     with handler.live():
-        handler.data.set_item("main.css", "color: blue")
+        # Two mutations on the SAME reader: exact dedup -> one patch.
+        handler.data.set_item("main.name", "Martin B.")
         handler.data.set_item("main.name", "Martin Blue")
+
+    with handler.live():
+        # Card (ancestor) and span (inside it) both touched: the
+        # ancestor's patch contains the descendant -> one patch.
+        handler.data.set_item("main.css", "color: blue")
+        handler.data.set_item("main.name", "Martin In Blue")
 
     print(Path("output.html").read_text())
     print(json.dumps(wrapper.batches, indent=2))

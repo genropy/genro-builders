@@ -30,11 +30,19 @@ consumes:
 ## What the artifacts show
 
 `output.html` is the initial full render; `patches.json` logs every
-batch. Note the second batch: two mutations on the SAME node produce
-two identical patches — correct (the equivalence with the full render
-holds, replace is idempotent) but wasteful. Removing that duplicate
-is the optimizer's job (`_optimize_render`: exact dedup, then
-ancestor-covers-descendant), the next step of this series.
+batch — and each one shows an optimizer property (`_optimize_render`):
+
+1. one mutation → ONE patch of the smallest unit (the `span`, not the
+   page);
+2. two mutations read by the SAME node → **exact dedup**, one patch
+   carrying the last value;
+3. ancestor (the card's style) and descendant (the name inside it)
+   both touched → **ancestor covers descendant**, one patch of the
+   card containing the fresh span.
+
+Density coalescing (N siblings → one parent patch) is a policy with a
+real trade-off (bytes and client state vs message count): deliberately
+absent until measured on real scenarios.
 
 ## The safety net
 

@@ -272,12 +272,31 @@ class BuilderHandler:
         self._nodes_to_render.setdefault(builder_name, []).append(path)
 
     def _optimize_render(self, nodes: list) -> list:
-        """Reduce the touched nodes to the minimal render set.
+        """Reduce the touched paths to the minimal render set.
 
-        Step one: pass-through (returns ``nodes`` unchanged). A later
-        refinement drops nodes covered by a queued ancestor and dedupes.
+        The two always-winning reductions, on the queued source-relative
+        paths:
+
+        - **exact dedup** — N mutations read by the same node queue the
+          same path N times; one patch suffices (order preserved, first
+          occurrence wins);
+        - **ancestor covers descendant** — rendering an ancestor includes
+          every descendant, so a queued path whose proper prefix is also
+          queued is dropped (zero extra bytes: the ancestor was going out
+          anyway).
+
+        Density coalescing (N siblings -> one parent patch) is a policy
+        with a real trade-off (bytes and client state vs message count):
+        deliberately NOT here until measured on real scenarios.
         """
-        return nodes
+        unique = list(dict.fromkeys(nodes))
+        return [
+            path for path in unique
+            if not any(
+                other != path and path.startswith(other + ".")
+                for other in unique
+            )
+        ]
 
     def _register_path(self, node: SourceBagNode, abs_path: str) -> None:
         """Register ``node`` as a reader of ``abs_path`` (read-time tracking).

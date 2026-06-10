@@ -1,21 +1,23 @@
 [
   [
     {
-      "id": "body.div_0",
+      "id": "body.div_0.span_0",
       "op": "replace",
-      "html": "<div style=\"color: red\" id=\"body.div_0\" data-style-pointer=\"main.css\">Martin</div>"
+      "html": "<span id=\"body.div_0.span_0\">Martin</span>"
+    }
+  ],
+  [
+    {
+      "id": "body.div_0.span_0",
+      "op": "replace",
+      "html": "<span id=\"body.div_0.span_0\">Martin Blue</span>"
     }
   ],
   [
     {
       "id": "body.div_0",
       "op": "replace",
-      "html": "<div style=\"color: blue\" id=\"body.div_0\" data-style-pointer=\"main.css\">Martin Blue</div>"
-    },
-    {
-      "id": "body.div_0",
-      "op": "replace",
-      "html": "<div style=\"color: blue\" id=\"body.div_0\" data-style-pointer=\"main.css\">Martin Blue</div>"
+      "html": "<div style=\"color: blue\" id=\"body.div_0\" data-style-pointer=\"main.css\"><span id=\"body.div_0.span_0\">Martin In Blue</span></div>"
     }
   ]
 ]

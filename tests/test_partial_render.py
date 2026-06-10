@@ -103,3 +103,48 @@ def test_full_only_wrapper_gets_the_whole_document():
         handler.data.set_item("p.name", "Martin")
     assert len(wrapper.full_docs) == n + 1          # flush = one full render
     assert "Martin" in wrapper.full_docs[-1]
+
+
+class _NestedPage(HtmlBuilder):
+    def setup(self, data):
+        data.set_item("name", "John")
+        data.set_item("css", "color: red")
+
+    def main(self, root):
+        card = root.body().div(style="^css")
+        card.span("^name")
+
+
+def _mounted_nested():
+    probe = _Probe()
+    page = _NestedPage(name="p")
+    page.set_render_target(probe)
+    handler = BuilderHandler(application=object())
+    handler.add_builder(page)
+    handler.activate()
+    return handler, page, probe
+
+
+def test_exact_dedup_one_patch_per_node():
+    """O1: N mutations read by the same node = ONE patch."""
+    handler, page, probe = _mounted()
+    with handler.live():
+        handler.data.set_item("p.name", "Martin")
+        handler.data.set_item("p.css", "color: blue")   # same reader node
+    assert len(probe.batches[-1]) == 1
+
+
+def test_ancestor_covers_descendant():
+    """O2: ancestor and descendant both queued -> the ancestor's patch
+    contains the descendant; one patch, equivalence intact."""
+    handler, page, probe = _mounted_nested()
+    before = probe.full_docs[-1]
+    with handler.live():
+        handler.data.set_item("p.css", "color: blue")   # the card (ancestor)
+        handler.data.set_item("p.name", "Martin")       # the span (inside)
+    batch = probe.batches[-1]
+    assert len(batch) == 1
+    assert batch[0]["id"].count(".") == 1               # body.div_0, the ancestor
+    patched = _apply_patches(before, batch)
+    fresh = page.render(target=False, include_datapath=True)
+    assert _canon(patched) == _canon(fresh)
