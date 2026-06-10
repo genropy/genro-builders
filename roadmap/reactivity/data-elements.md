@@ -1,9 +1,16 @@
 # Data elements — `data`, `data_formula`, `data_controller`
 
-**Version**: 0.2.0
-**Last Updated**: 2026-06-01
-**Status**: 🔴 DA REVISIONARE — primo render IMPLEMENTATO (commit `6dca55f`/`33826ee`);
-cascata su mutazione ancora da implementare; modello non ancora approvato
+**Version**: 0.2.1
+**Last Updated**: 2026-06-10
+**Status**: 🔴 DA REVISIONARE — fetta 1 (singola ondata) IMPLEMENTATA;
+cascata multi-ondata (fetta 2) ancora da implementare; modello non ancora
+approvato
+
+> **Nota 2026-06-10 (contratto v0.8.0)** — leggere con due aggiornamenti:
+> il compute vive sul **builder** (`compute_logic`; l'handler coordina la
+> cascata multi-builder via `execute_logic`), e la `pointer_map` si popola
+> **alla lettura** durante il render — il passo `register_pointer` a
+> priori citato più sotto non esiste più (`DAT.2` v0.8.0).
 
 > Documento di design dei tre data-element e del loro ciclo di esecuzione.
 > È il "documento separato sul dispatch" annunciato da `data-architecture.md`

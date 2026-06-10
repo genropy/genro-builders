@@ -1,9 +1,29 @@
 # Data architecture
 
-**Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; contenuto da rileggere contro `data_binding_slice0`.
+**Last Updated**: 2026-06-10
+**Status**: 🟡 APPROVATO PARZIALMENTE — path grammar, pointers, datapath,
+`abs_datapath`, errors and invariants still hold; the document-model and
+volume sections are superseded (see note below).
 **Audience**: Contributors writing or maintaining `genro-builders`,
 and users building applications on top of `BuilderHandler`.
+
+> **Realignment note (2026-06-10, contract v0.8.0)** — this document
+> predates the multibuilder refactor. Where it diverges, the contract
+> wins:
+> - **the document is the builder, not the handler** (`PAG`): `source`,
+>   `create`, `render` live on the builder; the handler is the segmented
+>   datastore that mounts N builders by name (`HND`);
+> - **volumes are datastore segments**, not a cross-handler registry:
+>   `volume:field` addresses another mounted builder's segment (or the
+>   shared `_`) inside the SAME handler; `register_volume` and the
+>   separate-handler `DataBuilder` pattern (§8 examples, §9) are
+>   superseded by mounting;
+> - `handler.source` does not exist; read `builder.source`. The examples
+>   naming `HtmlBuilderHandler`/`PdfBuilderHandler` describe the retired
+>   preset model.
+> Sections 3-7 and 10-12 (path grammar, pointers, datapath,
+> `abs_datapath`, symbolic pointers, errors, invariants) remain the
+> reference, read against the segmented datastore.
 
 This document is the companion of
 [architecture-contract.md](architecture-contract.md). The contract
@@ -375,16 +395,16 @@ Each topic above is a candidate for its own companion document.
 
 | Term | Meaning |
 |------|---------|
-| **handler** | A `BuilderHandler` instance — a document. Owns `source`, `data`, renderers and render targets (both mode-keyed). |
-| **data** | `handler.data`: the `Bag` that holds the live values of the document. |
-| **builder** | The grammar-only object (`handler.builder`). Defines tags, validation, render rules. |
-| **source** | The user's recipe, populated in `create`. |
+| **handler** | A `BuilderHandler` instance — the segmented datastore. Mounts builders by name (`add_builder`), owns `pointer_map` and the `live()` critical section. |
+| **data** | `handler.data`: the segmented datastore (`_dataroot`); `builder.data` is the mounted builder's own segment. |
+| **builder** | The grammar AND the document: defines tags, validation, render rules; owns `name`, `source`, `create`/`render`. |
+| **source** | The user's recipe (`builder.source`), populated in `create`. |
 | **path** | A string identifying a location in a data store, in one of five canonical forms. |
 | **pointer** | A `^path` string that references data. Resolved at render time. |
 | **datapath** | A node attribute that shifts the data context for descendants. Same grammar as the body of a pointer. |
 | **anchor** | The closest absolute `datapath` found while walking ancestors. Required to resolve a relative pointer. |
-| **volume** | A named reference to another handler's `data`, exposed via the handler's volume registry. |
-| **DataBuilder** | A handler dedicated to data ownership — schema + data, no renderer. |
+| **volume** | The leading segment of an absolute datastore path (`volume:field`): another mounted builder's segment, or the shared `_`. |
+| **DataBuilder** | Superseded: shared data lives in the `_` segment (or in a data-only builder mounted on the same handler). |
 | **node_id** | A source-side identifier used by symbolic pointers `^#id.x`. |
 | **`abs_datapath`** | The low-level primitive that converts any path form into an absolute string. Single resolver. |
 | **`get_relative_data` / `set_relative_data`** | The two application-level read/write entry points on a node. |

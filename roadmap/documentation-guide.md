@@ -1,7 +1,16 @@
 # Builders documentation guide
 
-**Last Updated**: 2026-05-30
-**Status**: 🟡 APPROVATO PARZIALMENTE — header bumped to v0.5.0; content to re-read.
+**Last Updated**: 2026-06-10
+**Status**: 🟡 APPROVATO PARZIALMENTE — style rules hold; the API shown in
+the templates predates contract v0.8.0 (see note).
+
+> **Realignment note (2026-06-10, contract v0.8.0)** — where templates
+> show the old API, write the current one instead: pages subclass the
+> **builder** (`class Hello(HtmlBuilder)` + `main`), not a
+> `<Name>BuilderHandler` preset (retired); render modes are
+> `builder.render(mode=...)` backed by `renderer_<mode>` properties —
+> there are no `render_<mode>()` shortcut methods; the "Compile" section
+> template is obsolete (no compiler in the current model).
 **Audience**: Contributors writing documentation for a specific
 grammar (HTML, SVG, CSS, ...) under `docs/grammars/<name>.md`,
 and contributors writing framework-wide documentation under

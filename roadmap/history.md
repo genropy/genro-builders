@@ -118,6 +118,38 @@ up:
 
 The term *restart* is retired in favour of *develop* / *blueprint*.
 
+### 16-30 May 2026 — Contract iterations v0.4 → v0.5
+
+Components removed as a grammar primitive (v0.4.0, decision dated 27
+April): the Python body was not portable to JS, forcing a "clean
+recipe vs expanded recipe" asymmetry. Python-side factoring falls to
+`@struct_method`; the JS side is left to name-declared custom tags
+(never formalized). Contracts v0.5/v0.6/v0.7 follow as
+reconciliation bumps (data binding slice 0, data-elements as marked
+`@element`, compute slice 1, push reactivity Level 0).
+
+### 8-9 June 2026 — Multibuilder refactor
+
+The engine moves from the handler to the builder: a page IS a
+builder (`name`, `source` under `_root_`, `create`/`render`);
+`BuilderHandler` becomes the segmented datastore mounting N builders
+by name (`add_builder`, `_` shared segment, `activate()`). The old
+single-builder handler is deleted; the suite-level orchestrator idea
+dissolves into the multibuilder. Read-time pointer registration
+replaces the a-priori `register_pointer` walk.
+
+### 10 June 2026 — Contract v0.8.0; components return
+
+Audit and cleanup session, then the v0.8.0 bump: new `PAG`/`HND`
+split, `live()` as the handler's mutation critical section
+(forbidden without an application), template inputs, `mask`/`_wdg`
+presentation, cardinality minima in the pre-render walk. The
+**component returns** with a new design that dissolves the v0.4
+asymmetry — named node in the source, ephemeral render-time
+expansion, one body per interpreter (`roadmap/component-design.md`);
+`@slot(node_id)` is promoted to first-class (to implement). The
+2026-04-27 drop is formally superseded.
+
 ## Worktree convention
 
 The repository is consumed locally through two roles:
@@ -176,8 +208,8 @@ distinct from the `readonly/` consultation slot.
 
 ## See also
 
-- `docs/architecture-contract.md` — the source of truth for the
-  twelve decisions (with dated renegotiation notes).
+- `architecture-contract.md` — the source of truth for the
+  architectural decisions (deltas in `CONTRACT_CHANGELOG.md`).
 - Branch `archive/2026-04-blueprint` (HEAD `14d1ebd`) — the frozen
   reference of the pre-restart prototype. The `archive/` directory
   inside that branch is itself a historical artefact: it was the

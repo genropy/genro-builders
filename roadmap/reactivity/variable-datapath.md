@@ -1,10 +1,28 @@
 # Datapath variabile, collection store e master-detail frattale
 
-**Versione**: 0.2.0
-**Ultimo aggiornamento**: 2026-06-06
+**Versione**: 0.2.1
+**Ultimo aggiornamento**: 2026-06-10
 **Status**: 🔴 DA REVISIONARE — documento di visione. La §11 (esito spike,
 registrazione alla lettura) è REALIZZATA e in develop (`45ec6a7`); il resto
 (datapath variabile, collection store, master-detail frattale) è ancora visione.
+
+> **Nota 2026-06-10** — il design dei component è stato deciso (contratto
+> v0.8.0 area `CMP`, verbale in `roadmap/component-design.md`) e SUPERA due
+> punti di questo documento:
+> - **§8.4**: la sintassi lì ipotizzata (`div(value='^path',
+>   iterate='component')`, component come stringa sul contenitore) è
+>   scartata — l'iterate vive sul nodo component
+>   (`pane.div().state_row(iterate='^.states')`), il contenitore è
+>   grammatica ordinaria;
+> - **§8.1 / §6**: `pyrequires` è morto col vecchio handler; il successore
+>   (famiglia `<domain>requires`) è discussione aperta del contratto
+>   (`CMP.6`).
+> I vincoli di non-preclusione della §9 trovano risposta nel design: la
+> regione-con-ancora è il nodo component stesso (che vive nella source);
+> i pointer delle espansioni non si registrano affatto (`CMP.7`).
+> Il resto del documento (datapath variabile, collection store,
+> master-detail frattale) resta visione valida e complementare:
+> iterate = replicazione, datapath variabile = selezione.
 
 Documento di **design dell'evoluzione futura** del data binding di
 genro-builders. Raccoglie la visione discussa: il *datapath variabile*

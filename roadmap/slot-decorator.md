@@ -1,14 +1,19 @@
 # `@slot(node_id)` — riempimento per id alla nascita del nodo
 
-**Version**: 0.1.0
-**Last Updated**: 2026-06-01
-**Status**: 🔴 DA REVISIONARE — modello concettuale, non ancora approvato né implementato
+**Version**: 0.2.0
+**Last Updated**: 2026-06-10
+**Status**: 🟢 APPROVATO — cittadino di prima classe, a contratto (`PAG.6`,
+v0.8.0). Implementazione da fare (gli agganci si fissano in fase TDD).
 
-> Meccanismo generico del core genro-builders. Un metodo dell'handler si
-> "abbona" a un `node_id`: quando durante la costruzione nasce un nodo con
-> quell'id, il framework lo invoca passandogli quel nodo. Documento di sola
-> teoria; gli agganci implementativi si fissano in fase TDD. Tutto è proposta
-> finché non approvato.
+> Meccanismo generico del core genro-builders. Un metodo della **pagina**
+> (il builder — il documento originale diceva "handler", scritto prima del
+> refactor multibuilder) si "abbona" a un `node_id`: quando durante la
+> costruzione nasce un nodo con quell'id, il framework lo invoca
+> passandogli quel nodo. Caso guida attuale: la cornice di
+> `contrib/ws_live` con header / pannello / footer da riempire
+> separatamente — con un solo punto basta l'override di `main`, con N
+> punti serve lo slot. Nel testo sotto, leggere "pagina (builder)" dove
+> compare "handler".
 
 ---
 

@@ -1,14 +1,16 @@
 # Application model — il contesto della reattività
 
-**Versione**: 0.1.0
-**Ultimo aggiornamento**: 2026-06-06
-**Status**: 🔴 DA REVISIONARE — documento di modello, non ancora approvato.
+**Versione**: 0.2.0
+**Ultimo aggiornamento**: 2026-06-10
+**Status**: 🟢 RECEPITO dal contratto v0.8.0 (area `APP`).
 
 Spiega cos'è l'**Application** in genro-builders, perché la reattività vive
-solo al suo interno, e come si usa in modo canonico (anche nei test).
+solo al suo interno, e come si usa in modo canonico (anche nei test: senza
+Application `live()` solleva — vietato il live "a vuoto").
 
-L'autorità sull'implementato resta `architecture-contract.md`; questo documento
-descrive un modello che il contratto recepirà nell'area APP.
+L'autorità sull'implementato resta `architecture-contract.md` (area `APP`);
+questo documento è il racconto esteso del modello. La formalizzazione fine
+(API, hook, multi-sessione) segue la stabilizzazione di `contrib/ws_live`.
 
 ---
 

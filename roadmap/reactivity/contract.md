@@ -1,10 +1,22 @@
 # Reactivity contract — Livello 0
 
 **Status**: 🔴 DA REVISIONARE — non ancora approvato dall'utente.
-**Versione**: 0.1.0 (specifica di dettaglio per area `RX` del
-contratto principale v0.5.0).
+**Versione**: 0.1.1 (specifica di dettaglio per area `RX` del
+contratto principale; scritta contro il v0.5.0).
 **Sostituisce**: niente (file nuovo).
 **Citato da**: `roadmap/architecture-contract.md`, sezione `RX.4`.
+
+> **Nota 2026-06-10 (contratto v0.8.0)** — il Livello 0 è implementato,
+> con tre evoluzioni rispetto a questa specifica. Dove divergono, vale
+> `RX.1` del contratto:
+> - `live()` è la **sezione critica di mutazione** dell'handler (RLock
+>   preso da `live()`, annidamento stesso-thread fuso, coda di render per
+>   mount con un solo flush all'uscita esterna, decoratore `@live`);
+> - **vietata senza Application**: `activate()` arma `_live_enabled` solo
+>   con un'application; `live()` altrimenti solleva;
+> - la `pointer_map` si popola **alla lettura** durante il render (niente
+>   `register_pointer` a priori in `create()`); per questo `activate()`
+>   rende prima di armare la subscribe dei dati.
 
 ## Contesto
 
