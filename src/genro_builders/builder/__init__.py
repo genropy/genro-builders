@@ -13,7 +13,7 @@ from ._decorators import (
 )
 from ._validators import Range, Regex
 from .base import BuilderBase
-from .data_handler import BuilderHandler
+from .data_handler import BuilderHandler, live
 from .source_bag import SourceBag, SourceBagNode
 
 __all__ = [
@@ -21,6 +21,7 @@ __all__ = [
     "SourceBag",
     "SourceBagNode",
     "BuilderHandler",
+    "live",
     "Range",
     "Regex",
     "abstract",

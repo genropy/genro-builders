@@ -38,17 +38,17 @@ def _reactive(*builders):
 def test_data_event_queues_mount_name_and_source_relative_path():
     page = _Page(name="page")
     handler = _reactive(page)
-    handler._nodes_to_render = {}
-    handler.data["page.counter"] = 99
-    assert handler._nodes_to_render == {"page": ["body.div_0"]}
+    with handler.live():
+        handler.data["page.counter"] = 99
+        assert handler._nodes_to_render == {"page": ["body.div_0"]}
 
 
 def test_source_event_queues_mount_name_and_source_relative_path():
     page = _Page(name="page")
     handler = _reactive(page)
-    handler._nodes_to_render = {}
-    page.node_by_id("d1").set_attr(title="x")
-    assert handler._nodes_to_render == {"page": ["body.div_0"]}
+    with handler.live():
+        page.node_by_id("d1").set_attr(title="x")
+        assert handler._nodes_to_render == {"page": ["body.div_0"]}
 
 
 def test_live_flush_renders_a_non_main_mount(tmp_path):
@@ -68,12 +68,12 @@ def test_shared_datum_queues_every_reader_under_its_own_mount_name():
     left = _SharedReader(name="left")
     right = _SharedReader(name="right")
     handler = _reactive(left, right)
-    handler._nodes_to_render = {}
-    handler.data["_.index"] = 1
-    assert handler._nodes_to_render == {
-        "left": ["body.div_0"],
-        "right": ["body.div_0"],
-    }
+    with handler.live():
+        handler.data["_.index"] = 1
+        assert handler._nodes_to_render == {
+            "left": ["body.div_0"],
+            "right": ["body.div_0"],
+        }
 
 
 def test_add_builder_rejects_duplicate_and_reserved_names():

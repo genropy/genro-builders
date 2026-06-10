@@ -15,6 +15,7 @@ The ``_`` segment is created up front as the shared/common space.
 """
 from __future__ import annotations
 
+import functools
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -38,16 +39,17 @@ class BuilderHandler:
         # Read-time pointer tracking: key = absolute data path, value =
         # {id(node): node}. Populated by _register_path during render.
         self.pointer_map: dict[str, dict[int, SourceBagNode]] = {}
-        # RX livello 0 — flag di abilitazione reattività: acceso dal PRIMO
-        # render (non da create()). Segna che l'avviamento è finito: la
-        # pointer_map è popolata (lettura a render time) e live() è permesso.
-        # live() lo esige (DR5): una pagina non resa non è reattiva.
+        # Armed by activate(): startup is over, the first render has
+        # populated the pointer_map. live() requires it — a page never
+        # rendered is not reactive yet.
         self._live_enabled: bool = False
-        # RX livello 0 — stato della sezione live (DR4/DR6/DR7). Privati,
-        # non parte dell'API: l'unico accesso pubblico è il context
-        # manager live(). Il lock serializza le sezioni (sync, re-entry).
+        # Live-section state. Private: the only public access is the
+        # live() context manager (and the @live method decorator). The
+        # RLock makes live() the handler's mutation critical section —
+        # sections from other threads queue up, same-thread nesting
+        # re-enters and merges into the outermost section (depth).
         self._live_target: Any = None
-        self._live_active: bool = False
+        self._live_depth: int = 0
         self._live_lock: threading.RLock = threading.RLock()
         # End-of-live render queue: builder name -> touched source nodes.
         self._nodes_to_render: dict[str, list] = {}
@@ -125,6 +127,7 @@ class BuilderHandler:
                 update=self._on_data_event,
                 delete=self._on_data_event,
             )
+        self._live_enabled = True
 
     def _on_data_event(
         self, node: SourceBagNode, evt: str, pathlist: list[str], **kw: Any,
@@ -178,29 +181,57 @@ class BuilderHandler:
 
     @contextmanager
     def live(self, target: Any = None) -> Iterator[BuilderHandler]:
-        """Open a section that batches mutations and renders on exit.
+        """The handler's mutation critical section: batch, then render.
 
-        Entering resets the render queue and marks the section active. Each
-        source mutation (handled on the builder) records its touched path
-        via :meth:`add_render_path`. On exit, every builder with at least
-        one touched node is rendered: the queued nodes pass through
-        :meth:`_optimize_render` and then ``builder.render_nodes(...)``.
+        Whoever mutates the document (source or data) does it inside
+        ``with handler.live():`` — entering acquires the handler's RLock,
+        so sections from other threads queue up and each one sees (and
+        flushes) a consistent state. The reactive cascade triggered by a
+        mutation runs synchronously inside the same section: no
+        re-acquisition involved.
+
+        Same-thread nesting re-enters the lock and MERGES into the
+        outermost section: one queue, one flush at the outermost exit
+        (an inner section cannot set a ``target``). Each source/data
+        event records its touched path via :meth:`add_render_path`; the
+        flush renders every builder with at least one touched node,
+        toward ``target`` when given (it wins over the registered
+        default for this section only).
+
+        Requires :meth:`activate` (RuntimeError otherwise): a page never
+        rendered has no pointer_map, nothing would react.
 
         Step one: ``_optimize_render`` is a pass-through and
         ``render_nodes`` does a full render — partial render is a later
-        refinement. The lock is held by the Application around this section,
-        not here.
+        refinement.
         """
-        self._nodes_to_render = {}
-        self._live_active = True
-        self._live_target = target
-        try:
-            yield self
-        finally:
-            self._live_active = False
-            for name, nodes in self._nodes_to_render.items():
-                if nodes:
-                    self.builders[name].render_nodes(self._optimize_render(nodes))
+        if not self._live_enabled:
+            raise RuntimeError(
+                "live() before activate(): the page has never been "
+                "rendered, nothing is reactive yet",
+            )
+        with self._live_lock:
+            if self._live_depth and target is not None:
+                raise ValueError("a nested live() section cannot set a target")
+            self._live_depth += 1
+            if self._live_depth == 1:
+                self._nodes_to_render = {}
+                self._live_target = target
+            try:
+                yield self
+            finally:
+                self._live_depth -= 1
+                if self._live_depth == 0:
+                    try:
+                        for name, nodes in self._nodes_to_render.items():
+                            if nodes:
+                                self.builders[name].render_nodes(
+                                    self._optimize_render(nodes),
+                                    target=self._live_target,
+                                )
+                    finally:
+                        self._nodes_to_render = {}
+                        self._live_target = None
 
     def add_render_path(self, builder_name: str, path: str) -> None:
         """Record a touched path for the end-of-live render.
@@ -210,7 +241,12 @@ class BuilderHandler:
         path (container for ins/del, the node for upd); a data event queues
         each reader's path. The end-of-live flush renders every builder
         whose queue is non-empty.
+
+        Outside a live section nothing is recorded: there is no flush
+        coming, queueing would only pile up work nobody consumes.
         """
+        if not self._live_depth:
+            return
         self._nodes_to_render.setdefault(builder_name, []).append(path)
 
     def _optimize_render(self, nodes: list) -> list:
@@ -302,3 +338,28 @@ class BuilderHandler:
                 seen.add(node_id)
                 grouped.setdefault(node.builder, []).append((kind, node))
         return grouped
+
+
+def live(func: Any) -> Any:
+    """Method decorator: the whole method is a live section.
+
+    Sugar over ``with handler.live():`` for methods that are mutation
+    entry points (a websocket message handler, an RPC). The handler is
+    found on the instance: ``self`` itself when the method lives on a
+    ``BuilderHandler``, ``self.handler`` otherwise (apps and builders
+    both carry one).
+
+        class WsLiveApp(...):
+            @live
+            def on_ws_message(self, path, value):
+                self.handler.data.set_item(path, value)
+
+    Use the context manager directly when the section must be narrower
+    than the method or needs a per-section ``target``.
+    """
+    @functools.wraps(func)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        handler = self if isinstance(self, BuilderHandler) else self.handler
+        with handler.live():
+            return func(self, *args, **kwargs)
+    return wrapper
