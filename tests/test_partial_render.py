@@ -148,3 +148,44 @@ def test_ancestor_covers_descendant():
     patched = _apply_patches(before, batch)
     fresh = page.render(target=False, include_datapath=True)
     assert _canon(patched) == _canon(fresh)
+
+
+def test_iterate_component_patch_is_applicable():
+    """A mutation inside an iterated collection must produce a patch the
+    reference applier can apply: the replacement unit of an iterate
+    component is its enclosing element (the caller's container), which
+    is a real DOM node with an id."""
+    from genro_builders.builder import component
+
+    class Components:
+        @component
+        def row(self, root, node_label=None):
+            tr = root.tr(datapath="." + node_label)
+            tr.td("^.sku")
+            tr.td("^.qty")
+
+    class Page(HtmlBuilder, Components):
+        def setup(self, data):
+            data.set_item("rows.r1.sku", "A")
+            data.set_item("rows.r1.qty", 2)
+            data.set_item("rows.r2.sku", "B")
+            data.set_item("rows.r2.qty", 5)
+
+        def main(self, root):
+            root.body().table().tbody().row(iterate="^rows")
+
+    probe = _Probe()
+    page = Page(name="p")
+    page.set_render_target(probe)
+    handler = BuilderHandler(application=object())
+    handler.add_builder(page)
+    handler.activate()
+    before = probe.full_docs[-1]
+
+    with handler.live():
+        handler.data.set_item("p.rows.r1.qty", 99)
+
+    patched = _apply_patches(before, probe.batches[-1])
+    fresh = page.render(target=False, include_datapath=True)
+    assert _canon(patched) == _canon(fresh)
+    assert "99" in patched

@@ -40,6 +40,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from genro_bag import Bag
+
 from ...renderer import RendererBase
 
 _VOID_TAGS = frozenset({
@@ -296,18 +298,29 @@ class HtmlRenderer(RendererBase):
         (``Bag.relative_path``) — unique by construction, stable while the
         structure does not change.
 
+        A node HOSTING a component child gets the id too: an iterate
+        component renders as N sibling blocks with no bounding element,
+        so its replacement unit is the enclosing element — which must
+        therefore be addressable.
+
         No-op when the node has no pointer (static node), or when an ``id``
         is already present (the author's id wins). Only emitted under
         ``include_datapath`` (the reactive render mode).
         """
         if "id" in runtime_attrs:
             return ""
-        if not node.pointers():
+        if not node.pointers() and not self._hosts_component(node):
             return ""
         path = node.root_builder.source.relative_path(node)
         if path is None:
             return ""
         return f' id="{self._html_attr_value(path)}"'
+
+    def _hosts_component(self, node: Any) -> bool:
+        """True when one of the node's children is a component node."""
+        if not isinstance(node.value, Bag):
+            return False
+        return any(child._get_meta("component") for child in node.value.nodes)
 
     def _datapath_attrs(self, node: Any) -> str:
         """Emit ``data-<name>-pointer`` for every pointer-bound attribute.

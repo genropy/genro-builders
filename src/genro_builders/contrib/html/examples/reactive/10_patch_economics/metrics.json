@@ -1,0 +1,54 @@
+[
+  {
+    "patches": [
+      {
+        "id": "body.h1_0",
+        "bytes": 38
+      }
+    ]
+  },
+  {
+    "patches": [
+      {
+        "id": "body.div_1",
+        "bytes": 47
+      },
+      {
+        "id": "body.table_0.tbody_0",
+        "bytes": 1962
+      }
+    ]
+  },
+  {
+    "patches": [
+      {
+        "id": "body.div_1",
+        "bytes": 47
+      },
+      {
+        "id": "body.table_0.tbody_0",
+        "bytes": 2009
+      }
+    ]
+  },
+  {
+    "patches": [
+      {
+        "id": "body.h1_0",
+        "bytes": 40
+      },
+      {
+        "id": "body.div_0",
+        "bytes": 36
+      },
+      {
+        "id": "body.div_1",
+        "bytes": 47
+      },
+      {
+        "id": "body.table_0.tbody_0",
+        "bytes": 2009
+      }
+    ]
+  }
+]

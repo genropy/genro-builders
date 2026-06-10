@@ -859,14 +859,46 @@ class BuilderBase(
         ):
             return self.render(target=target, **opts)
         opts = {**effective_target.render_opts, **opts}
-        patches = []
+        resolved: dict[str, Any] = {}
         for path in nodes:
             node = self.source.get_node(path)
             if node is None:
                 raise ValueError(
                     f"queued render path {path!r} is no longer in the source",
                 )
+            if node._get_meta("component"):
+                # An iterate component renders as N sibling blocks with no
+                # bounding element: its replacement unit is the enclosing
+                # element (the caller's container), a real DOM node with
+                # an id. A component sitting at the source root has no
+                # enclosing element — the whole document is the unit.
+                parent = node.parent_bag.parent_node
+                parent_path = (
+                    self.source.relative_path(parent)
+                    if parent is not None else None
+                )
+                if not parent_path:
+                    return self.render(target=target, **opts)
+                path, node = parent_path, parent
+            resolved.setdefault(path, node)
+        # The lift may have introduced duplicates or new ancestors: the
+        # same two reductions _optimize_render applies (exact dedup is the
+        # dict above; ancestor-covers-descendant here).
+        patches = []
+        for path, node in resolved.items():
+            covered = any(
+                other != path and path.startswith(other + ".")
+                for other in resolved
+            )
+            if covered:
+                continue
             fragment = renderer.render(node, **opts)
+            if fragment is None:
+                # A transparent reader (a data-element: e.g. a formula
+                # re-collected as reader of the mutated path) emits no
+                # markup; its EFFECT — the value it wrote — queued its
+                # own readers already.
+                continue
             if isinstance(fragment, list):
                 fragment = "".join(fragment)
             patches.append({"id": path, "op": "replace", "html": fragment})
