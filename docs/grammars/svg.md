@@ -1,7 +1,7 @@
 # SVG grammar
 
-**Last Updated**: 2026-05-30
-**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
+**Last Updated**: 2026-06-10
+**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0.
 **Maintainer**: core team.
 
 SVG 1.1 grammar. 56 elements covering shapes, paths, text,
@@ -17,10 +17,10 @@ attribute names where required).
 ## Quick start
 
 ```python
-from genro_builders.contrib.svg import SvgBuilderHandler
+from genro_builders.contrib.svg import SvgBuilder
 
 
-class Chart(SvgBuilderHandler):
+class Chart(SvgBuilder):
     def main(self, root):
         svg = root.svg(viewBox="0 0 100 100")
         svg.rect(x=10, y=10, width=80, height=80, fill="red")

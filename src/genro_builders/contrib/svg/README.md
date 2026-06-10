@@ -12,10 +12,10 @@ pip install genro-builders
 ## Quick start
 
 ```python
-from genro_builders.contrib.svg import SvgBuilderHandler
+from genro_builders.contrib.svg import SvgBuilder
 
 
-class Card(SvgBuilderHandler):
+class Card(SvgBuilder):
     def main(self, root):
         svg = root.svg(width=200, height=200, viewBox="0 0 200 200")
         svg.rect(x=10, y=10, width=80, height=80, fill="steelblue")
@@ -45,7 +45,7 @@ Sub-builder polymorphism: a `<svg>` tree can host HTML via
 so the SVG remains well-formed.
 
 ```python
-class Badge(SvgBuilderHandler):
+class Badge(SvgBuilder):
     def main(self, root):
         svg = root.svg(viewBox="0 0 200 80", width=200, height=80)
         svg.rect(x=0, y=0, width=200, height=80, fill="#2c3e50")

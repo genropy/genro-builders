@@ -16,10 +16,10 @@ pip install genro-builders
 ## Quick start
 
 ```python
-from genro_builders.contrib.css import CssBuilderHandler
+from genro_builders.contrib.css import CssBuilder
 
 
-class Theme(CssBuilderHandler):
+class Theme(CssBuilder):
     def main(self, root):
         s = root.selector(class_="card")
         s.rule(color="white", background_color="#3498db", padding="12px")
@@ -268,10 +268,10 @@ Validation is eager: malformed structured kwargs raise
 A complete handler demonstrating every level-1 feature:
 
 ```python
-from genro_builders.contrib.css import CssBuilderHandler
+from genro_builders.contrib.css import CssBuilder
 
 
-class Theme(CssBuilderHandler):
+class Theme(CssBuilder):
     def main(self, root):
         sheet = root.stylesheet()
 
@@ -321,7 +321,7 @@ a Jupyter notebook.
 ## Reverse: from CSS to Python
 
 `CssBuilder` ships a **reverse** facility that parses an existing
-CSS source and emits an equivalent `CssBuilderHandler` subclass. It
+CSS source and emits an equivalent `CssBuilder` subclass. It
 is meant for migrating legacy CSS into the builder model, or as a
 learning aid to see how a hand-written CSS file maps onto the
 grammar.
@@ -362,10 +362,10 @@ callable → invoke).
 ### What is emitted
 
 ```python
-from genro_builders.contrib.css import CssBuilderHandler
+from genro_builders.contrib.css import CssBuilder
 
 
-class ReversedCss(CssBuilderHandler):
+class ReversedCss(CssBuilder):
 
     def main(self, root):
         sheet = root.stylesheet()

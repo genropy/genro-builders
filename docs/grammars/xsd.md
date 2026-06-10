@@ -1,13 +1,15 @@
 # XSD dialects
 
-**Last Updated**: 2026-06-03
-**Status**: 🟢 APPROVATO — `XsdBuilderBase`/`XsdHandler` + two-class codegen landed 2026-06-03.
+**Last Updated**: 2026-06-10
+**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0 (XML core +
+builder-only codegen).
 **Maintainer**: core team.
 
-XSD support is a **codegen** pipeline plus two light base classes. Given
-an XSD schema, the codegen writes a self-contained Python module — a
-`<Dialect>Builder` + `<Dialect>Handler` pair — that you commit and import
-with no runtime dependency on the parser. On-the-wire format is XML.
+XSD support is a **codegen** pipeline (the transpiler) plus a light
+grammar base. Given an XSD schema, the transpiler writes a
+self-contained Python module — a `<Dialect>Builder` — that you commit
+and import with no runtime dependency on the parser. On-the-wire
+format is XML.
 
 ## Purpose
 
@@ -16,18 +18,21 @@ Turn an XML Schema into an ergonomic, validated builder grammar: one
 as `Literal`, bounded/patterned simple types as `Annotated[...]`. The
 schema itself remains the canonical conformance check — the grammar is an
 authoring aid (documents the schema, validates tag placement, helps
-editors), not a full XSD validator.
+editors), not a full XSD validator. The pre-render cardinality check
+(contract `PAG.4`) is the structural first net.
 
-## The two bases
+## The grammar base
 
 ```python
-from genro_builders.contrib.xsd.xsd_builder import XsdBuilderBase, XsdHandler
+from genro_builders.xml import XmlBuilderBase
 ```
 
-- `XsdBuilderBase(BuilderBase)` — grammar base for XSD-born dialects;
-  default render mode is `xml`.
-- `XsdHandler(BuilderHandler)` — engine preset; a concrete handler binds
-  `builder_class`.
+`XmlBuilderBase(BuilderBase)` — shared grammar base for the
+XML-on-the-wire dialects (XSLT and the schema-generated ones); default
+render mode is `xml`. The namespace-tag mechanism (`_meta`
+`ns`/`local`, `xmlns_<prefix>` attributes) lives on the core
+`XmlRenderer`. A generated dialect is an ordinary builder: subclass it
+for a page, or mount it on a `BuilderHandler` like any other.
 
 The XML render is the core's real `XmlRenderer` (pointers resolved,
 framework markers filtered) — see [HTML grammar](html.md) for the `xml`
@@ -38,10 +43,10 @@ mode vs. the raw `source.to_xml()` view.
 ```python
 from decimal import Decimal
 
-from genro_builders.contrib.xsd.examples.sitemap import SitemapHandler
+from genro_builders.xml.examples.sitemap import SitemapBuilder
 
 
-class MySitemap(SitemapHandler):
+class MySitemap(SitemapBuilder):
     def main(self, root):
         s = root.urlset()
         home = s.url()
@@ -52,36 +57,25 @@ class MySitemap(SitemapHandler):
 
 sm = MySitemap()
 sm.create()
-print(sm.render(mode="xml", pretty=True))
-```
-
-Output:
-
-```xml
-<urlset>
-  <url>
-    <loc>https://www.example.com/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
-</urlset>
+print(sm.render(pretty=True))
 ```
 
 ## Generating a dialect
 
 ```bash
-python -m genro_builders.contrib.xsd.codegen \
+python -m genro_builders.xml.transpiler \
     --xsd path/to/schema.xsd \
     --dialect-name MySchema \
     --output path/to/my_schema.py
 ```
 
 Requires the `[xsd]` extra (`xmlschema`), needed **only** to run the
-codegen. The generated module imports neither `xmlschema` nor the codegen.
+transpiler. The generated module imports neither `xmlschema` nor the
+transpiler.
 
 ## A starting base, to refine
 
-The codegen emits as builder grammar:
+The transpiler emits as builder grammar:
 
 - one `@element` per element (global + locally declared);
 - `sub_tags='a[1],b[0:],c[1:5]'` with explicit cardinalities;
@@ -100,8 +94,10 @@ It does **not** silently swallow what it cannot express — it surfaces it as
 
 ## Bundled examples
 
-- `examples/sitemap/` — small schema modelled on the public Sitemaps
+Under `src/genro_builders/xml/examples/`:
+
+- `sitemap/` — small schema modelled on the public Sitemaps
   protocol 0.9 (`urlset`/`url`, `changefreq` enum, `priority` range).
-- `examples/fatturapa/` — Italian PA electronic invoice
+- `fatturapa/` — Italian PA electronic invoice
   (`Schema_VFPA12_V1.2.3.xsd`); large real-world schema, several patterns
   commented out per the rule above.

@@ -1,7 +1,7 @@
 # Common patterns
 
-**Last Updated**: 2026-06-02
-**Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
+**Last Updated**: 2026-06-10
+**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0.
 
 Cross-grammar idioms. These work the same way on HTML, SVG, CSS, or
 any user-defined dialect built on `BuilderBase`.
@@ -9,8 +9,8 @@ any user-defined dialect built on `BuilderBase`.
 ## `._` chaining — climbing back to the parent
 
 Every node exposes a `_` attribute that returns the parent bag.
-This makes leaf elements (`<img>`, `<rect>`, `<br>`, `selector`,
-`cssvar`) easy to chain without breaking the call stream.
+This makes leaf elements (`<img>`, `<rect>`, `<br>`, `cssvar`) easy
+to chain without breaking the call stream.
 
 Every element call returns the newly created node. For leaves the
 node has no children, so chaining a sibling would otherwise require
@@ -21,9 +21,9 @@ asks to step back up.
 ### SVG
 
 ```python
-from genro_builders.contrib.svg import SvgBuilderHandler
+from genro_builders.contrib.svg import SvgBuilder
 
-class Chart(SvgBuilderHandler):
+class Chart(SvgBuilder):
     def main(self, root):
         svg = root.svg(viewBox="0 0 100 100")
         svg.rect(x=10, y=10, width=80, height=80, fill="red")\
@@ -31,37 +31,12 @@ class Chart(SvgBuilderHandler):
            ._.circle(cx=50, cy=50, r=10, fill="white")
 ```
 
-Output:
+Output (wrapped here for readability; the default render is one line):
 
 ```xml
-<svg viewBox="0 0 100 100">
-  <rect x="10" y="10" width="80" height="80" fill="red" />
-  <rect x="20" y="20" width="60" height="60" fill="blue" />
-  <circle cx="50" cy="50" r="10" fill="white" />
-</svg>
-```
-
-### CSS
-
-```python
-from genro_builders.contrib.css import CssBuilderHandler
-
-class Theme(CssBuilderHandler):
-    def main(self, root):
-        sheet = root.stylesheet()
-        sheet.rule(color="red")\
-             .selector(class_="card")\
-             ._.selector(class_="panel")\
-             ._.cssvar("primary", value="#3498db")
-```
-
-Output:
-
-```css
-.card, .panel {
-  color: red;
-  --primary: #3498db;
-}
+<svg viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" fill="red" />
+<rect x="20" y="20" width="60" height="60" fill="blue" />
+<circle cx="50" cy="50" r="10" fill="white" /></svg>
 ```
 
 ### When `._` is not needed
@@ -80,8 +55,8 @@ Use `._` only when a leaf node interrupts the chain.
 
 ## Render targets — where the output goes
 
-By default `handler.render()` returns the rendered string. You can
-also pass a target inline, or register one per mode in advance.
+By default `page.render()` returns the rendered string. You can also
+pass a target inline, or register one in advance.
 
 ### Inline target
 
@@ -99,21 +74,19 @@ page.render(target=lambda chunk: socket.send(chunk))
 
 ### Registered targets, one per mode
 
-For repeated rendering, register a target per mode once and let
-`render()` find it:
+For repeated rendering, register a target once and let `render()`
+find it. `set_render_target(target, mode=None)` registers under the
+dialect's default mode unless `mode` says otherwise:
 
 ```python
-page.set_render_target('html', 'out.html', default=True)
-page.set_render_target('xml',  'snapshot.xml')
+page.set_render_target("out.html")              # default mode (html)
+page.set_render_target("snapshot.xml", "xml")   # xml view
 
-page.render()              # default mode 'html', writes out.html
-page.render(mode='xml')    # writes snapshot.xml
-page.render(target=False)  # default mode 'html', returns the string
+page.render()              # default mode, writes out.html
+page.render(mode="xml")    # writes snapshot.xml
+page.render(target=False)  # default mode, returns the string
+print(page.rendered_target)  # read back the file just written
 ```
-
-`set_render_target(mode, target, default=False)` registers a target
-under a mode and optionally makes that mode the handler's default
-for subsequent plain `render()` calls.
 
 ### Target semantics
 
@@ -139,7 +112,9 @@ The renderer rejects any other type with `TypeError`.
 Assign a stable identifier to a node to retrieve it later:
 
 ```python
-class Page(HtmlBuilderHandler):
+from genro_builders.contrib.html import HtmlBuilder
+
+class Page(HtmlBuilder):
     def main(self, root):
         root.body().h1("Title", node_id="header")
 
@@ -148,8 +123,8 @@ page = Page(); page.create()
 source_h1 = page.node_by_id("header")
 ```
 
-`node_id` is unique per handler. Collisions raise `ValueError`
-during `create()`.
+`node_id` is unique **per builder**. Collisions raise during
+`create()`.
 
 The `node_by_id` lookup walks the source bag and stops at the first
 match. It is used internally to resolve symbolic pointers
@@ -158,14 +133,13 @@ match. It is used internally to resolve symbolic pointers
 ## Render modes
 
 A builder declares the modes it supports by exposing
-`renderer_<mode>` properties (e.g. `renderer_html` on `HtmlBuilder`,
-`renderer_xml` on `BuilderBase` so every dialect can serve
-`xml`). The handler dispatches via `mode`:
+`renderer_<mode>` properties (e.g. `renderer_html` on `HtmlBuilder`;
+`renderer_xml` and `renderer_yaml` on `BuilderBase`, so every dialect
+can serve those views). `render` dispatches via `mode`:
 
 ```python
-print(page.render())              # default mode (handler/builder default)
-print(page.render(mode="xml"))    # XML mode
-print(page.render(mode="html"))   # HTML mode
+print(page.render())              # dialect's default mode
+print(page.render(mode="xml"))    # XML view
 print(page.render(pretty=True))   # mode-specific kwarg
 ```
 

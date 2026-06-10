@@ -11,10 +11,10 @@ pip install genro-builders
 ## Quick start
 
 ```python
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class HelloPage(HtmlBuilderHandler):
+class HelloPage(HtmlBuilder):
     def main(self, root):
         body = root.body()
         body.div(class_="card").p("Hello, world!")
@@ -27,25 +27,35 @@ print(page.render())
 
 ## Runtime data binding (pull-based)
 
+A page that reads pointers mounts on a `BuilderHandler` (the data
+source); `setup` seeds the page's own data segment:
+
 ```python
-class Page(HtmlBuilderHandler):
+from genro_builders.builder import BuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
+
+
+class Page(HtmlBuilder):
+    def setup(self, data):
+        data.set_item("title", "Hello")
+
     def main(self, root):
         root.body().h1("^title")
 
 
 page = Page()
-page.create()
-page.data.set_item("title", "Hello")
+handler = BuilderHandler()
+handler.add_builder(page)   # mounts under page.name and creates
 print(page.render())
-# <body><h1>Hello</h1></body>
+# ...<h1>Hello</h1>...
 
 page.data.set_item("title", "Updated")
 print(page.render())
-# <body><h1>Updated</h1></body>
+# ...<h1>Updated</h1>...
 ```
 
-Push reactivity (`subscribe`/auto-render) is on the roadmap (`RX`);
-the pull-based slice above is the current contract.
+Push reactivity Level 0 (`handler.live()` with an application) is in;
+finer granularity is on the roadmap (`RX`).
 
 ## Examples
 
@@ -53,14 +63,15 @@ See [examples/](examples/). Each example is a folder with one page
 (`<name>.py`), its rendered output, and a `readme.md`. They are grouped
 by what the page needs:
 
-- **no_data/** — pages that are pure structure, no pointers, no handler:
-  `00_hello_world`, `01_inline_styling`, `02_nested_structure`,
-  `03_subbuilders`, `04_methods`, `05_struct_method`, `06_render_modes`,
-  `07_validation`.
+- **no_data/** — pages that are pure structure, no pointers, no handler.
 - **with_data/** — pages that bind to data via pointers (`^`/`=`,
-  data-elements). _(work in progress)_
+  datapath, presentation with `mask`/`_wdg`).
+- **with_logic/** — data-elements (`data_setter`/`data_formula`/
+  `data_controller`).
+- **reactive/** — live sections and reactive recompute.
 
-Run an example from its folder: `python <name>.py`.
+Run an example from its folder: `python <name>.py`. The test suite runs
+them all (`tests/test_examples.py`).
 
 ## Documentation
 

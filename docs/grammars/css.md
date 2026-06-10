@@ -1,7 +1,7 @@
 # CSS grammar (level 1)
 
-**Last Updated**: 2026-05-30
-**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
+**Last Updated**: 2026-06-10
+**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0 (renderer-side chain landed 2026-05-30).
 **Maintainer**: subtask `css_builder/` (closed 2026-05-12).
 
 CSS level 1 grammar. Covers rules, selectors, custom properties,
@@ -16,10 +16,10 @@ for serialization. Supports the round-trip via
 ## Quick start
 
 ```python
-from genro_builders.contrib.css import CssBuilderHandler
+from genro_builders.contrib.css import CssBuilder
 
 
-class Theme(CssBuilderHandler):
+class Theme(CssBuilder):
     def main(self, root):
         sheet = root.stylesheet()
         sheet.rule(color="red", padding="10px")\
@@ -114,7 +114,7 @@ python_code = CssBuilder.from_css_file("theme.css")
 ```
 
 The output is a complete Python module containing a
-`CssBuilderHandler` subclass whose `main(self, root)` rebuilds the
+`CssBuilder` subclass whose `main(self, root)` rebuilds the
 input.
 
 ## Render
@@ -125,7 +125,7 @@ because CSS needs top-level composition (cssvar grouping,
 renderer overrides `RendererBase.render(source, **opts)` with a
 top-level dispatch that calls into internal helpers
 (`_render_top_sequence`, `_render_top_node`, ...) and emits a
-stylesheet; `CssBuilderHandler.render` drives this whole-stylesheet
+stylesheet; `CssBuilder.render` drives this whole-stylesheet
 walk instead of the generic `render_children`. The result is still
 finalized through the standard `finalize` (a single method: it joins
 the fragments and consumes the target).

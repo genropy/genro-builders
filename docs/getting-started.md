@@ -1,7 +1,7 @@
 # Getting started
 
-**Last Updated**: 2026-06-02
-**Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
+**Last Updated**: 2026-06-10
+**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0.
 
 Build a first page in five minutes.
 
@@ -13,14 +13,14 @@ pip install genro-builders
 
 ## A first HTML page
 
-Define a handler subclass, implement `main(self, root)`, run the
-two-phase lifecycle (`create()` then `render()`).
+A page is a builder: subclass the dialect, implement `main(self,
+root)`, run the two-phase lifecycle (`create()` then `render()`).
 
 ```python
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class HelloPage(HtmlBuilderHandler):
+class HelloPage(HtmlBuilder):
     def main(self, root):
         body = root.body()
         body.h1("Hello, world")
@@ -46,22 +46,24 @@ print(page.render(pretty=True))
 
 ## What just happened
 
-- `HelloPage()` instantiates the handler. The handler owns a builder
-  (`HtmlBuilder`), a source bag, and a renderer.
-- `page.create()` calls `self.main(self.source)`. You populate the
-  source bag using the dialect's fluent API.
-- `page.render()` walks the source bag and emits markup.
+- `HelloPage()` instantiates the builder: grammar plus document
+  (`source` bag, render lifecycle).
+- `page.create()` calls `setup(self.data)` then `main(self.source)`.
+  You populate the source bag using the dialect's fluent API.
+- `page.render()` walks the source bag and emits markup. Renderers
+  are `renderer_<mode>` properties on the builder class.
 
-See [Builders overview](builders/overview.md) for the full lifecycle.
+See [Builders overview](builders/overview.md) for the full lifecycle,
+including the data-bound scenario (`BuilderHandler`).
 
 ## SVG and CSS
 
 Same pattern, different grammar:
 
 ```python
-from genro_builders.contrib.svg import SvgBuilderHandler
+from genro_builders.contrib.svg import SvgBuilder
 
-class Chart(SvgBuilderHandler):
+class Chart(SvgBuilder):
     def main(self, root):
         svg = root.svg(viewBox="0 0 100 100")
         svg.rect(x=10, y=10, width=80, height=80, fill="red")
@@ -71,13 +73,13 @@ print(c.render())
 ```
 
 ```python
-from genro_builders.contrib.css import CssBuilderHandler
+from genro_builders.contrib.css import CssBuilder
 
-class Theme(CssBuilderHandler):
+class Theme(CssBuilder):
     def main(self, root):
         sheet = root.stylesheet()
-        sheet.rule(color="red", padding="10px")\
-             .selector(class_="card")
+        card = sheet.selector(class_="card")
+        card.rule(color="red", padding="10px")
 
 t = Theme(); t.create()
 print(t.render())

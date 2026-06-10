@@ -1,7 +1,7 @@
 # HTML grammar
 
-**Last Updated**: 2026-05-30
-**Status**: 🟢 APPROVATO — allineato al contratto v0.5.0 (renderer-side chain landed 2026-05-30).
+**Last Updated**: 2026-06-10
+**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0 (renderer-side chain landed 2026-05-30).
 **Maintainer**: core team.
 
 HTML5 grammar originally derived from the W3C schema. 113 elements,
@@ -17,10 +17,10 @@ the CSS-kwarg machinery for inline styling.
 ## Quick start
 
 ```python
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class Page(HtmlBuilderHandler):
+class Page(HtmlBuilder):
     def main(self, root):
         root.html().head().title("Hello")
         body = root.html().body()
@@ -122,7 +122,7 @@ See [../builders/patterns.md](../builders/patterns.md).
 and `HtmlRenderer.rendered_item(node, item, runtime_attrs, **opts)`
 emits the fragment for each node.
 
-Mode-specific kwargs available at `handler.render(...)`:
+Mode-specific kwargs available at `page.render(...)`:
 
 | Kwarg | Default | Effect |
 |-------|---------|--------|
@@ -133,7 +133,7 @@ The `xml` mode is inherited from `BuilderBase.renderer_xml`. It is a
 real render — it rides the universal walk, so pointers are resolved and
 framework markers (`node_id`, …) are filtered out, exactly like the
 `html` render. For the raw structural view of the source (markers and
-unresolved pointers shown verbatim) call `handler.source.to_xml()` on
+unresolved pointers shown verbatim) call `page.source.to_xml()` on
 the bag directly: that is a different thing from `render(mode="xml")`.
 
 ## Validation rules
@@ -153,7 +153,7 @@ Three ready-to-run examples live under
 [../../src/genro_builders/contrib/html/examples/](../../src/genro_builders/contrib/html/examples/),
 each in the three-view format (`.py`, `.ipynb`, rendered `.html`):
 
-- `01_introduction/` — minimal HtmlBuilderHandler page.
+- `00_hello_world/` and following — see `examples/no_data/`.
 - `02_inline_styling/` — CSS kwarg machinery, macros, escape
   syntax.
 - `03_subbuilders/` — HTML hosting SVG and SVG hosting HTML via

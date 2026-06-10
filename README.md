@@ -12,11 +12,13 @@ pip install genro-builders
 
 ## Quick start
 
+A page is a builder: subclass the dialect and implement `main`.
+
 ```python
-from genro_builders.contrib.html import HtmlBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class HelloPage(HtmlBuilderHandler):
+class HelloPage(HtmlBuilder):
     def main(self, root):
         body = root.body()
         body.h1("Hello World")
@@ -25,45 +27,48 @@ class HelloPage(HtmlBuilderHandler):
 
 page = HelloPage()
 page.create()
-print(page.render())
+print(page.render(pretty=True))
 ```
 
-The lifecycle is two-phase:
+The lifecycle is two-phase, both on the builder:
 
-- **`create()`** invokes the user-defined `main(self, source)` that
-  populates the source Bag through the dialect's grammar API.
-- **`render(mode=None, target=None, **opts)`** drives the universal
-  walk on the source and produces the dialect's output. Default
-  `mode` comes from the handler or the builder; default `target`
-  returns the string.
+- **`create()`** runs `setup(self.data)` (seed the data), then the
+  user-defined `main(self.source)` that populates the source Bag
+  through the dialect's grammar API, then the first calculation of
+  the data-elements.
+- **`render(mode=None, target=None, validate=True, **opts)`** drives
+  the universal walk on the source and produces the dialect's output.
+  Default `mode` comes from the dialect; default `target` returns the
+  string. The walk also checks minimum child cardinality
+  (`validate=False` deliberately emits a partial document).
 
 ## Dialects (contrib)
 
-The package ships with four reference dialects, each as a
-`<Dialect>BuilderHandler` pre-bound to its grammar:
+The package ships with reference dialects, each as a `<Dialect>Builder`
+grammar:
 
-- **HTML5** — `genro_builders.contrib.html.HtmlBuilderHandler`
-  (HTML5 grammar with CSS kwargs and Genro macros)
-- **SVG** — `genro_builders.contrib.svg.SvgBuilderHandler`
-- **CSS** — `genro_builders.contrib.css.CssBuilderHandler`
-- **XSD** — `genro_builders.contrib.xsd` (codegen, schema-only)
+- **HTML5** — `genro_builders.contrib.html.HtmlBuilder`
+  (HTML5 grammar with CSS kwargs)
+- **SVG** — `genro_builders.contrib.svg.SvgBuilder`
+- **CSS** — `genro_builders.contrib.css.CssBuilder`
+- **XSD** — `genro_builders.xml` (codegen: an XSD schema becomes a
+  `<Dialect>Builder` you commit and import)
 
-Mixed-dialect documents are supported via sub-builder polymorphism:
-attach a different dialect under a node and the render walk picks
-the right renderer per builder. The standard SVG-hosting-HTML case
-wraps the HTML subtree in `<foreignObject xmlns="...">` automatically.
+Mixed-dialect documents are supported via sub-builders: a grammar
+element marked `_meta['subbuilder']` switches the active dialect from
+that node down, and the render walk picks the right renderer per node.
+HTML hosts SVG with `body.svg(...)`; SVG hosts HTML with
+`svg.html(...)`, wrapped in `<foreignObject>` automatically.
 
 ```python
-from genro_builders.contrib.svg import SvgBuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
 
 
-class Badge(SvgBuilderHandler):
+class Badge(HtmlBuilder):
     def main(self, root):
-        svg = root.svg(viewBox="0 0 200 80", width=200, height=80)
+        body = root.body()
+        svg = body.svg(viewBox="0 0 200 80", width=200, height=80)
         svg.rect(x=0, y=0, width=200, height=80, fill="#2c3e50")
-        # HTML subtree wrapped in <foreignObject> by the renderer.
-        fo = svg.html(x=20, y=20, width=160, height=40)
-        fo.div("Mixed content", style="color: white")
 
 
 page = Badge()
@@ -74,62 +79,67 @@ print(page.render())
 ## Architecture (one-paragraph map)
 
 A **builder** declares the grammar of a dialect (decorators
-`@element`, `@abstract`, `@subbuilder`; the three data-elements
-`data_setter` / `data_formula` / `data_controller` are plain
-`@element` marked as data) and exposes its renderers as
-`renderer_<mode>` properties. A **handler** drives
-the lifecycle for a single builder instance: it owns the source bag,
-the data bag, the pointer map and the render target registry. A
-**renderer** is responsible for one mode: the universal walk on
-`RendererBase.render` produces fragments via dialect-specific
-`rendered_item(node, item, runtime_attrs, **opts)`, then `finalize`
-ships the result to the target.
+`@element`, `@abstract`; the three data-elements `data_setter` /
+`data_formula` / `data_controller` are plain `@element` marked as
+data) and is also the document: it owns `name`, `source`,
+`create()`/`render()`, and exposes its renderers as `renderer_<mode>`
+properties. A **handler** (`BuilderHandler`) is the data source: one
+segmented datastore that mounts N builders by name (`add_builder`),
+hands each its own data segment (`_` is the shared one), tracks who
+reads what (`pointer_map`) and owns the `live()` mutation section. A
+**renderer** is responsible for one mode: the universal walk produces
+fragments via dialect-specific `rendered_item`, then `finalize` ships
+the result to the target.
 
 ## Runtime data binding (pull-based)
 
-Attribute values and node text can carry pointers and templates that
-are resolved at render time, on the node itself:
+Attribute values and node text can carry pointers and templates,
+resolved at render time:
 
-- `^path` — lazy pointer (re-evaluated on every read)
-- `=path` — eager pointer (resolved once, value cached)
-- `${name}` — template token inside a string attribute or node value
+- `^path` — reactive pointer (read and subscribed)
+- `=path` — passive pointer (read only)
+- `${name}` — template token; an attribute referenced by a template
+  of the same node is a consumed input, never emitted
 
 ```python
-class Page(HtmlBuilderHandler):
+from genro_builders.builder import BuilderHandler
+from genro_builders.contrib.html import HtmlBuilder
+
+
+class Page(HtmlBuilder):
+    def setup(self, data):
+        data.set_item("greeting", "Hello")
+
     def main(self, root):
-        # The value '^greeting' is resolved at render time.
         root.body().h1("^greeting")
 
 
 page = Page()
-page.create()
-page.data.set_item("greeting", "Hello")
+handler = BuilderHandler()
+handler.add_builder(page)      # mounts under page.name and creates
 print(page.render())
-# <body><h1>Hello</h1></body>
+# ...<h1>Hello</h1>...
 
-# Mutate the data bag and re-render: pull-based, no auto-render yet.
+# Mutate the data and re-render: pull-based, no auto-render.
 page.data.set_item("greeting", "Ciao")
 print(page.render())
-# <body><h1>Ciao</h1></body>
+# ...<h1>Ciao</h1>...
 ```
 
-Push reactivity has a first level: inside a `with page.live(target):`
-section every data/source mutation triggers a full re-render to the
-target (contract `RX.1`). Finer-grained reactivity (data-element
-cascade, per-attribute updates) is on the roadmap (`RX`).
+Push reactivity has a first level: with an application,
+`handler.activate()` arms the subscriptions, and inside a
+`with handler.live():` section every mutation queues a render flushed
+at the section exit (contract `RX.1`). Without an application,
+`live()` raises. Finer granularity is on the roadmap (`RX`).
 
-The companion API on each node:
+The companion API on each source node:
 
-- `node.runtime_values()` — return `(value, attrs)` after pointer
-  and template resolution
 - `node.abs_datapath(path)` — turn a relative path into an absolute
-  one in the data bag
-- `node.get_relative_data(path, autocreate=False, default=None)` —
-  read from the data bag
-- `node.set_relative_data(path, value, attributes=None, fired=False,
-  reason=None)` — write to the data bag
-- `node.fire_event(path, value=True, ...)` — shortcut for
-  `set_relative_data(..., fired=True)`
+  one in the datastore
+- `node.get_relative_data(path)` / `node.set_relative_data(path,
+  value)` — read/write the datastore relative to the node
+- `node.SET / GET / PUT / FIRE` — the reactive macros over the same
+  two entry points
 
 ## Render target
 
@@ -140,41 +150,41 @@ page.create()
 # Return a string (default)
 text = page.render()
 
-# Write to a path (parent dirs created)
+# Write to a path
 page.render(target="out.html")
 
-# Push to a file-like
+# Push to a file-like or invoke a callable
 import io
-buf = io.StringIO()
-page.render(target=buf)
-
-# Invoke a callable
+page.render(target=io.StringIO())
 page.render(target=print)
 
-# Register a default target per mode
-page.set_render_target("html", "out.html", default=True)
+# Register a default target (per mode), then render to it
+page.set_render_target("out.html")
 page.render()
 ```
 
 ## Examples
 
 Runnable tutorials under
-[`src/genro_builders/contrib/<dialect>/examples/`](src/genro_builders/contrib/):
+[`src/genro_builders/contrib/<dialect>/examples/`](src/genro_builders/contrib/),
+grouped by scenario:
 
-- HTML — `01_introduction`, `02_inline_styling`, `03_subbuilders`
-- SVG — `01_introduction` ... `06_*`, plus `badge_sheet`
+- HTML — `no_data/` (grammar, styling, sub-builders, validation,
+  render modes), `with_data/` (pointers, datapath, presentation),
+  `with_logic/` (data-elements), `reactive/` (live sections)
+- SVG — `01_introduction`, `badge_sheet`, `bar_chart`, and more
 - CSS — `01_introduction`
 
-Each example ships three views: a runnable `.py`, an annotated
-notebook `.ipynb`, and the resulting `.html` output.
+Each example ships a runnable `.py`, a `readme.md`, and the rendered
+output. The test suite runs them all (`tests/test_examples.py`).
 
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) — first page in 5 minutes
-- [Builders overview](docs/builders/overview.md) — handler/builder/renderer split
-- [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, `@subbuilder`, and the data-elements
+- [Builders overview](docs/builders/overview.md) — builder/handler/renderer split
+- [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, sub-builders, data-elements
 - [Common patterns](docs/builders/patterns.md) — `._` chaining, `node_by_id`, render targets
-- Per-grammar references: [HTML](docs/grammars/html.md), [SVG](docs/grammars/svg.md), [CSS](docs/grammars/css.md)
+- Per-grammar references: [HTML](docs/grammars/html.md), [SVG](docs/grammars/svg.md), [CSS](docs/grammars/css.md), [XSD](docs/grammars/xsd.md)
 - Architectural contract and roadmap: [`roadmap/`](roadmap/)
 
 ## License

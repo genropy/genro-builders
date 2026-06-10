@@ -1,15 +1,15 @@
 # Decorators
 
-**Last Updated**: 2026-06-02
-**Status**: 🟢 APPROVATO — allineato al contratto v0.7.0.
+**Last Updated**: 2026-06-10
+**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0.
 
-The framework provides two grammar decorators. They live in
+The grammar decorators live in
 [src/genro_builders/builder/_decorators.py](../../src/genro_builders/builder/_decorators.py)
 and are imported as:
 
 ```python
 from genro_builders.builder import (
-    element, abstract,
+    element, abstract, struct_method, component,
 )
 ```
 
@@ -19,6 +19,8 @@ from genro_builders.builder import (
 |-------------|--------------------------------------------|-----------------------|
 | `@element`  | Declare a tag in the grammar.              | Ignored (declarative).|
 | `@abstract` | Declare an abstract base for inheritance.  | Ignored (declarative).|
+| `@struct_method` | A reusable construction block, invocable from a node. | Runs (builds). |
+| `@component` | A named grammar element with a body, expanded at render time. | Runs (builds). **Design landed, expansion not implemented yet** — see `roadmap/component-design.md` and contract area `CMP`. |
 
 There is **no** separate `@subbuilder` or `@data_element` decorator.
 Both are ordinary `@element` declarations marked in their `_meta`:
@@ -111,7 +113,7 @@ hosting HTML in `<foreignObject xmlns="...">`).
 
 Three **transparent** elements live in the source tree but emit **no
 markup** at render time. They carry data behaviour (seeding the data
-bag, computing, side effects) that runs in the handler. They are
+bag, computing, side effects) executed by the builder's compute. They are
 declared once on `BuilderBase` as ordinary `@element` marked
 `_meta={"data_element": True}` and injected into every dialect's schema
 by `__init_subclass__` — so every builder has them without re-declaring:
@@ -157,7 +159,7 @@ def main(self, root):
 - **`value`** (of `data_setter`) — kept as a flat attribute (not the
   node value), so a `Bag` payload is not captured into the source tree.
 - **`func`** — the canonical form is a **`@staticmethod` name**
-  (`func="compute_total"`), resolved left-to-right over the handler's
+  (`func="compute_total"`), resolved left-to-right over the builder's
   `data_logic` sources; a miss raises `AttributeError`, a non-static
   match raises `TypeError`. An inline callable is also accepted (handy,
   but makes the page non-serializable and is not cross-language).
@@ -186,5 +188,6 @@ signature and metadata, the function body is discarded. For
 `@element`/`@abstract`, a non-empty body emits a warning at class
 definition time — use `...` (ellipsis) as the body to suppress it.
 The data-elements and sub-builders, being `@element`, follow the same
-rule; their behaviour lives in the handler's compute pass / the
-sub-builder dispatch, not in the body.
+rule; their behaviour lives in the builder's compute pass / the
+sub-builder dispatch, not in the body. `@struct_method` and
+`@component` are the exceptions: they carry a body that builds.
