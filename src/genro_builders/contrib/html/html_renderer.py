@@ -253,15 +253,15 @@ class HtmlRenderer(RendererBase):
 
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
         """Serialize an already-adapted attribute dict (see
-        ``adapt_attrs``). The ``style`` entry is pre-composed CSS text;
-        every other entry is a final HTML attribute name."""
-        parts = []
-        for name, value in attrs.items():
-            if name == "style":
-                parts.append(f' style="{value}"')
-            else:
-                parts.append(f' {name}="{self._html_attr_value(value)}"')
-        return "".join(parts)
+        ``adapt_attrs``). The ``style`` entry is pre-composed CSS text
+        and is escaped like any other attribute value: quotes are
+        legitimate in CSS, the hazard exists only when the text is
+        embedded in a quoted HTML attribute — so the escape lives here,
+        at the embedding point, not in ``_adapt_style``."""
+        return "".join(
+            f' {name}="{self._html_attr_value(value)}"'
+            for name, value in attrs.items()
+        )
 
     def _auto_id_attr(self, node: Any, runtime_attrs: dict[str, Any]) -> str:
         """Emit ``id="<struct-path>"`` for a pointer-bound node, if needed.
