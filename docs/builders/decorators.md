@@ -20,7 +20,7 @@ from genro_builders.builder import (
 | `@element`  | Declare a tag in the grammar.              | Ignored (declarative).|
 | `@abstract` | Declare an abstract base for inheritance.  | Ignored (declarative).|
 | `@struct_method` | A reusable construction block, invocable from a node. | Runs (builds). |
-| `@component` | A named grammar element with a body, expanded at render time. | Runs (builds). **Design landed, expansion not implemented yet** — see `roadmap/component-design.md` and contract area `CMP`. |
+| `@component` | A named grammar element with a body, expanded ephemerally at render time. Three calling forms: explicit params, `store` (record anchor), `iterate` (one expansion per child). Composes fractally. | Runs (builds). See contract area `CMP` and the examples `with_data/07`-`11`. |
 
 There is **no** separate `@subbuilder` or `@data_element` decorator.
 Both are ordinary `@element` declarations marked in their `_meta`:
