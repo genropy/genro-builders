@@ -90,3 +90,22 @@ def test_add_builder_rejects_duplicate_and_reserved_names():
 def test_name_defaults_to_dialect_typology():
     page = _Page()
     assert page.name == "html"
+
+
+def test_autocreate_events_are_ignored():
+    """One deep write = one logical mutation: the intermediate containers
+    born on the way to the leaf (reason='autocreate') trigger neither
+    compute nor render — the leaf event of the same write follows at
+    once. With a reader on the container, one queue entry, not one per
+    autocreated ancestor."""
+    class Reader(HtmlBuilder):
+        def main(self, root) -> None:
+            root.body().div("^box", node_id="r")
+
+    page = Reader(name="page")
+    handler = _reactive(page)
+    page.render()                       # register the ^box reader
+    with handler.live():
+        handler.data.set_item("page.box.a.b.leaf", 1)
+        queued = [p for v in handler._nodes_to_render.values() for p in v]
+        assert len(queued) == 1, queued

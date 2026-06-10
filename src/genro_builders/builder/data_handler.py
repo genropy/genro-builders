@@ -158,6 +158,12 @@ class BuilderHandler:
         input for the partial-render refinement (per-block re-render via
         path arithmetic on the residual).
         """
+        if kw.get("reason") == "autocreate":
+            # A container born on the way to a leaf: one deep write is ONE
+            # logical mutation. Nothing to compute and nothing to render on
+            # the intermediate births — the leaf event of the same write
+            # follows at once and reaches every reader (DAT.4).
+            return
         if evt in ("ins", "del"):
             path = ".".join([*pathlist, node.label])
         else:
