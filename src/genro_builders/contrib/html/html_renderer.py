@@ -52,6 +52,20 @@ _VOID_TAGS = frozenset({
 #: or ``&&`` in JavaScript must survive unchanged.
 _RAW_TEXT_TAGS = frozenset({"style", "script"})
 
+#: Native HTML boolean attributes: per the spec they are true by
+#: PRESENCE — any value, "false" included, means true; false is the
+#: absence of the attribute. ``True`` emits the bare attribute,
+#: ``False``/``None`` emits nothing. Everything outside this list
+#: (``data-*`` flags, plain attributes) keeps the JS-literal
+#: serialization ("true"/"false") consumers expect.
+_BOOLEAN_ATTRS = frozenset({
+    "allowfullscreen", "async", "autofocus", "autoplay", "checked",
+    "controls", "default", "defer", "disabled", "formnovalidate",
+    "inert", "ismap", "itemscope", "loop", "multiple", "muted",
+    "nomodule", "novalidate", "open", "playsinline", "readonly",
+    "required", "reversed", "selected",
+})
+
 #: Root names that classify a kwarg as a CSS property. The rule is:
 #: a kwarg is CSS if its name equals a root, or starts with a root +
 #: ``"_"``. Underscore→dash conversion then yields the CSS property.
@@ -257,11 +271,19 @@ class HtmlRenderer(RendererBase):
         and is escaped like any other attribute value: quotes are
         legitimate in CSS, the hazard exists only when the text is
         embedded in a quoted HTML attribute — so the escape lives here,
-        at the embedding point, not in ``_adapt_style``."""
-        return "".join(
-            f' {name}="{self._html_attr_value(value)}"'
-            for name, value in attrs.items()
-        )
+        at the embedding point, not in ``_adapt_style``.
+
+        Native boolean attributes (``_BOOLEAN_ATTRS``) follow the spec's
+        presence semantics: truthy emits the bare attribute, falsy emits
+        nothing."""
+        parts = []
+        for name, value in attrs.items():
+            if name in _BOOLEAN_ATTRS:
+                if value:
+                    parts.append(f" {name}")
+                continue
+            parts.append(f' {name}="{self._html_attr_value(value)}"')
+        return "".join(parts)
 
     def _auto_id_attr(self, node: Any, runtime_attrs: dict[str, Any]) -> str:
         """Emit ``id="<struct-path>"`` for a pointer-bound node, if needed.
