@@ -1,7 +1,7 @@
 <body>
   <h2>Two shapes inline</h2>
-<svg viewBox="0 0 200 80" style="width: 200; height: 80"><circle cx="40" cy="40" r="30" fill="#e74c3c" /><rect x="90" y="20" fill="#3498db" style="width: 90; height: 40" /></svg>  <h2>HTML overlay inside SVG</h2>
-<svg viewBox="0 0 360 120" style="width: 360; height: 120"><rect x="0" y="0" rx="12" fill="#2c3e50" style="width: 360; height: 120" />    <foreignObject x="20" y="20" xmlns="http://www.w3.org/1999/xhtml" style="width: 320; height: 80">
+<svg width="200" height="80" viewBox="0 0 200 80"><circle cx="40" cy="40" r="30" fill="#e74c3c" /><rect x="90" y="20" width="90" height="40" fill="#3498db" /></svg>  <h2>HTML overlay inside SVG</h2>
+<svg width="360" height="120" viewBox="0 0 360 120"><rect x="0" y="0" width="360" height="120" rx="12" fill="#2c3e50" />    <foreignObject x="20" y="20" width="320" height="80" xmlns="http://www.w3.org/1999/xhtml">
       <div style="color: white; padding: 8px">
         <div style="font-weight: 700">Mixed content</div>
         <p style="font-size: 13px">HTML rendered inside an SVG.</p>

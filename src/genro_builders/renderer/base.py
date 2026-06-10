@@ -125,21 +125,31 @@ class RendererBase:
         fragments from transparent children are dropped); the dialect's
         ``rendered_item`` then composes the fragment.
 
-        Sub-builder boundary: when the node's active builder differs from
-        this renderer's, the node sits across a dialect boundary (e.g.
-        ``<svg>`` inside HTML). From here down the foreign dialect governs,
-        so the fragment is produced by the foreign builder's renderer
-        (resolved and cached via ``get_render``). The host renderer never
-        renders foreign-grammar nodes with its own rules.
+        Every per-node phase (meta handling, attribute adaptation,
+        emission) belongs to the renderer of the node's own dialect,
+        resolved up front via ``get_render``; R0 keeps only what is
+        document-wide — the walk itself, the sub-renderer cache and
+        ``finalize``. So an ``<svg>`` subtree inside HTML is interpreted
+        by the SVG renderer throughout, and an ``html`` subtree inside
+        SVG re-enters the HTML rules: the host renderer never applies
+        its own rules to foreign-grammar nodes.
+
+        One exception: the boundary envelope itself (a node marked
+        ``subbuilder``). Its attributes configure the bridge — geometry,
+        namespace — and stay literal: no dialect adaptation, only the
+        ``render_attributes`` merge from ``_handle_meta``. This keeps
+        ``<svg width=...>`` and ``<foreignObject width=...>`` sized by
+        real attributes in both crossing directions.
         """
         item, ra = node.builder.runtime_values(node)
         if node._get_meta("data_element"):
             return None
-        tag, ra = self._handle_meta(node, ra)
-        ra = self.adapt_attrs(ra)
+        renderer = self.get_render(node.builder)
+        tag, ra = renderer._handle_meta(node, ra)
+        if not node._get_meta("subbuilder"):
+            ra = renderer.adapt_attrs(ra)
         if isinstance(node.value, SourceBag):
             item = self.render_children(node.value, **opts)
-        renderer = self.get_render(node.builder)
         return renderer.rendered_item(node, item, ra, tag=tag, **opts)
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
