@@ -142,9 +142,21 @@ class BuilderHandler:
         upd: the pathlist itself), collects the readers grouped by builder via
         :meth:`_relevant_nodes`, runs :meth:`execute_logic` (data_formula /
         data_controller recompute, whose writes re-enter here and cascade),
-        then queues the ``node`` readers for the end-of-live render. ``node``
-        is a reader of exactly the mutated datum; ``container`` / ``child``
-        come later.
+        then queues EVERY reader for the end-of-live render:
+
+        - ``node`` reads exactly the mutated datum;
+        - ``container`` reads a leaf inside a container that was replaced
+          wholesale;
+        - ``child`` reads a container one of whose inner data changed —
+          this is how a mutation INSIDE an anchored collection reaches the
+          component node that subscribed the anchor (the expansion's own
+          pointers are never in the map, CMP.7): the coarse subscription
+          catches the fine mutation.
+
+        At Level 0 the flush renders the whole builder once, so queuing
+        every kind costs nothing extra; the kind classification is the
+        input for the partial-render refinement (per-block re-render via
+        path arithmetic on the residual).
         """
         if evt in ("ins", "del"):
             path = ".".join([*pathlist, node.label])
@@ -154,14 +166,13 @@ class BuilderHandler:
         self.execute_logic(relevant)
         for builder, items in relevant.items():
             for kind, view_node in items:
-                if kind == "node":
-                    # Same convention as the source events: key = mount
-                    # name, path relative to the builder's source (the
-                    # structural wrapper segment never appears).
-                    self.add_render_path(
-                        view_node.root_builder_name,
-                        view_node.root_builder.source.relative_path(view_node),
-                    )
+                # Same convention as the source events: key = mount
+                # name, path relative to the builder's source (the
+                # structural wrapper segment never appears).
+                self.add_render_path(
+                    view_node.root_builder_name,
+                    view_node.root_builder.source.relative_path(view_node),
+                )
 
     def execute_logic(
         self, relevant: dict[Any, list[tuple[str, SourceBagNode]]],
