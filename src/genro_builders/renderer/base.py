@@ -329,13 +329,15 @@ class RendererBase:
             composite = f"{prefix}.{counter}"
             current.attr["id"] = composite
             # Only WRITE-BACK nodes enter the map: a pointer on a
-            # writable attribute (value/checked). A pure reader (a td
-            # showing ^.name) re-renders via pointer_map, it is not a
-            # mutation target.
+            # writable attribute (value/checked), or a click target
+            # (set-pointer writes a declared value, fire-pointer sends
+            # an event message). A pure reader (a td showing ^.name)
+            # re-renders via pointer_map, it is not a mutation target.
             writable = any(
                 name in ("value", "checked")
                 for name, _pointer in current.pointers()
-            )
+            ) or current.attr.get("data-set-pointer") is not None \
+              or current.attr.get("data-fire-pointer") is not None
             if writable:
                 wmap[composite] = current
             if isinstance(current.value, SourceBag):

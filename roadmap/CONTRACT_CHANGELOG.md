@@ -11,6 +11,40 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-11, quarta fetta (comando di pagina: la corsia FIRE del filo)
+
+Nato dal task "+/− righe sulla fattura": un click che esegue logica
+server con parametri. Decisione: nessuna route nuova — il comando
+resta sul filo `{id, value}` come **quarta corsia** del mutate. Il
+nodo dichiara `data-fire-pointer` (topic) ed eventualmente
+`data-fire-value` (messaggio); il server fira il path (`_fired`, mai
+persistito): il datastore è il bus messaggi, il sottoscrittore è un
+`data_controller` canonico che esegue l'op strutturale sullo store.
+Regola ibrida del payload: nodo → client → `True`; set+fire sullo
+stesso nodo = errore d'autore. La writeback map accoglie anche i
+click target (`data-set-pointer`/`data-fire-pointer`): il "−" per
+riga ha id derivato e porta la label come messaggio baked.
+
+### Nuovo — la cancellazione uccide le regole ancorate (CMP.7, row logic)
+
+Scoperto dallo spike: il `pop` di una riga faceva RISORGERE la riga —
+l'evento `del` matchava i binding delle regole della riga morta
+("trigger sotto il path mutato"), la regola eseguiva e la sua
+scrittura di destination autocreava il path. Semantica fissata: su
+`del` l'handler purga (eager, prima dell'esecuzione) ogni regola il
+cui ÀNCORA sta al path cancellato o sotto; il criterio è l'àncora,
+non il trigger (una regola d'altra riga che legge sotto il path morto
+continua a ricalcolare). Eager perché attendere la riespansione
+lascerebbe regole stantie vive per il resto della cascata (un binding
+condiviso — il cambio in testata — risusciterebbe la riga).
+
+Validazione: esempio `reactive/14_page_command` (assert su id derivati
+dei bottoni, del/add con regole vive sulla riga nuova, non-resurrezione
+sotto binding condiviso, FIRE non persistito); demo live `invoice` in
+genro-ws-web verificata in browser con uso umano concorrente.
+
+---
+
 ## v0.8.0 — emendamento del 2026-06-11, terza fetta (row logic: le regole delle righe sono regole di mutazione)
 
 La logica dati dichiarata nei body dei component (per-riga negli

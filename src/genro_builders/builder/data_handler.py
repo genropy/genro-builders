@@ -185,6 +185,15 @@ class BuilderHandler:
             path = ".".join(pathlist)
         relevant = self._relevant_nodes(path)
         self.execute_logic(relevant)
+        if evt == "del":
+            # Deleting a subtree KILLS the rules anchored in it: a dead
+            # row's rule must never run (its destination write would
+            # autocreate the row back). Eager purge — waiting for the
+            # re-expansion would leave stale rules live for the rest of
+            # the cascade (a shared binding would resurrect the row).
+            # Rules merely READING under the deleted path survive: their
+            # anchor is elsewhere, and they recompute right below.
+            self._purge_anchored_rules(path)
         self._execute_expansion_logic(path)
         for builder, items in relevant.items():
             for kind, view_node in items:
@@ -221,6 +230,22 @@ class BuilderHandler:
                 if row_prefix == prefix or row_prefix.startswith(
                     prefix + ".",
                 ):
+                    del inner[node_id]
+            if not inner:
+                del self.expansion_logic[abs_path]
+
+    def _purge_anchored_rules(self, path: str) -> None:
+        """Drop every rule whose ANCHOR sits at or under ``path`` (del).
+
+        The criterion is the anchor, not the trigger: a rule of another
+        row reading under the deleted subtree keeps its registration
+        (its input changed, it must recompute); a rule anchored in the
+        deleted subtree is dead with its row.
+        """
+        for abs_path, inner in list(self.expansion_logic.items()):
+            for node_id, (node, _prefix) in list(inner.items()):
+                anchor = node.abs_datapath(".")
+                if anchor == path or anchor.startswith(path + "."):
                     del inner[node_id]
             if not inner:
                 del self.expansion_logic[abs_path]

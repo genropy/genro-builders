@@ -597,13 +597,30 @@ annidato/iterato/iterato-annidato): al render reattivo dell'espansione
 il renderer stampa l'id derivato su ogni nodo (id d'autore del
 component = base della catena; `id` è macchinario consumato, mai un
 kwarg del body) e registra in `builder._writeback_map` i soli nodi
-SCRIVIBILI (pointer su `value`/`checked` — i lettori puri no):
+SCRIVIBILI (pointer su `value`/`checked`, oppure click target:
+`data-set-pointer`/`data-fire-pointer` — i lettori puri no):
 `{id derivato → nodo}`. Il nodo trattenuto è la sede di tipizzazione
 (dtype), validazione (`validate_*`) e destinazione (pointer →
 `abs_datapath`): il mutate risolve l'id e legge TUTTO dal nodo —
 niente path né dtype dal filo. La ri-espansione purga il proprio
 prefisso (coerente con l'effimero). Le patch per-riga sulla stessa
 identità restano da implementare nel filone RX.
+
+**Comando di pagina (corsia FIRE, implementata 2026-06-11).** Un click
+che deve ESEGUIRE logica (non scrivere un dato) resta una mutazione
+`{id, value}`: il nodo dichiara `data-fire-pointer` (il path da firare
+— il topic) ed eventualmente `data-fire-value` (il messaggio); il
+server risolve il nodo per identità e FIRA il path (`_fired`, mai
+persistito) — il datastore fa da bus messaggi. Regola ibrida del
+payload: il `data-fire-value` del nodo vince (click = pura identità;
+il "−" per riga porta la label, baked all'espansione); senza
+dichiarazione il `value` del client È il messaggio (anche JSON ricco,
+mai tipizzato: è un messaggio, non un dato); senza nulla → `True`.
+Dichiarare set E fire sullo stesso nodo = errore d'autore. Il
+sottoscrittore è un `data_controller` canonico col binding sul topic:
+la sua func esegue l'op STRUTTURALE sullo store (pop / SET di una
+riga-bag nuova) e il blocco iterante si ri-rende perché lo store è
+cambiato.
 
 **Row logic (implementata 2026-06-11).** I data-element dichiarati nel
 body di un component sono **regole di MUTAZIONE**: il documento
@@ -620,7 +637,15 @@ gruppo). L'esecuzione sta nella cascata eventi (stessa coda,
 anti-loop); le scritture rientrano e concatenano (qty → total →
 controvalore). I nodi d'espansione accedono al datastore via
 ``data_handler`` (l'handler è unico per documento; ``handler`` resta
-None — il gate D9 non si tocca).
+None — il gate D9 non si tocca). La **cancellazione di un sottoalbero
+UCCIDE le regole ancorate in esso**: su evento `del` l'handler purga
+(eager, PRIMA dell'esecuzione — attendere la riespansione lascerebbe
+regole stantie vive per il resto della cascata: un binding condiviso
+risusciterebbe la riga) ogni regola il cui ÀNCORA sta al path
+cancellato o sotto. La regola della riga morta non gira mai (la sua
+scrittura di destination autocreerebbe la riga). Il criterio è
+l'àncora, non il trigger: una regola d'altra riga che LEGGE sotto il
+path morto continua a ricalcolare.
 
 ### CMP.8 — Componibilità frattale
 
