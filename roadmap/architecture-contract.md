@@ -109,11 +109,19 @@ committati. Il render reattivo lo emette su OGNI elemento (qualunque
 elemento può diventare bersaglio, contenitore o ancora a runtime);
 l'id d'autore vince e rinuncia all'indirizzabilità. La mutazione
 strutturale viaggia come `insert` (frammento nuovo + ancora `before`) /
-`remove`; la sostituzione di contenitore resta l'unità per le
-espansioni component (senza identità per costruzione). Residui noti:
-stato client effimero.
+`remove`; la sostituzione di contenitore resta (per ora) l'unità di
+patch per le espansioni component. Le espansioni non ricevono MAI un
+seriale proprio (reincarnano): la loro identità è **derivata e
+deterministica** — `<base>.<label di iterazione>....<ordinale>`, dove
+la base è l'id del nodo component (seriale o d'autore), le label sono
+le identità delle righe negli store attraversati e l'ordinale segue
+l'ordine di costruzione del body (codice: il rebuild è identico).
+Solo nel render reattivo; il render statico non porta identità.
+Residui noti: stato client effimero.
 [Emendamento 2026-06-11: sostituisce "identità per path" — il path
 slittava ad ogni insert, il seriale è inerte.]
+[Emendamento 2026-06-11 sera: identità derivata delle espansioni —
+vedi CMP.7, mappa dei figli virtuali implementata lato write-back.]
 
 ---
 
@@ -581,15 +589,21 @@ dichiarati). La granularità per-riga si ricava con l'**aritmetica dei
 path**: evento sotto la radice dell'iterate → residuo → primo segmento
 = label del child (quale blocco), resto = cosa è cambiato. Eventi
 strutturali con la stessa aritmetica. L'**identità dell'unità
-per-riga** è da definire nel filone RX: le espansioni non portano
-`target_id` per costruzione (reincarnano), quindi il per-riga richiede
-uno schema proprio. Candidato (2026-06-11): la **mappa dei figli
-virtuali** — al render dell'espansione il nodo component cattura
-`{id derivato (target_id + suffisso) → pointer assoluto}` e gli
-elementi interni escono con quell'id; ricostruita a ogni ri-render del
-blocco (coerente con l'effimero), abilita sia il write-back id-based
-(elemento → server risolve dalla mappa) sia le patch per-riga.
-Meccanica da implementare nel filone RX.
+per-riga**: le espansioni non portano `target_id` per costruzione
+(reincarnano) — la loro identità è DERIVATA (Premessa: catena
+`base.label....ordinale`). La **mappa dei figli virtuali** è
+IMPLEMENTATA lato write-back (2026-06-11, verificata su semplice/
+annidato/iterato/iterato-annidato): al render reattivo dell'espansione
+il renderer stampa l'id derivato su ogni nodo (id d'autore del
+component = base della catena; `id` è macchinario consumato, mai un
+kwarg del body) e registra in `builder._writeback_map` i soli nodi
+SCRIVIBILI (pointer su `value`/`checked` — i lettori puri no):
+`{id derivato → nodo}`. Il nodo trattenuto è la sede di tipizzazione
+(dtype), validazione (`validate_*`) e destinazione (pointer →
+`abs_datapath`): il mutate risolve l'id e legge TUTTO dal nodo —
+niente path né dtype dal filo. La ri-espansione purga il proprio
+prefisso (coerente con l'effimero). Le patch per-riga sulla stessa
+identità restano da implementare nel filone RX.
 
 ### CMP.8 — Componibilità frattale
 

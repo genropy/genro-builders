@@ -533,6 +533,25 @@ class BuilderBase(
             raise KeyError(node_id)
         return node
 
+    def node_by_target_id(self, target_id: str) -> Any:
+        """Return the source node whose serial is ``target_id``.
+
+        The upstream half of the identity bridge: patches go DOWN
+        addressed by serial, mutations come UP addressed the same way.
+        Walk-based like ``node_by_id`` (the serial lives in a slot, the
+        tree is the registry). Raises ``KeyError`` when no node carries
+        the serial — expansion content is NOT here: its derived ids
+        resolve in ``_writeback_map``.
+        """
+        queue = [self.source]
+        while queue:
+            for node in queue.pop(0).nodes:
+                if getattr(node, "_target_id", None) == target_id:
+                    return node
+                if isinstance(node.value, SourceBag):
+                    queue.append(node.value)
+        raise KeyError(target_id)
+
     def target_id(self, node: Any) -> str | None:
         """Per-document serial bridging a source node to its DOM element.
 
@@ -1189,3 +1208,13 @@ class BuilderBase(
     _meta_attrs: frozenset[str] = frozenset(
         {"node_id", "_meta", "_anchor", "datapath"},
     )
+
+    #: Retained attribute FAMILIES (name prefixes): declared on the
+    #: node, readable by whoever resolves the node (the write-back map,
+    #: a validation engine), but NEVER emitted by a renderer — they are
+    #: server-side contract, not markup. Unlike ``_meta_attrs`` (exact
+    #: names, dropped before resolution) a retained family stays in the
+    #: actualized view and is filtered at emission. ``validate_`` is
+    #: the legacy validation vocabulary: its semantics live in the
+    #: application layer, the grammar only guarantees retention.
+    _retained_attr_prefixes: tuple[str, ...] = ("validate_",)

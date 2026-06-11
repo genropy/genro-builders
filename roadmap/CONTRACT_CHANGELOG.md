@@ -11,6 +11,40 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-11 sera (identità derivata delle espansioni, mappa dei figli virtuali)
+
+Nato dal design del write-back sicuro (le mutazioni dal client devono
+risolversi sul server, non fidarsi del filo) e validato con una scala
+di prove: component semplice, annidato, iterato su store, iterati
+annidati.
+
+### Evoluto — identità delle espansioni (Premessa, CMP.7)
+
+Prima: "le espansioni non hanno identità" (D9), sostituzione del
+contenitore come unica unità. Ora: le espansioni non ricevono MAI un
+seriale proprio (il principio di D9 resta: reincarnano, nessun
+contatore che gira), ma hanno **identità derivata e deterministica**:
+`base.label....ordinale` — base = id del nodo component (seriale o
+d'autore), label = identità delle righe negli store attraversati,
+ordinale = ordine di costruzione del body. Solo render reattivo.
+
+### Implementato — mappa dei figli virtuali, lato write-back (CMP.7)
+
+Il candidato di CMP.7 promosso a meccanica: al render reattivo
+dell'espansione gli id derivati vanno sul DOM e i nodi SCRIVIBILI
+(pointer su `value`/`checked`) entrano in `builder._writeback_map`.
+Il nodo trattenuto è la sede unica di tipizzazione (dtype),
+validazione (`validate_*`) e destinazione (pointer → abs_datapath):
+il mutate risolve l'id e legge tutto dal nodo — il filo porta solo
+`{id, valore}`. Conseguenze: niente più path/dtype dal client
+(l'iniezione muore alla radice), la collisione "due widget sullo
+stesso path con regole diverse" si dissolve (l'id dice in quale
+widget l'utente ha digitato — semantica legacy), e `id` su un
+component è macchinario di catena consumato (mai un kwarg del body).
+Le patch per-riga sulla stessa identità restano al filone RX.
+
+---
+
 ## v0.8.0 — emendamento del 2026-06-11 (identità seriale, op strutturali, `@container`)
 
 Tre cose, tutte figlie della stessa giornata di lavoro (op strutturali

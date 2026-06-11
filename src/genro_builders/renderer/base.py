@@ -198,6 +198,9 @@ class RendererBase:
         # record (or the collection) changes, the block re-renders.
         iterable = runtime_attrs.pop("iterate", None)
         runtime_attrs.pop("store", None)
+        # ``id`` is chain machinery (the writeback identity below uses
+        # it as the expansion's prefix base), never a body kwarg.
+        runtime_attrs.pop("id", None)
         raw_anchor = node.attr.get("iterate") or node.attr.get("store")
         anchor = None
         if raw_anchor is not None:
@@ -221,7 +224,9 @@ class RendererBase:
                 volume, _, rest = node.abs_datapath(raw).partition(".")
                 runtime_attrs[name] = f"^{volume}:{rest}"
 
-        def expand(*body_args: Any, **body_kwargs: Any) -> Any:
+        def expand(
+            *body_args: Any, _wb_labels: tuple = (), **body_kwargs: Any,
+        ) -> Any:
             root = builder._expansion_root(datapath=anchor)
             body(root, *body_args, **body_kwargs)
             roots = list(root.nodes)
@@ -230,6 +235,10 @@ class RendererBase:
                     f"component '{node.node_tag}' must build a tree, not "
                     f"a forest: {len(roots)} root nodes",
                 )
+            if opts.get("include_datapath"):
+                # Derived identity is a REACTIVE-render concern, like
+                # the auto-id: the static render stays untouched.
+                self._register_expansion_writeback(node, roots[0], _wb_labels)
             return self.render(roots[0], **opts)
 
         # The mode is declared by the AUTHOR (the attribute's presence),
@@ -249,7 +258,63 @@ class RendererBase:
                 f"component '{node.node_tag}': iterate must resolve to a "
                 f"Bag, got {type(iterable).__name__}",
             )
-        return [expand(node_label=child.label) for child in iterable.nodes]
+        return [
+            expand(node_label=child.label, _wb_labels=(child.label,))
+            for child in iterable.nodes
+        ]
+
+    def _register_expansion_writeback(
+        self, comp_node: Any, tree_root: Any, labels: tuple,
+    ) -> None:
+        """Derived identity for expansion nodes — the virtual-children
+        map, write-back side (CMP.7).
+
+        Expansion nodes never get a serial of their own (they
+        reincarnate); their identity is DERIVED and deterministic:
+        ``<base>[.<iteration label>...].<ordinal>`` — base is the
+        component node's id (serial or author's), labels are the row
+        identities of the stores crossed, the ordinal follows the
+        body's build order (the body is code, the rebuild is
+        identical). The composite id is stamped as the author-id (the
+        renderer emits it, the auto-id skips), and the WRITABLE nodes
+        land in ``builder._writeback_map``: composite id -> expansion
+        node — the node a mutate resolves to read dtype, validate_*,
+        envelope and the write-back address. Re-expansion purges its
+        own prefix first, so the map never holds stale rows.
+        """
+        builder = comp_node.builder
+        base = comp_node.attr.get("id") or builder.target_id(comp_node)
+        if base is None:
+            return
+        prefix = ".".join((str(base), *labels))
+        wmap = getattr(builder, "_writeback_map", None)
+        if wmap is None:
+            wmap = builder._writeback_map = {}
+        stale = [
+            key for key in wmap
+            if key == prefix or key.startswith(prefix + ".")
+        ]
+        for key in stale:
+            del wmap[key]
+        counter = 0
+        queue = [tree_root]
+        while queue:
+            current = queue.pop(0)
+            counter += 1
+            composite = f"{prefix}.{counter}"
+            current.attr["id"] = composite
+            # Only WRITE-BACK nodes enter the map: a pointer on a
+            # writable attribute (value/checked). A pure reader (a td
+            # showing ^.name) re-renders via pointer_map, it is not a
+            # mutation target.
+            writable = any(
+                name in ("value", "checked")
+                for name, _pointer in current.pointers()
+            )
+            if writable:
+                wmap[composite] = current
+            if isinstance(current.value, SourceBag):
+                queue.extend(current.value.nodes)
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
         """Render each node in ``nodes`` and collect the fragments.

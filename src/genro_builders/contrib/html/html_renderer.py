@@ -185,6 +185,12 @@ class HtmlRenderer(RendererBase):
                 out[self.adapt(raw_name)] = value
                 continue
 
+            # 0.5 Retained families (``validate_*``): node-side contract,
+            #     never markup — the write-back map reads them from the
+            #     node, the DOM must not see them.
+            if raw_name.startswith(self.builder._retained_attr_prefixes):
+                continue
+
             # 1. Anything that contributes to the ``style`` entry (explicit
             #    style, style_* escapes, Genro macros, CSS roots) is handed
             #    to _adapt_style; the rest is a plain HTML attribute.
