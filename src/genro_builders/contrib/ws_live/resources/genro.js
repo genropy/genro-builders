@@ -201,16 +201,33 @@ class GenroClient {
   onInput(e) {
     var el = e.target;
     if (!el || !el.matches("input, select, textarea")) return;
-    // A checkbox binds its state through `checked`, not `value`.
+    // A checkbox binds its state through `checked`, not `value` — and
+    // el.checked is already typed (boolean), no dtype on the wire.
     var checkbox = el.type === "checkbox";
     var path = el.getAttribute(
       checkbox ? "data-checked-pointer" : "data-value-pointer");
     if (!path) return;
-    var value = checkbox ? el.checked : el.value;
+    var value, dtype = null;
+    if (checkbox) {
+      value = el.checked;
+    } else {
+      value = el.value;
+      // Text trims by default (legacy TextBox trim=true); data-trim
+      // ="false" opts out, passwords never trim.
+      if (el.type !== "password"
+          && el.getAttribute("data-trim") !== "false") {
+        value = value.trim();
+      }
+      // The widget's declared dtype travels as a separate parameter
+      // (an in-band value::dtype suffix would be injectable from a
+      // textbox); an emptied typed field means "no datum" -> null.
+      dtype = el.getAttribute("data-dtype");
+      if (dtype && value === "") value = null;
+    }
     if (this._inputTimer) clearTimeout(this._inputTimer);
     this._inputTimer = setTimeout(() => {
       this._inputTimer = null;
-      this.setData(path, value);
+      this.setData(path, value, dtype);
     }, 10);
   }
 
@@ -275,8 +292,10 @@ class GenroClient {
     });
   }
 
-  setData(path, value) {
-    this.call("mutate", { page: this.page, path: path, value: value });
+  setData(path, value, dtype) {
+    var params = { page: this.page, path: path, value: value };
+    if (dtype) params.dtype = dtype;
+    this.call("mutate", params);
   }
 }
 

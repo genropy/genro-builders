@@ -33,6 +33,7 @@ from genro_asgi import AsgiApplication
 from genro_asgi.request import get_current_request
 from genro_asgi.websocket import WebSocketState
 from genro_routes import route
+from genro_tytx.utils import raw_decode
 
 from genro_builders.builder import BuilderHandler
 
@@ -145,18 +146,40 @@ class WsLiveApp(AsgiApplication):
     @route()
     def mutate(
         self, page: str = "", path: str = "", value: Any = None,
+        dtype: str = "",
     ) -> dict[str, Any]:
         """Apply a data mutation to the live page.
 
-        The write runs inside ``handler.live()``; the flush pushes the
-        patches over the connection (single road), so the response
-        carries only the outcome.
+        ``dtype`` is the widget's declared type (legacy TYTX codes): the
+        write is converted before it lands, so the datastore holds the
+        DATUM, not its text. It travels as a separate parameter — an
+        in-band ``value::dtype`` suffix would be injectable from any
+        textbox. The write runs inside ``handler.live()``; the flush
+        pushes the patches over the connection (single road), so the
+        response carries only the outcome.
         """
+        if dtype:
+            value = self._typed_value(value, dtype)
         builder = self._live_builder(page, get_current_request().websocket)
         handler = builder.handler
         with handler.live():
             handler.data.set_item(path, value)
         return {"ok": True}
+
+    def _typed_value(self, value: Any, dtype: str) -> Any:
+        """Convert a client string to its declared dtype (TYTX codes).
+
+        ``None`` passes through (an emptied field means "no datum");
+        non-strings are already typed by JSON (checkbox booleans). An
+        unknown dtype raises: the widget declared something the catalog
+        does not know.
+        """
+        if value is None or not isinstance(value, str):
+            return value
+        decoded, typed = raw_decode(f"{value}::{dtype}")
+        if not decoded:
+            raise ValueError(f"unknown dtype {dtype!r}")
+        return typed
 
     # ------------------------------------------------------------------
     # Server-initiated reactivity — the ticker
