@@ -4,10 +4,12 @@
 // the startup page is the same for every page; the client connects the
 // websocket, asks `main` for the rendered HTML of the main div, then
 // keeps the DOM live by applying the patch batches the server sends
-// ({id, op, html} — id is the node's structural path).
+// ({id, op, ...} — id is the node's target_id serial).
 //
-// The op vocabulary is open: `replace` (outer fragment) is the workhorse;
-// finer ops (set_attrs, set_text) will ride the same envelope.
+// The op vocabulary is open: `replace` (outer fragment) is the workhorse,
+// `insert`/`remove` are the structural pair (a node attached to or
+// dropped from the source); finer ops (set_attrs, set_text) will ride
+// the same envelope.
 
 class GenroClient {
   constructor(kw) {
@@ -24,6 +26,22 @@ class GenroClient {
         var el = document.getElementById(patch.id);
         if (!el || el === document.activeElement) return;
         el.outerHTML = patch.html;
+      },
+      // The new fragment lands before its anchor sibling (`before`),
+      // or appended to the container (`id`; null = the main div).
+      insert: (patch) => {
+        if (patch.before) {
+          var ref = document.getElementById(patch.before);
+          if (ref) ref.insertAdjacentHTML("beforebegin", patch.html);
+          return;
+        }
+        var container = patch.id
+          ? document.getElementById(patch.id) : this.mainWindow();
+        if (container) container.insertAdjacentHTML("beforeend", patch.html);
+      },
+      remove: (patch) => {
+        var el = document.getElementById(patch.id);
+        if (el) el.remove();
       },
     };
     this._onReady(() => this.connect());
