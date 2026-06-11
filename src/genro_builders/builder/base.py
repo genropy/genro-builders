@@ -241,7 +241,7 @@ class BuilderBase(
         # stored lowercase; same dispatch name on a different attr name
         # collides. The scan walks the WHOLE reverse MRO (the class's own
         # dict last, so it wins): containers live in plain mixins too
-        # (HtmlContainersBase), which have no __init_subclass__ of their
+        # (DemoContainers), which have no __init_subclass__ of their
         # own. Containers are skipped by _pop_decorated_methods, so they
         # stay callable on the class.
         merged: dict[str, str] = {}

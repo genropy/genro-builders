@@ -70,15 +70,9 @@ reverse = [
     "tree-sitter>=0.25",
     "tree-sitter-css>=0.25",
 ]
-live = [
-    "genro-asgi>=0.5.0",
-]
 all = [
-    "genro-builders[dev,docs,xsd,yaml,jupyter,reverse,live]",
+    "genro-builders[dev,docs,xsd,yaml,jupyter,reverse]",
 ]
-
-[project.scripts]
-genro-ws-live = "genro_builders.contrib.ws_live.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/genropy/genro-builders"

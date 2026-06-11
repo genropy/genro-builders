@@ -19,8 +19,9 @@ Dialects under `genro_builders.contrib`, plus the XML core:
 | XSLT | `genro_builders.contrib.xslt` | XSLT 1.0 stylesheets written pythonically; HTML5 vocabulary mixed in as literal result elements |
 | XML / XSD | `genro_builders.xml` | `XmlBuilderBase` shared grammar base + transpiler: an XSD schema becomes a `<Dialect>Builder` you commit and import (bundled Sitemap and FatturaPA examples) |
 
-`genro_builders.contrib.ws_live` is the live application layer
-(server-side SPA over websocket, script `genro-ws-live`).
+The live application layer (server-side SPA over websocket, the
+effective widget collections, script `genro-ws-live`) lives in its own
+project: **genro-ws-web**, built on genro-builders.
 
 ## Where to start
 

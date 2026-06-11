@@ -1,8 +1,10 @@
 # Legacy alignment — i raccordi col GenroPy classico
 
-**Version**: 0.1.0
+**Version**: 0.3.0
 **Last Updated**: 2026-06-11
 **Status**: 🟢 APPROVATO (2026-06-11) — traccia di lavoro.
+§3b (Form) aggiunta in seconda battuta: 🔴 DA REVISIONARE.
+§8 aggiornata al trasloco eseguito (2026-06-11, sera).
 
 Esplorazione del 2026-06-11 sui sorgenti legacy, a valle della collezione
 widget/containers. Principio guida: **distanza cognitiva minima** — chi
@@ -117,19 +119,65 @@ Da `genro_frm.js` (GnrValidator, 2133-2270):
   `datachanges`; hook `onAccept`/`onReject`.
 
 Architettura NG (differenza dichiarata col legacy, che valida solo
-client):
+client) — tre strati: **dichiarazione** (widget), **motore** (catena
+pura), **coordinamento** (form, §3b):
 
 1. `validate_*` viaggiano come **attributi del nodo widget**, trattenuti
-   (famiglia strutturale, non emessi in HTML).
-2. **Il server è autoritativo**: alla mutazione, i lettori registrati
-   del path (pointer_map) portano i loro `validate_*`; il server valuta
-   la catena; l'esito (valore eventualmente modificato, `gnr-invalid` +
-   messaggio sul campo) torna come patch.
-3. Il validatore client veloce (porting del vocabolario in genro.js) è
+   (famiglia strutturale, non emessi in HTML). La dichiarazione resta
+   sul widget come da vent'anni; domani `field` la porta dal modello.
+2. **Il motore è puro**: `(valore, validazioni) → esito` — ordine fisso
+   dei tag, il primo errore ferma, i warning si accumulano, il valore
+   fluisce modificabile lungo la catena. Non sa chi lo chiama.
+3. **Il server è autoritativo**: alla mutazione-utente, i lettori
+   registrati del path (pointer_map) portano i loro `validate_*`; il
+   server valuta la catena; **il valore invalido è accettato ma il
+   campo si marca** (`gnr-invalid` + messaggio come patch) — è la
+   generalizzazione del ramo `allowSaveInvalid` legacy. Il registro
+   degli invalidi, lo status e il gate sono coordinamento: form (§3b).
+4. Il validatore client veloce (porting del vocabolario in genro.js) è
    il raffinamento successivo; il browser dà già metà gratis
    (constraint API) per min/max/required/pattern.
-4. La grafica dello stato invalido è design da fare (qui il colore può
+5. La grafica dello stato invalido è design da fare (qui il colore può
    suggerire errore; il focus resta azzurro).
+
+## 3b. Form — lo scope mancante (🔴 DA REVISIONARE)
+
+Il form non è ancora nel binario NG, ma nel legacy è il piano dove le
+validazioni funzionano DAVVERO; senza form esistono ma degradate (il
+widget si marca, nessuno aggrega). Cosa fa il form legacy
+(`genro_frm.js`):
+
+- **Registro `invalidFields`** nei controller data (osservabile): bag
+  con chiave = path del dato, valore = dict dei sourceNode in errore
+  (`updateInvalidField`, 1875-1915). `isValid()` = registro vuoto →
+  gate del save; `updateStatus` riflette lo stato.
+- **Lifecycle col record**: `resetInvalidFields` al load; **pending
+  validations** per i campi mai toccati (il `notnull` sul record
+  appena caricato — `resolvePendingValidation`, 1953).
+- **`allowSaveInvalid`**: il valore invalido si salva e il record
+  porta `_invalidFields` (path → `{error, fieldcaption}`) nei suoi
+  attributi; al load successivo `_triggerInvalidFields` rimarca.
+- **Radice simbolica `#FORM`**: negli abs path, `#FORM.record.x`
+  risale gli antenati del source tree fino al nodo che possiede
+  `formId` (`genro.js:2088`, `gnrdomsource.js:653-728`) e radica lì il
+  path. Il form è scope di indirizzamento oltre che di coordinamento.
+
+Regole NG:
+
+- Il form sarà lo **scope di coordinamento**: legato a un sottoalbero
+  dati (il record), conosce i suoi campi e le loro dichiarazioni,
+  osserva le mutazioni del sottoalbero — *chiunque scriva, utente o
+  controller* — e tiene registro/status/gate. È la risposta al dilemma
+  "validatore sul widget o sul dato": la dichiarazione sta sul widget,
+  la copertura totale la dà il form che osserva i SUOI dati (niente
+  classi DataBag/DataBagNode custom: genro-bag ha già i trigger).
+- `#FORM` come radice simbolica entrerà in `abs_datapath` (risalita
+  degli antenati source fino al nodo-form), accanto alle forme già
+  supportate (`field`, `volume:field`, `.nome`).
+- La fetta validazioni (§9.2) gli prepara il motore: quando il form
+  arriverà prenderà in carico il coordinamento senza riscrivere nulla.
+- Pending validations, lifecycle col record e `_invalidFields`
+  persistito arrivano col form layer (dopo field/fieldcell, §4).
 
 ## 4. field / fieldcell — i derivatori
 
@@ -233,29 +281,45 @@ reattività L0; genro-asgi = server; **genro-ws-web = SPA framework**
 (pagine Python, client fisso, partial re-render, eventi, widget
 runtime).
 
-Decisione operativa (delegata, 2026-06-11):
+**TRASLOCO ESEGUITO il 2026-06-11** (anticipato, decisione utente): la
+discussione sul form (§3b) ha mostrato che il lavoro davanti —
+validazioni, form layer, registro applicazione, shell — è tutto
+strato-applicazione; farlo in `contrib/` di builders significava
+progettarlo dall'angolazione sbagliata e rendere il trasloco sempre
+più caro.
 
-- **Si resta in builders** finché il lavoro è prevalentemente
-  grammatica/render/collezioni: fetta dtype, validate_* server-side,
-  tree, grid. Le collezioni (components/containers) sono mixin di
-  dialetto: markup puro, casa naturale builders.
-- **Trigger del trasloco**: quando il lavoro diventa prevalentemente
-  strato-applicazione — cablaggio `GnrWsgiSite`, `field`/`fieldcell` su
-  istanza vera, auth/sessione, la shell desktop come prodotto. A quel
-  punto si fa nascere genro-ws-web col seme di `contrib/ws_live`
-  (app, GenroClient, target wrapper, pagine demo) e da lì in poi le
-  modifiche a builders passano per **issue** sul suo repo.
-- Restano in builders per sempre: dialetto, collezioni di grammatica,
-  la meccanica del render parziale (busta, optimizer, target_id) — è
-  il L0+ che il contratto già copre.
+- **genro-ws-web è nato** col seme di `contrib/ws_live` (WsLiveApp,
+  WsTargetWrapper, WsLivePage, GenroClient, pagine demo) **più il kit
+  widget effettivo** (`HtmlComponentsBase`, `HtmlContainersBase`):
+  dtype, binding client e validazioni crescono lì, non sono markup
+  puro. Layout: `application.py`, `target.py`, `page.py`,
+  `startup_page.py`, `cli.py`, `widgets/`, `resources/`, `demo/`.
+- **Builders resta agnostico verso il web**: dialetto HTML5,
+  collezioni di grammatica, la meccanica del render parziale (busta,
+  optimizer, target_id, pointer_map) — il L0+ che il contratto copre.
+  Una **mini-collezione didattica** (`demo_collection.py`:
+  `labeled_input`, `swatch`, `card`) dimostra i due cittadini CMP
+  negli esempi 12-13; il kit effettivo è di ws-web.
+- **Disciplina**: finché entrambi sono alpha si lavora direttamente
+  sui due repo; la regola "modifiche a builders via issue" scatta con
+  la fetta `GnrWsgiSite`/`field` come previsto in origine.
+- Raccordo futuro: il sub-project `genro-validations` (Pre-Alpha,
+  libreria di SCHEMI multi-runtime) potrà alimentare i singoli tag
+  (es. `validate_email`); il motore-catena resta di ws-web.
 
 ## 9. Ordine di lavoro
 
 1. **dtype/TYTX write-back** (mappa dtype→kind, `dtype=` sui widget,
    `data-dtype`, `valore::dtype` sul filo, `from_tytx` al mutate,
    vuoto→null) + vocabolario cerchio "ora" (§2).
-2. **`validate_*` server-side** (attributi trattenuti, catena
-   GnrValidator sul server, stato `gnr-invalid` come patch).
+2. **`validate_*` server-side** — IN GENRO-WS-WEB (§8): perimetro gli
+   **8 tag puri** (`notnull, empty, case, len, min, max, email,
+   regex`) con semantica di catena completa; motore puro + filtro di
+   ritenzione (mai in HTML, meccanismo in builders) + invocazione alla
+   mutazione-utente; valore invalido accettato ma campo marcato
+   (`gnr-invalid` come patch). Il coordinamento (registro, status,
+   gate) è del form layer (§3b). `select/nodup/gridnodup/exist` col DB
+   (§7), `call` come gancio custom nel cerchio "dopo".
 3. **`tree`** (§5) — sblocca il menu della shell.
 4. **`grid`** (§6) — mette sotto carico per-riga e op fini.
 5. **`GnrWsgiSite` + `field`/`fieldcell`** su istanza legacy (§7) —

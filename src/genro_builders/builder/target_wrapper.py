@@ -24,7 +24,7 @@ destination dictates the form (a patch consumer needs the DOM ids, so
 A raw target keeps working everywhere a wrapper does: the renderer's
 ``finalize`` consumes both. The wrapper exists so that "total vs
 partial" is a property of the destination, not an if in the renderer:
-a file is total by nature; a websocket consumer (ws_live) applies
+a file is total by nature; a websocket consumer (genro-ws-web) applies
 patches; a probe collects them in tests.
 """
 from __future__ import annotations
