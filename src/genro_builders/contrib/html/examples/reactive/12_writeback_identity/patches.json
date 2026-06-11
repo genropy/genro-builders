@@ -3,7 +3,7 @@
     {
       "id": "n2",
       "op": "replace",
-      "html": "<tbody id=\"n2\"><tr id=\"n1.NSW.1\"><td id=\"n1.NSW.2\">New South Wales</td><td id=\"n1.NSW.3\"><input value=\"New South Wales\" dtype=\"A\" id=\"n1.NSW.4\" data-value-pointer=\"main.states.NSW.name\"/><input value=\"8166000\" dtype=\"L\" id=\"n1.NSW.5\" data-value-pointer=\"main.states.NSW.population\"/></td></tr><tr id=\"n1.VIC.1\"><td id=\"n1.VIC.2\">Victoria</td><td id=\"n1.VIC.3\"><input value=\"Victoria\" dtype=\"A\" id=\"n1.VIC.4\" data-value-pointer=\"main.states.VIC.name\"/><input value=\"6700000\" dtype=\"L\" id=\"n1.VIC.5\" data-value-pointer=\"main.states.VIC.population\"/></td></tr></tbody>"
+      "html": "<tbody id=\"n2\"><tr id=\"n1.NSW.1\"><td id=\"n1.NSW.2\">New South Wales</td><td id=\"n1.NSW.3\"><input value=\"New South Wales\" id=\"n1.NSW.4\" data-value-pointer=\"main.states.NSW.name\"/><input value=\"8166000\" id=\"n1.NSW.5\" data-value-pointer=\"main.states.NSW.population\"/></td></tr><tr id=\"n1.VIC.1\"><td id=\"n1.VIC.2\">Victoria</td><td id=\"n1.VIC.3\"><input value=\"Victoria\" id=\"n1.VIC.4\" data-value-pointer=\"main.states.VIC.name\"/><input value=\"6700000\" id=\"n1.VIC.5\" data-value-pointer=\"main.states.VIC.population\"/></td></tr></tbody>"
     }
   ]
 ]

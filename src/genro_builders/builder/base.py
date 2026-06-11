@@ -1215,6 +1215,7 @@ class BuilderBase(
     #: server-side contract, not markup. Unlike ``_meta_attrs`` (exact
     #: names, dropped before resolution) a retained family stays in the
     #: actualized view and is filtered at emission. ``validate_`` is
-    #: the legacy validation vocabulary: its semantics live in the
-    #: application layer, the grammar only guarantees retention.
-    _retained_attr_prefixes: tuple[str, ...] = ("validate_",)
+    #: the legacy validation vocabulary; ``dtype`` is the declared data
+    #: type a mutation resolves on the node (TYTX) — semantics live in
+    #: the application layer, the grammar only guarantees retention.
+    _retained_attr_prefixes: tuple[str, ...] = ("validate_", "dtype")
