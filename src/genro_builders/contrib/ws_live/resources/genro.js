@@ -93,9 +93,12 @@ class GenroClient {
   onInput(e) {
     var el = e.target;
     if (!el || !el.matches("input, select, textarea")) return;
-    var path = el.getAttribute("data-value-pointer");
+    // A checkbox binds its state through `checked`, not `value`.
+    var checkbox = el.type === "checkbox";
+    var path = el.getAttribute(
+      checkbox ? "data-checked-pointer" : "data-value-pointer");
     if (!path) return;
-    var value = el.value;
+    var value = checkbox ? el.checked : el.value;
     if (this._inputTimer) clearTimeout(this._inputTimer);
     this._inputTimer = setTimeout(() => {
       this._inputTimer = null;

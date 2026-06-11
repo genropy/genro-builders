@@ -20,6 +20,7 @@ Example::
 
 from __future__ import annotations
 
+from .components import HtmlComponentsBase
 from .html_builder import HtmlBuilder
 
-__all__ = ["HtmlBuilder"]
+__all__ = ["HtmlBuilder", "HtmlComponentsBase"]
