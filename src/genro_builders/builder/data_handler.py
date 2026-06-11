@@ -53,6 +53,9 @@ class BuilderHandler:
         self._live_lock: threading.RLock = threading.RLock()
         # End-of-live render queue: builder name -> touched source nodes.
         self._nodes_to_render: dict[str, list] = {}
+        # target_ids of nodes deleted in the current section, captured at
+        # the delete event (see record_removed_id).
+        self._removed_target_ids: dict[tuple[str, str], str | None] = {}
         self.setup(self._dataroot["_"])
 
     @property
@@ -238,6 +241,7 @@ class BuilderHandler:
             self._live_depth += 1
             if self._live_depth == 1:
                 self._nodes_to_render = {}
+                self._removed_target_ids = {}
                 self._live_target = target
             try:
                 yield self
@@ -253,50 +257,116 @@ class BuilderHandler:
                                 )
                     finally:
                         self._nodes_to_render = {}
+                        self._removed_target_ids = {}
                         self._live_target = None
 
-    def add_render_path(self, builder_name: str, path: str) -> None:
-        """Record a touched path for the end-of-live render.
+    def add_render_path(
+        self, builder_name: str, path: str, kind: str = "upd",
+    ) -> None:
+        """Record a touched path and its event kind for the end-of-live render.
 
         ``builder_name`` is the segment the path belongs to; ``path`` is the
         path inside that builder. A source event queues the changed node's
-        path (container for ins/del, the node for upd); a data event queues
-        each reader's path. The end-of-live flush renders every builder
-        whose queue is non-empty.
+        path with its structural kind (``ins``/``del`` address the child,
+        ``upd`` the node); a data event queues each reader's path as
+        ``upd`` (a reader re-renders, it never changes shape). The
+        end-of-live flush renders every builder whose queue is non-empty.
 
         Outside a live section nothing is recorded: there is no flush
         coming, queueing would only pile up work nobody consumes.
         """
         if not self._live_depth:
             return
-        self._nodes_to_render.setdefault(builder_name, []).append(path)
+        self._nodes_to_render.setdefault(builder_name, []).append((kind, path))
 
-    def _optimize_render(self, nodes: list) -> list:
-        """Reduce the touched paths to the minimal render set.
+    def record_removed_id(
+        self, builder_name: str, path: str, target_id: str | None,
+    ) -> None:
+        """Capture a deleted node's ``target_id`` for the flush.
 
-        The two always-winning reductions, on the queued source-relative
-        paths:
+        The node is gone from the source by flush time, so the id that
+        addresses its DOM element is taken at the delete event, while
+        the node is still in hand. First delete wins: with a
+        delete/re-insert pair on the same path, the DOM holds the
+        ORIGINAL element — the re-inserted one never reached it.
+        """
+        if not self._live_depth:
+            return
+        self._removed_target_ids.setdefault((builder_name, path), target_id)
 
-        - **exact dedup** — N mutations read by the same node queue the
-          same path N times; one patch suffices (order preserved, first
-          occurrence wins);
-        - **ancestor covers descendant** — rendering an ancestor includes
-          every descendant, so a queued path whose proper prefix is also
-          queued is dropped (zero extra bytes: the ancestor was going out
-          anyway).
+    def removed_target_id(self, builder_name: str, path: str) -> str | None:
+        """The ``target_id`` captured for a node deleted in this section."""
+        return self._removed_target_ids.get((builder_name, path))
+
+    def _optimize_render(self, entries: list) -> list:
+        """Reduce the queued ``(kind, path)`` entries to the minimal set.
+
+        Per-path netting first — the section's history collapses to its
+        net effect (the flush renders the FINAL source state, so only the
+        net shape matters):
+
+        - ``upd`` after ``ins`` is absorbed (the insert renders fresh);
+        - ``del`` after ``ins`` cancels BOTH (born and died here: the DOM
+          never saw the node);
+        - ``ins`` after ``del`` (same label re-inserted, possibly
+          elsewhere) nets to ``del`` + ``ins``: remove the old element,
+          insert the fresh one at its final position;
+        - transitions the bag cannot produce (``ins`` over a live node,
+          anything after an un-reinserted ``del``) raise.
+
+        Then the two always-winning reductions:
+
+        - **exact dedup** — the netting dict itself (first touch wins the
+          order);
+        - **ancestor covers descendant** — whatever the kinds: a replaced
+          or inserted ancestor renders its final subtree, a removed
+          ancestor takes the subtree away with it.
 
         Density coalescing (N siblings -> one parent patch) is a policy
         with a real trade-off (bytes and client state vs message count):
         deliberately NOT here until measured on real scenarios.
         """
-        unique = list(dict.fromkeys(nodes))
-        return [
-            path for path in unique
+        state: dict[str, str] = {}
+        for kind, path in entries:
+            prev = state.get(path)
+            if prev is None:
+                state[path] = kind
+            elif kind == "upd":
+                if prev == "del":
+                    raise ValueError(
+                        f"update queued for {path!r} after its delete",
+                    )
+                # upd / ins / del+ins all render fresh at flush: absorbed.
+            elif kind == "ins":
+                if prev != "del":
+                    raise ValueError(
+                        f"insert queued for {path!r} over a live node",
+                    )
+                state[path] = "del+ins"
+            elif kind == "del":
+                if prev == "ins":
+                    del state[path]          # ephemeral: net nothing
+                elif prev == "del":
+                    raise ValueError(
+                        f"delete queued for {path!r} after its delete",
+                    )
+                else:
+                    state[path] = "del"
+        kept = [
+            (kind, path) for path, kind in state.items()
             if not any(
                 other != path and path.startswith(other + ".")
-                for other in unique
+                for other in state
             )
         ]
+        out: list[tuple[str, str]] = []
+        for kind, path in kept:
+            if kind == "del+ins":
+                out.append(("del", path))
+                out.append(("ins", path))
+            else:
+                out.append((kind, path))
+        return out
 
     def _register_path(self, node: SourceBagNode, abs_path: str) -> None:
         """Register ``node`` as a reader of ``abs_path`` (read-time tracking).

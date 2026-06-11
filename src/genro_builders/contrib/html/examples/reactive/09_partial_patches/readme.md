@@ -12,19 +12,22 @@ consumes:
 ## The patch envelope
 
 ```json
-{"id": "body.div_0", "op": "replace",
- "html": "<div style=\"color: blue\" id=\"body.div_0\" ...>Martin</div>"}
+{"id": "n3", "op": "replace",
+ "html": "<div style=\"color: blue\" id=\"n3\" ...>Martin</div>"}
 ```
 
-- **id** — the node's structural path, the SAME string the reactive
+- **id** — the node's `target_id` serial, the SAME string the reactive
   render emits as the DOM id under `include_datapath` (the wrapper
   asks for it via `render_opts`): the client finds the element by id
-  and replaces it.
+  and replaces it. The serial is assigned on first emission and bound
+  to the OBJECT, not to its position — no structural mutation can
+  stale it (see example 11).
 - **op: replace** — the re-rendered node, attributes included (outer
   fragment). One op covers text, attributes and structure — the
-  Hotwire-style trade-off already in the contract. The envelope is
-  open: finer ops (`set_attrs`, `set_text`) will ride it when
-  per-attribute granularity lands.
+  Hotwire-style trade-off already in the contract. The structural
+  pair (`insert`, `remove`) is in example 11; finer ops (`set_attrs`,
+  `set_text`) will ride the same envelope when per-attribute
+  granularity lands.
 - Patches arrive **in batches**, one per live section.
 
 ## What the artifacts show

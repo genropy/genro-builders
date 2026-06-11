@@ -366,6 +366,10 @@ class BuilderBase(
         self._data_logic: list[Any] | None = None
         # Sub-builder instances, one per dialect name (see get_subbuilder).
         self._subbuilders: dict[str, Any] = {}
+        # Per-document DOM-id serial (see ``target_id``): the root builder
+        # is the identity authority, sub-builder subtrees draw from the
+        # host's counter through ``node.root_builder``.
+        self._target_serial: int = 0
 
     @property
     def renderer_xml(self) -> XmlRenderer:
@@ -526,6 +530,30 @@ class BuilderBase(
             raise KeyError(node_id)
         return node
 
+    def target_id(self, node: Any) -> str | None:
+        """Per-document serial bridging a source node to its DOM element.
+
+        The reactive render emits it as the element's ``id``; patches
+        address the DOM through it. Assigned on first emission from the
+        root builder's counter (``n1``, ``n2``, ... — render order, so
+        deterministic for a given program), stored on the node, never
+        recomputed: it is bound to the OBJECT, not to its position, so
+        no structural mutation can stale it.
+
+        Expansion nodes (``handler is None``, the D9 gate) get none:
+        they reincarnate at every render — no stable identity to bridge.
+        Their replacement unit is the enclosing element.
+        """
+        existing = getattr(node, "_target_id", None)
+        if existing is not None:
+            return existing
+        if node.handler is None:
+            return None
+        root = node.root_builder
+        root._target_serial += 1
+        node._target_id = f"n{root._target_serial}"
+        return node._target_id
+
     # ------------------------------------------------------------------
     # Source reactivity (change handling on the builder; pointer-map
     # maintenance delegated to the handler)
@@ -541,9 +569,15 @@ class BuilderBase(
         property), then forwards a normalized event to the user hook
         :meth:`on_source_change`. Mapkeep is structural, not user-facing:
         it MUST happen even if the user does not override the public hook.
-        Finally records the touched ``pathlist`` on the handler's render
-        queue: for ins/del it points at the container, for upd at the node
-        itself, so the end-of-live flush re-renders the right place.
+        Finally records the touched path AND the event kind on the
+        handler's render queue: ``ins``/``del`` address the CHILD node —
+        the flush emits an ``insert``/``remove`` patch, the container is
+        derivable from the path — while ``upd`` addresses the node itself
+        (a ``replace``). A component child has no bounding element (it
+        manifests as N sibling blocks), so its structural unit is the
+        enclosing element: the lift to the container happens HERE, while
+        the node is still in hand — a deleted node is gone from the
+        source by flush time.
         """
         if evt == "ins":
             self.on_source_change(node, "ins", evt_detail=None, **kw)
@@ -559,7 +593,16 @@ class BuilderBase(
             self.on_source_change(node, "upd", evt_detail=detail, **kw)
         # Queue key = mount name (the only cross-builder identity); the
         # leading structural segment (SOURCE_ROOT) is dropped from the path.
-        self.handler.add_render_path(self.name, ".".join(pathlist[1:]))
+        path = ".".join(pathlist[1:])
+        if evt in ("ins", "del") and not node._get_meta("component"):
+            child_path = f"{path}.{node.label}" if path else node.label
+            if evt == "del":
+                self.handler.record_removed_id(
+                    self.name, child_path, getattr(node, "_target_id", None),
+                )
+            self.handler.add_render_path(self.name, child_path, kind=evt)
+        else:
+            self.handler.add_render_path(self.name, path, kind="upd")
 
     def on_source_change(
         self, node: Any, evt: str, evt_detail: str | None = None, **kw: Any
@@ -841,14 +884,24 @@ class BuilderBase(
             raise ValueError(f"incomplete document:\n{problems}")
         return renderer.finalize(result, effective_target, **opts)
 
-    def render_nodes(self, nodes: list, target: Any = None, **opts: Any) -> Any:
+    def render_nodes(self, entries: list, target: Any = None, **opts: Any) -> Any:
         """Render the touched nodes accumulated during a ``live`` section.
 
         The destination decides the shape of the flush: a partial-capable
-        :class:`TargetWrapper` receives one batch of per-node patches
-        (``{"id": <source-relative path>, "op": "replace", "html":
-        fragment}`` — the id is the same string the reactive render emits
-        as DOM id), anything else gets a full render as before.
+        :class:`TargetWrapper` receives one batch of per-node patches,
+        anything else gets a full render as before. ``entries`` are the
+        optimizer's ``(kind, path)`` pairs; every patch id is a
+        ``target_id`` serial (the same the reactive render emits on the
+        element). The kind picks the op:
+
+        - ``upd`` -> ``{"id", "op": "replace", "html"}`` — the node
+          re-rendered as an outer fragment;
+        - ``ins`` -> ``{"id": <container | None>, "op": "insert",
+          "before": <sibling id | None>, "html"}`` — the new child only;
+          ``before`` anchors the DOM position (``None`` = append, a
+          ``None`` container = the document root);
+        - ``del`` -> ``{"id", "op": "remove"}`` — the node is gone from
+          the source; the id was captured at the delete event.
         """
         mode = self._default_render_mode
         renderer = getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
@@ -859,13 +912,20 @@ class BuilderBase(
         ):
             return self.render(target=target, **opts)
         opts = {**effective_target.render_opts, **opts}
-        resolved: dict[str, Any] = {}
-        for path in nodes:
+        # (op, path, node): the node is None for remove.
+        plan: list[tuple[str, str, Any]] = []
+        for kind, path in entries:
+            if kind == "del":
+                plan.append(("remove", path, None))
+                continue
             node = self.source.get_node(path)
             if node is None:
                 raise ValueError(
                     f"queued render path {path!r} is no longer in the source",
                 )
+            if kind == "ins":
+                plan.append(("insert", path, node))
+                continue
             if node._get_meta("component"):
                 # An iterate component renders as N sibling blocks with no
                 # bounding element: its replacement unit is the enclosing
@@ -880,17 +940,75 @@ class BuilderBase(
                 if not parent_path:
                     return self.render(target=target, **opts)
                 path, node = parent_path, parent
-            resolved.setdefault(path, node)
-        # The lift may have introduced duplicates or new ancestors: the
-        # same two reductions _optimize_render applies (exact dedup is the
-        # dict above; ancestor-covers-descendant here).
-        patches = []
-        for path, node in resolved.items():
-            covered = any(
+            plan.append(("replace", path, node))
+        # The lifts may have introduced duplicates or new ancestors: the
+        # same two reductions _optimize_render applies, on the plan. A
+        # replace at P covers ANY op under it (its fragment renders the
+        # final subtree), the replace itself excluded.
+        seen: set[tuple[str, str]] = set()
+        deduped: list[tuple[str, str, Any]] = []
+        for op, path, node in plan:
+            if (op, path) in seen:
+                continue
+            seen.add((op, path))
+            deduped.append((op, path, node))
+        replace_paths = {path for op, path, _ in deduped if op == "replace"}
+        deduped = [
+            (op, path, node) for op, path, node in deduped
+            if not any(
                 other != path and path.startswith(other + ".")
-                for other in resolved
+                for other in replace_paths
             )
-            if covered:
+        ]
+        patches: list[dict[str, Any]] = []
+        for position, (op, path, node) in enumerate(deduped):
+            if op == "remove":
+                target_id = self.handler.removed_target_id(self.name, path)
+                if target_id is None:
+                    # Never rendered with identity: nothing in the DOM.
+                    continue
+                patches.append({"id": target_id, "op": "remove"})
+                continue
+            if op == "insert":
+                # A sibling whose own insert comes LATER in this batch is
+                # not in the DOM yet when this patch applies: anchors are
+                # pre-existing or already-applied elements only.
+                pending = {
+                    later_path
+                    for later_op, later_path, _ in deduped[position + 1:]
+                    if later_op == "insert"
+                }
+                before, component_sibling = self._insert_anchor(node, pending)
+                if component_sibling:
+                    # No single id can anchor the insert next to a
+                    # component (N blocks, no bounding element): the
+                    # container replace is the unit, as for the lift.
+                    container_path = path.rpartition(".")[0]
+                    if not container_path:
+                        return self.render(target=target, **opts)
+                    container = self.source.get_node(container_path)
+                    fragment = renderer.render(container, **opts)
+                    if isinstance(fragment, list):
+                        fragment = "".join(fragment)
+                    patches.append({
+                        "id": self.target_id(container), "op": "replace",
+                        "html": fragment,
+                    })
+                    continue
+                fragment = renderer.render(node, **opts)
+                if fragment is None:
+                    continue                  # transparent: no markup
+                if isinstance(fragment, list):
+                    fragment = "".join(fragment)
+                container = node.parent_bag.parent_node
+                container_id = (
+                    self.target_id(container)
+                    if path.rpartition(".")[0] else None
+                )
+                patches.append({
+                    "id": container_id, "op": "insert",
+                    "before": before, "html": fragment,
+                })
                 continue
             fragment = renderer.render(node, **opts)
             if fragment is None:
@@ -901,9 +1019,37 @@ class BuilderBase(
                 continue
             if isinstance(fragment, list):
                 fragment = "".join(fragment)
-            patches.append({"id": path, "op": "replace", "html": fragment})
+            patches.append({
+                "id": self.target_id(node), "op": "replace", "html": fragment,
+            })
         effective_target.partial(patches)
         return None
+
+    def _insert_anchor(
+        self, node: Any, pending: set[str],
+    ) -> tuple[Any, bool]:
+        """Anchor for an insert patch: ``(before_id, component_sibling)``.
+
+        The DOM position of the new element is the ``target_id`` of the
+        first FOLLOWING sibling already present when the patch applies.
+        Skipped: transparent siblings (data-elements render no markup)
+        and ``pending`` ones (their own insert applies later in this
+        batch). A component sibling manifests as N blocks with no
+        bounding element — no single id can anchor there, the caller
+        falls back to replacing the container. ``before`` is ``None``
+        when nothing anchorable follows: append at the end.
+        """
+        siblings = list(node.parent_bag)
+        index = next(i for i, sib in enumerate(siblings) if sib is node)
+        for sib in siblings[index + 1:]:
+            if sib._get_meta("data_element"):
+                continue
+            if sib._get_meta("component"):
+                return None, True
+            if self.source.relative_path(sib) in pending:
+                continue
+            return self.target_id(sib), False
+        return None, False
 
     def _get_target(self, target: Any, renderer: Any) -> Any:
         """Resolve the render target for a render call.

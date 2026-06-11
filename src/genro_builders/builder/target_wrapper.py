@@ -8,13 +8,14 @@ delivers. The wrapper declares what it can consume:
 - ``full(document)`` — the result of a total render. Every wrapper
   supports it.
 - ``partial(patches)`` — a batch of per-node patches, delivered by the
-  ``live()`` flush when ``accepts_partial`` is True. Each patch is
-  ``{"id": <source-relative path>, "op": "replace", "html": fragment}``:
-  the id is the node's structural path — the same string the reactive
-  render emits as the DOM id under ``include_datapath`` — and ``replace``
-  carries the re-rendered node (outer fragment, attributes included).
-  The op vocabulary is open: finer ops (``set_attrs``, ``set_text``)
-  ride the same envelope when the per-attribute granularity lands.
+  ``live()`` flush when ``accepts_partial`` is True. Patch ids are
+  ``target_id`` serials — the same string the reactive render emits as
+  the DOM id under ``include_datapath``. The ops: ``replace`` carries
+  the re-rendered node (outer fragment, attributes included);
+  ``insert`` the new child only (``{"id": container, "before":
+  sibling id | None, "html"}``); ``remove`` just the id. The
+  vocabulary is open: finer ops (``set_attrs``, ``set_text``) ride
+  the same envelope when the per-attribute granularity lands.
 
 ``render_opts`` are the walk options every delivery render uses — the
 destination dictates the form (a patch consumer needs the DOM ids, so

@@ -623,12 +623,15 @@ class _SourceBagMixin:
 class SourceBagNode(BagNode, _SourceBagNodeMixin):
     """BagNode with builder-aware attribute dispatch."""
 
-    __slots__ = ("_builder",)
+    __slots__ = ("_builder", "_target_id")
 
-    # Type annotation for the __slots__ above so type checkers recognize
-    # this as a member (slots alone are not typed). Holds the active
-    # builder instance, untyped here.
+    # Type annotations for the __slots__ above so type checkers recognize
+    # them as members (slots alone are not typed). ``_builder`` holds the
+    # active builder instance; ``_target_id`` the per-document serial
+    # (assigned lazily by ``BuilderBase.target_id``, read with getattr —
+    # an unset slot raises and ``__getattr__`` re-raises for ``_`` names).
     _builder: Any
+    _target_id: str
 
 
 class SourceBag(Bag, _SourceBagMixin):

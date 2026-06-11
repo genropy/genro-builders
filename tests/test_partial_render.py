@@ -33,14 +33,29 @@ class _Probe(TargetWrapper):
 
 
 def _apply_patches(document: str, patches: list[dict]) -> str:
-    """Reference patch applier: replace-by-id on an element tree."""
+    """Reference patch applier: replace/insert/remove by id on a tree."""
     root = ET.fromstring(f"<R>{document}</R>")
     for patch in patches:
+        if patch["op"] == "insert":
+            container = (
+                root if patch["id"] is None
+                else next(el for el in root.iter() if el.get("id") == patch["id"])
+            )
+            fragment = ET.fromstring(patch["html"])
+            if patch["before"] is None:
+                container.append(fragment)
+            else:
+                ref = next(
+                    el for el in container if el.get("id") == patch["before"]
+                )
+                container.insert(list(container).index(ref), fragment)
+            continue
         target = next(el for el in root.iter() if el.get("id") == patch["id"])
         parent = next(p for p in root.iter() if target in list(p))
         index = list(parent).index(target)
         parent.remove(target)
-        parent.insert(index, ET.fromstring(patch["html"]))
+        if patch["op"] == "replace":
+            parent.insert(index, ET.fromstring(patch["html"]))
     return "".join(ET.tostring(child, encoding="unicode") for child in root)
 
 
@@ -144,10 +159,125 @@ def test_ancestor_covers_descendant():
         handler.data.set_item("p.name", "Martin")       # the span (inside)
     batch = probe.batches[-1]
     assert len(batch) == 1
-    assert batch[0]["id"].count(".") == 1               # body.div_0, the ancestor
+    card = page.source.get_node("body.div_0")           # the ancestor
+    assert batch[0]["id"] == page.target_id(card)
     patched = _apply_patches(before, batch)
     fresh = page.render(target=False, include_datapath=True)
     assert _canon(patched) == _canon(fresh)
+
+
+class _ListPage(HtmlBuilder):
+    def setup(self, data):
+        data.set_item("title", "Todo")
+
+    def main(self, root):
+        body = root.body()
+        body.h1("^title")
+        ul = body.ul(node_id="list")
+        ul.li("alpha")
+        ul.li("beta")
+
+
+def _mounted_list():
+    probe = _Probe()
+    page = _ListPage(name="p")
+    page.set_render_target(probe)
+    handler = BuilderHandler(application=object())
+    handler.add_builder(page)
+    handler.activate()
+    return handler, page, probe
+
+
+def test_source_append_emits_insert():
+    """A node attached to the source travels as an insert patch: the
+    container id, no anchor (append), the new fragment only — the
+    sibling elements are never touched."""
+    handler, page, probe = _mounted_list()
+    before = probe.full_docs[-1]
+    with handler.live():
+        page.node_by_id("list").li("gamma")
+    batch = probe.batches[-1]
+    assert len(batch) == 1
+    assert batch[0]["op"] == "insert"
+    assert batch[0]["id"] == page.target_id(page.node_by_id("list"))
+    assert batch[0]["before"] is None
+    patched = _apply_patches(before, batch)
+    fresh = page.render(target=False, include_datapath=True)
+    assert _canon(patched) == _canon(fresh)
+    assert "gamma" in patched
+
+
+def test_positioned_insert_carries_the_anchor():
+    """node_position decides where the node lands; the patch expresses
+    it as the id of the following sibling (``before``)."""
+    handler, page, probe = _mounted_list()
+    before_doc = probe.full_docs[-1]
+    with handler.live():
+        page.node_by_id("list").li("first", node_position="<")
+    batch = probe.batches[-1]
+    assert len(batch) == 1
+    assert batch[0]["op"] == "insert"
+    first_li = page.source.get_node("body.ul_0.li_0")
+    assert batch[0]["before"] == page.target_id(first_li)
+    patched = _apply_patches(before_doc, batch)
+    fresh = page.render(target=False, include_datapath=True)
+    assert _canon(patched) == _canon(fresh)
+
+
+def test_source_delete_emits_remove():
+    handler, page, probe = _mounted_list()
+    before = probe.full_docs[-1]
+    li1_id = page.target_id(page.source.get_node("body.ul_0.li_1"))
+    with handler.live():
+        page.node_by_id("list").value.pop("li_1")
+    batch = probe.batches[-1]
+    assert batch == [{"id": li1_id, "op": "remove"}]
+    patched = _apply_patches(before, batch)
+    fresh = page.render(target=False, include_datapath=True)
+    assert _canon(patched) == _canon(fresh)
+    assert "beta" not in patched
+
+
+def test_ephemeral_node_nets_to_nothing():
+    """Born and died inside the same section: the DOM never saw the
+    node, no patch travels."""
+    handler, page, probe = _mounted_list()
+    n_batches = len(probe.batches)
+    with handler.live():
+        page.node_by_id("list").li("ghost")
+        page.node_by_id("list").value.pop("li_2")
+    assert probe.batches[n_batches:] in ([], [[]])
+
+
+def test_delete_and_reinsert_travels_as_remove_plus_insert():
+    """The same label deleted and re-created in one section: the old
+    element leaves, the fresh one enters at its FINAL position (the
+    auto-label reuses the freed slot, the node lands at the end)."""
+    handler, page, probe = _mounted_list()
+    before = probe.full_docs[-1]
+    with handler.live():
+        page.node_by_id("list").value.pop("li_0")
+        page.node_by_id("list").li("omega")
+    batch = probe.batches[-1]
+    assert [p["op"] for p in batch] == ["remove", "insert"]
+    patched = _apply_patches(before, batch)
+    fresh = page.render(target=False, include_datapath=True)
+    assert _canon(patched) == _canon(fresh)
+    assert "omega" in patched and "alpha" not in patched
+
+
+def test_insert_then_data_mutation_one_fresh_insert():
+    """A data mutation read by the freshly inserted node is absorbed:
+    the insert renders the FINAL state, equivalence holds."""
+    handler, page, probe = _mounted_list()
+    before = probe.full_docs[-1]
+    with handler.live():
+        page.node_by_id("list").li("^title")
+        handler.data.set_item("p.title", "Groceries")
+    patched = _apply_patches(before, probe.batches[-1])
+    fresh = page.render(target=False, include_datapath=True)
+    assert _canon(patched) == _canon(fresh)
+    assert "Groceries" in patched
 
 
 def test_iterate_component_patch_is_applicable():

@@ -1,23 +1,23 @@
 [
   [
     {
-      "id": "body.div_0.span_0",
+      "id": "n2",
       "op": "replace",
-      "html": "<span id=\"body.div_0.span_0\">Martin</span>"
+      "html": "<span id=\"n2\">Martin</span>"
     }
   ],
   [
     {
-      "id": "body.div_0.span_0",
+      "id": "n2",
       "op": "replace",
-      "html": "<span id=\"body.div_0.span_0\">Martin Blue</span>"
+      "html": "<span id=\"n2\">Martin Blue</span>"
     }
   ],
   [
     {
-      "id": "body.div_0",
+      "id": "n3",
       "op": "replace",
-      "html": "<div style=\"color: blue\" id=\"body.div_0\" data-style-pointer=\"main.css\"><span id=\"body.div_0.span_0\">Martin In Blue</span></div>"
+      "html": "<div style=\"color: blue\" id=\"n3\" data-style-pointer=\"main.css\"><span id=\"n2\">Martin In Blue</span></div>"
     }
   ]
 ]

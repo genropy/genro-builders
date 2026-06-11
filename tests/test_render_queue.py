@@ -40,7 +40,7 @@ def test_data_event_queues_mount_name_and_source_relative_path():
     handler = _reactive(page)
     with handler.live():
         handler.data["page.counter"] = 99
-        assert handler._nodes_to_render == {"page": ["body.div_0"]}
+        assert handler._nodes_to_render == {"page": [("upd", "body.div_0")]}
 
 
 def test_source_event_queues_mount_name_and_source_relative_path():
@@ -48,7 +48,7 @@ def test_source_event_queues_mount_name_and_source_relative_path():
     handler = _reactive(page)
     with handler.live():
         page.node_by_id("d1").set_attr(title="x")
-        assert handler._nodes_to_render == {"page": ["body.div_0"]}
+        assert handler._nodes_to_render == {"page": [("upd", "body.div_0")]}
 
 
 def test_live_flush_renders_a_non_main_mount(tmp_path):
@@ -71,8 +71,8 @@ def test_shared_datum_queues_every_reader_under_its_own_mount_name():
     with handler.live():
         handler.data["_.index"] = 1
         assert handler._nodes_to_render == {
-            "left": ["body.div_0"],
-            "right": ["body.div_0"],
+            "left": [("upd", "body.div_0")],
+            "right": [("upd", "body.div_0")],
         }
 
 
