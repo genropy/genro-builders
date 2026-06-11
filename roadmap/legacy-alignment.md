@@ -58,14 +58,19 @@ Decisioni:
   `TimeTextBox` scrive `{dtype:'H'}` via `_doChangeInData`;
   `default_value` convertito col dtype in ingresso). Traduzione NG: il
   widget conosce il suo dtype nativo (dal `kind`) o lo riceve
-  (`dtype=`), il render emette `data-dtype` sull'elemento, il client
-  spedisce **valore e dtype come parametri distinti** (il suffisso
-  in-band `valore::dtype` sarebbe iniettabile da un textbox: un utente
-  che digita `45::L` verrebbe convertito), il server converte con
-  `genro_tytx.utils.raw_decode(f"{value}::{dtype}")` SOLO quando il
-  dtype è dichiarato → **dato tipato nel datastore**; suffisso ignoto →
-  errore esplicito. Vuoto → `null` per ogni campo con dtype (parità
-  `NumberTextBox.onSettingValueInData` / `DateTextBox.onChanged`).
+  (`dtype=`), il render emette `data-dtype` sull'elemento.
+  **[SUPERATO il 2026-06-11 sera dalla mutazione per identità]** Prima
+  evoluzione: valore e dtype come parametri distinti (il suffisso
+  in-band `valore::dtype` era iniettabile da un textbox). Stato
+  attuale: **il dtype non viaggia affatto** — il filo porta
+  `{id, valore}`, il server risolve il NODO (writeback map per le
+  espansioni, seriale per i nodi sorgente — contratto CMP.7, mappa dei
+  figli virtuali) e converte col dtype DEL NODO; dtype testuali non
+  convertono, vuoto → `null` per ogni campo tipato (parità
+  `NumberTextBox.onSettingValueInData` / `DateTextBox.onChanged`),
+  id ignoto o nodo non scrivibile → rifiuto esplicito. Il nodo risolto
+  è anche la sede dei `validate_*` (trattenuti, mai in HTML): il
+  motore di validazione si innesta lì.
 
 Mappa dtype→kind (la stessa che `field` userà):
 
