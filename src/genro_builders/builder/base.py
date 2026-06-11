@@ -104,12 +104,12 @@ class BuilderBase(
     #: Not a ClassVar: ``__init__`` binds it onto each instance as well.
     _schema_tag_names: dict[str, str]
 
-    #: @struct_method dispatch map (lowercase dispatch name -> attr name),
-    #: rebuilt per subclass in :meth:`__init_subclass__`. A struct-method is
+    #: @container dispatch map (lowercase dispatch name -> attr name),
+    #: rebuilt per subclass in :meth:`__init_subclass__`. A container is
     #: a callable block invocable from any node (``node.card(...)``); the
     #: dispatcher resolves it through the active builder (legacy
     #: gnrwebstruct parity).
-    _struct_methods: dict[str, str]
+    _containers: dict[str, str]
 
     # -----------------------------------------------------------------------
     # Initialization
@@ -235,20 +235,20 @@ class BuilderBase(
                 )
             cls._schema_tag_names[key] = label
 
-        # @struct_method dispatch map (legacy gnrwebstruct parity): dispatch
-        # name = explicit ``@struct_method('alias')`` if given, else attr name
+        # @container dispatch map (legacy gnrwebstruct parity): dispatch
+        # name = explicit ``@container('alias')`` if given, else attr name
         # with the prefix-before-first-underscore stripped, else attr name;
         # stored lowercase; reverse-MRO merge for inheritance; same dispatch
-        # name on a different attr name collides. Struct methods are skipped
+        # name on a different attr name collides. Containers are skipped
         # by _pop_decorated_methods, so they stay callable on the class.
         merged: dict[str, str] = {}
         for klass in reversed(cls.__mro__):
-            parent_map = klass.__dict__.get("_struct_methods")
+            parent_map = klass.__dict__.get("_containers")
             if parent_map:
                 merged.update(parent_map)
         for attr_name, obj in cls.__dict__.items():
             decorator = getattr(obj, "_decorator", None)
-            if decorator is None or not decorator.get("struct_method"):
+            if decorator is None or not decorator.get("container"):
                 continue
             explicit = decorator.get("name")
             if explicit is not None:
@@ -261,12 +261,12 @@ class BuilderBase(
             existing = merged.get(key)
             if existing is not None and existing != attr_name:
                 raise ValueError(
-                    f"@struct_method '{dispatch_name}' is already tied to "
+                    f"@container '{dispatch_name}' is already tied to "
                     f"implementation method '{existing}' (cannot rebind to "
                     f"'{attr_name}')"
                 )
             merged[key] = attr_name
-        cls._struct_methods = merged
+        cls._containers = merged
 
         name = cls.__dict__.get("_name")
         if name is not None:

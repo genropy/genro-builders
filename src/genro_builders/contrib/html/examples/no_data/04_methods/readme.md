@@ -21,7 +21,7 @@ class CustomPage(HtmlBuilder):
 You call `self.card(parent, ...)` explicitly and pass the parent node in.
 Nothing special — it is plain Python factoring.
 
-The next example (`05_struct_method`) shows `@struct_method`, where the
+The next example (`05_container`) shows `@container`, where the
 block is invoked **from the node itself** (`body.card(...)`) instead of
 through `self`.
 

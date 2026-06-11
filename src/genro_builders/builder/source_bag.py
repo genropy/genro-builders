@@ -26,18 +26,18 @@ from typing import Any
 from genro_bag import Bag, BagNode
 
 
-def _dispatch_struct_method(builder: Any, target: Any, name: str) -> Any | None:
-    """Resolve ``name`` as a ``@struct_method`` on ``builder``.
+def _dispatch_container(builder: Any, target: Any, name: str) -> Any | None:
+    """Resolve ``name`` as a ``@container`` on ``builder``.
 
     Returns a callable bound to ``target`` (bag or node) when the name
-    matches a registered struct method on the builder; ``None`` if no
+    matches a registered container on the builder; ``None`` if no
     match (caller falls through to whatever else it wants to try). The
-    struct method runs with ``self`` = the builder and ``target`` as its
+    container runs with ``self`` = the builder and ``target`` as its
     first positional (the node it was invoked from).
     """
     if builder is None:
         return None
-    method_name = builder._struct_methods.get(name.lower())
+    method_name = builder._containers.get(name.lower())
     if method_name is None:
         return None
     bound = getattr(builder, method_name)
@@ -523,7 +523,7 @@ class _SourceBagNodeMixin:
         schema. The grammar semantics (data-element field mapping,
         ``node_id`` uniqueness, sub-builder switch) live in the shared
         wrapper both entry points converge on — this is pure routing.
-        If no grammar tag matches, fall back to a ``@struct_method``
+        If no grammar tag matches, fall back to a ``@container``
         dispatched via the active builder (legacy gnrwebstruct parity).
         """
         if name.startswith("_"):
@@ -537,7 +537,7 @@ class _SourceBagNodeMixin:
             )
         original_tag = builder._schema_tag_names.get(name.lower())
         if original_tag is None:
-            struct = _dispatch_struct_method(builder, self, name)
+            struct = _dispatch_container(builder, self, name)
             if struct is not None:
                 return struct
             raise AttributeError(
@@ -597,14 +597,14 @@ class _SourceBagMixin:
 
     def __getattr__(self, name: str) -> Any:
         """Fallback after the regular attribute lookup fails: dispatch a
-        ``@struct_method`` via the active builder (legacy gnrwebstruct
+        ``@container`` via the active builder (legacy gnrwebstruct
         parity).
         """
         if name.startswith("_"):
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
-        struct = _dispatch_struct_method(getattr(self, "_builder", None), self, name)
+        struct = _dispatch_container(getattr(self, "_builder", None), self, name)
         if struct is not None:
             return struct
         raise AttributeError(

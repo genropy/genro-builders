@@ -9,7 +9,7 @@ and are imported as:
 
 ```python
 from genro_builders.builder import (
-    element, abstract, struct_method, component,
+    element, abstract, container, component,
 )
 ```
 
@@ -19,7 +19,7 @@ from genro_builders.builder import (
 |-------------|--------------------------------------------|-----------------------|
 | `@element`  | Declare a tag in the grammar.              | Ignored (declarative).|
 | `@abstract` | Declare an abstract base for inheritance.  | Ignored (declarative).|
-| `@struct_method` | A reusable construction block, invocable from a node. | Runs (builds). |
+| `@container` | A reusable construction block, invocable from a node. | Runs (builds). |
 | `@component` | A named grammar element with a body, expanded ephemerally at render time. Three calling forms: explicit params, `store` (record anchor), `iterate` (one expansion per child). Composes fractally. | Runs (builds). See contract area `CMP` and the examples `with_data/07`-`11`. |
 
 There is **no** separate `@subbuilder` or `@data_element` decorator.
@@ -189,5 +189,5 @@ signature and metadata, the function body is discarded. For
 definition time — use `...` (ellipsis) as the body to suppress it.
 The data-elements and sub-builders, being `@element`, follow the same
 rule; their behaviour lives in the builder's compute pass / the
-sub-builder dispatch, not in the body. `@struct_method` and
+sub-builder dispatch, not in the body. `@container` and
 `@component` are the exceptions: they carry a body that builds.

@@ -9,7 +9,7 @@ from ._decorators import (
     abstract,
     component,
     element,
-    struct_method,
+    container,
 )
 from ._validators import Range, Regex
 from .base import BuilderBase
@@ -29,5 +29,5 @@ __all__ = [
     "abstract",
     "component",
     "element",
-    "struct_method",
+    "container",
 ]

@@ -305,7 +305,7 @@ def _pop_decorated_methods(cls: type, builder_base: type):
 
     for name, obj in list(cls.__dict__.items()):
         if hasattr(obj, "_decorator"):
-            if obj._decorator.get("struct_method"):
+            if obj._decorator.get("container"):
                 continue
             seen.add(name)
             is_component = (obj._decorator.get("_meta") or {}).get("component")
@@ -328,7 +328,7 @@ def _pop_decorated_methods(cls: type, builder_base: type):
             if name in seen:
                 continue
             if hasattr(obj, "_decorator"):
-                if obj._decorator.get("struct_method"):
+                if obj._decorator.get("container"):
                     continue
                 seen.add(name)
                 yield _decorated_method_info(name, obj)

@@ -1,19 +1,19 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""05 — Struct methods: blocks invoked from a node. See readme.md."""
+"""05 — Containers: blocks invoked from a node. See readme.md."""
 from __future__ import annotations
 
-from genro_builders import struct_method
+from genro_builders import container
 from genro_builders.contrib.html import HtmlBuilder
 
 
 class CustomPage(HtmlBuilder):
-    @struct_method
+    @container
     def card(self, pane, title, body, color="#3498db"):
         box = pane.div(class_="card", border_top=f"3px solid {color}")
         box.h3(title)
         box.p(body)
 
-    @struct_method
+    @container
     def ui_badge(self, pane, text):
         pane.span(text, class_="badge")
 

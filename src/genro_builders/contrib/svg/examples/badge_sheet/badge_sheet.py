@@ -1,8 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Badge sheet — demo di @struct_method.
+"""Badge sheet — demo di @container.
 
 What you learn:
-    - Decorate a builder method with @struct_method to expose it as a
+    - Decorate a builder method with @container to expose it as a
       block invocable from any node in the source bag.
     - The first arg after self (convention: ``pane``) is the node from
       which the block was invoked.
@@ -17,14 +17,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders import struct_method
+from genro_builders import container
 from genro_builders.contrib.svg import SvgBuilder
 
 
 class BadgeSheet(SvgBuilder):
     """Sheet of three name badges arranged in a grid."""
 
-    @struct_method
+    @container
     def badge(self, pane, title, subtitle, color="#3498db", x=0, y=0):
         g = pane.g(transform=f"translate({x},{y})")
         g.rect(x=0, y=0, width=200, height=80, fill=color, rx=10)

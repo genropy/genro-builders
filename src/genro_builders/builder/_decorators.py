@@ -222,30 +222,38 @@ def abstract(
     return decorator
 
 
-def struct_method(func_or_name):
-    """Decorator: mark a handler method as a callable block invocable
-    from any node via the bag's dispatch.
+def container(func_or_name):
+    """Decorator: a reusable piece that GENERATES SOURCE at call time.
+
+    The body runs once, when the author calls it on a node, and writes
+    real source nodes — individually addressable (``target_id``),
+    individually patchable, and FILLABLE by the caller (the body
+    returns whatever handle is useful: a zone, a zones object, the
+    generated root). The other citizen, ``@component``, lives in the
+    render instead: ephemeral expansion, self-contained, data-driven.
+    The discriminator is fillability (contract CMP.9). Heir of the
+    retired ``@struct_method``.
 
     Naming rules (legacy gnrwebstruct parity):
-        @struct_method
+        @container
         def widget(self, pane, ...): ...      # dispatch name: 'widget'
 
-        @struct_method
+        @container
         def iv_widget(self, pane, ...): ...   # dispatch name: 'widget'
                                               # (strip prefix before first '_')
 
-        @struct_method('alias')
+        @container('alias')
         def some_internal_name(self, pane, ...): ...  # dispatch name: 'alias'
 
-    Body must not be empty (ellipsis): a struct-method carries real logic.
+    Body must not be empty (ellipsis): a container carries real logic.
     """
     def _mark(func: Callable, explicit_name: str | None) -> Callable:
         if _is_empty_body(func):
             raise ValueError(
-                f"@struct_method '{func.__name__}' must have a body"
+                f"@container '{func.__name__}' must have a body"
             )
         func._decorator = {  # type: ignore[attr-defined]
-            "struct_method": True,
+            "container": True,
             "name": explicit_name,
         }
         return func
