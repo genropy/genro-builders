@@ -15,7 +15,12 @@ class CommonComponents:
         card = root.div(class_="address")
         card.strong(company)
         card.div(street)
-        card.div(f"{zip_code} {city}")
+        # Composing two data into one string is a TEMPLATE's job (the
+        # inputs are consumed, DAT.6) — never an f-string on the kwargs:
+        # a pointer kwarg reaches the body as a POINTER (CMP.4
+        # pass-through), the value exists only at the final node's
+        # render.
+        card.div("${zip_code} ${city}", zip_code=zip_code, city=city)
 
 
 class CustomPage(HtmlBuilder, CommonComponents):
@@ -28,8 +33,9 @@ class CustomPage(HtmlBuilder, CommonComponents):
     def main(self, root):
         body = root.body()
         body.h2("Sender")
-        # Explicit params saturate the body signature; pointers are
-        # resolved by runtime_values before the body runs.
+        # Explicit params saturate the body signature; a reactive
+        # pointer passes through AS a pointer (absolutized) and resolves
+        # at the final node — so the address survives for write-back.
         body.address_block(
             company="^sender.company", street="^sender.street",
             city="^sender.city", zip_code="^sender.zip",

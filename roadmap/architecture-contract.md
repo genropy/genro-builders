@@ -549,6 +549,17 @@ dichiara). Il body aggancia la radice al dato (`datapath` dalla label,
 relativa all'ancora `store`/`iterate` sul wrapper) e dentro usa
 pointer relativi.
 
+**Pass-through dei kwargs-pointer** (emendamento 2026-06-11): un kwarg
+il cui valore crudo è un **pointer reattivo** satura la firma come
+**pointer assolutizzato** (sintassi `^volume:rest`, context-free), non
+come valore risolto. L'indirizzo deve raggiungere il nodo finale che
+il body costruisce: lì si risolve come un pointer scritto a mano ed
+emette il gancio di write-back (`data-value-pointer`) — risolverlo
+prima del body lo consumerebbe (input muto). I valori non-pointer e i
+pointer passivi (`=`) restano risolti. Vincolo: il body costruisce
+struttura coi kwargs-pointer, non computa sul valore — la logica sui
+dati appartiene ai data-element.
+
 ### CMP.5 — Nessuna validazione
 
 Né di posizionamento né sul tag emesso dal body. La grammatica registra
@@ -572,8 +583,13 @@ path**: evento sotto la radice dell'iterate → residuo → primo segmento
 strutturali con la stessa aritmetica. L'**identità dell'unità
 per-riga** è da definire nel filone RX: le espansioni non portano
 `target_id` per costruzione (reincarnano), quindi il per-riga richiede
-uno schema proprio (candidato: derivato dal `target_id` del nodo
-component + label). Meccanica da implementare nel filone RX.
+uno schema proprio. Candidato (2026-06-11): la **mappa dei figli
+virtuali** — al render dell'espansione il nodo component cattura
+`{id derivato (target_id + suffisso) → pointer assoluto}` e gli
+elementi interni escono con quell'id; ricostruita a ogni ri-render del
+blocco (coerente con l'effimero), abilita sia il write-back id-based
+(elemento → server risolve dalla mappa) sia le patch per-riga.
+Meccanica da implementare nel filone RX.
 
 ### CMP.8 — Componibilità frattale
 

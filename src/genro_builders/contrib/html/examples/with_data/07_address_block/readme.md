@@ -17,7 +17,7 @@ class CommonComponents:
         card = root.div(class_="address")
         card.strong(company)
         card.div(street)
-        card.div(f"{zip_code} {city}")
+        card.div("${zip_code} ${city}", zip_code=zip_code, city=city)
 
 
 class CustomPage(HtmlBuilder, CommonComponents):
@@ -38,10 +38,17 @@ body.address_block(
 )
 ```
 
-The call's attributes saturate the body's signature. They go through
-`runtime_values` first, so pointers are allowed and transparent: the
-body receives plain values. The same component renders the customer
-block from literal params — the call site decides the data.
+The call's attributes saturate the body's signature. Plain values
+arrive as they are; a **reactive pointer passes through AS a pointer**
+(absolutized — `^html:sender.city`): the body stamps it on the nodes
+it builds, and the value resolves at the final node's render, exactly
+like a hand-written pointer. That is what keeps the ADDRESS alive on
+the element (the `data-value-pointer` write-back hook in the reactive
+render). Consequence: the body builds structure with the kwargs, it
+never computes on their values — composing two data into one string is
+the template's job (`${zip_code} ${city}`, inputs consumed), not an
+f-string's. The same component renders the customer block from literal
+params — the call site decides the data.
 
 ## Why this example exists
 

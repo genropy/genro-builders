@@ -39,6 +39,22 @@ contratto: riempibile → container, autosufficiente/data-driven →
 component. **`@struct_method` pensionato come nome**, parità legacy
 conservata sotto `@container`. Glossario e PARTE III aggiornati.
 
+### Corretto — `CMP.4`: pass-through dei kwargs-pointer
+
+I kwargs della chiamata saturavano la firma del body SEMPRE risolti: il
+pointer veniva consumato prima del body e l'input dell'espansione
+usciva con un letterale — muto al write-back (nessun
+`data-value-pointer`, nessun id, nodo emittente già morto: l'indirizzo
+esisteva per un solo istante, alla risoluzione). Corretto: un kwarg il
+cui crudo è un pointer REATTIVO passa al body come pointer
+assolutizzato (`^volume:rest`, context-free perché l'albero-espansione
+è staccato); si risolve al render del nodo finale, come un pointer a
+mano, ed emette il gancio. Display identico (la risoluzione si sposta
+di un gradino, D9 invariato: niente registrazione nell'espansione).
+Prerequisito della collezione widget (`HtmlComponentsBase`) e della
+futura mappa dei figli virtuali (write-back id-based + per-riga,
+`CMP.7`).
+
 ### Corretto — `CMP.7` (per-riga) e stato del codice
 
 `CMP.7` prometteva "id DOM = path del component + label": superato

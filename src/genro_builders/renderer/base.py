@@ -178,10 +178,14 @@ class RendererBase:
         The body — kept callable on the builder class by ``@component`` —
         receives a fresh throw-away root and builds the real structure
         into it: exactly ONE tree (one root element), a forest raises.
-        The call's resolved attributes saturate the body's signature
-        (pointers already went through ``runtime_values``); the walk then
-        re-enters on the tree the body built, so dialect dispatch,
-        nested components and sub-builders apply as usual.
+        The call's attributes saturate the body's signature: plain
+        values resolved, REACTIVE POINTERS passed through as pointers,
+        absolutized at the component node (``^volume:rest``, context
+        free) — the ADDRESS must reach the final node the body builds,
+        where it resolves exactly like a hand-written one and emits the
+        write-back hook (CMP.4). The walk then re-enters on the tree
+        the body built, so dialect dispatch, nested components and
+        sub-builders apply as usual.
         """
         builder = node.builder
         body = getattr(type(builder), node.node_tag).__get__(builder, type(builder))
@@ -202,6 +206,20 @@ class RendererBase:
                 anchor = anchor[1:]
             if anchor.startswith("."):
                 anchor = node._compose_relative_datapath(anchor, anchor)
+        # Pointer pass-through (CMP.4): a kwarg whose RAW value is a
+        # reactive pointer reaches the body as a pointer, not as the
+        # resolved value — resolving here would kill the address (the
+        # expansion's input would carry a literal: mute to write-back).
+        # Absolutized in the component node's context (the expansion
+        # tree is detached, a relative form would resolve against
+        # nothing); the volume syntax keeps it context-free. The body
+        # builds structure with it — computing on a datum is data
+        # logic, and data logic belongs to data-elements.
+        for name in runtime_attrs:
+            raw = node.attr.get(name)
+            if node.pointer_type(raw) == "^":
+                volume, _, rest = node.abs_datapath(raw).partition(".")
+                runtime_attrs[name] = f"^{volume}:{rest}"
 
         def expand(*body_args: Any, **body_kwargs: Any) -> Any:
             root = builder._expansion_root(datapath=anchor)
