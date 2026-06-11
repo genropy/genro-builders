@@ -179,8 +179,23 @@ class GenroClient {
     if (!this._inputHandler) {
       this._inputHandler = (e) => this.onInput(e);
     }
+    if (!this._clickHandler) {
+      this._clickHandler = (e) => this.onClick(e);
+    }
     main.removeEventListener("input", this._inputHandler);
     main.addEventListener("input", this._inputHandler);
+    main.removeEventListener("click", this._clickHandler);
+    main.addEventListener("click", this._clickHandler);
+  }
+
+  // A click on an element carrying `data-set-pointer` writes
+  // `data-set-value` to that path: the click IS a mutation, riding the
+  // same single road as the inputs (tab strips, menus, buttons).
+  onClick(e) {
+    var el = e.target.closest ? e.target.closest("[data-set-pointer]") : null;
+    if (!el) return;
+    this.setData(el.getAttribute("data-set-pointer"),
+                 el.getAttribute("data-set-value"));
   }
 
   onInput(e) {

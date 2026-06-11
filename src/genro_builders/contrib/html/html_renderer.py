@@ -75,12 +75,14 @@ _STYLE_ROOTS = frozenset({
     "width", "height", "top", "left", "right", "bottom",
     "padding", "margin", "border", "position", "display",
     "overflow", "float", "clear", "resize", "z_index",
+    # min_*/max_* listed in full: a bare "min"/"max" root would
+    # swallow the HTML attributes of number/range inputs.
+    "min_width", "min_height", "max_width", "max_height",
     # Typography / color
     "color", "background", "font", "text",
     "line_height", "white_space", "vertical_align",
-    # Flex / Grid
-    "flex", "gap", "row_gap", "column_gap",
-    "grid_template_columns",
+    # Flex / Grid ("grid" covers the whole grid_* family)
+    "flex", "gap", "row_gap", "column_gap", "grid",
     "align_content", "justify_content",
     "align_items", "justify_items",
     # Visibility / interaction
