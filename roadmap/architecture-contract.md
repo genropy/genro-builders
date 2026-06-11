@@ -12,11 +12,14 @@ identità dei nodi, render subsystem (walk universale, dispatch per-nodo,
 minimi di cardinalità), data binding pull-based con registrazione alla
 lettura, data-element e compute "fetta 1", handler multibuilder
 (`add_builder`/`activate`), reattività push Livello 0 con `live()` come
-sezione critica e coda di render per mount. Restano da implementare: la
-cascata reattiva multi-ondata dei data-element ("fetta 2", `DAT.4`), il
-render parziale per nodo nel flush di `live()` (`RX.1`), i livelli di
-reattività con granularità SRC/DATA (`RX`), il **component** (`CMP`,
-design completo, codice assente salvo residui), lo **`@slot`**
+sezione critica e coda di render per mount, **component** (`CMP`:
+singolo/store/iterate/frattale, reattività L0), **render parziale**
+(`RX.1`: TargetWrapper, busta `replace`/`insert`/`remove`, optimizer di
+netting, identità seriale `target_id`). Restano da implementare: la
+cascata reattiva multi-ondata dei data-element ("fetta 2", `DAT.4`), i
+livelli di reattività con granularità SRC/DATA (`RX`) e il per-riga dei
+component (`CMP.7`), **`@container`** (`CMP.9`, deciso 2026-06-11),
+`<domain>requires`/`include_components` (`CMP.6`), lo **`@slot`**
 (`PAG.6`, design completo, codice assente) e lo strato Application
 (`APP`).
 
@@ -58,7 +61,10 @@ la minor del contratto, si conserva la versione superata in
   trasparente al render, eseguito dal compute (`DAT.3`/`DAT.4`).
 - **Component**: elemento di grammatica **nominato con body** (`CMP`):
   il nodo resta nominato nella source, l'espansione è un fatto effimero
-  del render.
+  del render. Autosufficiente e guidato dai dati.
+- **Container**: pezzo riusabile che **genera source alla chiamata**
+  (`CMP.9`): il body corre una volta e scrive nodi veri, riempibili dal
+  chiamante. Erede di `@struct_method` (nome pensionato).
 - **Pointer**: riferimento a un dato (`^path` reattivo, `=path`
   passivo), risolto a render time leggendo la data bag.
 - **Resolver** (pull): nodo con computazione lazy, eseguita alla lettura.
@@ -93,10 +99,21 @@ Python + tutto il resto in JS (bag/builder JS sul client). Conseguenze:
 - i component restano **nominati** nella source: ogni interprete ha la
   propria implementazione del body per quel nome (`CMP.1`).
 
-**Identità per path.** Il server è autoritativo; l'id di un elemento DOM
-è il path del nodo che lo genera. La mutazione strutturale è una
-sostituzione di contenitore (trade-off alla Hotwire, accettato). Residui
-noti: label auto-generate monotone, stato client effimero.
+**Identità per seriale (`target_id`).** Il server è autoritativo;
+l'identità di un elemento nel target renderizzato è un **seriale per
+documento** (`n1`, `n2`, ...) assegnato al nodo generante alla prima
+emissione e conservato sull'oggetto (slot, mai un attributo della bag):
+legato all'oggetto e non alla posizione, nessuna mutazione strutturale
+lo invalida; deterministico (ordine di render) per i fixture
+committati. Il render reattivo lo emette su OGNI elemento (qualunque
+elemento può diventare bersaglio, contenitore o ancora a runtime);
+l'id d'autore vince e rinuncia all'indirizzabilità. La mutazione
+strutturale viaggia come `insert` (frammento nuovo + ancora `before`) /
+`remove`; la sostituzione di contenitore resta l'unità per le
+espansioni component (senza identità per costruzione). Residui noti:
+stato client effimero.
+[Emendamento 2026-06-11: sostituisce "identità per path" — il path
+slittava ad ogni insert, il seriale è inerte.]
 
 ---
 
@@ -462,12 +479,22 @@ emesso sia riusato passa anch'esso da template.
 
 ---
 
-## Area CMP — Component (design completo; implementazione da fare)
+## Area CMP — Component e Container
 
-Design completo del 2026-06-10 (verbale:
-`roadmap/component-design.md`, decisioni D1-D10;
-qui la forma contrattuale). Risolve l'asimmetria che fece rimuovere i
-component alla v0.4: l'espansione non entra mai nella ricetta.
+Design dei component del 2026-06-10 (verbale:
+`roadmap/component-design.md`, decisioni D1-D10; qui la forma
+contrattuale; implementato salvo `CMP.6` e il per-riga di `CMP.7`).
+Risolve l'asimmetria che fece rimuovere i component alla v0.4:
+l'espansione non entra mai nella ricetta.
+
+L'area ospita **due cittadini** (emendamento 2026-06-11), distinti dal
+discriminante della **riempibilità**:
+
+- **`@component`** — vive nel *render*: espansione effimera che rinasce
+  coi dati. Autosufficiente: il chiamante lo parametrizza, non ci mette
+  contenuto. (`CMP.1`-`CMP.8`)
+- **`@container`** — vive nella *source*: il body corre UNA volta alla
+  chiamata e genera nodi veri, che il chiamante riempie. (`CMP.9`)
 
 ### CMP.1 — Elemento di grammatica nominato, con body
 
@@ -541,9 +568,12 @@ I pointer interni alle espansioni **non entrano mai** nella
 pointer_map. In mappa c'è solo il nodo component (i suoi pointer
 dichiarati). La granularità per-riga si ricava con l'**aritmetica dei
 path**: evento sotto la radice dell'iterate → residuo → primo segmento
-= label del child (quale blocco), resto = cosa è cambiato; id DOM =
-path del nodo component + label. Eventi strutturali con la stessa
-aritmetica. Meccanica da implementare nel filone RX.
+= label del child (quale blocco), resto = cosa è cambiato. Eventi
+strutturali con la stessa aritmetica. L'**identità dell'unità
+per-riga** è da definire nel filone RX: le espansioni non portano
+`target_id` per costruzione (reincarnano), quindi il per-riga richiede
+uno schema proprio (candidato: derivato dal `target_id` del nodo
+component + label). Meccanica da implementare nel filone RX.
 
 ### CMP.8 — Componibilità frattale
 
@@ -556,6 +586,28 @@ backstop a contatore da decidere all'implementazione.
 
 Complemento di selezione (master-detail, datapath variabile
 `datapath="^..."`): `roadmap/reactivity/variable-datapath.md`.
+
+### CMP.9 — `@container`: il pezzo riusabile che genera source
+
+Deciso il 2026-06-11. `@container` in un mixin entra in grammatica come
+un element (stesso dispatch `__getattr__` di `@component`), ma il body
+corre **una volta, alla chiamata**, e scrive **nodi sorgente veri**:
+con `target_id`, patchabili uno a uno, riempibili dal chiamante. Il
+body riceve il nodo su cui è invocato e ritorna l'handle che ritiene
+utile (la zona center, un oggetto-zone, la radice generata).
+
+Il **discriminante** fra i due cittadini è la riempibilità: *il
+chiamante ci mette contenuto suo?* → `@container`; *è autosufficiente
+e guidato dai dati?* → `@component`. La conseguenza meccanica è
+l'identità: un contenitore che ospita pane (es. iframe nel desktop)
+DEVE essere fatto di nodi veri — un'espansione effimera non ha
+indirizzabilità interna e degraderebbe ogni cambiamento a replace del
+blocco intero.
+
+`@struct_method` è **pensionato come nome**: la sua meccanica (parità
+utente col legacy gnrwebstruct: firma `def nome(self, pane, **kwargs)`,
+strip del prefisso, dispatch su nodo e bag) vive sotto `@container`.
+Nessun periodo di doppio nome: i chiamanti migrano con il rename.
 
 ---
 
@@ -669,8 +721,9 @@ Chiuse (per memoria):
   dichiarati per nome / manifest dei widget" è **assorbito**: il blocco
   con logica client è un component con body JS (`CMP.1`), il tag nativo
   opaco è un normale `@element` in un mixin (`BLD.1`).
-- **`@struct_method`** (zucchero, parità legacy); **`to_grammar`**
-  export.
+- **`@struct_method`** pensionato come nome (2026-06-11): la meccanica
+  (zucchero, parità legacy) vive come **`@container`** (`CMP.9`);
+  **`to_grammar`** export.
 - **Unicità/immutabilità `node_id`** asimmetriche, per documento
   (root builder) (`BAG.4`/`PAG.5`).
 - **Registrazione alla lettura** (niente walk a priori; invariante del

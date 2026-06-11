@@ -11,6 +11,44 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-11 (identità seriale, op strutturali, `@container`)
+
+Tre cose, tutte figlie della stessa giornata di lavoro (op strutturali
+della busta + decisione sulla collezione widget):
+
+### Corretto — identità per seriale (Premessa)
+
+"Identità per path" (l'id DOM = path del nodo generante) è sostituita
+da **identità per seriale** (`target_id`: `n1`, `n2`, ... per
+documento, assegnato alla prima emissione, slot sul nodo). Ragione: con
+le op strutturali (`insert`/`remove`) il path NON è un'identità — un
+insert non slitta i path (label-based) ma l'indirizzabilità richiede
+id su OGNI elemento, e a quel punto il seriale è più corto, legato
+all'oggetto e immune per costruzione a qualunque riorganizzazione. Il
+trade-off Hotwire (sostituzione di contenitore) resta solo come unità
+per le espansioni component. Implementato (busta
+`replace`/`insert`/`remove` con ancora `before`, optimizer di netting,
+oracolo esteso, esempio `reactive/11`).
+
+### Aggiunto — `CMP.9 @container`; l'area diventa "Component e Container"
+
+Secondo cittadino dell'area: il pezzo riusabile che **genera source
+alla chiamata** (body una volta, nodi veri con `target_id`, riempibile
+dal chiamante; ritorna l'handle che sceglie il body). Discriminante a
+contratto: riempibile → container, autosufficiente/data-driven →
+component. **`@struct_method` pensionato come nome**, parità legacy
+conservata sotto `@container`. Glossario e PARTE III aggiornati.
+
+### Corretto — `CMP.7` (per-riga) e stato del codice
+
+`CMP.7` prometteva "id DOM = path del component + label": superato
+dall'identità seriale — le espansioni non portano `target_id`
+(reincarnano), lo schema d'identità per-riga è rimandato al filone RX.
+Lo "stato del codice" in testa registra component e render parziale
+come implementati.
+
+---
+
 ## v0.8.0 — correzione del 2026-06-10 (stessa giornata del bump)
 
 `BAG.4`/`PAG.5` dichiaravano l'unicità di `node_id` "per builder, il
