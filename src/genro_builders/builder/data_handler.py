@@ -39,6 +39,18 @@ class BuilderHandler:
         # Read-time pointer tracking: key = absolute data path, value =
         # {id(node): node}. Populated by _register_path during render.
         self.pointer_map: dict[str, dict[int, SourceBagNode]] = {}
+        # Row logic of the expansions (CMP.7): trigger path ->
+        # {id(node): (data-element node, row prefix)}. A row recomputes
+        # iff the mutated path is among ITS resolved bindings — a
+        # row-internal binding fires one row, a shared one (the header
+        # exchange rate) fires every row that reads it. Populated by
+        # the expansion-registration walk, purged by row prefix at
+        # re-expansion, executed in the data-event cascade — NEVER at
+        # render (loaded data is trusted as-is; the rule is a rule of
+        # MUTATION).
+        self.expansion_logic: dict[
+            str, dict[int, tuple[SourceBagNode, str]]
+        ] = {}
         # Armed by activate(): startup is over, the first render has
         # populated the pointer_map. live() requires it — a page never
         # rendered is not reactive yet.
@@ -173,6 +185,7 @@ class BuilderHandler:
             path = ".".join(pathlist)
         relevant = self._relevant_nodes(path)
         self.execute_logic(relevant)
+        self._execute_expansion_logic(path)
         for builder, items in relevant.items():
             for kind, view_node in items:
                 # Same convention as the source events: key = mount
@@ -182,6 +195,56 @@ class BuilderHandler:
                     view_node.root_builder_name,
                     view_node.root_builder.source.relative_path(view_node),
                 )
+
+    def register_expansion_logic(
+        self, abs_path: str, node: SourceBagNode, prefix: str,
+    ) -> None:
+        """Register a row rule's trigger: ``abs_path`` recomputes ``node``.
+
+        ``node`` is the retained data-element of ONE row expansion,
+        anchored to its row: executing it computes that row. ``prefix``
+        is the row's derived-identity prefix, the purge key.
+        """
+        self.expansion_logic.setdefault(abs_path, {})[id(node)] = (
+            node, prefix,
+        )
+
+    def purge_expansion_logic(self, prefix: str) -> None:
+        """Drop every rule registered under ``prefix`` (re-expansion).
+
+        Prefix semantics match the derived-identity chain: nested
+        expansions carry the outer prefix, so purging a block also
+        purges its inner blocks.
+        """
+        for abs_path, inner in list(self.expansion_logic.items()):
+            for node_id, (_node, row_prefix) in list(inner.items()):
+                if row_prefix == prefix or row_prefix.startswith(
+                    prefix + ".",
+                ):
+                    del inner[node_id]
+            if not inner:
+                del self.expansion_logic[abs_path]
+
+    def _execute_expansion_logic(self, path: str) -> None:
+        """Run the row rules whose resolved bindings read ``path``.
+
+        Same matching as the pointer_map: exact trigger, or a trigger
+        UNDER the mutated path (a row replaced wholesale recomputes its
+        rules). The compute writes re-enter the cascade like any
+        canonical data-element.
+        """
+        seen: set[int] = set()
+        grouped: dict[Any, list[SourceBagNode]] = {}
+        for key, inner in self.expansion_logic.items():
+            if key != path and not key.startswith(path + "."):
+                continue
+            for node_id, (node, _prefix) in inner.items():
+                if node_id in seen:
+                    continue
+                seen.add(node_id)
+                grouped.setdefault(node.builder, []).append(node)
+        for builder, nodes in grouped.items():
+            builder.compute_logic(nodes)
 
     def execute_logic(
         self, relevant: dict[Any, list[tuple[str, SourceBagNode]]],

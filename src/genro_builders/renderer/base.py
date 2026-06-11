@@ -296,10 +296,35 @@ class RendererBase:
         ]
         for key in stale:
             del wmap[key]
+        handler = builder.handler
+        if handler is not None:
+            handler.purge_expansion_logic(prefix)
         counter = 0
         queue = [tree_root]
         while queue:
             current = queue.pop(0)
+            if current._get_meta("data_element"):
+                # Row logic: cataloged, never rendered (no ordinal, no
+                # id). The rule is a rule of MUTATION — loaded data is
+                # trusted as-is, so a "start" has no meaning here and a
+                # seeding element would be a render-time write.
+                if current.node_tag == "data_setter":
+                    raise ValueError(
+                        "data_setter inside an expansion body: seeding "
+                        "is a render-time write, expansions are pure "
+                        "projections",
+                    )
+                if current.attr.get("_on_start"):
+                    raise ValueError(
+                        "_on_start inside an expansion body: row logic "
+                        "is mutation-only (loaded data is trusted)",
+                    )
+                if handler is not None:
+                    for _attrname, pointer in current.pointers():
+                        handler.register_expansion_logic(
+                            current.abs_datapath(pointer), current, prefix,
+                        )
+                continue
             counter += 1
             composite = f"{prefix}.{counter}"
             current.attr["id"] = composite

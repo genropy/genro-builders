@@ -605,6 +605,23 @@ niente path né dtype dal filo. La ri-espansione purga il proprio
 prefisso (coerente con l'effimero). Le patch per-riga sulla stessa
 identità restano da implementare nel filone RX.
 
+**Row logic (implementata 2026-06-12).** I data-element dichiarati nel
+body di un component sono **regole di MUTAZIONE**: il documento
+caricato è fidato così com'è (il render non calcola MAI nulla;
+`_on_start` e `data_setter` in un body d'espansione → errore
+esplicito). Lo stesso walk di registrazione li CATALOGA invece di
+renderli: per ogni riga, i binding risolti in path assoluti entrano in
+`handler.expansion_logic` (`{path trigger → nodo-regola}`, purge per
+prefisso di riga). Una riga ricalcola **sse il path mutato è tra i
+SUOI binding risolti**: il binding di riga accende una riga, il
+binding condiviso (cambio in testata) le accende tutte, l'annidato si
+scopa da solo (il binding di gruppo risolve dentro il proprio
+gruppo). L'esecuzione sta nella cascata eventi (stessa coda,
+anti-loop); le scritture rientrano e concatenano (qty → total →
+controvalore). I nodi d'espansione accedono al datastore via
+``data_handler`` (l'handler è unico per documento; ``handler`` resta
+None — il gate D9 non si tocca).
+
 ### CMP.8 — Componibilità frattale
 
 Component dentro component (normali/iterate, anche auto-ricorsivi su

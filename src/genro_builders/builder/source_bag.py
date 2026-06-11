@@ -126,9 +126,26 @@ class _SourceBagNodeMixin:
         sub-builders), so it lives on the source root and is read from
         there via ``Bag.root`` — unlike ``_resolve_builder``, which is a
         single hop because the active builder is local to the node (an
-        ``<svg>`` subtree resolves to the SVG builder).
+        ``<svg>`` subtree resolves to the SVG builder). ``None`` on a
+        DETACHED tree (a component expansion) — the D9 gate.
         """
         return self.parent_bag.root._handler
+
+    @property
+    def data_handler(self) -> Any:
+        """The document's handler for DATA access.
+
+        Same object as :attr:`handler` on an attached tree; on a
+        detached one (a component expansion: ``handler`` is None by
+        design, the identity gate) the document's handler is reached
+        through the owning builder — an expansion node reads and
+        writes the SAME datastore as the document it projects (its row
+        logic computes through here).
+        """
+        handler = self.parent_bag.root._handler
+        if handler is None:
+            handler = self._resolve_builder().handler
+        return handler
 
     @property
     def root_builder(self) -> Any:
@@ -436,7 +453,7 @@ class _SourceBagNodeMixin:
         explicitly ``None``) is seeded with ``default`` before the read —
         the two cases are intentionally not distinguished (DBS-D1).
         """
-        data = self.handler.data
+        data = self.data_handler.data
         abs_path = self.abs_datapath(path)
         if autocreate and data.get_item(abs_path) is None:
             data.set_item(abs_path, default)
@@ -462,7 +479,7 @@ class _SourceBagNodeMixin:
         declares itself the origin; pass ``reason=False`` (``PUT``) to
         override.
         """
-        handler = self.handler
+        handler = self.data_handler
         abs_path = self.abs_datapath(path)
         handler.data.set_item(
             abs_path,

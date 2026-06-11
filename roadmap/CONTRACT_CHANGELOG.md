@@ -11,6 +11,26 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-12 (row logic: le regole delle righe sono regole di mutazione)
+
+La logica dati dichiarata nei body dei component (per-riga negli
+iterate) prende vita — con una decisione di modello netta: **il
+documento caricato è fidato** (la fattura arriva coi totali giusti),
+quindi il render non calcola MAI; la regola scatta solo alla
+mutazione. `_on_start`/`data_setter` in un'espansione → errore
+esplicito. Catalogazione nel walk di registrazione
+(`handler.expansion_logic`: binding risolto → nodo-regola, purge per
+prefisso), esecuzione nella cascata eventi; regola universale: una
+riga ricalcola sse il path mutato è tra i SUOI binding risolti —
+binding di riga = una riga, binding condiviso (cambio in testata) =
+tutte, annidati scopati dalla risoluzione stessa. Companion:
+``SourceBagNode.data_handler`` (accesso dati dei nodi d'espansione
+via builder; il gate D9 su ``handler`` non si tocca). Validato a
+scala: singolo, annidato, iterato + testata→righe, iterati annidati
+con testata di gruppo (esempio reactive/13_row_logic).
+
+---
+
 ## v0.8.0 — emendamento del 2026-06-11 sera (identità derivata delle espansioni, mappa dei figli virtuali)
 
 Nato dal design del write-back sicuro (le mutazioni dal client devono
