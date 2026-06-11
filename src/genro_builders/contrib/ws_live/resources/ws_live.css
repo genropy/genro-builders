@@ -31,6 +31,28 @@ body::after {
   font-size: 11px;
 }
 
+/* Collection widgets (HtmlComponentsBase): focus recolors the EXISTING
+   border (a calm azure — never a color that suggests an error), it
+   never adds a ring around. The box border is inline but reads its
+   color from a CSS variable, so :focus-within can recolor it. Fields
+   without a border keep a slim azure ring on the input itself (focus
+   must stay visible). Validation visuals are a separate, future
+   design. */
+.gnr-field input:focus,
+.gnr-field select:focus,
+.gnr-field textarea:focus {
+  outline: 2px solid #7ab8e8;
+  outline-offset: 1px;
+}
+.gnr-field:focus-within {
+  --gnr-field-border: #7ab8e8;
+}
+.gnr-field[style*="--gnr-field-border"] input:focus,
+.gnr-field[style*="--gnr-field-border"] select:focus,
+.gnr-field[style*="--gnr-field-border"] textarea:focus {
+  outline: none;
+}
+
 .swatch {
   display: inline-block;
   padding: 16px 32px;

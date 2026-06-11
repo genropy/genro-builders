@@ -90,7 +90,9 @@ class HtmlComponentsBase:
         if label_position == "left":
             box_style["align_items"] = "center"
         if border:
-            box_style["border"] = "1px solid #c8c8c8"
+            # The color rides a CSS variable so a class rule can recolor
+            # the border on :focus-within despite the inline style.
+            box_style["border"] = "1px solid var(--gnr-field-border, #c8c8c8)"
             box_style["padding"] = "6px 8px"
         if rounded:
             box_style["border_radius"] = "6px"
