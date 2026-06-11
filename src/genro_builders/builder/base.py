@@ -238,34 +238,37 @@ class BuilderBase(
         # @container dispatch map (legacy gnrwebstruct parity): dispatch
         # name = explicit ``@container('alias')`` if given, else attr name
         # with the prefix-before-first-underscore stripped, else attr name;
-        # stored lowercase; reverse-MRO merge for inheritance; same dispatch
-        # name on a different attr name collides. Containers are skipped
-        # by _pop_decorated_methods, so they stay callable on the class.
+        # stored lowercase; same dispatch name on a different attr name
+        # collides. The scan walks the WHOLE reverse MRO (the class's own
+        # dict last, so it wins): containers live in plain mixins too
+        # (HtmlContainersBase), which have no __init_subclass__ of their
+        # own. Containers are skipped by _pop_decorated_methods, so they
+        # stay callable on the class.
         merged: dict[str, str] = {}
         for klass in reversed(cls.__mro__):
             parent_map = klass.__dict__.get("_containers")
             if parent_map:
                 merged.update(parent_map)
-        for attr_name, obj in cls.__dict__.items():
-            decorator = getattr(obj, "_decorator", None)
-            if decorator is None or not decorator.get("container"):
-                continue
-            explicit = decorator.get("name")
-            if explicit is not None:
-                dispatch_name = explicit
-            elif "_" in attr_name:
-                dispatch_name = attr_name.split("_", 1)[1]
-            else:
-                dispatch_name = attr_name
-            key = dispatch_name.lower()
-            existing = merged.get(key)
-            if existing is not None and existing != attr_name:
-                raise ValueError(
-                    f"@container '{dispatch_name}' is already tied to "
-                    f"implementation method '{existing}' (cannot rebind to "
-                    f"'{attr_name}')"
-                )
-            merged[key] = attr_name
+            for attr_name, obj in klass.__dict__.items():
+                decorator = getattr(obj, "_decorator", None)
+                if decorator is None or not decorator.get("container"):
+                    continue
+                explicit = decorator.get("name")
+                if explicit is not None:
+                    dispatch_name = explicit
+                elif "_" in attr_name:
+                    dispatch_name = attr_name.split("_", 1)[1]
+                else:
+                    dispatch_name = attr_name
+                key = dispatch_name.lower()
+                existing = merged.get(key)
+                if existing is not None and existing != attr_name:
+                    raise ValueError(
+                        f"@container '{dispatch_name}' is already tied to "
+                        f"implementation method '{existing}' (cannot rebind "
+                        f"to '{attr_name}')"
+                    )
+                merged[key] = attr_name
         cls._containers = merged
 
         name = cls.__dict__.get("_name")
