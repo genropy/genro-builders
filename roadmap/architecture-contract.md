@@ -605,7 +605,7 @@ niente path né dtype dal filo. La ri-espansione purga il proprio
 prefisso (coerente con l'effimero). Le patch per-riga sulla stessa
 identità restano da implementare nel filone RX.
 
-**Row logic (implementata 2026-06-12).** I data-element dichiarati nel
+**Row logic (implementata 2026-06-11).** I data-element dichiarati nel
 body di un component sono **regole di MUTAZIONE**: il documento
 caricato è fidato così com'è (il render non calcola MAI nulla;
 `_on_start` e `data_setter` in un body d'espansione → errore

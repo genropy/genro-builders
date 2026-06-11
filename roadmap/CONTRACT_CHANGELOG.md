@@ -11,7 +11,7 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
-## v0.8.0 — emendamento del 2026-06-12 (row logic: le regole delle righe sono regole di mutazione)
+## v0.8.0 — emendamento del 2026-06-11, terza fetta (row logic: le regole delle righe sono regole di mutazione)
 
 La logica dati dichiarata nei body dei component (per-riga negli
 iterate) prende vita — con una decisione di modello netta: **il
