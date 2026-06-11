@@ -26,6 +26,24 @@ from typing import Any
 from genro_bag import Bag, BagNode
 
 
+def _schema_tag(builder: Any, name: str) -> str | None:
+    """Resolve ``name`` to a schema tag, honoring the dialect prefix.
+
+    Direct lookup first; when it misses, ``<dialect>_<tag>`` strips the
+    active dialect's prefix — the same escape the attributes use
+    (``html_type`` -> ``type``), here for tags shadowed by the node/bag
+    API (``html_label`` -> ``label``, since ``label`` is BagNode API).
+    """
+    lookup = name.lower()
+    tag = builder._schema_tag_names.get(lookup)
+    if tag is not None:
+        return tag
+    prefix = f"{builder._name}_"
+    if lookup.startswith(prefix):
+        return builder._schema_tag_names.get(lookup[len(prefix):])
+    return None
+
+
 def _dispatch_container(builder: Any, target: Any, name: str) -> Any | None:
     """Resolve ``name`` as a ``@container`` on ``builder``.
 
@@ -523,6 +541,10 @@ class _SourceBagNodeMixin:
         schema. The grammar semantics (data-element field mapping,
         ``node_id`` uniqueness, sub-builder switch) live in the shared
         wrapper both entry points converge on — this is pure routing.
+        The dialect-prefix escape works for tags as it does for
+        attributes: ``node.html_label(...)`` dispatches the ``label``
+        element — needed where the node API shadows a tag name
+        (``label`` is BagNode API, this fallback never fires for it).
         If no grammar tag matches, fall back to a ``@container``
         dispatched via the active builder (legacy gnrwebstruct parity).
         """
@@ -535,7 +557,7 @@ class _SourceBagNodeMixin:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'"
             )
-        original_tag = builder._schema_tag_names.get(name.lower())
+        original_tag = _schema_tag(builder, name)
         if original_tag is None:
             struct = _dispatch_container(builder, self, name)
             if struct is not None:
@@ -590,7 +612,7 @@ class _SourceBagMixin:
         except AttributeError:
             builder = None
         if builder is not None:
-            original_tag = builder._schema_tag_names.get(name.lower())
+            original_tag = _schema_tag(builder, name)
             if original_tag is not None:
                 return builder._bag_call(self, original_tag)
         return super().__getattribute__(name)
