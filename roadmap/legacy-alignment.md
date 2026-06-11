@@ -274,6 +274,17 @@ nuove dall'ASGI). Con i worker thread di ws_live la non-thread-safety
 va trattata esplicitamente (serializzare gli accessi db; il lock
 dell'handler copre le live section, l'accesso db è un piano in più).
 
+**PRIMA FETTA ESEGUITA (2026-06-11, in genro-ws-web)** con una
+precisazione scoperta sul campo: `GnrWsgiSite.__init__` forza la
+registrazione al **gnrdaemon** (Pyro, porta 40404 — `gnrwsgisite.py:512`,
+"don't remove"); senza daemon acceso non si istanzia. Per il solo DB
+basta **`GnrApp('istanza')`** (modello + db, niente strato web né
+daemon): `WsLiveApp(instance=...)` lo carica una volta per processo,
+`db_access()` serializza con un lock e chiude la connessione in ogni
+uscita. `GnrWsgiSite` torna necessario quando serviranno i servizi del
+sito (auth, registro) — col daemon. Verificato live: pagina demo
+`db_users` su `test_invoice_pg` (adm.user, 20 righe, postgres).
+
 ## 8. Dove vive il codice — builders vs genro-ws-web
 
 Confine dichiarato (README genro-ws-web): builders = dialetto HTML +
