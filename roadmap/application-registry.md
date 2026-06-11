@@ -95,6 +95,41 @@ master/satelliti è quindi un **miglioramento**, non un porting.
 multibuilder — N pagine, un canale, segmenti. Stessa forma ai due
 capi del filo.
 
+## 3b. Pagine condivise — la collaborazione strutturale
+
+Riflessione registrata il 2026-06-11 (da tenere presente): con questa
+architettura ogni pagina può avere un bottone **share** che apre il
+lavoro collaborativo, perché la verità della pagina vive sul server e
+i browser sono proiezioni. Non è una feature da aggiungere: è una
+proprietà strutturale. Quasi tutto è già pronto:
+
+- le mutazioni di N partecipanti convergono nella stessa `live()`
+  section (il lock dell'handler serializza già);
+- l'identità è già separata: ogni connessione ha il suo avatar, il
+  ciclo del comando firma ogni scrittura col SUO utente;
+- il morph protegge già il campo attivo locale: la patch altrui non
+  strappa focus né valore in digitazione — politica di conflitto
+  sensata gratis.
+
+I tre nodi da progettare quando sarà il momento:
+
+1. **Consegna multi-destinazione**: il `WsTargetWrapper` è bound a una
+   connessione; serve il broadcast (wrapper multi-connessione o N
+   wrapper sul flush). Meccanico.
+2. **Registro dei documenti condivisi**: share = token/URL d'invito;
+   il documento passa da `connection.pages` a un registro
+   per-documento sull'app; ingresso governato da avatar/tags
+   (middleware asgi); lifecycle (ultimo che esce? persistenza?).
+3. **Stato condiviso vs per-utente**: i dati di dominio sono del
+   documento, il tab selezionato no — serve la separazione
+   segmento-condiviso / segmento-per-utente nel datastore. Il nodo
+   più di design dei tre.
+
+Lignaggio: è la reincarnazione dello **shared_object** legacy (le
+pagine collaborative sopra websocket — `test/webpages/websocket/
+collaborative.py`, `shared_objects.py`); lì meccanismo aggiunto, qui
+conseguenza dell'architettura.
+
 ## 4. Ordine di lavoro
 
 1. Push sulla connessione (ponte flush-sync → send-async): le patch
@@ -104,6 +139,8 @@ capi del filo.
 3. Registro per-sessione (riattacco) + lifecycle.
 4. Pane nativi (multibuilder sullo stesso handler; id DOM
    qualificati per mount) — quando i casi d'uso lo chiederanno.
+5. Pagine condivise (§3b) — dopo auth middleware e registro
+   per-sessione.
 
 ## Riferimenti
 
