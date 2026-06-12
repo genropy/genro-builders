@@ -836,9 +836,7 @@ class BuilderBase(
             if not is_data_element and "?" not in abs_path:
                 data_node = self.handler.data.get_node(abs_path)
                 if data_node is not None:
-                    mask = data_node.attr.get("mask")
-                    if mask and value is not None and not isinstance(value, Bag):
-                        value = str(mask).replace("%s", str(value))
+                    value = self._present_value(data_node, value)
                     if k is None:
                         wdg = data_node.attr.get("_wdg")
                         if wdg:
@@ -905,6 +903,21 @@ class BuilderBase(
             )
             raise ValueError(f"incomplete document:\n{problems}")
         return renderer.finalize(result, effective_target, **opts)
+
+    def _present_value(self, data_node: Any, value: Any) -> Any:
+        """Apply the datum's presentation mask.
+
+        The datum knows how to present itself: ``mask`` is a %-format
+        whose single argument is the value — ``%s`` wraps (``"%s°"``),
+        a numeric directive fixes the shape (``"%.2f"``, ``"€ %.2f"``;
+        legacy gnrformatter vocabulary). Bags and missing values pass
+        raw; a mask/value mismatch raises — the datum declared a
+        presentation it cannot honour.
+        """
+        mask = data_node.attr.get("mask")
+        if mask and value is not None and not isinstance(value, Bag):
+            return str(mask) % value
+        return value
 
     def render_nodes(self, entries: list, target: Any = None, **opts: Any) -> Any:
         """Render the touched nodes accumulated during a ``live`` section.
@@ -1034,9 +1047,14 @@ class BuilderBase(
                     })
                     continue
                 anchor_abs = node.abs_datapath(node.attr["iterate"])
-                value = self.handler.data.get_item(
+                data_node = self.handler.data.get_node(
                     f"{anchor_abs}.{label}.{field}",
                 )
+                value = data_node.value if data_node is not None else None
+                if data_node is not None:
+                    # The cell lane presents exactly like the render
+                    # does: the masked value rides the wire.
+                    value = self._present_value(data_node, value)
                 text = "" if value is None else str(value)
                 for ordinal, cell_kind, attr_name in specs:
                     cell_id = f"{base}.{label}.{ordinal}"

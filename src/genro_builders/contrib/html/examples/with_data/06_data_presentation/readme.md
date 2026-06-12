@@ -10,11 +10,16 @@ accordingly — reactively, because the attributes survive value updates.
 data.set_item("temperature", 39.2, mask="%s°")
 ```
 
-`mask` wraps the rendered value; `%s` is the value (the legacy
-gnrformatter vocabulary, already understood by the JS twin). Every
-`^temperature` reader shows `39.2°`. Formulas are NOT affected: a
-`data_formula` binding reading the same pointer receives the raw
-`39.2` — presentation never leaks into computation.
+`mask` is a %-format whose single argument is the value: `%s` wraps
+(`39.2°`), a numeric directive fixes the shape — `mask="%.2f"` shows
+`45.00`, `mask="€ %.2f"` shows `€ 45.00` (the legacy gnrformatter
+vocabulary). Every `^temperature` reader shows the masked value, the
+value-only cell patches included: the wire carries what the render
+shows. Formulas are NOT affected: a `data_formula` binding reading
+the same pointer receives the raw `39.2` — presentation never leaks
+into computation. A mask the value cannot honour (a numeric directive
+on a string) raises: the datum declared a presentation it cannot
+keep.
 
 ## `_wdg` — exception attributes that travel with the datum
 
