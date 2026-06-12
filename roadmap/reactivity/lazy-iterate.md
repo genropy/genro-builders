@@ -1,13 +1,16 @@
 # Lazy iterate — la pigrizia sta nel dato
 
-**Versione**: 0.3.0
+**Versione**: 0.4.0
 **Ultimo aggiornamento**: 2026-06-12
 **Status**: 🔴 DA REVISIONARE — formalizza le decisioni D1-D4 condivise il
 2026-06-12, riviste in revisione lo stesso giorno: il fill spinto a
 lotti dal server è SUPERATO dal modello a scroll virtuale guidato dal
 client (§5); la v0.3.0 elimina anche il roundtrip di mount — query al
-primo render, pagina 0 inline, conteggio baked. I punti aperti della
-§7 sono risolti o decaduti.
+primo render, pagina 0 inline, conteggio baked. La v0.4.0 rivede D3:
+la pigrizia del render è ORTOGONALE alla natura del dato — il
+mutabile è lazy store-backed (§4), non più "eager e basta". Esempi:
+`reactive/18_lazy_iterate` (read_only) e `reactive/19_lazy_mutable`
+(store-backed).
 
 Design del riempimento pigro delle collezioni iterate. Obiettivo: primo
 paint indipendente da N, e costo server proporzionale a ciò che
@@ -96,10 +99,22 @@ La distinzione mutabile/immutabile non è un flag nostro: è il
     patchare lo store.
   - Coerente con genro-bag: `read_only=True` è già incompatibile con
     `reactive`/`interval` (validato alla costruzione del resolver).
-- **Mutabile ⇒ di norma eager.** Una collezione editabile è di norma
-  piccola (decine di righe): l'eager di oggi va bene così. Se mutabile
-  e grossa, il problema non è il primo paint: è il costo totale, e la
-  risposta è il grid data-widget (§8).
+- **Mutabile ⇒ store-backed (rivisto in v0.4.0).** La collezione vive
+  nello STORE (niente resolver) e l'iterate è comunque `lazy=True`:
+  la pigrizia del render è ORTOGONALE alla natura del dato. Qui
+  niente parcheggio e niente transito: la pagina k affetta la
+  collezione VIVA al momento della richiesta — sempre fresca per
+  costruzione. Tutto l'editabile resta in piedi da solo: le regole
+  sono template a coordinate sullo store (CMP.7 — la formula della
+  riga mai disegnata scatta comunque), i grand leggono la collezione
+  intera dal primo calcolo, gli edit passano dalle corsie
+  per-riga/cella esistenti (una patch indirizzata a una riga non
+  disegnata è un no-op del client). UNA regola nuova: l'evento
+  STRUTTURALE (ins/del) sotto un'àncora lazy sposta l'aritmetica dei
+  placeholder ⇒ il flush risponde col REPLACE del contenitore —
+  pagina 0 + conteggio fresco, ~0,2 s, mai patch strutturali
+  per-riga; il client si ricabla da solo e l'observer ririempie la
+  viewport dove sta.
 
 ---
 
@@ -212,9 +227,6 @@ scroll anchoring (Chrome/Firefox di default; Safari ne è privo).
   resta il **grid data-widget JS** (value = proiezione JSON dello
   store, catalogo colonne sul nodo): il server manda la proiezione,
   non l'HTML.
-- **Non copre il lazy+mutabile**: collezione editabile ⇒ eager (poche
-  righe) o data-widget (tante); il lazy di questo documento è per gli
-  immutabili.
 - **Non cambia l'eager**: default invariato, `lazy=True` è opt-in.
 
 ---

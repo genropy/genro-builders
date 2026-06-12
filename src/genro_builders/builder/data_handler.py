@@ -352,6 +352,14 @@ class BuilderHandler:
             return None
         if "iterate" not in view_node.attr:
             return None
+        if view_node.attr.get("lazy") and evt in ("ins", "del"):
+            # A structural event under a LAZY anchor shifts the
+            # client's placeholder arithmetic: no per-row patch — fall
+            # through to the whole-component re-render (page 0 plus a
+            # fresh marker count: cheap by construction). Value events
+            # keep the fine classification: a patch addressed to an
+            # unpainted row is a client no-op.
+            return None
         anchor = view_node.abs_datapath(view_node.attr["iterate"])
         if not path.startswith(anchor + "."):
             return None
@@ -686,12 +694,26 @@ class BuilderHandler:
         snapshot = self._lazy_parking.get(key)
         if snapshot is None:
             raise KeyError(f"no parked snapshot for lazy iterate {key!r}")
-        labels = list(snapshot.keys())[
+        try:
+            labels = self.lazy_page_of(snapshot, page)
+        except ValueError:
+            raise ValueError(
+                f"lazy page {page} out of range for {key!r}",
+            ) from None
+        return snapshot, labels
+
+    def lazy_page_of(self, collection: Any, page: int) -> list[str]:
+        """The row labels of ONE page of ``collection`` — the slicing
+        shared by the parked (read_only) and the store-backed (mutable)
+        lazy: the latter has no parking, pages slice the LIVE
+        collection at request time. Out of range raises.
+        """
+        labels = list(collection.keys())[
             page * LAZY_PAGE_SIZE:(page + 1) * LAZY_PAGE_SIZE
         ]
         if page < 0 or not labels:
-            raise ValueError(f"lazy page {page} out of range for {key!r}")
-        return snapshot, labels
+            raise ValueError(f"lazy page {page} out of range")
+        return labels
 
     def lazy_drop(self, key: str) -> None:
         """Forget a parked snapshot and its topic subscription."""

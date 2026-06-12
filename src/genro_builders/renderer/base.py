@@ -34,6 +34,7 @@ from typing import Any
 
 from genro_bag import Bag
 
+from ..builder.data_handler import LAZY_PAGE_SIZE
 from ..builder.source_bag import SourceBag
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
@@ -323,23 +324,46 @@ class RendererBase:
     ) -> list:
         """First paint of a lazy iterate: page 0 inline plus the marker.
 
-        The query already ran ONCE (``runtime_values`` resolved the
-        anchor; ``read_only``: nothing deposited): the snapshot goes to
-        the handler's parking, the walk expands ONLY page 0 — through
-        the silent transit, block pointers resolve against the store —
-        and the MARKER closes the run carrying the FIRE lane and the
-        baked counts. The client fabricates placeholders for the rest
-        and asks pages as the scroll demands (lazy-iterate contract).
+        Two natures, one shape (lazy-iterate contract). An anchor with
+        a ``read_only`` RESOLVER (immutable data): the query ran ONCE
+        in ``runtime_values``, the snapshot parks on the handler (the
+        freezed selection) and page 0 renders through the silent
+        transit. A STORE-BACKED anchor (mutable data): no parking, no
+        transit — the collection lives in the store, block pointers
+        resolve naturally, pages slice it LIVE. Either way the MARKER
+        closes the run with the FIRE lane and the baked counts; the
+        client fabricates placeholders for the rest and asks pages as
+        the scroll demands.
         """
         builder = node.builder
         handler = builder.handler
         base = str(node.attr.get("id") or builder.target_id(node))
-        total, page_size = handler.lazy_park(base, iterable)
+        # Re-expansion starts clean: every entry under the base —
+        # painted rows of ANY page, the marker — belongs to the DOM
+        # this render replaces.
+        builder._purge_writeback_prefix(base)
+        anchor_node = handler.data.get_node(
+            node.abs_datapath(node.attr["iterate"]),
+        )
+        lazy_resolver = (
+            anchor_node.resolver if anchor_node is not None else None
+        )
         fragments = []
         labels: list[str] = []
-        if total:
-            snapshot, labels = handler.lazy_page(base, 0)
-            with self._lazy_transit(node, snapshot):
+        if lazy_resolver is not None:
+            total, page_size = handler.lazy_park(base, iterable)
+            if total:
+                snapshot, labels = handler.lazy_page(base, 0)
+                with self._lazy_transit(node, snapshot):
+                    for label in labels:
+                        fragments.append(self._expand_block(
+                            node, body, anchor, {"node_label": label},
+                            (label,), opts,
+                        ))
+        else:
+            total, page_size = len(iterable), LAZY_PAGE_SIZE
+            if total:
+                labels = handler.lazy_page_of(iterable, 0)
                 for label in labels:
                     fragments.append(self._expand_block(
                         node, body, anchor, {"node_label": label},
@@ -359,18 +383,29 @@ class RendererBase:
         return fragments
 
     def render_lazy_page(self, node: Any, page: int, **opts: Any) -> str:
-        """Render ONE parked page of a lazy iterate — the ``page`` op
-        payload. Same prep, same body, same registration as any block
-        render (the oracle holds); the rows come from the parking,
-        transit the store for the pointer resolution and leave it
-        exactly as it was.
+        """Render ONE page of a lazy iterate — the ``page`` op payload.
+
+        Same prep, same body, same registration as any block render
+        (the oracle holds). A resolver anchor serves from the parking
+        through the silent transit; a store-backed anchor slices the
+        LIVE collection — always current, nothing to restore.
         """
         handler = node.builder.handler
         base = str(node.attr.get("id") or node.builder.target_id(node))
-        snapshot, labels = handler.lazy_page(base, page)
+        anchor_abs = node.abs_datapath(node.attr["iterate"])
+        anchor_node = handler.data.get_node(anchor_abs)
         fragments = []
-        with self._lazy_transit(node, snapshot):
-            for label in labels:
+        if anchor_node is not None and anchor_node.resolver is not None:
+            snapshot, labels = handler.lazy_page(base, page)
+            with self._lazy_transit(node, snapshot):
+                for label in labels:
+                    block = self.render_expansion_block(node, label, **opts)
+                    fragments.append(
+                        "".join(block) if isinstance(block, list) else block,
+                    )
+        else:
+            collection = handler.data.get_item(anchor_abs)
+            for label in handler.lazy_page_of(collection, page):
                 block = self.render_expansion_block(node, label, **opts)
                 fragments.append(
                     "".join(block) if isinstance(block, list) else block,
