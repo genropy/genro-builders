@@ -336,8 +336,6 @@ class RendererBase:
         for key in stale:
             del wmap[key]
         handler = builder.handler
-        if handler is not None:
-            handler.purge_expansion_logic(prefix)
         # The cell catalog rebuilds per expansion and is identical for
         # every row (the body is code): reset, the last row wins.
         if len(labels) == 1:
@@ -345,6 +343,7 @@ class RendererBase:
             if cmap is None:
                 cmap = builder._cell_map = {}
             cmap[base] = {}
+        rule_nodes: list[Any] = []
         counter = 0
         queue = [tree_root]
         while queue:
@@ -366,10 +365,7 @@ class RendererBase:
                         "is mutation-only (loaded data is trusted)",
                     )
                 if handler is not None:
-                    for _attrname, pointer in current.pointers():
-                        handler.register_expansion_logic(
-                            current.abs_datapath(pointer), current, prefix,
-                        )
+                    rule_nodes.append(current)
                 continue
             counter += 1
             composite = f"{prefix}.{counter}"
@@ -389,6 +385,22 @@ class RendererBase:
             self._register_cell(comp_node, current, labels, counter)
             if isinstance(current.value, SourceBag):
                 queue.extend(current.value.nodes)
+        if handler is not None:
+            raw_anchor = (
+                comp_node.attr.get("iterate") or comp_node.attr.get("store")
+            )
+            anchor_abs = (
+                comp_node.abs_datapath(raw_anchor) if raw_anchor else None
+            )
+            if labels:
+                row_prefix = f"{anchor_abs}.{labels[-1]}"
+            else:
+                row_prefix = anchor_abs
+            handler.set_component_rules(
+                owner=str(base), anchor=anchor_abs,
+                store_mode=bool(raw_anchor) and not labels,
+                rule_nodes=rule_nodes, row_prefix=row_prefix,
+            )
 
     def _register_cell(
         self, comp_node: Any, current: Any, labels: tuple, ordinal: int,

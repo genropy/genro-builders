@@ -52,6 +52,76 @@ ROW_COALESCE_LIMIT = 50
 CELLS_PER_ROW_LIMIT = 4
 
 
+class RuleSpec(NamedTuple):
+    """One row rule as a TEMPLATE: the body is code, so the rule is
+    the same for every row — what varies is the row it runs on.
+
+    ``bindings`` are ``(name, mode, payload)``: mode ``row`` reads the
+    payload suffix on the event's row (``.qty``, ``?qty``), ``abs`` an
+    absolute path, ``const`` the payload itself. ``destination`` is
+    ``(mode, payload)`` (formulas only). ``row_triggers`` are the
+    reactive row suffixes (the by-field index keys); ``shared_triggers``
+    the reactive absolute paths (registered handler-wide)."""
+
+    kind: str                                    # formula | controller
+    func: Any
+    bindings: tuple[tuple[str, str, Any], ...]
+    destination: tuple[str, str] | None
+    row_triggers: tuple[str, ...]
+    shared_triggers: tuple[str, ...]
+    segment: str                                 # the builder's mount
+
+
+class ComponentRules(NamedTuple):
+    """The rules of ONE component: specs indexed by row trigger.
+
+    ``store_mode`` marks a store-anchored component (no row dimension:
+    the residual after the anchor IS the field)."""
+
+    store_mode: bool
+    specs: tuple[RuleSpec, ...]
+    by_field: dict[str, tuple[RuleSpec, ...]]
+
+
+class RowContext:
+    """The ``node`` a row-rule controller receives.
+
+    Template rules execute against ANY row, so the controller cannot
+    get a retained source node (its relative paths would resolve
+    against the registration row). This context carries the reactive
+    vocabulary bound to the EVENT's row coordinates: ``.x``/``?a``
+    resolve on the row, plain paths on the builder segment.
+    """
+
+    def __init__(self, data: Bag, segment: str, row_path: str | None):
+        self._data = data
+        self._segment = segment
+        self._row_path = row_path
+
+    def _abs(self, path: str) -> str:
+        if path.startswith((".", "?")):
+            if self._row_path is None:
+                raise ValueError(
+                    f"row-relative path {path!r} in a rule with no row",
+                )
+            return self._row_path + path
+        return f"{self._segment}.{path}"
+
+    def GET(self, path: str) -> Any:
+        return self._data.get_item(self._abs(path))
+
+    def SET(self, path: str, value: Any) -> None:
+        self._data.set_item(self._abs(path), value, _reason=True)
+
+    def PUT(self, path: str, value: Any) -> None:
+        self._data.set_item(self._abs(path), value, _reason=False)
+
+    def FIRE(self, path: str, value: Any = True) -> None:
+        self._data.set_item(
+            self._abs(path), value, _fired=True, _reason=True,
+        )
+
+
 class BuilderHandler:
     """Data source for mounted builders. One segmented ``_dataroot``."""
 
@@ -65,18 +135,18 @@ class BuilderHandler:
         # Read-time pointer tracking: key = absolute data path, value =
         # {id(node): node}. Populated by _register_path during render.
         self.pointer_map: dict[str, dict[int, SourceBagNode]] = {}
-        # Row logic of the expansions (CMP.7): trigger path ->
-        # {id(node): (data-element node, row prefix)}. A row recomputes
-        # iff the mutated path is among ITS resolved bindings — a
-        # row-internal binding fires one row, a shared one (the header
-        # exchange rate) fires every row that reads it. Populated by
-        # the expansion-registration walk, purged by row prefix at
-        # re-expansion, executed in the data-event cascade — NEVER at
-        # render (loaded data is trusted as-is; the rule is a rule of
-        # MUTATION).
-        self.expansion_logic: dict[
-            str, dict[int, tuple[SourceBagNode, str]]
-        ] = {}
+        # Row logic of the expansions (CMP.7), per-COMPONENT templates:
+        # the body is code, so the rule of row 45 IS the rule of row 46
+        # — ONE spec per rule per component, never one per row. The
+        # event's coordinates (anchor -> row label -> field) resolve
+        # which rules run and on which row: a dict hit per prefix, no
+        # catalog scan, size independent of the data. Shared bindings
+        # (the header exchange rate) are the only absolute entries:
+        # one event runs the spec over every live row. Executed in the
+        # data-event cascade — NEVER at render (loaded data is trusted
+        # as-is; the rule is a rule of MUTATION).
+        self.component_rules: dict[str, ComponentRules] = {}
+        self.shared_rules: dict[str, list[tuple[str, RuleSpec]]] = {}
         # Armed by activate(): startup is over, the first render has
         # populated the pointer_map. live() requires it — a page never
         # rendered is not reactive yet.
@@ -211,16 +281,10 @@ class BuilderHandler:
             path = ".".join(pathlist)
         relevant = self._relevant_nodes(path)
         self.execute_logic(relevant)
-        if evt == "del":
-            # Deleting a subtree KILLS the rules anchored in it: a dead
-            # row's rule must never run (its destination write would
-            # autocreate the row back). Eager purge — waiting for the
-            # re-expansion would leave stale rules live for the rest of
-            # the cascade (a shared binding would resurrect the row).
-            # Rules merely READING under the deleted path survive: their
-            # anchor is elsewhere, and they recompute right below.
-            self._purge_anchored_rules(path)
-        self._execute_expansion_logic(path)
+        # Rules dispatch by COORDINATES (no per-row catalog, no scan).
+        # A deleted row needs no purge: rules are templates, and the
+        # dead row fails the existence check inside the dispatch.
+        self._run_component_rules(path)
         for builder, items in relevant.items():
             for kind, view_node in items:
                 # Same convention as the source events: key = mount
@@ -269,75 +333,207 @@ class BuilderHandler:
             return "row_del", label, None
         return "row_upd", label, None
 
-    def register_expansion_logic(
-        self, abs_path: str, node: SourceBagNode, prefix: str,
+    def set_component_rules(
+        self, owner: str, anchor: str | None, store_mode: bool,
+        rule_nodes: list, row_prefix: str | None,
     ) -> None:
-        """Register a row rule's trigger: ``abs_path`` recomputes ``node``.
+        """Register a component's rules as TEMPLATES (CMP.7).
 
-        ``node`` is the retained data-element of ONE row expansion,
-        anchored to its row: executing it computes that row. ``prefix``
-        is the row's derived-identity prefix, the purge key.
+        Called by the expansion-registration walk, idempotent: every
+        expansion rebuilds its component's entry (the body is code,
+        every row builds the same rules — the last wins, atomically:
+        the owner's stale shared entries prune first). ``anchor`` keys
+        the coordinate dispatch (``None``: an unanchored component,
+        whose reactive bindings are all absolute); ``row_prefix`` is
+        the registration row's absolute path, the residualization base.
         """
-        self.expansion_logic.setdefault(abs_path, {})[id(node)] = (
-            node, prefix,
+        specs = tuple(
+            self._rule_spec(node, row_prefix) for node in rule_nodes
+        )
+        by_field: dict[str, list[RuleSpec]] = {}
+        for spec in specs:
+            for suffix in spec.row_triggers:
+                by_field.setdefault(suffix, []).append(spec)
+        for trigger, entries in list(self.shared_rules.items()):
+            kept = [e for e in entries if e[0] != owner]
+            if kept:
+                self.shared_rules[trigger] = kept
+            else:
+                del self.shared_rules[trigger]
+        for spec in specs:
+            for trigger in spec.shared_triggers:
+                self.shared_rules.setdefault(trigger, []).append(
+                    (owner, anchor, spec),
+                )
+        if anchor is not None:
+            self.component_rules[anchor] = ComponentRules(
+                store_mode, specs,
+                {key: tuple(value) for key, value in by_field.items()},
+            )
+
+    def _rule_spec(self, node: SourceBagNode, row_prefix: str | None) -> RuleSpec:
+        """Compile a data-element node into a template spec.
+
+        Bindings residualize against the registration row: a pointer
+        landing under ``row_prefix`` becomes a ROW suffix (the same
+        suffix for every row — the body is code), anything else stays
+        absolute; non-pointer attributes ride as constants. Reactive
+        (``^``) bindings are the triggers; passive (``=``) ones read at
+        execution only. The func resolves NOW: a missing func fails at
+        registration, not at the first event.
+        """
+        builder = node.builder
+        kind = node.node_tag.removeprefix("data_")
+        func = builder._resolve_logic_func(node.attr["func"])
+        schema_fields = set(builder._get_schema_info(node.node_tag).get(
+            "call_args_validations") or {})
+        meta_attrs = builder._meta_attrs
+
+        def classify(path: str) -> tuple[str, str]:
+            abs_path = node.abs_datapath(path)
+            if row_prefix and abs_path.startswith(row_prefix):
+                suffix = abs_path[len(row_prefix):]
+                if suffix.startswith((".", "?")):
+                    return "row", suffix
+            return "abs", abs_path
+
+        bindings: list[tuple[str, str, Any]] = []
+        row_triggers: list[str] = []
+        shared_triggers: list[str] = []
+        for name, raw in node.attr.items():
+            if name in schema_fields or name in meta_attrs:
+                continue
+            pointer_kind = node.pointer_type(raw)
+            if pointer_kind is None:
+                bindings.append((name, "const", raw))
+                continue
+            mode, payload = classify(raw)
+            bindings.append((name, mode, payload))
+            if pointer_kind == "^":
+                if mode == "row":
+                    # the by-field index key: the event field arrives
+                    # without the leading dot
+                    row_triggers.append(payload.removeprefix("."))
+                else:
+                    shared_triggers.append(payload)
+        destination = None
+        if kind == "formula":
+            destination = classify(node.attr["destination"])
+        return RuleSpec(
+            kind, func, tuple(bindings), destination,
+            tuple(row_triggers), tuple(shared_triggers),
+            node.root_builder_name,
         )
 
-    def purge_expansion_logic(self, prefix: str) -> None:
-        """Drop every rule registered under ``prefix`` (re-expansion).
+    def _run_component_rules(self, path: str) -> None:
+        """Coordinate dispatch (CMP.7): the event path DECOMPOSES.
 
-        Prefix semantics match the derived-identity chain: nested
-        expansions carry the outer prefix, so purging a block also
-        purges its inner blocks.
+        Walk the path's prefixes for the deepest registered anchor
+        (nested iterates: the inner anchor is the longer prefix); the
+        next segment is the row, the rest the field. The field hits
+        the by-field index; a row-level event (no field: wholesale
+        replace, attr-mode ``upd_attrs``) runs every rule of the
+        component. A DEAD row runs nothing: the existence check is the
+        resurrection guard — a deleted subtree has no node, so its
+        rules can never write it back to life. Shared triggers resolve
+        from their own registry (size: components x shared bindings,
+        independent of the data): each spec runs over every live row
+        of its component. No structure here grows with the row count.
         """
-        for abs_path, inner in list(self.expansion_logic.items()):
-            for node_id, (_node, row_prefix) in list(inner.items()):
-                if row_prefix == prefix or row_prefix.startswith(
-                    prefix + ".",
-                ):
-                    del inner[node_id]
-            if not inner:
-                del self.expansion_logic[abs_path]
-
-    def _purge_anchored_rules(self, path: str) -> None:
-        """Drop every rule whose ANCHOR sits at or under ``path`` (del).
-
-        The criterion is the anchor, not the trigger: a rule of another
-        row reading under the deleted subtree keeps its registration
-        (its input changed, it must recompute); a rule anchored in the
-        deleted subtree is dead with its row.
-        """
-        for abs_path, inner in list(self.expansion_logic.items()):
-            for node_id, (node, _prefix) in list(inner.items()):
-                anchor = node.abs_datapath(".")
-                if anchor == path or anchor.startswith(path + "."):
-                    del inner[node_id]
-            if not inner:
-                del self.expansion_logic[abs_path]
-
-    def _execute_expansion_logic(self, path: str) -> None:
-        """Run the row rules whose resolved bindings read ``path``.
-
-        Same matching as the pointer_map: exact trigger, or a trigger
-        UNDER the mutated path (a row replaced wholesale recomputes its
-        rules) — and like the pointer_map the ``?attr`` tail of a
-        binding strips before the compare: an ``upd_attrs`` event
-        travels on the NODE path (attribute-mode rows, one node with
-        the columns aboard). The compute writes re-enter the cascade
-        like any canonical data-element.
-        """
-        seen: set[int] = set()
-        grouped: dict[Any, list[SourceBagNode]] = {}
-        for key, inner in self.expansion_logic.items():
-            kp = key.split("?", 1)[0]
-            if kp != path and not kp.startswith(path + "."):
+        segments = path.split(".")
+        for cut in range(len(segments) - 1, 0, -1):
+            anchor = ".".join(segments[:cut])
+            component = self.component_rules.get(anchor)
+            if component is None:
                 continue
-            for node_id, (node, _prefix) in inner.items():
-                if node_id in seen:
-                    continue
-                seen.add(node_id)
-                grouped.setdefault(node.builder, []).append(node)
-        for builder, nodes in grouped.items():
-            builder.compute_logic(nodes)
+            residual = segments[cut:]
+            if component.store_mode:
+                row_path, field = anchor, ".".join(residual)
+            else:
+                row_path = f"{anchor}.{residual[0]}"
+                field = ".".join(residual[1:])
+            if self._dataroot.get_node(row_path) is not None:
+                for spec in self._rules_for(component, field):
+                    self._execute_rule(spec, row_path)
+            break
+        matched: list[tuple[str, str | None, RuleSpec]] = []
+        for trigger, entries in self.shared_rules.items():
+            stripped = trigger.split("?", 1)[0]
+            if stripped == path or stripped.startswith(path + "."):
+                matched.extend(entries)
+        seen: set[int] = set()
+        for _owner, anchor, spec in matched:
+            if id(spec) in seen:
+                continue
+            seen.add(id(spec))
+            self._run_shared_rule(spec, anchor)
+
+    def _rules_for(
+        self, component: ComponentRules, field: str,
+    ) -> list[RuleSpec]:
+        """The specs the mutated ``field`` triggers, deduped in order.
+
+        Exact hit on the by-field index, plus the bindings sitting
+        UNDER the mutated field (a container replaced wholesale; the
+        ``?attr`` tail strips like everywhere). The index is
+        per-component — scanning it is O(own fields), never O(data).
+        """
+        if not field:
+            return list(dict.fromkeys(component.specs))
+        hits = list(component.by_field.get(field, ()))
+        for suffix, specs in component.by_field.items():
+            if suffix == field:
+                continue
+            stripped = suffix.split("?", 1)[0]
+            if stripped == field or stripped.startswith(field + "."):
+                hits.extend(specs)
+        return list(dict.fromkeys(hits))
+
+    def _execute_rule(self, spec: RuleSpec, row_path: str | None) -> None:
+        """Run one template spec on one row: read, compute, write.
+
+        Everything resolves by coordinates — row suffixes on
+        ``row_path``, absolutes as they are, constants as themselves.
+        A controller's ``node`` is a :class:`RowContext` bound to the
+        same coordinates. The writes re-enter the cascade as any
+        canonical data-element write.
+        """
+        kwargs: dict[str, Any] = {}
+        for name, mode, payload in spec.bindings:
+            if mode == "const":
+                kwargs[name] = payload
+            elif mode == "row":
+                kwargs[name] = self._dataroot.get_item(row_path + payload)
+            else:
+                kwargs[name] = self._dataroot.get_item(payload)
+        if spec.kind == "formula":
+            mode, payload = spec.destination
+            dest = row_path + payload if mode == "row" else payload
+            self._dataroot.set_item(dest, spec.func(**kwargs), _reason=True)
+        else:
+            context = RowContext(self._dataroot, spec.segment, row_path)
+            spec.func(context, **kwargs)
+
+    def _run_shared_rule(self, spec: RuleSpec, anchor: str | None) -> None:
+        """A shared trigger fired: run the spec over its component.
+
+        An iterate component runs the spec once per LIVE row (the
+        collection enumerates them: dead rows are simply not there); a
+        store component runs it on the store; an unanchored one runs
+        it once with no row.
+        """
+        if anchor is None:
+            self._execute_rule(spec, None)
+            return
+        component = self.component_rules.get(anchor)
+        if component is None or component.store_mode:
+            self._execute_rule(spec, anchor)
+            return
+        collection = self._dataroot.get_item(anchor)
+        if collection is None:
+            return
+        for label in list(collection.keys()):
+            self._execute_rule(spec, f"{anchor}.{label}")
 
     def execute_logic(
         self, relevant: dict[Any, list[tuple[str, SourceBagNode]]],

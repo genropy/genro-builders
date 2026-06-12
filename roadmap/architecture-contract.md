@@ -636,13 +636,15 @@ Le foglie che il catalogo non conosce (template, `checked`, celle
 ricche) ricadono sul replace di riga. Iterate annidati: granularità
 alla riga ESTERNA (la subscription sta sul component più esterno).
 
-Residuo noto (misurato e profilato 2026-06-12): le SCANSIONI lineari
-per evento — il matching di `_execute_expansion_logic` percorre
-l'intero catalogo a ogni scrittura (il broadcast a 3000 righe spende
-lì ~tutto il tempo: 3000 scritture × ~12000 chiavi) e la
-ri-registrazione del re-render completo scandisce la mappa per ogni
-riga. Fix progettato: indici (hit per path esatto + indice per
-antenati; purge per prefisso indicizzato), nessuna scansione.
+Residui noti (misurati e profilati 2026-06-12 sera): (1) i **lettori
+di pagina eseguono una volta per EVENTO, non per flush** — un grand
+total con binding `^rows` su un broadcast di N righe ricalcola N
+volte, ognuna O(N): a 1500 righe una sola formula porta il broadcast
+da 113ms a 2,9s. Direzione: differire e dedupare l'esecuzione dei
+data-element di pagina al flush (il legacy micro-batchava i calc per
+la stessa ragione) — decisione di semantica da prendere. (2) la
+ri-registrazione writeback del re-render completo scandisce ancora la
+wmap per ogni riga (primo paint, replace coalizzati strutturali).
 
 **Comando di pagina (corsia FIRE, implementata 2026-06-11).** Un click
 che deve ESEGUIRE logica (non scrivere un dato) resta una mutazione
@@ -660,30 +662,34 @@ la sua func esegue l'op STRUTTURALE sullo store (pop / SET di una
 riga-bag nuova) e il blocco iterante si ri-rende perché lo store è
 cambiato.
 
-**Row logic (implementata 2026-06-11).** I data-element dichiarati nel
-body di un component sono **regole di MUTAZIONE**: il documento
-caricato è fidato così com'è (il render non calcola MAI nulla;
-`_on_start` e `data_setter` in un body d'espansione → errore
-esplicito). Lo stesso walk di registrazione li CATALOGA invece di
-renderli: per ogni riga, i binding risolti in path assoluti entrano in
-`handler.expansion_logic` (`{path trigger → nodo-regola}`, purge per
-prefisso di riga). Una riga ricalcola **sse il path mutato è tra i
-SUOI binding risolti**: il binding di riga accende una riga, il
-binding condiviso (cambio in testata) le accende tutte, l'annidato si
-scopa da solo (il binding di gruppo risolve dentro il proprio
-gruppo). L'esecuzione sta nella cascata eventi (stessa coda,
-anti-loop); le scritture rientrano e concatenano (qty → total →
-controvalore). I nodi d'espansione accedono al datastore via
-``data_handler`` (l'handler è unico per documento; ``handler`` resta
-None — il gate D9 non si tocca). La **cancellazione di un sottoalbero
-UCCIDE le regole ancorate in esso**: su evento `del` l'handler purga
-(eager, PRIMA dell'esecuzione — attendere la riespansione lascerebbe
-regole stantie vive per il resto della cascata: un binding condiviso
-risusciterebbe la riga) ogni regola il cui ÀNCORA sta al path
-cancellato o sotto. La regola della riga morta non gira mai (la sua
-scrittura di destination autocreerebbe la riga). Il criterio è
-l'àncora, non il trigger: una regola d'altra riga che LEGGE sotto il
-path morto continua a ricalcolare.
+**Row logic (implementata 2026-06-11; motore a coordinate
+2026-06-12).** I data-element dichiarati nel body di un component
+sono **regole di MUTAZIONE**: il documento caricato è fidato così
+com'è (il render non calcola MAI nulla; `_on_start` e `data_setter`
+in un body d'espansione → errore esplicito). Le regole sono
+**TEMPLATE per-component, mai istanze per-riga**: il body è codice,
+la regola della riga 45 È la regola della riga 46 — il walk di
+registrazione compila ogni regola in uno spec (binding residualizzati
+contro la riga di registrazione: suffisso di riga `.qty`/`?qty` o
+path assoluto; func risolta subito, fallimento rumoroso alla
+registrazione) e il catalogo è **indipendente dal numero di righe**.
+Il dispatch è per **scomposizione in coordinate**: il path
+dell'evento si decompone (àncora → label di riga → campo) risalendo i
+prefissi (l'annidato vince col prefisso più lungo), il campo colpisce
+l'indice by-field del component, la label dice SU QUALE riga
+istanziare — hit di dizionario, mai una scansione del catalogo. I
+binding condivisi (cambio in testata) sono le uniche voci assolute:
+un evento esegue lo spec su ogni riga VIVA della collezione. Un
+evento a livello di riga (sostituzione in blocco, `upd_attrs` della
+modalità attributi) esegue tutte le regole del component per quella
+riga. L'esecuzione sta nella cascata; le scritture rientrano e
+concatenano (qty → total → controvalore). I controller ricevono un
+**RowContext** legato alle coordinate dell'evento (un nodo trattenuto
+risolverebbe i relativi contro la riga di registrazione). La **riga
+morta non esegue nulla**: la guardia è il check di esistenza nel
+dispatch (un sottoalbero cancellato non ha nodo — la regola non può
+risuscitarlo), nessun purge necessario: i template non appartengono
+alle righe.
 
 ### CMP.8 — Componibilità frattale
 

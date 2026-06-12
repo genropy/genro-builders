@@ -11,6 +11,34 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-12 notte (motore regole a coordinate)
+
+Diagnosi dell'utente a monte: "chiedersi chi mi legge è inutile" — il
+modello a coordinate (àncora → riga → campo, ricorsivo per gli
+annidati). Il catalogo per-riga (`expansion_logic`: 12.000 voci a
+3000 righe, scansione integrale a ogni scrittura) ERA l'errore di
+partenza: la regola è la stessa per ogni riga, materializzarla N
+volte costringeva all'appello. Ora: **RuleSpec template
+per-component** (binding residualizzati, func risolta alla
+registrazione), dispatch per scomposizione del path (hit di
+dizionario per prefisso, indice by-field, label = contesto di
+esecuzione), binding condivisi come uniche voci assolute (uno spec ×
+le righe vive), **RowContext** per i controller (il nodo trattenuto
+risolverebbe contro la riga di registrazione), guardia
+riga-morta = check di esistenza (sostituisce il purge eager
+dell'emendamento del mattino: i template non appartengono alle
+righe). Catalogo e costo per evento indipendenti da N.
+
+Misure: broadcast headless 1500 righe 1560ms → **113ms** (14×). Live
+a 3000: 36,5s → 24,9s soltanto — profilata la cipolla successiva: i
+**lettori di pagina eseguono per evento, non per flush** (un grand
+total `^rows` ricalcola N volte O(N) ciascuna: una formula = 113ms →
+2,9s a 1500). Registrato a contratto come residuo con direzione
+(differire i data-element di pagina al flush, come il micro-batch
+legacy); decisione di semantica aperta.
+
+---
+
 ## v0.8.0 — emendamento del 2026-06-12 sera (patch di cella: {id, value} anche in discesa)
 
 Annotazione dell'utente a monte: "dovremmo immaginare di inviare solo
