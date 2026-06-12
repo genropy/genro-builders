@@ -19,11 +19,28 @@ import functools
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, NamedTuple
 
 from genro_bag import Bag
 
 from .source_bag import SourceBag, SourceBagNode
+
+
+class RenderEntry(NamedTuple):
+    """One queued render: the event kind, the touched SOURCE path and —
+    for the per-row kinds (``row_upd``/``row_ins``/``row_del``) — the
+    label of the iterate row the event addressed (CMP.7)."""
+
+    kind: str
+    path: str
+    label: str | None = None
+
+
+#: Above this many touched rows of ONE component in a single flush, the
+#: per-row patches coalesce into the enclosing-container replace (the
+#: shared-binding broadcast — e.g. an exchange rate over every row —
+#: ships better as one fragment than as thousands).
+ROW_COALESCE_LIMIT = 50
 
 
 class BuilderHandler:
@@ -200,10 +217,44 @@ class BuilderHandler:
                 # Same convention as the source events: key = mount
                 # name, path relative to the builder's source (the
                 # structural wrapper segment never appears).
-                self.add_render_path(
-                    view_node.root_builder_name,
-                    view_node.root_builder.source.relative_path(view_node),
-                )
+                name = view_node.root_builder_name
+                rel = view_node.root_builder.source.relative_path(view_node)
+                row = self._expansion_row(view_node, path, evt)
+                if row is not None:
+                    row_kind, label = row
+                    self.add_render_path(name, rel, row_kind, label)
+                else:
+                    self.add_render_path(name, rel)
+
+    def _expansion_row(
+        self, view_node: SourceBagNode, path: str, evt: str,
+    ) -> tuple[str, str] | None:
+        """Classify a data event against an iterate component (CMP.7).
+
+        When the reader is an iterate component and the mutated path
+        falls under its anchor, the path arithmetic names the row: the
+        residual's first segment is the row label. The kind says what
+        happened to it — a field changed or the row replaced wholesale
+        (``row_upd``), the row born (``row_ins``) or dead (``row_del``).
+        ``None`` for every other reader (including the collection node
+        itself replaced wholesale: the whole block re-renders).
+        """
+        if not view_node._get_meta("component"):
+            return None
+        if "iterate" not in view_node.attr:
+            return None
+        anchor = view_node.abs_datapath(view_node.attr["iterate"])
+        if not path.startswith(anchor + "."):
+            return None
+        residual = path[len(anchor) + 1:]
+        label, _, rest = residual.partition(".")
+        if rest:
+            return "row_upd", label
+        if evt == "ins":
+            return "row_ins", label
+        if evt == "del":
+            return "row_del", label
+        return "row_upd", label
 
     def register_expansion_logic(
         self, abs_path: str, node: SourceBagNode, prefix: str,
@@ -350,6 +401,7 @@ class BuilderHandler:
 
     def add_render_path(
         self, builder_name: str, path: str, kind: str = "upd",
+        label: str | None = None,
     ) -> None:
         """Record a touched path and its event kind for the end-of-live render.
 
@@ -357,15 +409,20 @@ class BuilderHandler:
         path inside that builder. A source event queues the changed node's
         path with its structural kind (``ins``/``del`` address the child,
         ``upd`` the node); a data event queues each reader's path as
-        ``upd`` (a reader re-renders, it never changes shape). The
-        end-of-live flush renders every builder whose queue is non-empty.
+        ``upd`` (a reader re-renders, it never changes shape) — except
+        the iterate-component readers, whose events classify PER ROW
+        (``row_*`` kinds, ``label`` = the row): the flush patches one
+        block instead of the whole container. The end-of-live flush
+        renders every builder whose queue is non-empty.
 
         Outside a live section nothing is recorded: there is no flush
         coming, queueing would only pile up work nobody consumes.
         """
         if not self._live_depth:
             return
-        self._nodes_to_render.setdefault(builder_name, []).append((kind, path))
+        self._nodes_to_render.setdefault(builder_name, []).append(
+            RenderEntry(kind, path, label),
+        )
 
     def record_removed_id(
         self, builder_name: str, path: str, target_id: str | None,
@@ -387,11 +444,12 @@ class BuilderHandler:
         return self._removed_target_ids.get((builder_name, path))
 
     def _optimize_render(self, entries: list) -> list:
-        """Reduce the queued ``(kind, path)`` entries to the minimal set.
+        """Reduce the queued :class:`RenderEntry` list to the minimal set.
 
-        Per-path netting first — the section's history collapses to its
-        net effect (the flush renders the FINAL source state, so only the
-        net shape matters):
+        Per-key netting first (the key is ``(path, label)`` — a plain
+        node or ONE row of an iterate component): the section's history
+        collapses to its net effect (the flush renders the FINAL source
+        state, so only the net shape matters):
 
         - ``upd`` after ``ins`` is absorbed (the insert renders fresh);
         - ``del`` after ``ins`` cancels BOTH (born and died here: the DOM
@@ -402,58 +460,79 @@ class BuilderHandler:
         - transitions the bag cannot produce (``ins`` over a live node,
           anything after an un-reinserted ``del``) raise.
 
-        Then the two always-winning reductions:
+        Then the reductions:
 
         - **exact dedup** — the netting dict itself (first touch wins the
           order);
         - **ancestor covers descendant** — whatever the kinds: a replaced
           or inserted ancestor renders its final subtree, a removed
-          ancestor takes the subtree away with it.
-
-        Density coalescing (N siblings -> one parent patch) is a policy
-        with a real trade-off (bytes and client state vs message count):
-        deliberately NOT here until measured on real scenarios.
+          ancestor takes the subtree away with it. A whole-node entry on
+          a component path covers that component's row entries.
+        - **density coalescing** — above :data:`ROW_COALESCE_LIMIT`
+          touched rows of one component, the per-row patches collapse
+          into the plain ``upd`` of the component (the broadcast case:
+          one container fragment beats thousands of row patches).
         """
-        state: dict[str, str] = {}
-        for kind, path in entries:
-            prev = state.get(path)
+        state: dict[tuple[str, str | None], str] = {}
+        for kind, path, label in entries:
+            key = (path, label)
+            base = kind.removeprefix("row_")
+            prev = state.get(key)
             if prev is None:
-                state[path] = kind
-            elif kind == "upd":
+                state[key] = base
+            elif base == "upd":
                 if prev == "del":
                     raise ValueError(
-                        f"update queued for {path!r} after its delete",
+                        f"update queued for {key!r} after its delete",
                     )
                 # upd / ins / del+ins all render fresh at flush: absorbed.
-            elif kind == "ins":
+            elif base == "ins":
                 if prev != "del":
                     raise ValueError(
-                        f"insert queued for {path!r} over a live node",
+                        f"insert queued for {key!r} over a live node",
                     )
-                state[path] = "del+ins"
-            elif kind == "del":
+                state[key] = "del+ins"
+            elif base == "del":
                 if prev == "ins":
-                    del state[path]          # ephemeral: net nothing
+                    del state[key]           # ephemeral: net nothing
                 elif prev == "del":
                     raise ValueError(
-                        f"delete queued for {path!r} after its delete",
+                        f"delete queued for {key!r} after its delete",
                     )
                 else:
-                    state[path] = "del"
+                    state[key] = "del"
+        whole_paths = {path for path, label in state if label is None}
         kept = [
-            (kind, path) for path, kind in state.items()
+            (kind, path, label) for (path, label), kind in state.items()
             if not any(
                 other != path and path.startswith(other + ".")
-                for other in state
+                for other in whole_paths
             )
+            and not (label is not None and path in whole_paths)
         ]
-        out: list[tuple[str, str]] = []
-        for kind, path in kept:
+        # Density: count surviving row entries per component path.
+        row_load: dict[str, int] = {}
+        for kind, path, label in kept:
+            if label is not None:
+                row_load[path] = row_load.get(path, 0) + 1
+        coalesced = {
+            path for path, count in row_load.items()
+            if count > ROW_COALESCE_LIMIT
+        }
+        out: list[RenderEntry] = []
+        for path in coalesced:
+            out.append(RenderEntry("upd", path))
+        for kind, path, label in kept:
+            if label is not None and path in coalesced:
+                continue
             if kind == "del+ins":
-                out.append(("del", path))
-                out.append(("ins", path))
+                row = "row_" if label is not None else ""
+                out.append(RenderEntry(f"{row}del", path, label))
+                out.append(RenderEntry(f"{row}ins", path, label))
+            elif label is not None:
+                out.append(RenderEntry(f"row_{kind}", path, label))
             else:
-                out.append((kind, path))
+                out.append(RenderEntry(kind, path))
         return out
 
     def _register_path(self, node: SourceBagNode, abs_path: str) -> None:

@@ -187,6 +187,41 @@ class RendererBase:
         the body built, so dialect dispatch, nested components and
         sub-builders apply as usual.
         """
+        body, iterable, anchor, body_kwargs = self._expansion_inputs(
+            node, runtime_attrs,
+        )
+        # The mode is declared by the AUTHOR (the attribute's presence),
+        # never decided by the data: with ``iterate`` an empty collection
+        # means zero blocks — the data-driven termination that lets a
+        # self-recursive component (a tree) stop at the leaves.
+        if "iterate" not in node.attr:
+            return self._expand_block(
+                node, body, anchor, body_kwargs, (), opts,
+            )
+        if iterable is None:
+            return []
+
+        # iterate: one expansion per child of the collection, each round
+        # gets ONLY the child's label (the body anchors its root with
+        # ``datapath='.' + node_label``, relative to the wrapper anchor).
+        if not isinstance(iterable, Bag):
+            raise TypeError(
+                f"component '{node.node_tag}': iterate must resolve to a "
+                f"Bag, got {type(iterable).__name__}",
+            )
+        return [
+            self._expand_block(
+                node, body, anchor, {"node_label": child.label},
+                (child.label,), opts,
+            )
+            for child in iterable.nodes
+        ]
+
+    def _expansion_inputs(
+        self, node: Any, runtime_attrs: dict,
+    ) -> tuple[Any, Any, Any, dict]:
+        """The expansion prep shared by the walk and the per-row render:
+        ``(body, iterable, anchor, body_kwargs)``."""
         builder = node.builder
         body = getattr(type(builder), node.node_tag).__get__(builder, type(builder))
         # ``store``/``iterate`` are data anchors, not values: read RAW
@@ -198,8 +233,8 @@ class RendererBase:
         # record (or the collection) changes, the block re-renders.
         iterable = runtime_attrs.pop("iterate", None)
         runtime_attrs.pop("store", None)
-        # ``id`` is chain machinery (the writeback identity below uses
-        # it as the expansion's prefix base), never a body kwarg.
+        # ``id`` is chain machinery (the writeback identity uses it as
+        # the expansion's prefix base), never a body kwarg.
         runtime_attrs.pop("id", None)
         raw_anchor = node.attr.get("iterate") or node.attr.get("store")
         anchor = None
@@ -223,45 +258,49 @@ class RendererBase:
             if node.pointer_type(raw) == "^":
                 volume, _, rest = node.abs_datapath(raw).partition(".")
                 runtime_attrs[name] = f"^{volume}:{rest}"
+        return body, iterable, anchor, runtime_attrs
 
-        def expand(
-            *body_args: Any, _wb_labels: tuple = (), **body_kwargs: Any,
-        ) -> Any:
-            root = builder._expansion_root(datapath=anchor)
-            body(root, *body_args, **body_kwargs)
-            roots = list(root.nodes)
-            if len(roots) != 1:
-                raise ValueError(
-                    f"component '{node.node_tag}' must build a tree, not "
-                    f"a forest: {len(roots)} root nodes",
-                )
-            if opts.get("include_datapath"):
-                # Derived identity is a REACTIVE-render concern, like
-                # the auto-id: the static render stays untouched.
-                self._register_expansion_writeback(node, roots[0], _wb_labels)
-            return self.render(roots[0], **opts)
-
-        # The mode is declared by the AUTHOR (the attribute's presence),
-        # never decided by the data: with ``iterate`` an empty collection
-        # means zero blocks — the data-driven termination that lets a
-        # self-recursive component (a tree) stop at the leaves.
-        if "iterate" not in node.attr:
-            return expand(**runtime_attrs)
-        if iterable is None:
-            return []
-
-        # iterate: one expansion per child of the collection, each round
-        # gets ONLY the child's label (the body anchors its root with
-        # ``datapath='.' + node_label``, relative to the wrapper anchor).
-        if not isinstance(iterable, Bag):
-            raise TypeError(
-                f"component '{node.node_tag}': iterate must resolve to a "
-                f"Bag, got {type(iterable).__name__}",
+    def _expand_block(
+        self, node: Any, body: Any, anchor: Any, body_kwargs: dict,
+        wb_labels: tuple, opts: dict,
+    ) -> Any:
+        """ONE expansion: throw-away root, body call, single-tree check,
+        derived identity (reactive render only), rendered fragment."""
+        root = node.builder._expansion_root(datapath=anchor)
+        body(root, **body_kwargs)
+        roots = list(root.nodes)
+        if len(roots) != 1:
+            raise ValueError(
+                f"component '{node.node_tag}' must build a tree, not "
+                f"a forest: {len(roots)} root nodes",
             )
-        return [
-            expand(node_label=child.label, _wb_labels=(child.label,))
-            for child in iterable.nodes
-        ]
+        if opts.get("include_datapath"):
+            # Derived identity is a REACTIVE-render concern, like
+            # the auto-id: the static render stays untouched.
+            self._register_expansion_writeback(node, roots[0], wb_labels)
+        return self.render(roots[0], **opts)
+
+    def render_expansion_block(
+        self, node: Any, label: str | None = None, **opts: Any,
+    ) -> Any:
+        """Render ONE expansion block of a component node — the per-row
+        patch unit (CMP.7). ``label`` addresses the row of an iterate
+        component (``None`` = the single store-anchored block). Same
+        prep, same body, same registration as the walk: the fragment
+        cannot diverge from a full render.
+        """
+        _item, runtime_attrs = node.builder.runtime_values(node)
+        body, _iterable, anchor, body_kwargs = self._expansion_inputs(
+            node, runtime_attrs,
+        )
+        if label is not None:
+            body_kwargs = {"node_label": label}
+            wb_labels: tuple = (label,)
+        else:
+            wb_labels = ()
+        return self._expand_block(
+            node, body, anchor, body_kwargs, wb_labels, opts,
+        )
 
     def _register_expansion_writeback(
         self, comp_node: Any, tree_root: Any, labels: tuple,

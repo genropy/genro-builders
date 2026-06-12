@@ -156,8 +156,11 @@ if __name__ == "__main__":
     assert handler.data.get_item("main.rows.r2") is None
     assert list(handler.data["main.rows"].keys()) == ["r1"]
     assert handler.data["main.grand.total"] == 20
-    last = "".join(p["html"] for p in probe.batches[-1])
-    assert "r2" not in last
+    # The patch is SURGICAL (per-row, CMP.7): one remove addressed by
+    # the row block's derived identity — never the whole container.
+    assert probe.batches[-1] == [
+        {"id": "rows_block.r2.1", "op": "remove"},
+    ]
 
     # The dead row's rules died with it: a SHARED binding (the rate)
     # recomputes the survivors and never resurrects r2.
@@ -177,9 +180,16 @@ if __name__ == "__main__":
             if hasattr(n.value, "nodes"):
                 queue.append(n.value)
     assert add_serial, "the + button must carry a serial"
+    probe.batches.clear()
     simulate_mutate(page, handler, add_serial)
     assert list(handler.data["main.rows"].keys()) == ["r1", "r2"]
     assert handler.data["main.rows.r2.qty"] == 1
+    # Surgical again: ONE insert of the new block, anchored before the
+    # element that follows the rows (the + button itself).
+    patch, = probe.batches[-1]
+    assert patch["op"] == "insert"
+    assert patch["before"] == add_serial
+    assert 'id="rows_block.r2.1"' in patch["html"]
 
     # The new row is LIVE: its rules were cataloged at re-expansion.
     with handler.live():

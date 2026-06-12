@@ -11,6 +11,35 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-12 (patch per-riga delle espansioni)
+
+Il "per ora" di CMP.7 cade: l'unità di patch delle espansioni iterate
+non è più il contenitore ma la SINGOLA riga, indirizzata per identità
+derivata (`base.label.1` — l'ordinale 1 è il primo elemento del
+body). Classificazione per riga in `_on_data_event` (aritmetica dei
+path contro l'àncora; `row_upd`/`row_ins`/`row_del`), voci di coda
+`RenderEntry(kind, path, label)`, netting per (path, label) e
+coalescenza per densità (`ROW_COALESCE_LIMIT`: il broadcast del
+binding condiviso resta UN replace di contenitore). Il frammento esce
+da `render_expansion_block` — l'`expand()` del walk promosso a
+metodo condiviso (`_expansion_inputs` + `_expand_block`): stessa
+strada, l'oracolo dell'esempio 15 impone la non-divergenza dal render
+totale. Insert ancorato alla riga successiva nell'ordine della busta;
+remove per puro calcolo con purge writeback della riga morta.
+
+Misure (ws-web scale demos, edit di una riga): 300 righe 668ms →
+41ms; 3000 righe 30.2s → 88ms (add: 32.9s → 29ms; insert mid: 92ms).
+Residuo noto: il re-render COMPLETO del blocco (coalescenza, primo
+paint) paga ancora la ri-registrazione quadratica per-riga (scan
+della mappa per ogni riga) — fix noto: purge indicizzato per
+prefisso.
+
+Companion ws-web: gesto "inserisci sopra questa riga" (FIRE per-riga
+con label + `node_position='<label'` della busta: l'identità non è
+la posizione), skin gnr-grid con footer sticky e colonna pinnata.
+
+---
+
 ## v0.8.0 — emendamento del 2026-06-11, quarta fetta (comando di pagina: la corsia FIRE del filo)
 
 Nato dal task "+/− righe sulla fattura": un click che esegue logica

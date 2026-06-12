@@ -603,8 +603,28 @@ SCRIVIBILI (pointer su `value`/`checked`, oppure click target:
 (dtype), validazione (`validate_*`) e destinazione (pointer →
 `abs_datapath`): il mutate risolve l'id e legge TUTTO dal nodo —
 niente path né dtype dal filo. La ri-espansione purga il proprio
-prefisso (coerente con l'effimero). Le patch per-riga sulla stessa
-identità restano da implementare nel filone RX.
+prefisso (coerente con l'effimero).
+
+**Patch per-riga (implementate 2026-06-12).** L'evento dati sotto
+l'àncora di un iterate classifica PER RIGA (aritmetica dei path: il
+primo segmento del residuo nomina la riga; `row_upd`/`row_ins`/
+`row_del` secondo profondità ed evento). Il flush patcha il SOLO
+blocco, indirizzato per identità derivata — il primo elemento del
+body è l'ordinale 1, quindi il blocco È `<base>.<label>.1`, puro
+calcolo (anche per il remove: nessuna cattura all'evento). Il
+frammento esce da `render_expansion_block` — stessa preparazione,
+stesso body, stessa registrazione del walk: l'ORACOLO garantisce che
+il per-riga non diverga mai dal render totale. L'insert si ancora al
+blocco della riga successiva nell'ordine della busta (dopo l'ultima:
+il primo fratello source renderizzabile dopo il component). La riga
+morta purga le proprie voci di writeback al patch. **Coalescenza per
+densità**: oltre `ROW_COALESCE_LIMIT` righe toccate di uno stesso
+component in un flush (binding condiviso: il cambio in testata), le
+patch per-riga collassano nel replace del contenitore. Iterate
+annidati: granularità alla riga ESTERNA (la subscription sta sul
+component più esterno). Residuo noto: il re-render completo del
+blocco (coalescenza, primo paint) paga ancora la ri-registrazione
+quadratica per-riga — fix noto, purge indicizzato per prefisso.
 
 **Comando di pagina (corsia FIRE, implementata 2026-06-11).** Un click
 che deve ESEGUIRE logica (non scrivere un dato) resta una mutazione
