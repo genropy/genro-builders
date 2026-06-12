@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import functools
 import threading
+from collections import deque
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any, NamedTuple
@@ -50,6 +51,10 @@ ROW_COALESCE_LIMIT = 50
 #: cell patches collapse into that row's replace (one fragment beats
 #: re-reading and shipping most of the row field by field).
 CELLS_PER_ROW_LIMIT = 4
+
+#: A formula key draining more than this many times in one flush is a
+#: livelock (a -> b -> a): the drain raises naming the rule.
+FORMULA_REQUEUE_LIMIT = 50
 
 
 class RuleSpec(NamedTuple):
@@ -159,6 +164,11 @@ class BuilderHandler:
         self._live_target: Any = None
         self._live_depth: int = 0
         self._live_lock: threading.RLock = threading.RLock()
+        # Formula queue of the live section: a write QUEUES the dependent
+        # formulas (FIFO, dedup on the pendings); the outermost exit
+        # drains it before the render flush. Controllers never queue.
+        self._formula_queue: deque[tuple] = deque()
+        self._pending_formulas: set[Any] = set()
         # End-of-live render queue: builder name -> touched source nodes.
         self._nodes_to_render: dict[str, list] = {}
         # target_ids of nodes deleted in the current section, captured at
@@ -280,11 +290,14 @@ class BuilderHandler:
         else:
             path = ".".join(pathlist)
         relevant = self._relevant_nodes(path)
-        self.execute_logic(relevant)
         # Rules dispatch by COORDINATES (no per-row catalog, no scan).
         # A deleted row needs no purge: rules are templates, and the
         # dead row fails the existence check inside the dispatch.
+        # Rules BEFORE the page readers: queued formulas drain FIFO, so
+        # the order is the layering — the row rules run ahead of the
+        # wide readers (a grand total) that depend on their writes.
         self._run_component_rules(path)
+        self.execute_logic(relevant)
         for builder, items in relevant.items():
             for kind, view_node in items:
                 # Same convention as the source events: key = mount
@@ -454,7 +467,7 @@ class BuilderHandler:
                 field = ".".join(residual[1:])
             if self._dataroot.get_node(row_path) is not None:
                 for spec in self._rules_for(component, field):
-                    self._execute_rule(spec, row_path)
+                    self._dispatch_rule(spec, row_path)
             break
         matched: list[tuple[str, str | None, RuleSpec]] = []
         for trigger, entries in self.shared_rules.items():
@@ -488,6 +501,75 @@ class BuilderHandler:
             if stripped == field or stripped.startswith(field + "."):
                 hits.extend(specs)
         return list(dict.fromkeys(hits))
+
+    def _dispatch_rule(self, spec: RuleSpec, row_path: str | None) -> None:
+        """Run a controller now, queue a formula (inside a live section).
+
+        A command is not a function of the state: two commands are two
+        executions, and the FIRE payload does not persist — controllers
+        stay synchronous. A formula IS a function of the state: inside
+        a live section it defers to the flush drain (one execution on
+        the settled inputs); outside there is no flush coming, so it
+        executes at once.
+        """
+        if spec.kind == "formula" and self._live_depth:
+            self._enqueue_formula(
+                (id(spec), row_path), ("rule", spec, row_path),
+            )
+        else:
+            self._execute_rule(spec, row_path)
+
+    def _enqueue_formula(self, key: Any, entry: tuple) -> None:
+        """Queue one formula execution, deduped on the pendings.
+
+        ``key`` identifies the computation — ``(id(spec), row_path)``
+        for a component rule, ``id(node)`` for a page data-element —
+        and a key already PENDING does not queue twice: when it drains
+        it will read the settled inputs anyway. Re-queueing AFTER the
+        execution is legitimate (a new input arrived during the drain);
+        the dedup is only on the pendings.
+        """
+        if key in self._pending_formulas:
+            return
+        self._pending_formulas.add(key)
+        self._formula_queue.append((key, *entry))
+
+    def _drain_formulas(self) -> None:
+        """Execute the queued formulas until the queue is dry (FIFO).
+
+        Runs at the outermost live() exit, BEFORE the render flush. The
+        FIFO order is the layering: the cascade queued the row rules
+        ahead of the wide page readers (a grand total), so each formula
+        reads the settled state of the layer below. The writes re-enter
+        the cascade — controllers run at once, formulas re-queue (dedup
+        on the pendings). A rule whose row DIED while queued runs
+        nothing: the existence check is the resurrection guard, as in
+        the dispatch. A key draining more than
+        :data:`FORMULA_REQUEUE_LIMIT` times is a livelock (a -> b -> a):
+        explicit error naming the rule.
+        """
+        counts: dict[Any, int] = {}
+        while self._formula_queue:
+            key, kind, owner, payload = self._formula_queue.popleft()
+            self._pending_formulas.discard(key)
+            counts[key] = counts.get(key, 0) + 1
+            if counts[key] > FORMULA_REQUEUE_LIMIT:
+                if kind == "rule":
+                    name = f"rule {owner.func.__name__!r} on {payload!r}"
+                else:
+                    name = f"data-element {payload.attr.get('func')!r}"
+                raise RuntimeError(
+                    f"formula livelock: {name} re-queued more than "
+                    f"{FORMULA_REQUEUE_LIMIT} times in one flush",
+                )
+            if kind == "rule":
+                if payload is not None and (
+                    self._dataroot.get_node(payload) is None
+                ):
+                    continue          # the row died while queued
+                self._execute_rule(owner, payload)
+            else:
+                owner.compute_logic([payload])
 
     def _execute_rule(self, spec: RuleSpec, row_path: str | None) -> None:
         """Run one template spec on one row: read, compute, write.
@@ -523,17 +605,17 @@ class BuilderHandler:
         it once with no row.
         """
         if anchor is None:
-            self._execute_rule(spec, None)
+            self._dispatch_rule(spec, None)
             return
         component = self.component_rules.get(anchor)
         if component is None or component.store_mode:
-            self._execute_rule(spec, anchor)
+            self._dispatch_rule(spec, anchor)
             return
         collection = self._dataroot.get_item(anchor)
         if collection is None:
             return
         for label in list(collection.keys()):
-            self._execute_rule(spec, f"{anchor}.{label}")
+            self._dispatch_rule(spec, f"{anchor}.{label}")
 
     def execute_logic(
         self, relevant: dict[Any, list[tuple[str, SourceBagNode]]],
@@ -547,13 +629,20 @@ class BuilderHandler:
         owner. Plain view readers (no ``data_element`` meta) are skipped here:
         they only re-render. The compute writes downstream data, which
         re-enters :meth:`_on_data_event` and cascades.
+
+        Inside a live section the FORMULAS do not compute: they queue
+        (dedup on the pendings, key = the node) for the flush drain —
+        a wide reader used to run once per EVENT, N times on a
+        broadcast. Setters and controllers stay synchronous.
         """
         for builder, items in relevant.items():
-            nodes = [
-                node for _, node in items if node._get_meta("data_element")
-            ]
-            if nodes:
-                builder.compute_logic(nodes)
+            for _, node in items:
+                if not node._get_meta("data_element"):
+                    continue
+                if node.node_tag == "data_formula" and self._live_depth:
+                    self._enqueue_formula(id(node), ("node", builder, node))
+                else:
+                    builder.compute_logic([node])
 
     @contextmanager
     def live(self, target: Any = None) -> Iterator[BuilderHandler]:
@@ -570,17 +659,16 @@ class BuilderHandler:
         outermost section: one queue, one flush at the outermost exit
         (an inner section cannot set a ``target``). Each source/data
         event records its touched path via :meth:`add_render_path`; the
-        flush renders every builder with at least one touched node,
-        toward ``target`` when given (it wins over the registered
-        default for this section only).
+        outermost exit first DRAINS the formula queue (the section's
+        writes queued the dependent formulas, deduped: each one runs on
+        the settled state, not once per event), then the flush renders
+        every builder with at least one touched node, toward ``target``
+        when given (it wins over the registered default for this
+        section only).
 
         Requires an application and :meth:`activate` (RuntimeError
         otherwise): liveness is forbidden outside an application — a
         handler without one has no subscribes, nothing would react.
-
-        Step one: ``_optimize_render`` is a pass-through and
-        ``render_nodes`` does a full render — partial render is a later
-        refinement.
         """
         if not self._live_enabled:
             raise RuntimeError(
@@ -598,19 +686,31 @@ class BuilderHandler:
             try:
                 yield self
             finally:
-                self._live_depth -= 1
-                if self._live_depth == 0:
+                if self._live_depth == 1:
+                    # Outermost exit: drain the formula queue while the
+                    # section is still open (the executions write, the
+                    # writes re-enter the cascade and queue renders),
+                    # THEN flush at depth zero (render-time events must
+                    # not queue again).
                     try:
-                        for name, nodes in self._nodes_to_render.items():
-                            if nodes:
-                                self.builders[name].render_nodes(
-                                    self._optimize_render(nodes),
-                                    target=self._live_target,
-                                )
+                        self._drain_formulas()
                     finally:
-                        self._nodes_to_render = {}
-                        self._removed_target_ids = {}
-                        self._live_target = None
+                        self._live_depth -= 1
+                        try:
+                            for name, nodes in self._nodes_to_render.items():
+                                if nodes:
+                                    self.builders[name].render_nodes(
+                                        self._optimize_render(nodes),
+                                        target=self._live_target,
+                                    )
+                        finally:
+                            self._nodes_to_render = {}
+                            self._removed_target_ids = {}
+                            self._live_target = None
+                            self._formula_queue.clear()
+                            self._pending_formulas.clear()
+                else:
+                    self._live_depth -= 1
 
     def add_render_path(
         self, builder_name: str, path: str, kind: str = "upd",

@@ -636,13 +636,30 @@ Le foglie che il catalogo non conosce (template, `checked`, celle
 ricche) ricadono sul replace di riga. Iterate annidati: granularità
 alla riga ESTERNA (la subscription sta sul component più esterno).
 
-Residui noti (misurati e profilati 2026-06-12 sera): (1) i **lettori
-di pagina eseguono una volta per EVENTO, non per flush** — un grand
-total con binding `^rows` su un broadcast di N righe ricalcola N
-volte, ognuna O(N): a 1500 righe una sola formula porta il broadcast
-da 113ms a 2,9s. Direzione: differire e dedupare l'esecuzione dei
-data-element di pagina al flush (il legacy micro-batchava i calc per
-la stessa ragione) — decisione di semantica da prendere. (2) la
+**Coda delle formule con dedup (implementata 2026-06-12 notte).**
+Dentro una sezione live una scrittura non ESEGUE le formule
+dipendenti: le **accoda** (FIFO, dedup sui pendenti — chiave
+`(spec, riga)` per le regole component, il nodo per i data-element di
+pagina; un'unica coda). Il drain corre all'uscita outermost di
+`live()`, PRIMA del flush dei render: l'ordine FIFO è la
+stratificazione — la cascata accoda le regole di riga davanti ai
+lettori larghi di pagina (il grand total), così ogni formula legge lo
+stato assestato dello strato sotto. Le scritture del drain rientrano
+nella cascata e possono ri-accodare (nuovo input durante il drain: il
+dedup è SOLO sui pendenti). I **controller restano sincroni**: un
+comando non è una funzione dello stato (due comandi = due esecuzioni)
+e il payload del FIRE non persiste (differito leggerebbe None). La
+riga morta in coda non esegue (stesso check di esistenza del
+dispatch: la regola non può risuscitarla). Backstop: un contatore
+per chiave nel drain (`FORMULA_REQUEUE_LIMIT`) ferma il livelock
+(a → b → a) con errore esplicito che nomina la regola. Era il residuo
+(1) profilato il 2026-06-12 sera: un grand total con binding `^rows`
+su un broadcast di N righe ricalcolava N volte, ognuna O(N) — a 1500
+righe una sola formula portava il broadcast da 113ms a 2,9s; ora
+esegue UNA volta per flush, sullo stato assestato (il legacy
+micro-batchava i calc per la stessa ragione).
+
+Residuo noto (misurato e profilato 2026-06-12 sera): la
 ri-registrazione writeback del re-render completo scandisce ancora la
 wmap per ogni riga (primo paint, replace coalizzati strutturali).
 

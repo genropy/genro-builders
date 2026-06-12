@@ -11,6 +11,30 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-12 notte (coda delle formule con dedup)
+
+Chiude il residuo (1) di CMP.7 (profilato la sera stessa: i lettori
+di pagina eseguivano per EVENTO — una sola grand formula portava il
+broadcast 1500 righe da 113ms a 2,9s). Design dell'utente: "ogni
+formula non esegue ma si accoda in una lista evitando duplicazioni".
+Dentro la sezione live le **formule si accodano** (FIFO, dedup sui
+pendenti, chiave `(spec, riga)` per le regole component / nodo per i
+data-element di pagina, un'unica coda), il **drain corre all'uscita
+outermost PRIMA del flush dei render**; il riaccodo dopo l'esecuzione
+è permesso (nuovo input nel drain — il dedup è solo sui pendenti).
+FIFO = strati: in `_on_data_event` le regole component si accodano
+PRIMA dei lettori di pagina, così il grand total esegue per ultimo,
+sullo stato assestato — UNA volta per flush. I **controller restano
+sincroni** (payload FIRE non persistente + semantica di comando:
+due comandi = due esecuzioni). Guardia riga-morta anche nel drain
+(la riga può morire tra accodamento e drain). Backstop
+`FORMULA_REQUEUE_LIMIT=50` per chiave → errore esplicito col nome
+della regola. È il ritorno al design originale della cascata (coda
+FIFO, anti-loop, backstop) che l'implementazione aveva scorciato in
+profondità. Esempio: `reactive/17_formula_queue`.
+
+---
+
 ## v0.8.0 — emendamento del 2026-06-12 notte (motore regole a coordinate)
 
 Diagnosi dell'utente a monte: "chiedersi chi mi legge è inutile" — il
