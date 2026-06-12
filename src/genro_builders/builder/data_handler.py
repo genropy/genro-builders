@@ -104,10 +104,20 @@ class RowContext:
     resolve on the row, plain paths on the builder segment.
     """
 
-    def __init__(self, data: Bag, segment: str, row_path: str | None):
+    def __init__(self, data: Bag, segment: str, row_path: str | None,
+                 builder: Any = None):
         self._data = data
         self._segment = segment
         self._row_path = row_path
+        self._builder = builder
+
+    @property
+    def builder(self) -> Any:
+        """The owning builder (the page). The contract is the same as
+        a source-node controller's ``node.builder``: the rule reaches
+        its world — db units of work included — through the context.
+        """
+        return self._builder
 
     def _abs(self, path: str) -> str:
         if path.startswith((".", "?")):
@@ -633,7 +643,10 @@ class BuilderHandler:
             dest = row_path + payload if mode == "row" else payload
             self._dataroot.set_item(dest, spec.func(**kwargs), _reason=True)
         else:
-            context = RowContext(self._dataroot, spec.segment, row_path)
+            context = RowContext(
+                self._dataroot, spec.segment, row_path,
+                builder=self.builders.get(spec.segment),
+            )
             spec.func(context, **kwargs)
 
     def _run_shared_rule(self, spec: RuleSpec, anchor: str | None) -> None:
