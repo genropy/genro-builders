@@ -21,9 +21,12 @@ blocks (CMP.7):
   path arithmetic, not a DOM lookup);
 - the grand total reads the whole collection from the first
   calculation — page 0 on screen, 250 rows in the sum;
-- value edits ride the existing per-row/cell patch lanes; a patch
-  addressed to an unpainted row is a client no-op by construction
-  (unknown id — nothing to update, the store already holds the truth).
+- value edits ride the existing per-row/cell patch lanes — and the
+  wire carries them ONLY for the rows the client HAS: the handler
+  tracks the delivered pages (a container replace restarts the set),
+  so a broadcast touching every row ships ~one page of ops, not N.
+  The unpainted rows update in the STORE alone, which is already the
+  truth; the page that eventually delivers them reads it fresh.
 
 ## The one new rule: structural ⇒ container replace
 
@@ -42,6 +45,8 @@ own, wherever the scrollbar is.
 - value edit on a painted row: normal patches, container untouched;
 - value edit on an unpainted row: its rule fires, the grand follows;
 - add/del row: one container replace with the fresh count — never a
-  row insert/remove, never a page op.
+  row insert/remove, never a page op;
+- a broadcast (the shared rate) updates the STORE for every row but
+  ships value ops for exactly ONE page — the delivered one.
 
 Contract: `roadmap/reactivity/lazy-iterate.md` (v0.4.0).

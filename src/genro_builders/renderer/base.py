@@ -380,6 +380,9 @@ class RendererBase:
             node, base, row_tag, total, page_size, opts,
         ))
         handler.lazy_subscribe(base, node)
+        # A (re)render restarts the delivered set: whatever pages the
+        # client had died with the DOM this run replaces.
+        handler.lazy_track(base, labels, fresh=True)
         return fragments
 
     def render_lazy_page(self, node: Any, page: int, **opts: Any) -> str:
@@ -404,12 +407,15 @@ class RendererBase:
                         "".join(block) if isinstance(block, list) else block,
                     )
         else:
-            collection = handler.data.get_item(anchor_abs)
-            for label in handler.lazy_page_of(collection, page):
+            labels = handler.lazy_page_of(
+                handler.data.get_item(anchor_abs), page,
+            )
+            for label in labels:
                 block = self.render_expansion_block(node, label, **opts)
                 fragments.append(
                     "".join(block) if isinstance(block, list) else block,
                 )
+        handler.lazy_track(base, labels)
         return "".join(fragments)
 
     @contextmanager

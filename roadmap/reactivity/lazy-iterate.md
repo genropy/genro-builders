@@ -1,6 +1,6 @@
 # Lazy iterate — la pigrizia sta nel dato
 
-**Versione**: 0.4.0
+**Versione**: 0.4.1
 **Ultimo aggiornamento**: 2026-06-12
 **Status**: 🔴 DA REVISIONARE — formalizza le decisioni D1-D4 condivise il
 2026-06-12, riviste in revisione lo stesso giorno: il fill spinto a
@@ -114,7 +114,12 @@ La distinzione mutabile/immutabile non è un flag nostro: è il
   placeholder ⇒ il flush risponde col REPLACE del contenitore —
   pagina 0 + conteggio fresco, ~0,2 s, mai patch strutturali
   per-riga; il client si ricabla da solo e l'observer ririempie la
-  viewport dove sta.
+  viewport dove sta. **Economia del filo (v0.4.1)**: l'handler
+  traccia le righe CONSEGNATE (pagina 0 al render, più ogni pagina
+  servita; il re-render azzera) e le patch di valore viaggiano SOLO
+  per quelle — un broadcast su 3000 righe con 100 a video = ~100 op,
+  non 3000 (la riga mai consegnata non ha DOM da aggiornare: lo store
+  è già la verità, e la pagina che arriverà la leggerà da lì).
 
 ---
 

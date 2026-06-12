@@ -50,16 +50,21 @@ class CustomPage(HtmlBuilder):
         row = root.div(datapath="." + node_label)
         row.input(value="^.qty", dtype="L")
         row.span("^.total")
+        row.span("^.converted")
         row.data_formula(destination=".total", func="row_total",
                          qty="^.qty", price="^.price")
+        row.data_formula(destination=".converted", func="convert",
+                         total="^.total", rate="^header.rate")
 
     def setup(self, data):
         # The collection lives in the STORE: no resolver, loaded data
         # is trusted as-is (totals included).
+        data.set_item("header.rate", 1.0)
         for i in range(1, TOTAL + 1):
             data.set_item(f"rows.r{i:04d}.qty", 1)
             data.set_item(f"rows.r{i:04d}.price", 2.0)
             data.set_item(f"rows.r{i:04d}.total", 2.0)
+            data.set_item(f"rows.r{i:04d}.converted", 2.0)
 
     def main(self, root):
         body = root.body()
@@ -75,6 +80,12 @@ class CustomPage(HtmlBuilder):
         if qty is None or price is None:
             return None
         return round(float(qty) * float(price), 2)
+
+    @staticmethod
+    def convert(total, rate):
+        if total is None or rate is None:
+            return None
+        return round(float(total) * float(rate), 2)
 
     @staticmethod
     def grand_total(rows):
@@ -179,6 +190,22 @@ if __name__ == "__main__":
     assert f'data-lazy-total="{TOTAL}"' in rep["html"]
     assert not any(p.get("op") == "remove" for p in batch)
     assert handler.data["main.grand.total"] == 514.0
+
+    # BROADCAST economics: the rate touches EVERY row's converted.
+    # The STORE updates for all of them (rules are coordinate
+    # templates), but the wire carries value patches ONLY for the rows
+    # the client HAS — after the structural replaces, page 0 again.
+    # Without the delivered filter this would ship TOTAL patches and
+    # the client would drop all but PAGE of them.
+    with handler.live():
+        handler.data.set_item("main.header.rate", 2.0)
+    assert handler.data["main.rows.r0001.converted"] == 20.0
+    assert handler.data["main.rows.r0150.converted"] == 16.0  # unpainted
+    batch = probe.batches[-1]
+    value_ops = [p for p in batch if p.get("op") in ("text", "attr")]
+    delivered = {f"rows_block.r{i:04d}" for i in range(1, PAGE + 1)}
+    assert len(value_ops) == PAGE, f"{len(value_ops)} ops on the wire"
+    assert all(p["id"].rsplit(".", 1)[0] in delivered for p in value_ops)
 
     print("store-backed lazy:", TOTAL, "rows — grand:",
           handler.data["main.grand.total"])

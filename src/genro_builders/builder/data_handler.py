@@ -187,6 +187,10 @@ class BuilderHandler:
         # dict today, an external store tomorrow).
         self._lazy_parking: dict[str, Any] = {}
         self._lazy_topics: dict[str, tuple[str, SourceBagNode]] = {}
+        # Rows DELIVERED to the client, per lazy component: the wire
+        # economics of the value patches (a row the client never got
+        # has nothing to update — the store is the truth).
+        self._lazy_delivered: dict[str, set[str]] = {}
         self.setup(self._dataroot["_"])
 
     @property
@@ -327,6 +331,15 @@ class BuilderHandler:
                 row = self._expansion_row(view_node, path, evt)
                 if row is not None:
                     row_kind, label, field = row
+                    if (
+                        view_node.attr.get("lazy")
+                        and not self._lazy_row_delivered(view_node, label)
+                    ):
+                        # The client never got this row: there is no
+                        # DOM to patch, the store is already the truth.
+                        # A broadcast on a lazy component ships value
+                        # ops for the DELIVERED rows only.
+                        continue
                     self.add_render_path(name, rel, row_kind, label, field)
                 else:
                     self.add_render_path(name, rel)
@@ -716,11 +729,25 @@ class BuilderHandler:
         return labels
 
     def lazy_drop(self, key: str) -> None:
-        """Forget a parked snapshot and its topic subscription."""
+        """Forget a parked snapshot, its topic and its delivered set."""
         self._lazy_parking.pop(key, None)
+        self._lazy_delivered.pop(key, None)
         for topic, (owner, _node) in list(self._lazy_topics.items()):
             if owner == key:
                 del self._lazy_topics[topic]
+
+    def lazy_track(
+        self, key: str, labels: list[str], fresh: bool = False,
+    ) -> None:
+        """Record the rows DELIVERED to the client of a lazy component.
+
+        ``fresh=True`` restarts the set: a re-render replaced the
+        container, the client is back to page 0 plus placeholders —
+        whatever was delivered before died with the old DOM.
+        """
+        if fresh or key not in self._lazy_delivered:
+            self._lazy_delivered[key] = set()
+        self._lazy_delivered[key].update(labels)
 
     def lazy_subscribe(self, key: str, comp_node: SourceBagNode) -> None:
         """Subscribe the engine to a lazy component's reserved topic.
@@ -731,6 +758,16 @@ class BuilderHandler:
         """
         topic = comp_node.abs_datapath(f"_lazy.{key}")
         self._lazy_topics[topic] = (key, comp_node)
+
+    def _lazy_row_delivered(
+        self, comp_node: SourceBagNode, label: str | None,
+    ) -> bool:
+        """Whether a lazy component's row reached the client's DOM."""
+        base = comp_node.attr.get("id") or comp_node.builder.target_id(
+            comp_node,
+        )
+        delivered = self._lazy_delivered.get(str(base))
+        return delivered is not None and label in delivered
 
     def _queue_lazy_page(self, topic: str, comp_node: SourceBagNode) -> None:
         """A fire on a reserved lazy topic asks for ONE page.
