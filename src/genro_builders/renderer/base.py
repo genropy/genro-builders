@@ -326,15 +326,7 @@ class RendererBase:
         if base is None:
             return
         prefix = ".".join((str(base), *labels))
-        wmap = getattr(builder, "_writeback_map", None)
-        if wmap is None:
-            wmap = builder._writeback_map = {}
-        stale = [
-            key for key in wmap
-            if key == prefix or key.startswith(prefix + ".")
-        ]
-        for key in stale:
-            del wmap[key]
+        builder._purge_writeback_prefix(prefix)
         handler = builder.handler
         # The cell catalog rebuilds per expansion and is identical for
         # every row (the body is code): reset, the last row wins.
@@ -381,7 +373,7 @@ class RendererBase:
             ) or current.attr.get("data-set-pointer") is not None \
               or current.attr.get("data-fire-pointer") is not None
             if writable:
-                wmap[composite] = current
+                builder._writeback_add(prefix, composite, current)
             self._register_cell(comp_node, current, labels, counter)
             if isinstance(current.value, SourceBag):
                 queue.extend(current.value.nodes)

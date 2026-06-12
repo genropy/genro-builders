@@ -11,6 +11,24 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-12 notte (purge writeback indicizzato)
+
+Chiude il residuo (2) di CMP.7. Profilato il primo paint (spike
+headless sulla scale grid reale): i calcoli sono innocenti (create =
+0,07s a 3000 righe), il client pure (parse 3,7MB = 56ms, layout =
+340ms) — il tempo era TUTTO nel render server (9,2s a 3000), e un
+terzo era la scansione quadratica della wmap a ogni riespansione
+(15,8M di `startswith` a 1500 righe). Fix come da design: mappa
+piatta intatta (i consumatori risolvono per id), accanto un indice a
+segmenti (`_writeback_index`) — `_writeback_add` registra nei due,
+`_purge_writeback_prefix` (unificato: riespansione e row_del) poppa
+il sottoalbero del prefisso e cancella esattamente quelle chiavi.
+Primo paint: 9,23s → 6,20s a 3000, scaling 750/1500/3000 ora
+lineare puro (×2,02/×2,01). Il residuo che resta è la costante
+lineare (body per riga + HTML intero sul filo) — direzioni nominate
+a contratto: riempimento a chunk (percezione), grid data-widget
+(costo).
+
 ## v0.8.0 — emendamento del 2026-06-12 notte (coda delle formule con dedup)
 
 Chiude il residuo (1) di CMP.7 (profilato la sera stessa: i lettori

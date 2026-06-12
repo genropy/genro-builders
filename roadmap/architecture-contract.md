@@ -659,9 +659,24 @@ righe una sola formula portava il broadcast da 113ms a 2,9s; ora
 esegue UNA volta per flush, sullo stato assestato (il legacy
 micro-batchava i calc per la stessa ragione).
 
-Residuo noto (misurato e profilato 2026-06-12 sera): la
-ri-registrazione writeback del re-render completo scandisce ancora la
-wmap per ogni riga (primo paint, replace coalizzati strutturali).
+**Purge writeback indicizzato (implementato 2026-06-12 notte).** La
+ri-registrazione del re-render completo scandiva l'intera wmap per
+OGNI riga (15,8M di `startswith` a 1500 righe: la componente
+quadratica del primo paint). Ora la mappa piatta resta la verità del
+mutate (id composito → nodo, un hit di dizionario) e accanto vive un
+**indice a segmenti** (`_writeback_index`: albero per segmento di
+prefisso, chiavi nello slot `None`): registrazione e purge — ambo i
+siti, riespansione e row_del — pagano solo il PROPRIO sottoalbero
+(righe annidate incluse), mai una scansione. Primo paint headless:
+750/1500/3000 = 1,53/3,09/6,20s — **lineare puro** (~2,1 ms/riga).
+
+Residuo noto: il primo paint resta LINEARE ma con costante piena —
+il body riesegue per ogni riga attraverso la macchina grammaticale
+(~1/3), risoluzione pointer e composizione (~1/3) — e il documento
+viaggia come HTML intero (3,7MB a 3000 righe; il client è innocente:
+parse 56ms + layout 340ms). Direzioni: riempimento progressivo a
+chunk sulla corsia insert esistente (percezione), grid data-widget
+JS (costo: il server manda la proiezione JSON, non l'HTML).
 
 **Comando di pagina (corsia FIRE, implementata 2026-06-11).** Un click
 che deve ESEGUIRE logica (non scrivere un dato) resta una mutazione

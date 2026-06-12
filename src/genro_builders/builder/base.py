@@ -1203,21 +1203,59 @@ class BuilderBase(
         before, component_sibling = self._insert_anchor(comp_node, set())
         return before, component_sibling
 
+    def _writeback_add(self, prefix: str, key: str, node: Any) -> None:
+        """Register a writable expansion node under its row prefix.
+
+        Two structures, one truth: the flat ``_writeback_map`` answers
+        the mutate (composite id -> node, one dict hit); the prefix
+        index — a segment tree, key-sets under the ``None`` slot —
+        lets the purge pay for its OWN subtree only, never a scan of
+        the whole map.
+        """
+        wmap = getattr(self, "_writeback_map", None)
+        if wmap is None:
+            wmap = self._writeback_map = {}
+        wmap[key] = node
+        index = getattr(self, "_writeback_index", None)
+        if index is None:
+            index = self._writeback_index = {}
+        for segment in prefix.split("."):
+            index = index.setdefault(segment, {})
+        index.setdefault(None, set()).add(key)
+
     def _purge_writeback_prefix(self, prefix: str) -> None:
-        """Drop a dead row's derived ids from the writeback map.
+        """Drop a prefix's derived ids from the writeback map — indexed.
 
         Re-expansion purges its own prefix before re-registering; a
         REMOVED row never re-expands, so its entries are purged at
         patch time (the row's rules already died at the delete event,
-        anchor-based, on the data handler).
+        anchor-based, on the data handler). The segment tree pops the
+        prefix's subtree (nested rows included) and deletes exactly
+        those keys: O(own entries), where the old full-map scan was
+        the first-paint quadratic (CMP.7).
         """
-        wmap = getattr(self, "_writeback_map", None) or {}
-        stale = [
-            key for key in wmap
-            if key == prefix or key.startswith(prefix + ".")
-        ]
-        for key in stale:
-            del wmap[key]
+        wmap = getattr(self, "_writeback_map", None)
+        index = getattr(self, "_writeback_index", None)
+        if not wmap or index is None:
+            return
+        segments = prefix.split(".")
+        parent = index
+        for segment in segments[:-1]:
+            parent = parent.get(segment)
+            if parent is None:
+                return
+        subtree = parent.pop(segments[-1], None)
+        if subtree is None:
+            return
+        stack = [subtree]
+        while stack:
+            level = stack.pop()
+            for segment, child in level.items():
+                if segment is None:
+                    for key in child:
+                        del wmap[key]
+                else:
+                    stack.append(child)
 
     def _get_target(self, target: Any, renderer: Any) -> Any:
         """Resolve the render target for a render call.
