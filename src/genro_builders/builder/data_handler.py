@@ -306,13 +306,17 @@ class BuilderHandler:
 
         Same matching as the pointer_map: exact trigger, or a trigger
         UNDER the mutated path (a row replaced wholesale recomputes its
-        rules). The compute writes re-enter the cascade like any
-        canonical data-element.
+        rules) — and like the pointer_map the ``?attr`` tail of a
+        binding strips before the compare: an ``upd_attrs`` event
+        travels on the NODE path (attribute-mode rows, one node with
+        the columns aboard). The compute writes re-enter the cascade
+        like any canonical data-element.
         """
         seen: set[int] = set()
         grouped: dict[Any, list[SourceBagNode]] = {}
         for key, inner in self.expansion_logic.items():
-            if key != path and not key.startswith(path + "."):
+            kp = key.split("?", 1)[0]
+            if kp != path and not kp.startswith(path + "."):
                 continue
             for node_id, (node, _prefix) in inner.items():
                 if node_id in seen:
