@@ -939,29 +939,32 @@ class BuilderBase(
         ):
             return self.render(target=target, **opts)
         opts = {**effective_target.render_opts, **opts}
-        # (op, path, node, label): node is None for remove, label only
-        # on the row ops.
-        plan: list[tuple[str, str, Any, str | None]] = []
-        for kind, path, label in entries:
+        # (op, path, node, label, field): node is None for remove,
+        # label only on the row/cell ops, field only on the cells.
+        plan: list[tuple[str, str, Any, str | None, str | None]] = []
+        for kind, path, label, field in entries:
             if kind == "del":
-                plan.append(("remove", path, None, None))
+                plan.append(("remove", path, None, None, None))
                 continue
             node = self.source.get_node(path)
             if node is None:
                 raise ValueError(
                     f"queued render path {path!r} is no longer in the source",
                 )
+            if kind == "cell_upd":
+                plan.append(("cell", path, node, label, field))
+                continue
             if kind == "row_upd":
-                plan.append(("row_replace", path, node, label))
+                plan.append(("row_replace", path, node, label, None))
                 continue
             if kind == "row_ins":
-                plan.append(("row_insert", path, node, label))
+                plan.append(("row_insert", path, node, label, None))
                 continue
             if kind == "row_del":
-                plan.append(("row_remove", path, node, label))
+                plan.append(("row_remove", path, node, label, None))
                 continue
             if kind == "ins":
-                plan.append(("insert", path, node, None))
+                plan.append(("insert", path, node, None, None))
                 continue
             if node._get_meta("component"):
                 # An iterate component renders as N sibling blocks with no
@@ -977,32 +980,73 @@ class BuilderBase(
                 if not parent_path:
                     return self.render(target=target, **opts)
                 path, node = parent_path, parent
-            plan.append(("replace", path, node, None))
+            plan.append(("replace", path, node, None, None))
         # The lifts may have introduced duplicates or new ancestors: the
         # same two reductions _optimize_render applies, on the plan. A
         # replace at P covers ANY op under it (its fragment renders the
-        # final subtree) — the component's row ops included — the
-        # replace itself excluded.
-        seen: set[tuple[str, str, str | None]] = set()
-        deduped: list[tuple[str, str, Any, str | None]] = []
-        for op, path, node, label in plan:
-            if (op, path, label) in seen:
+        # final subtree) — the component's row and cell ops included —
+        # the replace itself excluded.
+        seen: set[tuple[str, str, str | None, str | None]] = set()
+        deduped: list[tuple[str, str, Any, str | None, str | None]] = []
+        for op, path, node, label, field in plan:
+            if (op, path, label, field) in seen:
                 continue
-            seen.add((op, path, label))
-            deduped.append((op, path, node, label))
+            seen.add((op, path, label, field))
+            deduped.append((op, path, node, label, field))
         replace_paths = {
-            path for op, path, _, _ in deduped if op == "replace"
+            path for op, path, _, _, _ in deduped if op == "replace"
         }
         deduped = [
-            (op, path, node, label) for op, path, node, label in deduped
+            entry for entry in deduped
             if not any(
-                other != path and path.startswith(other + ".")
+                other != entry[1] and entry[1].startswith(other + ".")
                 for other in replace_paths
             )
-            and not (op.startswith("row_") and path in replace_paths)
+            and not (
+                entry[0] in ("cell", "row_replace", "row_insert",
+                             "row_remove")
+                and entry[1] in replace_paths
+            )
         ]
         patches: list[dict[str, Any]] = []
-        for position, (op, path, node, label) in enumerate(deduped):
+        for position, (op, path, node, label, field) in enumerate(deduped):
+            if op == "cell":
+                # Value-only patch: no body, no render, no re-registration
+                # — the wire carries {id, value} downstream too. Leaves
+                # the catalog does not know (templates, checked, richer
+                # cells) fall back to the row replace.
+                base = node.attr.get("id") or self.target_id(node)
+                specs = (
+                    getattr(self, "_cell_map", {}).get(base) or {}
+                ).get(field)
+                if not specs:
+                    fragment = renderer.render_expansion_block(
+                        node, label, **opts,
+                    )
+                    if isinstance(fragment, list):
+                        fragment = "".join(fragment)
+                    patches.append({
+                        "id": f"{base}.{label}.1", "op": "replace",
+                        "html": fragment,
+                    })
+                    continue
+                anchor_abs = node.abs_datapath(node.attr["iterate"])
+                value = self.handler.data.get_item(
+                    f"{anchor_abs}.{label}.{field}",
+                )
+                text = "" if value is None else str(value)
+                for ordinal, cell_kind, attr_name in specs:
+                    cell_id = f"{base}.{label}.{ordinal}"
+                    if cell_kind == "text":
+                        patches.append({
+                            "id": cell_id, "op": "text", "value": text,
+                        })
+                    else:
+                        patches.append({
+                            "id": cell_id, "op": "attr",
+                            "name": attr_name, "value": text,
+                        })
+                continue
             if op == "row_remove":
                 # Derived identity needs no capture at the delete event:
                 # the address is arithmetic. The dead row's writeback
@@ -1062,7 +1106,7 @@ class BuilderBase(
                 # pre-existing or already-applied elements only.
                 pending = {
                     later_path
-                    for later_op, later_path, _, _ in deduped[position + 1:]
+                    for later_op, later_path, _, _, _ in deduped[position + 1:]
                     if later_op == "insert"
                 }
                 before, component_sibling = self._insert_anchor(node, pending)

@@ -33,7 +33,7 @@ class _Probe(TargetWrapper):
 
 
 def _apply_patches(document: str, patches: list[dict]) -> str:
-    """Reference patch applier: replace/insert/remove by id on a tree."""
+    """Reference applier: replace/insert/remove/text/attr by id on a tree."""
     root = ET.fromstring(f"<R>{document}</R>")
     for patch in patches:
         if patch["op"] == "insert":
@@ -51,6 +51,12 @@ def _apply_patches(document: str, patches: list[dict]) -> str:
                 container.insert(list(container).index(ref), fragment)
             continue
         target = next(el for el in root.iter() if el.get("id") == patch["id"])
+        if patch["op"] == "text":
+            target.text = patch["value"]
+            continue
+        if patch["op"] == "attr":
+            target.set(patch["name"], patch["value"])
+            continue
         parent = next(p for p in root.iter() if target in list(p))
         index = list(parent).index(target)
         parent.remove(target)

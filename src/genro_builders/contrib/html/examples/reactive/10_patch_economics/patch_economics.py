@@ -37,7 +37,11 @@ class Metrics(TargetWrapper):
     def partial(self, patches):
         self.scenarios.append({
             "patches": [
-                {"id": p["id"], "bytes": len(p["html"])} for p in patches
+                # value-only cell patches carry no html: their cost is
+                # the value text itself
+                {"id": p["id"],
+                 "bytes": len(p.get("html") or str(p.get("value", "")))}
+                for p in patches
             ],
         })
         self.metrics_path.write_text(

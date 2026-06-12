@@ -29,18 +29,27 @@ from .source_bag import SourceBag, SourceBagNode
 class RenderEntry(NamedTuple):
     """One queued render: the event kind, the touched SOURCE path and —
     for the per-row kinds (``row_upd``/``row_ins``/``row_del``) — the
-    label of the iterate row the event addressed (CMP.7)."""
+    label of the iterate row the event addressed (CMP.7). A mutation
+    that touched ONE leaf of the row carries the residual ``field``
+    too (``cell_upd``): the flush may answer with a value-only cell
+    patch, no render at all."""
 
     kind: str
     path: str
     label: str | None = None
+    field: str | None = None
 
 
 #: Above this many touched rows of ONE component in a single flush, the
 #: per-row patches coalesce into the enclosing-container replace (the
-#: shared-binding broadcast — e.g. an exchange rate over every row —
-#: ships better as one fragment than as thousands).
+#: structural flood case). Cell patches never coalesce: value-only ops
+#: are exactly what a shared-binding broadcast wants to ship.
 ROW_COALESCE_LIMIT = 50
+
+#: Above this many touched CELLS of one row in a single flush, the
+#: cell patches collapse into that row's replace (one fragment beats
+#: re-reading and shipping most of the row field by field).
+CELLS_PER_ROW_LIMIT = 4
 
 
 class BuilderHandler:
@@ -221,23 +230,27 @@ class BuilderHandler:
                 rel = view_node.root_builder.source.relative_path(view_node)
                 row = self._expansion_row(view_node, path, evt)
                 if row is not None:
-                    row_kind, label = row
-                    self.add_render_path(name, rel, row_kind, label)
+                    row_kind, label, field = row
+                    self.add_render_path(name, rel, row_kind, label, field)
                 else:
                     self.add_render_path(name, rel)
 
     def _expansion_row(
         self, view_node: SourceBagNode, path: str, evt: str,
-    ) -> tuple[str, str] | None:
+    ) -> tuple[str, str, str | None] | None:
         """Classify a data event against an iterate component (CMP.7).
 
         When the reader is an iterate component and the mutated path
         falls under its anchor, the path arithmetic names the row: the
         residual's first segment is the row label. The kind says what
-        happened to it — a field changed or the row replaced wholesale
-        (``row_upd``), the row born (``row_ins``) or dead (``row_del``).
-        ``None`` for every other reader (including the collection node
-        itself replaced wholesale: the whole block re-renders).
+        happened — the row born (``row_ins``), dead (``row_del``),
+        replaced wholesale (``row_upd``), or ONE of its leaves changed
+        (``cell_upd``, the residual rest as ``field``: the flush may
+        answer with a value-only cell patch). ``upd_attrs`` events ride
+        as ``row_upd``: the columns travel ON the node, any of them may
+        have changed. ``None`` for every other reader (including the
+        collection node itself replaced wholesale: the whole block
+        re-renders).
         """
         if not view_node._get_meta("component"):
             return None
@@ -249,12 +262,12 @@ class BuilderHandler:
         residual = path[len(anchor) + 1:]
         label, _, rest = residual.partition(".")
         if rest:
-            return "row_upd", label
+            return "cell_upd", label, rest
         if evt == "ins":
-            return "row_ins", label
+            return "row_ins", label, None
         if evt == "del":
-            return "row_del", label
-        return "row_upd", label
+            return "row_del", label, None
+        return "row_upd", label, None
 
     def register_expansion_logic(
         self, abs_path: str, node: SourceBagNode, prefix: str,
@@ -405,7 +418,7 @@ class BuilderHandler:
 
     def add_render_path(
         self, builder_name: str, path: str, kind: str = "upd",
-        label: str | None = None,
+        label: str | None = None, field: str | None = None,
     ) -> None:
         """Record a touched path and its event kind for the end-of-live render.
 
@@ -425,7 +438,7 @@ class BuilderHandler:
         if not self._live_depth:
             return
         self._nodes_to_render.setdefault(builder_name, []).append(
-            RenderEntry(kind, path, label),
+            RenderEntry(kind, path, label, field),
         )
 
     def record_removed_id(
@@ -477,10 +490,10 @@ class BuilderHandler:
           into the plain ``upd`` of the component (the broadcast case:
           one container fragment beats thousands of row patches).
         """
-        state: dict[tuple[str, str | None], str] = {}
-        for kind, path, label in entries:
-            key = (path, label)
-            base = kind.removeprefix("row_")
+        state: dict[tuple[str, str | None, str | None], str] = {}
+        for kind, path, label, field in entries:
+            key = (path, label, field)
+            base = kind.removeprefix("row_").removeprefix("cell_")
             prev = state.get(key)
             if prev is None:
                 state[key] = base
@@ -505,19 +518,49 @@ class BuilderHandler:
                     )
                 else:
                     state[key] = "del"
-        whole_paths = {path for path, label in state if label is None}
+        whole_paths = {
+            path for path, label, field in state if label is None
+        }
+        row_keys = {
+            (path, label) for path, label, field in state
+            if label is not None and field is None
+        }
         kept = [
-            (kind, path, label) for (path, label), kind in state.items()
+            (kind, path, label, field)
+            for (path, label, field), kind in state.items()
+            # an ancestor whole-node entry renders its final subtree
             if not any(
                 other != path and path.startswith(other + ".")
                 for other in whole_paths
             )
+            # the component's own entry covers its rows and cells
             and not (label is not None and path in whole_paths)
+            # the row's own entry covers its cells
+            and not (field is not None and (path, label) in row_keys)
         ]
-        # Density: count surviving row entries per component path.
+        # Density, cells first: too many cells of ONE row collapse into
+        # that row's replace...
+        cell_load: dict[tuple[str, str | None], int] = {}
+        for kind, path, label, field in kept:
+            if field is not None:
+                key = (path, label)
+                cell_load[key] = cell_load.get(key, 0) + 1
+        full_rows = {
+            key for key, count in cell_load.items()
+            if count > CELLS_PER_ROW_LIMIT
+        }
+        if full_rows:
+            kept = [
+                (kind, path, label, field)
+                for kind, path, label, field in kept
+                if not (field is not None and (path, label) in full_rows)
+            ] + [("upd", path, label, None) for path, label in full_rows]
+        # ...then rows: a structural flood coalesces into the container
+        # replace. CELL entries never count here — value-only ops are
+        # exactly what a broadcast wants to ship.
         row_load: dict[str, int] = {}
-        for kind, path, label in kept:
-            if label is not None:
+        for kind, path, label, field in kept:
+            if label is not None and field is None:
                 row_load[path] = row_load.get(path, 0) + 1
         coalesced = {
             path for path, count in row_load.items()
@@ -526,13 +569,15 @@ class BuilderHandler:
         out: list[RenderEntry] = []
         for path in coalesced:
             out.append(RenderEntry("upd", path))
-        for kind, path, label in kept:
+        for kind, path, label, field in kept:
             if label is not None and path in coalesced:
-                continue
+                continue          # the container replace covers them all
             if kind == "del+ins":
                 row = "row_" if label is not None else ""
                 out.append(RenderEntry(f"{row}del", path, label))
                 out.append(RenderEntry(f"{row}ins", path, label))
+            elif field is not None:
+                out.append(RenderEntry("cell_upd", path, label, field))
             elif label is not None:
                 out.append(RenderEntry(f"row_{kind}", path, label))
             else:

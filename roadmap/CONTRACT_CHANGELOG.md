@@ -11,6 +11,31 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## v0.8.0 — emendamento del 2026-06-12 sera (patch di cella: {id, value} anche in discesa)
+
+Annotazione dell'utente a monte: "dovremmo immaginare di inviare solo
+delle celle nel caso di ricalcolo su grid grosse". Implementato: la
+classificazione scende alla FOGLIA (`cell_upd` con residuo `field`),
+il walk di registrazione costruisce il catalogo per-component campo →
+ordinale (valore-pointer puro = testo; attributo value = input) e il
+flush spedisce op di solo valore (`text`/`attr`) lette dallo store —
+niente body, niente render, niente ri-registrazione. Il filo porta
+{id, value} in ENTRAMBI i versi. Le celle non coalizzano mai (il
+broadcast = N patch minuscole); `CELLS_PER_ROW_LIMIT` collassa la
+riga quasi-tutta-riscritta nel suo replace. Fallback al replace di
+riga per le foglie fuori catalogo. Esempio 15 riallineato (edit = 3
+patch-valore con oracolo; flood = N op `text`); applier di test e
+client (genro.js) imparano le due op, con sovranità del controllo a
+fuoco.
+
+Scoperta di misura: il broadcast a 3000 righe NON migliora (~36s) —
+profilato: il collo è il matching di `_execute_expansion_logic`
+(scansione dell'intero catalogo a ogni scrittura: 2.76M `startswith`
+a 1500 righe), non il render. Residuo nominato a contratto; fix
+progettato: indici al posto delle scansioni (prossima fetta).
+
+---
+
 ## v0.8.0 — emendamento del 2026-06-12 (patch per-riga delle espansioni)
 
 Il "per ora" di CMP.7 cade: l'unità di patch delle espansioni iterate

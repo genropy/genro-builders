@@ -6,17 +6,20 @@ arithmetic: the residual's first segment names the row); the flush
 patches the single block, addressed by derived identity
 (``<base>.<label>.1``):
 
-- a row value changes      -> one ``replace`` of that block;
-- a row is born (any spot) -> one ``insert``, anchored before the
+- ONE leaf of a row changes -> value-only CELL patches (op ``text``/
+  ``attr``, the field->ordinal catalog built at registration): no
+  body, no render — the wire carries {id, value} downstream too;
+- a row is born (any spot)  -> one ``insert``, anchored before the
   NEXT row's block (bag order — identity is not position);
-- a row dies               -> one ``remove`` (derived id: arithmetic,
+- a row dies                -> one ``remove`` (derived id: arithmetic,
   no capture needed), its writeback entries purged with it;
-- a shared binding floods MORE than ``ROW_COALESCE_LIMIT`` rows in
-  one flush -> the per-row patches coalesce back into the enclosing
-  container replace (one fragment beats thousands of patches).
+- a shared binding flood    -> exactly N tiny value patches (cells
+  never coalesce; the ``ROW_COALESCE_LIMIT`` container replace stays
+  for STRUCTURAL floods, ``CELLS_PER_ROW_LIMIT`` collapses a mostly
+  rewritten row into its replace).
 
-ORACLE: every per-row fragment must appear verbatim in a full render
-of the same state — patching by row can never diverge from the truth.
+ORACLE: every patched fragment/value must match the full render of
+the same state — patching can never diverge from the truth.
 """
 from __future__ import annotations
 
@@ -47,6 +50,7 @@ class CustomPage(HtmlBuilder):
     def order_row(self, root, node_label=None):
         row = root.div(datapath="." + node_label)
         row.input(value="^.qty", dtype="L")
+        row.span("^.total")
         row.span("^.converted")
         row.data_formula(destination=".total", func="row_total",
                          qty="^.qty", price="^.price")
@@ -91,14 +95,21 @@ if __name__ == "__main__":
         page.render(include_datapath=True)
         return probe.full_html
 
-    # 1. ROW VALUE: one replace of THAT block, oracle-checked.
+    # 1. ROW VALUE: the edit travels as VALUE-ONLY cell patches — the
+    # qty input (attr), the total and converted spans (text). No body,
+    # no render, no re-registration.
     with handler.live():
         handler.data.set_item("main.rows.r2.qty", 7)
-    patch, = probe.batches[-1]
-    assert patch == {"id": "rows_block.r2.1", "op": "replace",
-                     "html": patch["html"]}
-    assert ">35.0<" in patch["html"]          # 7*10*0.5: the rule chain ran
-    assert patch["html"] in full_render()     # ORACLE
+    batch = probe.batches[-1]
+    assert sorted(p["op"] for p in batch) == ["attr", "text", "text"]
+    by_id = {p["id"]: p for p in batch}
+    assert by_id["rows_block.r2.2"]["value"] == "7"        # the input
+    assert by_id["rows_block.r2.3"]["value"] == "70"       # total 7*10
+    assert by_id["rows_block.r2.4"]["value"] == "35.0"     # converted
+    # ORACLE: the patched values are exactly the full render's cells.
+    full = full_render()
+    assert '<span id="rows_block.r2.3">70</span>' in full
+    assert '<span id="rows_block.r2.4">35.0</span>' in full
 
     # 2. ROW BORN mid-collection: one insert before the NEXT row's block.
     probe.batches.clear()
@@ -130,15 +141,18 @@ if __name__ == "__main__":
     assert not any(k.startswith("rows_block.r2.")
                    for k in page._writeback_map)
 
-    # 4. SHARED-BINDING FLOOD: every row recomputes, the per-row
-    # patches coalesce into ONE container replace.
+    # 4. SHARED-BINDING FLOOD: every row recomputes its converted —
+    # and the flush ships exactly N tiny value patches. Cells never
+    # coalesce: value-only ops are what a broadcast wants (the row
+    # coalescence stays for STRUCTURAL floods).
     probe.batches.clear()
     with handler.live():
         handler.data.set_item("main.header.rate", 0.75)
-    patch, = probe.batches[-1]
-    assert patch["op"] == "replace"
-    assert 'id="rows_block' not in patch["id"]    # the container, not a row
-    assert patch["html"].count("rows_block.") > ROW_COALESCE_LIMIT
+    batch = probe.batches[-1]
+    rows_now = len(handler.data["main.rows"])
+    assert len(batch) == rows_now > ROW_COALESCE_LIMIT
+    assert all(p["op"] == "text" and "html" not in p for p in batch)
+    assert len({p["id"] for p in batch}) == rows_now   # one per row
 
     print("per-row patches OK —", ROWS, "rows,",
           "coalesce limit", ROW_COALESCE_LIMIT)

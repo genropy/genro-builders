@@ -32,12 +32,23 @@ addressable: the body's first element is ordinal 1, so the block IS
   entries are purged at patch time (its rules already died at the
   delete event, anchor-based).
 
-## Density coalescing
+## Cell patches: {id, value} downstream too
 
-A shared binding (the exchange rate in a header) recomputes EVERY
-row: above `ROW_COALESCE_LIMIT` touched rows of one component in a
-single flush, the per-row patches collapse back into the enclosing
-container replace — one fragment beats thousands of patches.
+A mutation that touches ONE leaf of a row does not even re-render the
+block: at registration the walk builds a per-COMPONENT catalog
+(field -> ordinal: the body is code, the ordinal of "who shows
+`.field`" is the same for every row) and the flush ships value-only
+ops — `text` for a reader span, `attr` for a bound input — read from
+the store, no body call, no re-registration. The broadcast case (the
+exchange rate recomputing EVERY row) becomes exactly N tiny value
+patches: cells never coalesce. Leaves the catalog does not know
+(templates, checked, richer cells) fall back to the row replace.
+
+## Density limits
+
+`CELLS_PER_ROW_LIMIT` collapses a mostly-rewritten row into its own
+replace; `ROW_COALESCE_LIMIT` collapses a STRUCTURAL flood of rows
+into the enclosing container replace.
 
 ## Why it matters
 

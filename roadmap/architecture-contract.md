@@ -617,14 +617,32 @@ stesso body, stessa registrazione del walk: l'ORACOLO garantisce che
 il per-riga non diverga mai dal render totale. L'insert si ancora al
 blocco della riga successiva nell'ordine della busta (dopo l'ultima:
 il primo fratello source renderizzabile dopo il component). La riga
-morta purga le proprie voci di writeback al patch. **Coalescenza per
-densità**: oltre `ROW_COALESCE_LIMIT` righe toccate di uno stesso
-component in un flush (binding condiviso: il cambio in testata), le
-patch per-riga collassano nel replace del contenitore. Iterate
-annidati: granularità alla riga ESTERNA (la subscription sta sul
-component più esterno). Residuo noto: il re-render completo del
-blocco (coalescenza, primo paint) paga ancora la ri-registrazione
-quadratica per-riga — fix noto, purge indicizzato per prefisso.
+morta purga le proprie voci di writeback al patch.
+
+**Patch di cella (implementate 2026-06-12).** La mutazione di UNA
+foglia della riga non ri-rende nemmeno il blocco: alla registrazione
+il walk costruisce il **catalogo per-component** campo → ordinale
+(il body è codice: l'ordinale di "chi mostra `.campo`" è lo stesso
+per ogni riga; due forme — valore-pointer puro = cella di testo,
+attributo `value` reattivo = input) e il flush spedisce **op di solo
+valore** lette dallo store, senza body né render: `text` per i
+lettori, `attr` per gli input (sovranità del controllo a fuoco lato
+client). Il filo porta `{id, value}` anche in DISCESA — simmetrico
+del mutate. Il broadcast del binding condiviso (cambio in testata su
+N righe) = esattamente N patch-valore: **le celle non coalizzano
+mai**; `CELLS_PER_ROW_LIMIT` collassa una riga riscritta quasi tutta
+nel suo replace, `ROW_COALESCE_LIMIT` resta per i flood STRUTTURALI.
+Le foglie che il catalogo non conosce (template, `checked`, celle
+ricche) ricadono sul replace di riga. Iterate annidati: granularità
+alla riga ESTERNA (la subscription sta sul component più esterno).
+
+Residuo noto (misurato e profilato 2026-06-12): le SCANSIONI lineari
+per evento — il matching di `_execute_expansion_logic` percorre
+l'intero catalogo a ogni scrittura (il broadcast a 3000 righe spende
+lì ~tutto il tempo: 3000 scritture × ~12000 chiavi) e la
+ri-registrazione del re-render completo scandisce la mappa per ogni
+riga. Fix progettato: indici (hit per path esatto + indice per
+antenati; purge per prefisso indicizzato), nessuna scansione.
 
 **Comando di pagina (corsia FIRE, implementata 2026-06-11).** Un click
 che deve ESEGUIRE logica (non scrivere un dato) resta una mutazione

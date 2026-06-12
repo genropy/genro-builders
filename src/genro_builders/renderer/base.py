@@ -338,6 +338,13 @@ class RendererBase:
         handler = builder.handler
         if handler is not None:
             handler.purge_expansion_logic(prefix)
+        # The cell catalog rebuilds per expansion and is identical for
+        # every row (the body is code): reset, the last row wins.
+        if len(labels) == 1:
+            cmap = getattr(builder, "_cell_map", None)
+            if cmap is None:
+                cmap = builder._cell_map = {}
+            cmap[base] = {}
         counter = 0
         queue = [tree_root]
         while queue:
@@ -379,8 +386,57 @@ class RendererBase:
               or current.attr.get("data-fire-pointer") is not None
             if writable:
                 wmap[composite] = current
+            self._register_cell(comp_node, current, labels, counter)
             if isinstance(current.value, SourceBag):
                 queue.extend(current.value.nodes)
+
+    def _register_cell(
+        self, comp_node: Any, current: Any, labels: tuple, ordinal: int,
+    ) -> None:
+        """Catalog a patchable CELL: in-row field -> (ordinal, op).
+
+        The body is code, so the ordinal of "who shows ``.field``" is
+        the SAME for every row: the catalog is per COMPONENT, built
+        once per registration. Two shapes qualify — a node whose VALUE
+        is exactly one reactive pointer (a text cell) and a reactive
+        ``value`` attribute (an input). The field key is the pointer's
+        residual against the ROW path: a pointer landing outside the
+        row (a shared header datum) is not a cell. Everything richer
+        (templates, checked, nested labels) stays out: those rows fall
+        back to the row replace.
+        """
+        if len(labels) != 1:
+            return
+        builder = comp_node.builder
+        base = comp_node.attr.get("id") or builder.target_id(comp_node)
+        cmap = getattr(builder, "_cell_map", None)
+        if cmap is None:
+            cmap = builder._cell_map = {}
+        specs = cmap.setdefault(base, {})
+
+        def in_row_field(pointer: str) -> str | None:
+            anchor = comp_node.abs_datapath(comp_node.attr["iterate"])
+            row_prefix = f"{anchor}.{labels[0]}."
+            abs_path = current.abs_datapath(pointer)
+            if not abs_path.startswith(row_prefix):
+                return None
+            return abs_path[len(row_prefix):]
+
+        if (
+            isinstance(current.value, str)
+            and current.pointer_type(current.value) == "^"
+        ):
+            field = in_row_field(current.value)
+            if field is not None:
+                specs.setdefault(field, []).append((ordinal, "text", None))
+        raw_value = current.attr.get("value")
+        if (
+            isinstance(raw_value, str)
+            and current.pointer_type(raw_value) == "^"
+        ):
+            field = in_row_field(raw_value)
+            if field is not None:
+                specs.setdefault(field, []).append((ordinal, "attr", "value"))
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
         """Render each node in ``nodes`` and collect the fragments.
