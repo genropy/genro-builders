@@ -963,6 +963,9 @@ class BuilderBase(
             if kind == "row_del":
                 plan.append(("row_remove", path, node, label, None))
                 continue
+            if kind == "page":
+                plan.append(("page", path, node, label, None))
+                continue
             if kind == "ins":
                 plan.append(("insert", path, node, None, None))
                 continue
@@ -1046,6 +1049,19 @@ class BuilderBase(
                             "id": cell_id, "op": "attr",
                             "name": attr_name, "value": text,
                         })
+                continue
+            if op == "page":
+                # Lazy iterate: ONE op per page, addressed by the
+                # component's base — the client owns the placeholders,
+                # no DOM anchor travels with the patch.
+                base = node.attr.get("id") or self.target_id(node)
+                page_num = int(label)
+                patches.append({
+                    "id": str(base), "op": "page", "page": page_num,
+                    "html": renderer.render_lazy_page(
+                        node, page_num, **opts,
+                    ),
+                })
                 continue
             if op == "row_remove":
                 # Derived identity needs no capture at the delete event:

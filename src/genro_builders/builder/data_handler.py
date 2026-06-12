@@ -56,6 +56,12 @@ CELLS_PER_ROW_LIMIT = 4
 #: livelock (a -> b -> a): the drain raises naming the rule.
 FORMULA_REQUEUE_LIMIT = 50
 
+#: Rows per page of a lazy iterate (the parked snapshot is served in
+#: pages of this size; the marker bakes it for the client's
+#: ``index // page_size`` arithmetic). Engine constant for now; the
+#: parametric form (``lazy=N``) waits for a case that demands it.
+LAZY_PAGE_SIZE = 100
+
 
 class RuleSpec(NamedTuple):
     """One row rule as a TEMPLATE: the body is code, so the rule is
@@ -174,6 +180,13 @@ class BuilderHandler:
         # target_ids of nodes deleted in the current section, captured at
         # the delete event (see record_removed_id).
         self._removed_target_ids: dict[tuple[str, str], str | None] = {}
+        # Lazy iterate (CMP.7): parked snapshots (the freezed selection
+        # of one query execution) and the reserved fire topics, both
+        # keyed by the component's base id. Access ONLY through the
+        # lazy_* methods — the backend must stay swappable (in-process
+        # dict today, an external store tomorrow).
+        self._lazy_parking: dict[str, Any] = {}
+        self._lazy_topics: dict[str, tuple[str, SourceBagNode]] = {}
         self.setup(self._dataroot["_"])
 
     @property
@@ -289,6 +302,12 @@ class BuilderHandler:
             path = ".".join([*pathlist, node.label])
         else:
             path = ".".join(pathlist)
+        lazy = self._lazy_topics.get(path)
+        if lazy is not None:
+            # A reserved lazy topic has exactly ONE subscriber — the
+            # engine. No rules, no readers: queue the page and leave.
+            self._queue_lazy_page(path, lazy[1])
+            return
         relevant = self._relevant_nodes(path)
         # Rules dispatch by COORDINATES (no per-row catalog, no scan).
         # A deleted row needs no purge: rules are templates, and the
@@ -644,6 +663,71 @@ class BuilderHandler:
                 else:
                     builder.compute_logic([node])
 
+    def lazy_park(self, key: str, snapshot: Any) -> tuple[int, int]:
+        """Park a lazy iterate's snapshot (the freezed selection).
+
+        ONE query execution, served in logical pages of
+        :data:`LAZY_PAGE_SIZE`: every page of the same key comes from
+        the same snapshot — no data shear between page 2 and page 7.
+        Re-parking (a re-render re-ran the query) drops the old entry.
+        Returns ``(total rows, page size)`` for the marker to bake.
+        """
+        self.lazy_drop(key)
+        self._lazy_parking[key] = snapshot
+        return len(snapshot), LAZY_PAGE_SIZE
+
+    def lazy_page(self, key: str, page: int) -> tuple[Any, list[str]]:
+        """The parked snapshot and the row labels of ONE page.
+
+        Raises on a key never parked or a page out of range: a client
+        asking for what no marker announced is a broken conversation,
+        not a case to absorb.
+        """
+        snapshot = self._lazy_parking.get(key)
+        if snapshot is None:
+            raise KeyError(f"no parked snapshot for lazy iterate {key!r}")
+        labels = list(snapshot.keys())[
+            page * LAZY_PAGE_SIZE:(page + 1) * LAZY_PAGE_SIZE
+        ]
+        if page < 0 or not labels:
+            raise ValueError(f"lazy page {page} out of range for {key!r}")
+        return snapshot, labels
+
+    def lazy_drop(self, key: str) -> None:
+        """Forget a parked snapshot and its topic subscription."""
+        self._lazy_parking.pop(key, None)
+        for topic, (owner, _node) in list(self._lazy_topics.items()):
+            if owner == key:
+                del self._lazy_topics[topic]
+
+    def lazy_subscribe(self, key: str, comp_node: SourceBagNode) -> None:
+        """Subscribe the engine to a lazy component's reserved topic.
+
+        The marker bakes ``data-fire-pointer="_lazy.<key>"``: the fire
+        lands on :meth:`_on_data_event` and queues a ``page`` render
+        entry — the subscriber is MACHINERY, no data_controller node.
+        """
+        topic = comp_node.abs_datapath(f"_lazy.{key}")
+        self._lazy_topics[topic] = (key, comp_node)
+
+    def _queue_lazy_page(self, topic: str, comp_node: SourceBagNode) -> None:
+        """A fire on a reserved lazy topic asks for ONE page.
+
+        The payload MUST be the page number (the client fires
+        ``index // page_size``); anything else is a protocol error.
+        The flush turns the queued entry into the ``page`` op, rendered
+        from the parking.
+        """
+        value = self._dataroot.get_item(topic)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(
+                f"lazy page request on {topic!r} wants an integer "
+                f"page number, got {value!r}",
+            )
+        name = comp_node.root_builder_name
+        rel = comp_node.root_builder.source.relative_path(comp_node)
+        self.add_render_path(name, rel, "page", str(value))
+
     @contextmanager
     def live(self, target: Any = None) -> Iterator[BuilderHandler]:
         """The handler's mutation critical section: batch, then render.
@@ -856,7 +940,7 @@ class BuilderHandler:
         # exactly what a broadcast wants to ship.
         row_load: dict[str, int] = {}
         for kind, path, label, field in kept:
-            if label is not None and field is None:
+            if label is not None and field is None and kind != "page":
                 row_load[path] = row_load.get(path, 0) + 1
         coalesced = {
             path for path, count in row_load.items()
@@ -872,6 +956,10 @@ class BuilderHandler:
                 row = "row_" if label is not None else ""
                 out.append(RenderEntry(f"{row}del", path, label))
                 out.append(RenderEntry(f"{row}ins", path, label))
+            elif kind == "page":
+                # Lazy iterate: the label is the page number, not a
+                # row — never a row_* op, never coalesced.
+                out.append(RenderEntry("page", path, label))
             elif field is not None:
                 out.append(RenderEntry("cell_upd", path, label, field))
             elif label is not None:

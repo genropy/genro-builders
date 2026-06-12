@@ -28,6 +28,7 @@ carrying the node's user attributes plus the ``render_attributes`` — read in
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -209,6 +210,17 @@ class RendererBase:
                 f"component '{node.node_tag}': iterate must resolve to a "
                 f"Bag, got {type(iterable).__name__}",
             )
+        if (
+            node.attr.get("lazy")
+            and opts.get("include_datapath")
+            and node.builder.handler is not None
+        ):
+            # Lazy is a REACTIVE-render concern, like derived identity:
+            # a static render has no client to scroll, so the full
+            # document is its only meaningful output.
+            return self._render_lazy_component(
+                node, body, anchor, iterable, opts,
+            )
         return [
             self._expand_block(
                 node, body, anchor, {"node_label": child.label},
@@ -236,6 +248,10 @@ class RendererBase:
         # ``id`` is chain machinery (the writeback identity uses it as
         # the expansion's prefix base), never a body kwarg.
         runtime_attrs.pop("id", None)
+        # ``lazy`` is machinery too: the laziness opt-in of the iterate
+        # (lazy-iterate contract), consumed by the walk, never a body
+        # kwarg.
+        runtime_attrs.pop("lazy", None)
         raw_anchor = node.attr.get("iterate") or node.attr.get("store")
         anchor = None
         if raw_anchor is not None:
@@ -301,6 +317,112 @@ class RendererBase:
         return self._expand_block(
             node, body, anchor, body_kwargs, wb_labels, opts,
         )
+
+    def _render_lazy_component(
+        self, node: Any, body: Any, anchor: Any, iterable: Any, opts: dict,
+    ) -> list:
+        """First paint of a lazy iterate: page 0 inline plus the marker.
+
+        The query already ran ONCE (``runtime_values`` resolved the
+        anchor; ``read_only``: nothing deposited): the snapshot goes to
+        the handler's parking, the walk expands ONLY page 0 — through
+        the silent transit, block pointers resolve against the store —
+        and the MARKER closes the run carrying the FIRE lane and the
+        baked counts. The client fabricates placeholders for the rest
+        and asks pages as the scroll demands (lazy-iterate contract).
+        """
+        builder = node.builder
+        handler = builder.handler
+        base = str(node.attr.get("id") or builder.target_id(node))
+        total, page_size = handler.lazy_park(base, iterable)
+        fragments = []
+        labels: list[str] = []
+        if total:
+            snapshot, labels = handler.lazy_page(base, 0)
+            with self._lazy_transit(node, snapshot):
+                for label in labels:
+                    fragments.append(self._expand_block(
+                        node, body, anchor, {"node_label": label},
+                        (label,), opts,
+                    ))
+        # The marker wears the SAME tag as the row blocks (a tr among
+        # the trs, a li among the lis: DOM validity, no per-dialect
+        # marker). A build-only probe of the body reveals it: building
+        # is structure, no pointer resolves, nothing renders.
+        probe = builder._expansion_root(datapath=anchor)
+        body(probe, node_label=labels[0] if labels else "probe")
+        row_tag = list(probe.nodes)[0].node_tag
+        fragments.append(self._render_lazy_marker(
+            node, base, row_tag, total, page_size, opts,
+        ))
+        handler.lazy_subscribe(base, node)
+        return fragments
+
+    def render_lazy_page(self, node: Any, page: int, **opts: Any) -> str:
+        """Render ONE parked page of a lazy iterate — the ``page`` op
+        payload. Same prep, same body, same registration as any block
+        render (the oracle holds); the rows come from the parking,
+        transit the store for the pointer resolution and leave it
+        exactly as it was.
+        """
+        handler = node.builder.handler
+        base = str(node.attr.get("id") or node.builder.target_id(node))
+        snapshot, labels = handler.lazy_page(base, page)
+        fragments = []
+        with self._lazy_transit(node, snapshot):
+            for label in labels:
+                block = self.render_expansion_block(node, label, **opts)
+                fragments.append(
+                    "".join(block) if isinstance(block, list) else block,
+                )
+        return "".join(fragments)
+
+    @contextmanager
+    def _lazy_transit(self, node: Any, snapshot: Any) -> Any:
+        """The silent transit: the snapshot becomes the anchor's value
+        for the duration of a block render — canonical API, no events,
+        resolver detached — and the store comes out exactly as it went
+        in: the resolver back in place, nothing deposited, no spurious
+        row events.
+        """
+        handler = node.builder.handler
+        anchor_abs = node.abs_datapath(node.attr["iterate"])
+        saved = handler.data.get_node(anchor_abs).resolver
+        handler.data.set_item(
+            anchor_abs, snapshot, resolver=False, do_trigger=False,
+        )
+        try:
+            yield
+        finally:
+            handler.data.set_item(
+                anchor_abs, None, resolver=saved, do_trigger=False,
+            )
+
+    def _render_lazy_marker(
+        self, node: Any, base: str, tag: str, total: int, page_size: int,
+        opts: dict,
+    ) -> Any:
+        """The lazy marker: an empty element closing the page-0 run.
+
+        Wears ``tag`` — the row blocks' own root tag — and carries the
+        reserved FIRE lane plus the baked counts the client needs
+        (total rows, page size); registered in the writeback map under
+        the component's prefix — a fire target like any click target,
+        with a MACHINERY id (``<base>.lazy``).
+        """
+        builder = node.builder
+        root = builder._expansion_root()
+        getattr(root, tag)(
+            id=f"{base}.lazy",
+            **{
+                "data-fire-pointer": f"_lazy.{base}",
+                "data-lazy-total": str(total),
+                "data-lazy-page": str(page_size),
+            },
+        )
+        marker = list(root.nodes)[0]
+        builder._writeback_add(base, f"{base}.lazy", marker)
+        return self.render(marker, **opts)
 
     def _register_expansion_writeback(
         self, comp_node: Any, tree_root: Any, labels: tuple,
