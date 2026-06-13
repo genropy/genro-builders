@@ -5,7 +5,7 @@ A builder declares the grammar of a dialect via decorators
 (@element, @abstract) and the schema of valid tag placements
 (sub_tags, parent_tags). Sub-builders and data-elements are ordinary
 @element marked in their ``_meta`` (no dedicated decorator). The three data-elements
-(data_setter / data_formula / data_controller) are ordinary @element
+(dataSetter / dataFormula / dataController) are ordinary @element
 declared on this base and marked ``_meta['data_element']``. A builder
 renders itself: it owns its source (under the ``main`` segment of a
 wrapper root), the create/render phases, the first calculation and the
@@ -64,8 +64,8 @@ class BuilderBase(
         - @element: Pure schema elements (body MUST be empty)
         - @abstract: Define sub_tags for inheritance (cannot be instantiated)
 
-    Sub-builders and the three data-elements (data_setter / data_formula /
-    data_controller) are NOT separate decorators: they are ordinary
+    Sub-builders and the three data-elements (dataSetter / dataFormula /
+    dataController) are NOT separate decorators: they are ordinary
     @element marked in their ``_meta`` — ``_meta['subbuilder']`` for a
     dialect boundary, ``_meta['data_element']`` for a data-element. They go
     through the same schema and the same ``_command_on_node`` dispatch as
@@ -254,12 +254,7 @@ class BuilderBase(
                 if decorator is None or not decorator.get("container"):
                     continue
                 explicit = decorator.get("name")
-                if explicit is not None:
-                    dispatch_name = explicit
-                elif "_" in attr_name:
-                    dispatch_name = attr_name.split("_", 1)[1]
-                else:
-                    dispatch_name = attr_name
+                dispatch_name = explicit if explicit is not None else attr_name
                 key = dispatch_name.lower()
                 existing = merged.get(key)
                 if existing is not None and existing != attr_name:
@@ -485,8 +480,8 @@ class BuilderBase(
 
         Sequence: ``setup(self.data)`` seeds the data, ``main(self.source)``
         builds the document, then the first calculation runs every
-        ``data_setter`` (it seeds the data) plus any ``data_formula`` /
-        ``data_controller`` flagged ``_on_start``. Reactivity (source/data
+        ``dataSetter`` (it seeds the data) plus any ``dataFormula`` /
+        ``dataController`` flagged ``_on_start``. Reactivity (source/data
         subscribes) is armed later and is out of scope here.
         """
         self.setup(self.data)
@@ -496,7 +491,7 @@ class BuilderBase(
                 what="#n", deep=True,
                 condition=lambda n: bool(
                     n._get_meta("data_element")
-                    and (n.node_tag == "data_setter" or n.attr.get("_on_start"))
+                    and (n.node_tag == "dataSetter" or n.attr.get("_on_start"))
                 ),
             )
         )
@@ -709,12 +704,12 @@ class BuilderBase(
     def _compute_node(self, node: Any) -> None:
         """Execute a single data-element node according to its kind.
 
-        - ``data_setter`` seeds the data: write its value at destination;
-        - ``data_formula`` is pure: ``func(**bindings)`` -> destination;
-        - ``data_controller`` has side effects: ``func(node, **bindings)``.
+        - ``dataSetter`` seeds the data: write its value at destination;
+        - ``dataFormula`` is pure: ``func(**bindings)`` -> destination;
+        - ``dataController`` has side effects: ``func(node, **bindings)``.
         """
         match node.node_tag:
-            case "data_setter":
+            case "dataSetter":
                 # The setter's schema fields and the framework markers
                 # stay on the source node; only user attributes ride
                 # onto the datum being seeded.
@@ -725,12 +720,12 @@ class BuilderBase(
                     node.attr["destination"], node.attr["value"],
                     attributes=attrs or None,
                 )
-            case "data_formula":
+            case "dataFormula":
                 func = self._resolve_logic_func(node.attr["func"])
                 node.set_relative_data(
                     node.attr["destination"], func(**self._bindings(node)),
                 )
-            case "data_controller":
+            case "dataController":
                 func = self._resolve_logic_func(node.attr["func"])
                 func(node, **self._bindings(node))
 
@@ -1396,16 +1391,16 @@ class BuilderBase(
     # -----------------------------------------------------------------------
 
     @element(_meta={"data_element": True})
-    def data_setter(self, destination: str, value: Any, **attr: Any): ...
+    def dataSetter(self, destination: str, value: Any, **attr: Any): ...
 
     @element(_meta={"data_element": True})
-    def data_formula(
+    def dataFormula(
         self, destination: str, func: str | Callable,
         _on_start: bool = False, **kwargs,
     ): ...
 
     @element(_meta={"data_element": True})
-    def data_controller(
+    def dataController(
         self, func: str | Callable, _on_start: bool = False, **kwargs,
     ): ...
 

@@ -51,7 +51,7 @@ class Metrics(TargetWrapper):
 
 class CommonComponents:
     @component
-    def item_row(self, root, node_label=None):
+    def itemRow(self, root, node_label=None):
         tr = root.tr(datapath="." + node_label)
         tr.td("^.sku")
         tr.td("^.qty")
@@ -77,12 +77,12 @@ class CustomPage(HtmlBuilder, CommonComponents):
         body = root.body()
         body.h1("^customer")
         body.div("^status")
-        body.data_formula(
+        body.dataFormula(
             destination="total", func="grand_total",
             rows="^rows", _on_start=True,
         )
         body.div("^total", class_="total")
-        body.table().tbody().item_row(iterate="^rows")
+        body.table().tbody().itemRow(iterate="^rows")
 
 
 if __name__ == "__main__":

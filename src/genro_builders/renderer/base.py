@@ -508,9 +508,9 @@ class RendererBase:
                 # id). The rule is a rule of MUTATION — loaded data is
                 # trusted as-is, so a "start" has no meaning here and a
                 # seeding element would be a render-time write.
-                if current.node_tag == "data_setter":
+                if current.node_tag == "dataSetter":
                     raise ValueError(
-                        "data_setter inside an expansion body: seeding "
+                        "dataSetter inside an expansion body: seeding "
                         "is a render-time write, expansions are pure "
                         "projections",
                     )

@@ -11,7 +11,7 @@ data anchor.
 class CommonComponents:
 
     @component
-    def address_block(self, root, **kwargs):
+    def addressBlock(self, root, **kwargs):
         card = root.div(**kwargs)
         card.strong("^.company")
         card.div("^.street")
@@ -28,8 +28,8 @@ stays the author's.
 ## Anchoring at the call site
 
 ```python
-body.address_block(store="^sender", class_="address")
-body.address_block(store="^customer", class_="address compact")
+body.addressBlock(store="^sender", class_="address")
+body.addressBlock(store="^customer", class_="address compact")
 ```
 
 The SAME body renders different blocks depending on the record it is

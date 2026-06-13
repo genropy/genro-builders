@@ -12,7 +12,7 @@ The source stays a clean recipe: it holds the component node with its
 class CommonComponents:
 
     @component
-    def state_row(self, root, node_label=None):
+    def stateRow(self, root, node_label=None):
         row = root.tr(datapath="." + node_label)
         row.td("^.name")
         row.td("^.capital")
@@ -27,7 +27,7 @@ component's author, as always.
 ## Iterating at the call site
 
 ```python
-tbody.state_row(iterate="^states")
+tbody.stateRow(iterate="^states")
 ```
 
 The container (`tbody`) is the caller's, ordinary grammar. `iterate`

@@ -10,7 +10,7 @@ class CommonComponents:
     """Reusable blocks shared across pages (a component mixin)."""
 
     @component
-    def address_block(self, root, company=None, street=None,
+    def addressBlock(self, root, company=None, street=None,
                       city=None, zip_code=None):
         card = root.div(class_="address")
         card.strong(company)
@@ -36,13 +36,13 @@ class CustomPage(HtmlBuilder, CommonComponents):
         # Explicit params saturate the body signature; a reactive
         # pointer passes through AS a pointer (absolutized) and resolves
         # at the final node — so the address survives for write-back.
-        body.address_block(
+        body.addressBlock(
             company="^sender.company", street="^sender.street",
             city="^sender.city", zip_code="^sender.zip",
         )
         body.h2("Customer")
         # Same component, literal params: the call site decides the data.
-        body.address_block(
+        body.addressBlock(
             company="ACME Corp", street="123 Main St",
             city="Springfield", zip_code="62704",
         )

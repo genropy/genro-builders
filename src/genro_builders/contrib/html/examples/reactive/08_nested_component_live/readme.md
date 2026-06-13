@@ -1,7 +1,7 @@
 # 08 — Nested component live
 
-Fractal composition meets reactivity: `state_card` iterates the
-states, and inside each card `city_item` iterates that state's
+Fractal composition meets reactivity: `stateCard` iterates the
+states, and inside each card `cityItem` iterates that state's
 cities. Neither expansion registers a single pointer — the ONLY
 subscription in the map is the outermost component's anchor
 (`^states`).

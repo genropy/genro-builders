@@ -73,7 +73,7 @@ class _GrammarMixin:
             meta = info.get("_meta") or {}
             if "data_element" in meta:
                 # Map the data-element positional fields (e.g.
-                # data_setter(destination, value)) onto their schema field
+                # dataSetter(destination, value)) onto their schema field
                 # names so they reach the named parameters instead of
                 # collapsing into node_value. Fields (incl. a Bag ``value``)
                 # stay flat as attrs; a Bag attribute is not walked, so the

@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""04 — Reactive formula: change an input, the data_formula recomputes.
+"""04 — Reactive formula: change an input, the dataFormula recomputes.
 
-A data_formula computes the triangle area from ^base and ^height. Inside a
+A dataFormula computes the triangle area from ^base and ^height. Inside a
 live section an input is changed; the formula recomputes the area and the
 div that reads ^area re-renders. A chained formula (^area -> dbl) shows the
 cascade: base -> area -> dbl all propagate in one live section.
@@ -27,11 +27,11 @@ class CustomPage(HtmlBuilder):
 
     def main(self, root):
         body = root.body()
-        body.data_formula(
+        body.dataFormula(
             destination="area", func="triangle_area",
             base="^base", height="^height", _on_start=True,
         )
-        body.data_formula(
+        body.dataFormula(
             destination="dbl", func="double", area="^area", _on_start=True,
         )
         body.div("^area")

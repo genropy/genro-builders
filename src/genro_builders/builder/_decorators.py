@@ -12,7 +12,7 @@ Both are ordinary ``@element`` declarations marked in their ``_meta``:
 ``_meta={"subbuilder": "<dialect>", ...}`` for a dialect boundary (with
 optional ``render_tag`` / ``render_attributes`` for the envelope), and
 ``_meta={"data_element": True}`` for the three data-elements
-(``data_setter`` / ``data_formula`` / ``data_controller``). They flow
+(``dataSetter`` / ``dataFormula`` / ``dataController``). They flow
 through the same schema and the same ``_command_on_node`` dispatch as
 plain elements; the element's ``_meta`` rides onto the node and every
 reader queries it via ``node._get_meta(...)``.
@@ -234,13 +234,10 @@ def container(func_or_name):
     The discriminator is fillability (contract CMP.9). Heir of the
     retired ``@struct_method``.
 
-    Naming rules (legacy gnrwebstruct parity):
+    Naming rules:
         @container
         def widget(self, pane, ...): ...      # dispatch name: 'widget'
-
-        @container
-        def iv_widget(self, pane, ...): ...   # dispatch name: 'widget'
-                                              # (strip prefix before first '_')
+                                              # (the method name, case-insensitive)
 
         @container('alias')
         def some_internal_name(self, pane, ...): ...  # dispatch name: 'alias'

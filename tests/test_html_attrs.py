@@ -53,7 +53,7 @@ def test_boolean_attr_reactive_pointer_decides_presence():
     class Page(HtmlBuilder):
         def main(self, root) -> None:
             body = root.body()
-            body.data_setter("locked", False)
+            body.dataSetter("locked", False)
             body.input(disabled="^locked", html_type="text")
 
     page = Page(name="main")

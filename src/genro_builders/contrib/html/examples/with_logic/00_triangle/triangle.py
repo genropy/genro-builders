@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""00 — Triangle: a data_formula computes the area at start. See readme.md."""
+"""00 — Triangle: a dataFormula computes the area at start. See readme.md."""
 from __future__ import annotations
 
 from genro_builders.builder import BuilderHandler
@@ -17,7 +17,7 @@ class CustomPage(HtmlBuilder):
 
     def main(self, root):
         body = root.body()
-        body.data_formula(
+        body.dataFormula(
             destination="area", func="triangle_area",
             base="^base", height="^height", _on_start=True,
         )

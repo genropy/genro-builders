@@ -2,7 +2,7 @@
 """TrianglePage — an HtmlBuilderHandler with a reactive area formula.
 
 Data model under ``tri``: ``base`` and ``altezza`` are seeded by
-``data_setter``; ``area`` is a ``data_formula`` that reads them through
+``dataSetter``; ``area`` is a ``dataFormula`` that reads them through
 ``^`` pointers and writes ``base*altezza/2`` whenever a dependency changes.
 The formula ``func`` is resolved by name over :class:`DataLogic`, wired in
 through ``_build_data_logic``.
@@ -28,9 +28,9 @@ class TrianglePage(HtmlBuilderHandler):
 
     def main(self, root) -> None:
         body = root.body(datapath="tri")
-        body.data_setter(".base", 10)
-        body.data_setter(".altezza", 6)
-        body.data_formula(
+        body.dataSetter(".base", 10)
+        body.dataSetter(".altezza", 6)
+        body.dataFormula(
             ".area", "calc_area", base="^.base", altezza="^.altezza",
         )
         body.h1("^.area", node_id="area")

@@ -13,16 +13,16 @@ def main(self, root):
     triangoli = body.div(datapath="triangoli")        # absolute anchor
     for i in range(1, 6):
         row = triangoli.div(datapath=f".tr{i}")       # relative to triangoli
-        row.data_setter(".base", i * 2)
-        row.data_setter(".height", i)
-        row.data_formula(
+        row.dataSetter(".base", i * 2)
+        row.dataSetter(".height", i)
+        row.dataFormula(
             destination=".area", func="triangle_area",
             base="^.base", height="^.height", _on_start=True,
         )
         row.span("^.base")
         row.span("^.height")
         row.span("^.area")
-    body.data_formula(
+    body.dataFormula(
         destination="total", func="sum_areas",
         a1="^triangoli.tr1.area", a2="^triangoli.tr2.area",
         a3="^triangoli.tr3.area", a4="^triangoli.tr4.area",
@@ -45,7 +45,7 @@ A relative datapath needs an absolute ancestor to anchor it — here
 
 The five `.area` formulas are declared before `total`, so at `create()`
 they run first; `sum_areas` then reads the five computed areas
-(`1 + 4 + 9 + 16 + 25 = 55.0`). `data_setter`s seed the bases/heights
+(`1 + 4 + 9 + 16 + 25 = 55.0`). `dataSetter`s seed the bases/heights
 before any formula reads them.
 
 ## Output

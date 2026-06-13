@@ -108,7 +108,7 @@ def test_kebab_property_becomes_underscore_kwarg():
 
 def test_selector_list_emits_selector_list_then_selectors():
     code = _reverse(".a, .b, .c { color: red; }")
-    assert "selector_list()" in code
+    assert "selectorList()" in code
     assert code.count(".selector(") >= 3
     assert "color='red'" in code
 

@@ -15,15 +15,15 @@ from genro_builders.contrib.html.examples.reactive.example_app import ExampleApp
 
 class CommonComponents:
     @component
-    def city_item(self, root, node_label=None):
+    def cityItem(self, root, node_label=None):
         li = root.li(datapath="." + node_label)
         li.span("^.name")
 
     @component
-    def state_card(self, root, node_label=None):
+    def stateCard(self, root, node_label=None):
         card = root.div(datapath="." + node_label, class_="state")
         card.h3("^.name")
-        card.ul().city_item(iterate="^.cities")
+        card.ul().cityItem(iterate="^.cities")
 
 
 class CustomPage(HtmlBuilder, CommonComponents):
@@ -32,7 +32,7 @@ class CustomPage(HtmlBuilder, CommonComponents):
         data.set_item("states.QLD.cities.bri.name", "Brisbane")
 
     def main(self, root):
-        root.body().state_card(iterate="^states")
+        root.body().stateCard(iterate="^states")
 
 
 class CustomApp(ExampleApp):

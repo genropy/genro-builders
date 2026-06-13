@@ -15,9 +15,9 @@ class CustomPage(HtmlBuilder):
         # Data-elements created DIRECTLY on the root bag: the positional
         # fields map onto the schema names (destination, value) exactly
         # as when the element is created on a node.
-        root.data_setter("price", 100)
-        root.data_setter("tax", 0.22)
-        root.data_formula(
+        root.dataSetter("price", 100)
+        root.dataSetter("tax", 0.22)
+        root.dataFormula(
             destination="total", func="gross",
             price="^price", tax="^tax", _on_start=True,
         )

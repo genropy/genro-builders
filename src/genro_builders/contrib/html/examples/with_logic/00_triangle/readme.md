@@ -1,12 +1,12 @@
 # 00 — Triangle
 
-Data is not only stored, it can be **computed**. A `data_formula`
+Data is not only stored, it can be **computed**. A `dataFormula`
 derives a value from other data; flagged `_on_start`, it runs once
 during `create()` — the *first calculation* — before any rendering.
 
 ## A formula over the data
 
-The logic is a `@staticmethod` on the page; the `data_formula` element
+The logic is a `@staticmethod` on the page; the `dataFormula` element
 wires it to the data:
 
 ```python
@@ -21,7 +21,7 @@ class CustomPage(HtmlBuilder):
 
     def main(self, root):
         body = root.body()
-        body.data_formula(
+        body.dataFormula(
             destination="area", func="triangle_area",
             base="^base", height="^height", _on_start=True,
         )
@@ -37,8 +37,8 @@ class CustomPage(HtmlBuilder):
 - `_on_start=True` makes it run at `create()`.
 
 `area` does not exist until the formula runs; afterwards `^area` reads
-the computed `20.0`. A `data_formula` is pure (no side effects) — for
-side effects use `data_controller`.
+the computed `20.0`. A `dataFormula` is pure (no side effects) — for
+side effects use `dataController`.
 
 ## First calculation, not reactivity
 

@@ -18,7 +18,7 @@ Usage::
     class Page(HtmlBuilder, DemoComponents, DemoContainers):
         def main(self, root):
             body = root.body()
-            body.labeled_input(label="Name", value="^.name")
+            body.labeledInput(label="Name", value="^.name")
             card = body.card(title="People")
             card.p("Anna, Marco, Sara")
 """
@@ -31,7 +31,7 @@ class DemoComponents:
     """Two closed components. Mix into an HtmlBuilder."""
 
     @component
-    def labeled_input(self, root, label="", value=None, **attrs):
+    def labeledInput(self, root, label="", value=None, **attrs):
         box = root.div(class_="demo-field", display="flex",
                        flex_direction="column", gap="4px")
         # html_label: the dialect-prefix escape — ``label`` is BagNode

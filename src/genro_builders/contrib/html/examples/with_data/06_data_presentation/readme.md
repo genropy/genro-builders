@@ -15,7 +15,7 @@ data.set_item("temperature", 39.2, mask="%s°")
 `45.00`, `mask="€ %.2f"` shows `€ 45.00` (the legacy gnrformatter
 vocabulary). Every `^temperature` reader shows the masked value, the
 value-only cell patches included: the wire carries what the render
-shows. Formulas are NOT affected: a `data_formula` binding reading
+shows. Formulas are NOT affected: a `dataFormula` binding reading
 the same pointer receives the raw `39.2` — presentation never leaks
 into computation. A mask the value cannot honour (a numeric directive
 on a string) raises: the datum declared a presentation it cannot

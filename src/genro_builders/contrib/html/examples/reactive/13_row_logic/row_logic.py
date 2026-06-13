@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """13 — Row logic: the rules of the rows are rules of MUTATION. See readme.md.
 
-An iterated body declares data_formula rules; the expansion walk
+An iterated body declares dataFormula rules; the expansion walk
 CATALOGS them (trigger path -> rule node, per row) and never computes
 at render: the loaded document is trusted as-is. The rules fire in the
 data-event cascade:
@@ -33,13 +33,13 @@ class Probe(TargetWrapper):
 
 class CustomPage(HtmlBuilder):
     @component
-    def order_row(self, root, node_label=None):
+    def orderRow(self, root, node_label=None):
         row = root.div(datapath="." + node_label)
         row.input(value="^.qty", dtype="L")
         row.input(value="^.price", dtype="N")
-        row.data_formula(destination=".total", func="row_total",
+        row.dataFormula(destination=".total", func="row_total",
                          qty="^.qty", price="^.price")
-        row.data_formula(destination=".converted", func="convert",
+        row.dataFormula(destination=".converted", func="convert",
                          total="^.total", rate="^header.rate")
         row.span("${total} / ${converted}", total="^.total",
                  converted="^.converted")
@@ -56,7 +56,7 @@ class CustomPage(HtmlBuilder):
                           round(qty * price * 0.89, 2))
 
     def main(self, root):
-        root.body().order_row(iterate="^rows")
+        root.body().orderRow(iterate="^rows")
 
     @staticmethod
     def row_total(qty, price):

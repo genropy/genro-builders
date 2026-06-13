@@ -456,7 +456,7 @@ class CssTranspiler:
             ))
             return stmts
         list_var = self._fresh_name("sl")
-        stmts = [_assign_call(target=list_var, obj=parent_var, method="selector_list", kwargs={})]
+        stmts = [_assign_call(target=list_var, obj=parent_var, method="selectorList", kwargs={})]
         for entry in entries:
             stmts.append(_call_stmt(
                 obj=list_var, method="selector", kwargs=_selector_kwargs(entry),

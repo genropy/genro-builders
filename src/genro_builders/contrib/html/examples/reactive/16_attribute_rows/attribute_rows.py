@@ -39,12 +39,12 @@ class Probe(TargetWrapper):
 
 class CustomPage(HtmlBuilder):
     @component
-    def attr_row(self, root, node_label=None):
+    def attrRow(self, root, node_label=None):
         row = root.div(datapath="." + node_label)
         row.span("^.")                       # the node VALUE (description)
         row.input(value="^.?qty", dtype="L")
         row.span("^.?total")
-        row.data_formula(destination=".?total", func="row_total",
+        row.dataFormula(destination=".?total", func="row_total",
                          qty="^.?qty", price="^.?price")
 
     def setup(self, data):
@@ -57,7 +57,7 @@ class CustomPage(HtmlBuilder):
             data.set_item(f"rows.{label}?total", qty * price)
 
     def main(self, root):
-        root.body().attr_row(iterate="^rows", id="rows_block")
+        root.body().attrRow(iterate="^rows", id="rows_block")
 
     @staticmethod
     def row_total(qty, price):

@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""02 — Controller macros: data_setter + data_controller with SET/GET/PUT/FIRE.
+"""02 — Controller macros: dataSetter + dataController with SET/GET/PUT/FIRE.
 
 See readme.md.
 """
@@ -19,8 +19,8 @@ class CustomPage(HtmlBuilder):
     def main(self, root):
         body = root.body()
         box = body.div(datapath="box")
-        box.data_setter(".start", 7)
-        box.data_controller(func="init_box", start="^.start", _on_start=True)
+        box.dataSetter(".start", 7)
+        box.dataController(func="init_box", start="^.start", _on_start=True)
         box.span("^.start")
         box.span("^.count")
         box.span("^.quiet")

@@ -288,8 +288,8 @@ class BuilderHandler:
 
         Derives the changed data path (ins/del: pathlist + the node's label;
         upd: the pathlist itself), collects the readers grouped by builder via
-        :meth:`_relevant_nodes`, runs :meth:`execute_logic` (data_formula /
-        data_controller recompute, whose writes re-enter here and cascade),
+        :meth:`_relevant_nodes`, runs :meth:`execute_logic` (dataFormula /
+        dataController recompute, whose writes re-enter here and cascade),
         then queues EVERY reader for the end-of-live render:
 
         - ``node`` reads exactly the mutated datum;
@@ -446,7 +446,7 @@ class BuilderHandler:
         registration, not at the first event.
         """
         builder = node.builder
-        kind = node.node_tag.removeprefix("data_")
+        kind = node.node_tag.removeprefix("data").lower()
         func = builder._resolve_logic_func(node.attr["func"])
         schema_fields = set(builder._get_schema_info(node.node_tag).get(
             "call_args_validations") or {})
@@ -676,8 +676,8 @@ class BuilderHandler:
         """Recompute the data-element readers, delegating to each builder.
 
         ``relevant`` is grouped by builder (from :meth:`_relevant_nodes`);
-        for each builder the data-element nodes (``data_formula`` /
-        ``data_controller``) are passed to its own ``compute_logic`` — the
+        for each builder the data-element nodes (``dataFormula`` /
+        ``dataController``) are passed to its own ``compute_logic`` — the
         logic lives on the builder, the handler only routes each node to its
         owner. Plain view readers (no ``data_element`` meta) are skipped here:
         they only re-render. The compute writes downstream data, which
@@ -692,7 +692,7 @@ class BuilderHandler:
             for _, node in items:
                 if not node._get_meta("data_element"):
                     continue
-                if node.node_tag == "data_formula" and self._live_depth:
+                if node.node_tag == "dataFormula" and self._live_depth:
                     self._enqueue_formula(id(node), ("node", builder, node))
                 else:
                     builder.compute_logic([node])
@@ -767,7 +767,7 @@ class BuilderHandler:
 
         The marker bakes ``data-fire-pointer="_lazy.<key>"``: the fire
         lands on :meth:`_on_data_event` and queues a ``page`` render
-        entry — the subscriber is MACHINERY, no data_controller node.
+        entry — the subscriber is MACHINERY, no dataController node.
         """
         topic = comp_node.abs_datapath(f"_lazy.{key}")
         self._lazy_topics[topic] = (key, comp_node)

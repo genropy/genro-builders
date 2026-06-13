@@ -66,8 +66,8 @@ by what the page needs:
 - **no_data/** — pages that are pure structure, no pointers, no handler.
 - **with_data/** — pages that bind to data via pointers (`^`/`=`,
   datapath, presentation with `mask`/`_wdg`).
-- **with_logic/** — data-elements (`data_setter`/`data_formula`/
-  `data_controller`).
+- **with_logic/** — data-elements (`dataSetter`/`dataFormula`/
+  `dataController`).
 - **reactive/** — live sections and reactive recompute.
 
 Run an example from its folder: `python <name>.py`. The test suite runs

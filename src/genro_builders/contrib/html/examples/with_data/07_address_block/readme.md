@@ -12,7 +12,7 @@ recipe — the expansion is ephemeral, it never enters the tree.
 class CommonComponents:
 
     @component
-    def address_block(self, root, company=None, street=None,
+    def addressBlock(self, root, company=None, street=None,
                       city=None, zip_code=None):
         card = root.div(class_="address")
         card.strong(company)
@@ -32,7 +32,7 @@ a forest raises.
 ## Calling it with explicit params
 
 ```python
-body.address_block(
+body.addressBlock(
     company="^sender.company", street="^sender.street",
     city="^sender.city", zip_code="^sender.zip",
 )
@@ -61,5 +61,5 @@ is the next step of the same design.
 Run it from this folder:
 
 ```bash
-python address_block.py
+python addressBlock.py
 ```

@@ -47,7 +47,7 @@ class Probe(TargetWrapper):
 
 class CustomPage(HtmlBuilder):
     @component
-    def catalog_row(self, root, node_label=None):
+    def catalogRow(self, root, node_label=None):
         row = root.div(datapath="." + node_label)
         row.span("^.name")
         row.span("^.price")
@@ -63,9 +63,9 @@ class CustomPage(HtmlBuilder):
     def main(self, root):
         body = root.body()
         # ...and lazy=True on the iterate. Nothing else.
-        body.catalog_row(iterate="^catalog", lazy=True, id="catalog_block")
+        body.catalogRow(iterate="^catalog", lazy=True, id="catalog_block")
         body.input(value="^note")
-        body.data_controller(func="on_pick", picked="^selection")
+        body.dataController(func="on_pick", picked="^selection")
 
     @staticmethod
     def load_catalog():

@@ -3,7 +3,7 @@
 
 A data-element ``func`` is a ``@staticmethod`` resolved by NAME over the
 handler's ``data_logic`` sources. The page wires this class in via
-``_build_data_logic`` so ``data_formula(..., "calc_area", ...)`` finds it.
+``_build_data_logic`` so ``dataFormula(..., "calc_area", ...)`` finds it.
 """
 
 from __future__ import annotations

@@ -8,7 +8,7 @@ product widget kit — the effective collections (typed input widgets,
 ```python
 class Page(HtmlBuilder, DemoComponents):
     def main(self, root):
-        root.labeled_input(label="Name", value="^.name")
+        root.labeledInput(label="Name", value="^.name")
         root.swatch(color="^.color")
 ```
 
@@ -16,7 +16,7 @@ class Page(HtmlBuilder, DemoComponents):
 
 A `@component` is CLOSED: the caller parameterizes it, never fills it.
 The name in the source is the cross-runtime contract — the node says
-`labeled_input`, the expansion is ephemeral at render time.
+`labeledInput`, the expansion is ephemeral at render time.
 
 ## Reading AND writing (CMP.4)
 

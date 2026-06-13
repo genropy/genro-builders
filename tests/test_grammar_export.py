@@ -57,12 +57,12 @@ def test_svg_grammar_export_emits_bare_abstract_names(tmp_path: Path) -> None:
 
     assert data["grammar"]["name"] == "svg"
     assert "graphics" in data["abstracts"]
-    assert "container_element" in data["abstracts"]
+    assert "containerElement" in data["abstracts"]
 
     # Bare labels — no `@` prefix anywhere in the exported JSON
     raw = json.dumps(data)
     assert "@graphics" not in raw
-    assert "@container_element" not in raw
+    assert "@containerElement" not in raw
 
 
 def test_svg_grammar_export_includes_html_subbuilder_with_render_tag(tmp_path: Path) -> None:

@@ -14,7 +14,7 @@ historical document). So:
 - **the render never computes anything** — the expansion walk only
   CATALOGS the rules (`handler.expansion_logic`: resolved trigger
   path → rule node, per row, purged by row prefix at re-expansion);
-- `_on_start` (and `data_setter`) inside an expansion body raise an
+- `_on_start` (and `dataSetter`) inside an expansion body raise an
   explicit error: there is no "start" of a row, only its mutations.
 
 ## The trigger resolution

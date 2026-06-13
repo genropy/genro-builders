@@ -4,7 +4,7 @@ CSS source builder (level 1). The dialect uses a **selector-first
 model**: each selector is the top-level container of its case,
 holding the property rule and any media/supports variants.
 Multiple selectors that share a block use an explicit
-`selector_list`. CSS Nesting is supported through nested
+`selectorList`. CSS Nesting is supported through nested
 selectors.
 
 ## Install
@@ -44,9 +44,9 @@ Output:
 
 | Element         | Purpose                                       | Children                                              |
 |-----------------|-----------------------------------------------|-------------------------------------------------------|
-| `stylesheet`    | Optional top-level container                  | `selector`, `selector_list`, `cssvar`                 |
+| `stylesheet`    | Optional top-level container                  | `selector`, `selectorList`, `cssvar`                 |
 | `selector`      | One selector, container of the case           | `rule`, `cssvar`, nested `selector`                   |
-| `selector_list` | Comma-separated selector-list sharing a block | `selector` (the entries) + `rule`, `cssvar`           |
+| `selectorList` | Comma-separated selector-list sharing a block | `selector` (the entries) + `rule`, `cssvar`           |
 | `rule`          | A property block; optional `media`/`supports` | none                                                  |
 | `cssvar`        | A CSS custom property declaration             | none                                                  |
 
@@ -85,13 +85,13 @@ root.selector(raw=".card:not(.disabled)")
 root.selector(class_="card", raw="> .icon")
 ```
 
-### selector_list
+### selectorList
 
 When several selectors share the same rule and variants, use
-`selector_list` as the container:
+`selectorList` as the container:
 
 ```python
-sl = root.selector_list()
+sl = root.selectorList()
 sl.selector(class_="card")
 sl.selector(class_="panel")
 sl.selector(class_="dialog")
@@ -290,7 +290,7 @@ class Theme(CssBuilder):
         )
 
         # Selector-list
-        shared = sheet.selector_list()
+        shared = sheet.selectorList()
         shared.selector(class_="card")
         shared.selector(class_="panel")
         shared.selector(class_="dialog")
@@ -384,7 +384,7 @@ by grammar.
 | CSS construct                         | Reverse output                                  |
 | ------------------------------------- | ----------------------------------------------- |
 | `.foo { color: red }`                 | `selector(class_='foo').rule(...)`              |
-| `.a, .b { ... }`                      | `selector_list().selector().selector().rule()`  |
+| `.a, .b { ... }`                      | `selectorList().selector().selector().rule()`  |
 | `#main`, `button`                     | `selector(id=...)`, `selector(tag=...)`         |
 | `input[type="text"]`                  | `selector(attr={'type': 'text'})`               |
 | `.btn:hover`                          | `selector(class_='btn:hover')`                  |

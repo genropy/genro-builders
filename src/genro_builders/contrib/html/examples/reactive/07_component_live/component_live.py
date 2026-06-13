@@ -15,7 +15,7 @@ from genro_builders.contrib.html.examples.reactive.example_app import ExampleApp
 
 class CommonComponents:
     @component
-    def state_row(self, root, node_label=None):
+    def stateRow(self, root, node_label=None):
         row = root.tr(datapath="." + node_label)
         row.td("^.name")
         row.td("^.capital")
@@ -29,7 +29,7 @@ class CustomPage(HtmlBuilder, CommonComponents):
         data.set_item("states.VIC.capital", "Melbourne")
 
     def main(self, root):
-        root.body().table().tbody().state_row(iterate="^states")
+        root.body().table().tbody().stateRow(iterate="^states")
 
 
 class CustomApp(ExampleApp):

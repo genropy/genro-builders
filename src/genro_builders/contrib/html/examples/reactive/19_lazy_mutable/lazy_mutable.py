@@ -46,14 +46,14 @@ class Probe(TargetWrapper):
 
 class CustomPage(HtmlBuilder):
     @component
-    def order_row(self, root, node_label=None):
+    def orderRow(self, root, node_label=None):
         row = root.div(datapath="." + node_label)
         row.input(value="^.qty", dtype="L")
         row.span("^.total")
         row.span("^.converted")
-        row.data_formula(destination=".total", func="row_total",
+        row.dataFormula(destination=".total", func="row_total",
                          qty="^.qty", price="^.price")
-        row.data_formula(destination=".converted", func="convert",
+        row.dataFormula(destination=".converted", func="convert",
                          total="^.total", rate="^header.rate")
 
     def setup(self, data):
@@ -70,9 +70,9 @@ class CustomPage(HtmlBuilder):
         body = root.body()
         grid = body.div(id="grid")
         # lazy=True on a store-backed anchor: paging without parking.
-        grid.order_row(iterate="^rows", lazy=True, id="rows_block")
+        grid.orderRow(iterate="^rows", lazy=True, id="rows_block")
         body.span("^grand.total", id="grand")
-        body.data_formula(destination="grand.total", func="grand_total",
+        body.dataFormula(destination="grand.total", func="grand_total",
                           rows="^rows", _on_start=True)
 
     @staticmethod

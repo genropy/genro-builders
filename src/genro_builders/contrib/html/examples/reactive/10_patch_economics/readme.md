@@ -1,7 +1,7 @@
 # 10 — Patch economics
 
 A dashboard-shaped page — scattered fields, a computed total
-(`data_formula` over the rows), a 40-row iterated table — instrumented
+(`dataFormula` over the rows), a 40-row iterated table — instrumented
 with a metrics wrapper. The committed `metrics.json` logs every batch
 as patch ids and byte sizes: **these numbers are the basis of the
 optimization decisions**, and the diff net keeps them honest.

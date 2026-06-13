@@ -15,7 +15,7 @@ data.set_item("catalog", BagCbResolver(self.load_catalog, read_only=True))
 and the iterate opts in:
 
 ```python
-body.catalog_row(iterate="^catalog", lazy=True, id="catalog_block")
+body.catalogRow(iterate="^catalog", lazy=True, id="catalog_block")
 ```
 
 Everything else is machinery.

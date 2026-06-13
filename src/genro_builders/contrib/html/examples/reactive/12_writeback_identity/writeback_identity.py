@@ -43,7 +43,7 @@ class PatchLog(TargetWrapper):
 
 class CustomPage(HtmlBuilder):
     @component
-    def state_row(self, root, node_label=None):
+    def stateRow(self, root, node_label=None):
         row = root.tr(datapath="." + node_label)
         row.td("^.name")                       # pure reader: NOT in the map
         cell = row.td()
@@ -58,7 +58,7 @@ class CustomPage(HtmlBuilder):
 
     def main(self, root):
         body = root.body()
-        body.table().tbody().state_row(iterate="^states")
+        body.table().tbody().stateRow(iterate="^states")
 
 
 def mutate_by_id(page, handler, composite_id, raw_value):

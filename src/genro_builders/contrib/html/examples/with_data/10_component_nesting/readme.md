@@ -11,15 +11,15 @@ walk's dispatch applies recursively.
 class CommonComponents:
 
     @component
-    def city_item(self, root, node_label=None):
+    def cityItem(self, root, node_label=None):
         li = root.li(datapath="." + node_label)
         li.span("^.name")
 
     @component
-    def state_card(self, root, node_label=None):
+    def stateCard(self, root, node_label=None):
         card = root.div(datapath="." + node_label, class_="state")
         card.h3("^.name")
-        card.ul().city_item(iterate="^.cities")
+        card.ul().cityItem(iterate="^.cities")
 ```
 
 The inner `iterate` is **relative**: `'^.cities'` composes against
@@ -29,7 +29,7 @@ cities — `states.QLD.cities`, `states.VIC.cities`, ...
 ## One node, two levels of expansion
 
 ```python
-body.state_card(iterate="^states")
+body.stateCard(iterate="^states")
 ```
 
 The source holds ONE node. At render time: one card per state, and

@@ -29,7 +29,7 @@ class SvgElements:
         ...
 
     @abstract(sub_tags="*")
-    def container_element(self):
+    def containerElement(self):
         """SVG container content: elements that can hold children."""
         ...
 

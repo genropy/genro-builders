@@ -1,9 +1,9 @@
 # 03 — Root logic
 
 Data-elements are grammar elements, and the grammar works on the
-**root bag** exactly as on any node: `root.data_setter("price", 100)`
+**root bag** exactly as on any node: `root.dataSetter("price", 100)`
 maps the positional arguments onto the schema field names
-(`destination`, `value`) just like `body.data_setter(...)` does.
+(`destination`, `value`) just like `body.dataSetter(...)` does.
 
 ## Data-elements on the root
 
@@ -14,9 +14,9 @@ class CustomPage(HtmlBuilder):
         return round(price * (1 + tax), 2)
 
     def main(self, root):
-        root.data_setter("price", 100)
-        root.data_setter("tax", 0.22)
-        root.data_formula(
+        root.dataSetter("price", 100)
+        root.dataSetter("tax", 0.22)
+        root.dataFormula(
             destination="total", func="gross",
             price="^price", tax="^tax", _on_start=True,
         )

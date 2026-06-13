@@ -22,10 +22,10 @@ class CustomPage(HtmlBuilder):
 falls back to the container registered on the builder, called with
 `pane=body`.
 
-## Naming (legacy parity)
+## Naming
 
-- a prefix before the first `_` is stripped: `ui_badge` → `badge`;
-- dispatch is case-insensitive: `body.Badge(...)` hits the same block;
+- the dispatch name is the method name in full (`uiBadge`);
+- dispatch is case-insensitive: `body.uibadge(...)` hits the same block;
 - pass an explicit name with `@container("alias")`.
 
 ## Output

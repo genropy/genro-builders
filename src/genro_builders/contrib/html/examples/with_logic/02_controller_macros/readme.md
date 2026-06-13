@@ -1,7 +1,7 @@
 # 02 — Controller macros
 
-A `data_controller` runs **side-effecting** logic (unlike a pure
-`data_formula`). Inside, the `node` exposes the reactive DSL —
+A `dataController` runs **side-effecting** logic (unlike a pure
+`dataFormula`). Inside, the `node` exposes the reactive DSL —
 `SET` / `GET` / `PUT` / `FIRE` — to read and write the data.
 
 ## Setter seeds, controller acts
@@ -17,16 +17,16 @@ class CustomPage(HtmlBuilder):
     def main(self, root):
         body = root.body()
         box = body.div(datapath="box")
-        box.data_setter(".start", 7)
-        box.data_controller(func="init_box", start="^.start", _on_start=True)
+        box.dataSetter(".start", 7)
+        box.dataController(func="init_box", start="^.start", _on_start=True)
         box.span("^.start")
         box.span("^.count")
         box.span("^.quiet")
         box.span("^.ping")
 ```
 
-- `data_setter(".start", 7)` seeds `box.start = 7`.
-- `data_controller(func="init_box", start="^.start")` calls
+- `dataSetter(".start", 7)` seeds `box.start = 7`.
+- `dataController(func="init_box", start="^.start")` calls
   `init_box(node, start=7)`. The func is a `@staticmethod`; `node` is
   passed explicitly (so the macros write relative to it).
 

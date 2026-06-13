@@ -6,7 +6,7 @@ dialect: each node's ``runtime_values`` is resolved (pointers ``^``/
 ``=`` and ``${}`` templates actualized, keyword names like ``class_``
 normalized), then ``rendered_item`` turns the node into a small
 **dict fragment** describing what it is (``kind`` = selector / rule /
-cssvar / importcss / selector_list / stylesheet). The walk stacks
+cssvar / importcss / selectorList / stylesheet). The walk stacks
 those dicts into nested lists.
 
 ``finalize`` is the post-process: it receives the top-level list of
@@ -92,9 +92,9 @@ class CssRenderer(RendererBase):
                 "comment": comment,
                 "body": children,
             }
-        if tag == "selector_list":
+        if tag == "selectorList":
             return {
-                "kind": "selector_list",
+                "kind": "selectorList",
                 "compounds": [c["compound"] for c in children if c["kind"] == "selector"],
                 "comment": comment,
                 "body": children,
@@ -285,10 +285,10 @@ class CssRenderer(RendererBase):
                     [frag["compound"]], frag, lines,
                     pretty=pretty, indent=indent, depth=depth,
                 )
-            elif kind == "selector_list":
+            elif kind == "selectorList":
                 if not frag["compounds"]:
                     raise ValueError(
-                        "selector_list has no selector children; "
+                        "selectorList has no selector children; "
                         "add at least one .selector(...)",
                     )
                 self._emit_block(
@@ -299,7 +299,7 @@ class CssRenderer(RendererBase):
         flush()
 
     # ------------------------------------------------------------------
-    # Block emission (selector or selector_list)
+    # Block emission (selector or selectorList)
     # ------------------------------------------------------------------
 
     def _emit_block(
@@ -319,7 +319,7 @@ class CssRenderer(RendererBase):
         Rules are grouped by ``(media, supports)``: the base group is
         inlined, the others become nested ``@media`` / ``@supports``.
         """
-        selector_list = ", ".join(selector_strings)
+        selectorList = ", ".join(selector_strings)
         outer = indent * depth if pretty else ""
         inner = indent * (depth + 1) if pretty else ""
 
@@ -343,7 +343,7 @@ class CssRenderer(RendererBase):
             body = [f"/* {inline} */"]
 
         if pretty:
-            lines.append(f"{outer}{selector_list} {{")
+            lines.append(f"{outer}{selectorList} {{")
             for entry in body:
                 lines.append(f"{inner}{entry}")
             for nested in nested_selectors:
@@ -375,7 +375,7 @@ class CssRenderer(RendererBase):
                 extras.append(" ".join(flat))
             body_text = " ".join(body)
             combined = " ".join(part for part in (body_text, *extras) if part)
-            lines.append(f"{selector_list} {{ {combined} }}")
+            lines.append(f"{selectorList} {{ {combined} }}")
 
     def _emit_at_group(
         self,

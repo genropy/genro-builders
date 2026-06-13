@@ -8,19 +8,19 @@ from genro_builders.contrib.html import HtmlBuilderHandler
 
 
 class Section1(HtmlBuilderHandler):
-    """data_setter — seed values, always available at create."""
+    """dataSetter — seed values, always available at create."""
 
     def main(self, root):
         body = root.body(datapath="invoice")
-        body.data_setter(".amount", 1000)
-        body.data_setter(".currency", "EUR")
+        body.dataSetter(".amount", 1000)
+        body.dataSetter(".currency", "EUR")
         body.h2("Seeded values")
         body.p("Amount: ").span("^.amount")
         body.p("Currency: ").span("^.currency")
 
 
 class Section2(HtmlBuilderHandler):
-    """data_formula with _on_start — a derived value computed at create."""
+    """dataFormula with _on_start — a derived value computed at create."""
 
     @staticmethod
     def calc_vat_total(net, rate):
@@ -28,9 +28,9 @@ class Section2(HtmlBuilderHandler):
 
     def main(self, root):
         body = root.body(datapath="invoice")
-        body.data_setter(".net", 1000)
-        body.data_setter(".rate", 0.22)
-        body.data_formula(
+        body.dataSetter(".net", 1000)
+        body.dataSetter(".rate", 0.22)
+        body.dataFormula(
             ".total", "calc_vat_total", net="^.net", rate="^.rate",
             _on_start=True,
         )
@@ -40,7 +40,7 @@ class Section2(HtmlBuilderHandler):
 
 
 class Section3(HtmlBuilderHandler):
-    """data_controller with _on_start — a side-effect step writing the bag."""
+    """dataController with _on_start — a side-effect step writing the bag."""
 
     @staticmethod
     def build_label(node, count):
@@ -49,8 +49,8 @@ class Section3(HtmlBuilderHandler):
 
     def main(self, root):
         body = root.body(datapath="cart")
-        body.data_setter(".count", 3)
-        body.data_controller("build_label", count="^.count", _on_start=True)
+        body.dataSetter(".count", 3)
+        body.dataController("build_label", count="^.count", _on_start=True)
         body.h2("Cart")
         body.p("Summary: ").span("^.label")
 
@@ -64,9 +64,9 @@ class Section4(HtmlBuilderHandler):
 
     def main(self, root):
         body = root.body(datapath="invoice")
-        body.data_setter(".net", 1000)
-        body.data_setter(".rate", 0.22)
-        body.data_formula(
+        body.dataSetter(".net", 1000)
+        body.dataSetter(".rate", 0.22)
+        body.dataFormula(
             ".total", "calc_vat_total", net="^.net", rate="^.rate",
         )
         body.h2("Dormant formula")

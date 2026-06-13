@@ -110,7 +110,7 @@ def test_container_args_kwargs_forwarded():
 def test_container_case_insensitive():
     class P(HtmlBuilder):
         @container
-        def my_block(self, pane):
+        def myBlock(self, pane):
             pane.span("ok")
 
         def main(self, root):
@@ -118,27 +118,26 @@ def test_container_case_insensitive():
 
     page = P()
     page.create()
-    # my_block ha "_", quindi il nome di registrazione è "block".
-    # Verifico sia case-insensitive sul nome registrato.
-    page.source.body().BLOCK()
+    # dispatch name = the method name in full; the lookup is case-insensitive.
+    page.source.body().MYBLOCK()
     assert "<span>ok</span>" in page.render()
 
 
-def test_container_prefix_strip():
-    """def iv_widget(self, pane) -> registrato come 'widget' (legacy)."""
+def test_container_full_name():
+    """Dispatch name = the method name in full (no legacy prefix strip)."""
 
     class P(HtmlBuilder):
         @container
-        def iv_widget(self, pane):
-            pane.span("stripped")
+        def ivWidget(self, pane):
+            pane.span("full")
 
         def main(self, root):
             pass
 
     page = P()
     page.create()
-    page.source.body().widget()
-    assert "stripped" in page.render()
+    page.source.body().ivWidget()
+    assert "full" in page.render()
 
 
 def test_container_explicit_name():

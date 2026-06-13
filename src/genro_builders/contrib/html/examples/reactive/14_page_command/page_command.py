@@ -6,7 +6,7 @@ A click that must RUN LOGIC (not write a datum) is still a mutation
 (``data-fire-pointer``) and optionally the message
 (``data-fire-value``); the server resolves the node by identity and
 FIREs the path — the datastore is the message bus (path = topic,
-fired value = payload, never persisted). A ``data_controller`` bound
+fired value = payload, never persisted). A ``dataController`` bound
 to the path is the subscriber: it performs the STRUCTURAL store op
 (add/remove a row) and the iterate block re-renders.
 
@@ -43,7 +43,7 @@ class Probe(TargetWrapper):
 
 class CustomPage(HtmlBuilder):
     @component
-    def order_row(self, root, node_label=None):
+    def orderRow(self, root, node_label=None):
         row = root.div(datapath="." + node_label)
         row.input(value="^.qty", dtype="L")
         row.span("^.converted")
@@ -51,9 +51,9 @@ class CustomPage(HtmlBuilder):
         # own attribute, baked at expansion — the click is identity.
         row.button("−", **{"data-fire-pointer": "commands.del_row",
                            "data-fire-value": node_label})
-        row.data_formula(destination=".total", func="row_total",
+        row.dataFormula(destination=".total", func="row_total",
                          qty="^.qty", price="^.price")
-        row.data_formula(destination=".converted", func="convert",
+        row.dataFormula(destination=".converted", func="convert",
                          total="^.total", rate="^header.rate")
 
     def setup(self, data):
@@ -66,15 +66,15 @@ class CustomPage(HtmlBuilder):
 
     def main(self, root):
         body = root.body()
-        body.order_row(iterate="^rows", id="rows_block")
+        body.orderRow(iterate="^rows", id="rows_block")
         # The page command, footer side: no declared message — the
         # fired value defaults to True. NB: no author id — a clicked
         # source node rides its SERIAL (the author's id is not
         # mutation addressable).
         body.button("+", **{"data-fire-pointer": "commands.add_row"})
-        body.data_controller(func="add_row", trigger="^commands.add_row")
-        body.data_controller(func="del_row", label="^commands.del_row")
-        body.data_formula(destination="grand.total", func="grand_total",
+        body.dataController(func="add_row", trigger="^commands.add_row")
+        body.dataController(func="del_row", label="^commands.del_row")
+        body.dataFormula(destination="grand.total", func="grand_total",
                           rows="^rows", _on_start=True)
 
     @staticmethod

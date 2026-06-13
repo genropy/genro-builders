@@ -2,7 +2,7 @@
 """03 — Common index, reactive: one shared datum read by three pages.
 
 Three pages are mounted on one handler. The shared ``_`` segment holds a
-single ``index`` (seeded by a data_setter on the common volume, ``_:index``);
+single ``index`` (seeded by a dataSetter on the common volume, ``_:index``);
 each page shows it through ``^_:index``. Changing ``_.index`` inside a live
 section re-renders the readers of all three pages — one datum, many builders.
 """
@@ -14,7 +14,7 @@ from genro_builders.contrib.html.examples.reactive.example_app import ExampleApp
 
 class PageOne(HtmlBuilder):
     def main(self, root):
-        root.data_setter(destination="_:index", value=0)
+        root.dataSetter(destination="_:index", value=0)
         root.body().div("^_:index")
 
 

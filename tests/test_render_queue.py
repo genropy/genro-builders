@@ -17,7 +17,7 @@ from genro_builders.contrib.html import HtmlBuilder
 class _Page(HtmlBuilder):
     def main(self, root) -> None:
         body = root.body()
-        body.data_setter("counter", 5)
+        body.dataSetter("counter", 5)
         body.div("^counter", node_id="d1")
 
 

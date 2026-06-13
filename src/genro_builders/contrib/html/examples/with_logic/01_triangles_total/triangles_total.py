@@ -20,16 +20,16 @@ class CustomPage(HtmlBuilder):
         triangoli = body.div(datapath="triangoli")
         for i in range(1, 6):
             row = triangoli.div(datapath=f".tr{i}")
-            row.data_setter(".base", i * 2)
-            row.data_setter(".height", i)
-            row.data_formula(
+            row.dataSetter(".base", i * 2)
+            row.dataSetter(".height", i)
+            row.dataFormula(
                 destination=".area", func="triangle_area",
                 base="^.base", height="^.height", _on_start=True,
             )
             row.span("^.base")
             row.span("^.height")
             row.span("^.area")
-        body.data_formula(
+        body.dataFormula(
             destination="total", func="sum_areas",
             a1="^triangoli.tr1.area", a2="^triangoli.tr2.area",
             a3="^triangoli.tr3.area", a4="^triangoli.tr4.area",

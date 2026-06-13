@@ -10,7 +10,7 @@ class CommonComponents:
     """Reusable blocks shared across pages (a component mixin)."""
 
     @component
-    def address_block(self, root, **kwargs):
+    def addressBlock(self, root, **kwargs):
         # The body reads the record through relative pointers, anchored
         # by the caller's ``store``; the call's other attributes flow in
         # as kwargs and the AUTHOR routes them — here onto the card.
@@ -36,9 +36,9 @@ class CustomPage(HtmlBuilder, CommonComponents):
         body.h2("Sender")
         # ``store`` is the component's data anchor: the SAME body renders
         # a different block depending on the record it is anchored to.
-        body.address_block(store="^sender", class_="address")
+        body.addressBlock(store="^sender", class_="address")
         body.h2("Customer")
-        body.address_block(store="^customer", class_="address compact")
+        body.addressBlock(store="^customer", class_="address compact")
 
 
 if __name__ == "__main__":

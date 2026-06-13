@@ -10,10 +10,10 @@ org charts, menus).
 class CommonComponents:
 
     @component
-    def tree_item(self, root, node_label=None):
+    def treeItem(self, root, node_label=None):
         li = root.li(datapath="." + node_label)
         li.span("^.name")
-        li.ul().tree_item(iterate="^.children")
+        li.ul().treeItem(iterate="^.children")
 ```
 
 ## Data-driven termination

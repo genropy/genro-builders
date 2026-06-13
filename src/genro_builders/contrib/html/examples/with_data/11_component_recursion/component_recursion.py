@@ -10,14 +10,14 @@ class CommonComponents:
     """Reusable blocks shared across pages (a component mixin)."""
 
     @component
-    def tree_item(self, root, node_label=None):
+    def treeItem(self, root, node_label=None):
         li = root.li(datapath="." + node_label)
         li.span("^.name")
         # The component calls ITSELF: recursion over the data tree.
         # Termination is data-driven — a leaf has no '.children', the
         # iterate finds an empty collection, zero blocks, the descent
         # stops.
-        li.ul().tree_item(iterate="^.children")
+        li.ul().treeItem(iterate="^.children")
 
 
 class CustomPage(HtmlBuilder, CommonComponents):
@@ -31,7 +31,7 @@ class CustomPage(HtmlBuilder, CommonComponents):
     def main(self, root):
         body = root.body()
         body.h2("Folders")
-        body.ul().tree_item(iterate="^tree")
+        body.ul().treeItem(iterate="^tree")
 
 
 if __name__ == "__main__":

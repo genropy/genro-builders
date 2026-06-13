@@ -6,7 +6,7 @@ What you learn:
       `main(self, root)`.
     - Declare a `selector` at the top, attach a `rule` for the
       property block.
-    - Use `selector_list` when multiple selectors share the same
+    - Use `selectorList` when multiple selectors share the same
       rule and variants.
     - Declare `@media` and `@supports` variants of the selector
       inline, with property kwargs applied to the parent.
@@ -46,7 +46,7 @@ class HelloCss(CssBuilder):
         )
 
         # 3. Selector list — multiple selectors share one block.
-        cards = sheet.selector_list()
+        cards = sheet.selectorList()
         cards.selector(class_="card")
         cards.selector(class_="panel")
         cards.selector(class_="dialog")

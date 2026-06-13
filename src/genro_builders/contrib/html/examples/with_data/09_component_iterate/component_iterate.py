@@ -10,7 +10,7 @@ class CommonComponents:
     """Reusable blocks shared across pages (a component mixin)."""
 
     @component
-    def state_row(self, root, node_label=None):
+    def stateRow(self, root, node_label=None):
         # One row per item: the renderer passes ONLY the item's label;
         # the body anchors its root to that item (relative to the
         # collection the caller iterated) and reads it with relative
@@ -35,7 +35,7 @@ class CustomPage(HtmlBuilder, CommonComponents):
         table = body.table()
         tbody = table.tbody()
         # One source node; at render time, one <tr> per child of ^states.
-        tbody.state_row(iterate="^states")
+        tbody.stateRow(iterate="^states")
 
 
 if __name__ == "__main__":

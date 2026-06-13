@@ -4,7 +4,7 @@
 Same CustomPage as with_data/00_hello_data: an h1 reads ^message through a
 pointer. Here the data behind the pointer is changed inside live sections;
 the nodes that read that path re-render with the new value (data reactivity,
-no data_formula / data_controller yet).
+no dataFormula / dataController yet).
 """
 from __future__ import annotations
 

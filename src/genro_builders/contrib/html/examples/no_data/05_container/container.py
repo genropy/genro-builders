@@ -14,7 +14,7 @@ class CustomPage(HtmlBuilder):
         box.p(body)
 
     @container
-    def ui_badge(self, pane, text):
+    def uiBadge(self, pane, text):
         pane.span(text, class_="badge")
 
     def main(self, root):
@@ -22,8 +22,8 @@ class CustomPage(HtmlBuilder):
         body.card("Designer", "Alice", color="#e74c3c")
         body.card("Engineer", "Bob", color="#2ecc71")
         body.card("Manager", "Carol")
-        body.badge("from ui_badge")     # prefix 'ui_' stripped -> 'badge'
-        body.Badge("case insensitive")  # 'Badge' dispatches the same
+        body.uiBadge("from uiBadge")     # dispatch name = the method name
+        body.uibadge("case insensitive")  # dispatch is case-insensitive
 
 
 if __name__ == "__main__":

@@ -13,15 +13,15 @@ Six elements:
 - ``selector`` — a single CSS selector. Holds the rule(s), the
   cssvar declarations, and any nested ``selector`` for CSS
   Nesting.
-- ``selector_list`` — explicit container for a selector-list
+- ``selectorList`` — explicit container for a selector-list
   (comma-separated). Holds N ``selector`` children plus the
   ``rule`` / ``cssvar`` of the shared block.
-- ``rule`` — the property block of a selector or selector_list.
+- ``rule`` — the property block of a selector or selectorList.
   Optional ``media`` / ``supports`` kwargs lift the rule into a
   ``@media`` / ``@supports`` block at render time. Multiple rules
   under the same selector are grouped by ``(media, supports)``.
 - ``cssvar`` — a CSS custom property declaration (``--name:
-  value;``). Lives inside a selector or selector_list, or directly
+  value;``). Lives inside a selector or selectorList, or directly
   under ``stylesheet`` / bag root (in which case the renderer
   emits an implicit ``:root { ... }`` block).
 - ``importcss`` — a CSS ``@import`` directive. Lives only inside
@@ -47,7 +47,7 @@ from genro_builders.builder import element
 class CssElements:
     """Mixin defining the level-1 CSS grammar for CssBuilder."""
 
-    @element(sub_tags="selector,selector_list,cssvar,importcss")
+    @element(sub_tags="selector,selectorList,cssvar,importcss")
     def stylesheet(self):
         """Top-level container holding the whole CSS document.
 
@@ -55,7 +55,7 @@ class CssElements:
         top-level construct. Using it is mandatory only when the
         document includes ``@import`` directives, since those have to
         live inside a stylesheet by grammar; in every other case the
-        stylesheet is optional and ``selector`` / ``selector_list`` /
+        stylesheet is optional and ``selector`` / ``selectorList`` /
         ``cssvar`` children can sit directly on the bag root.
 
         **Kwargs**:
@@ -63,7 +63,7 @@ class CssElements:
         - ``comment`` (optional, str) — free-form comment text emitted
           inline or as a block depending on length. **Not validated**.
 
-        **Children allowed**: ``selector``, ``selector_list``,
+        **Children allowed**: ``selector``, ``selectorList``,
         ``cssvar``, ``importcss``.
 
         **Grammar position**: top-level only. Cannot be nested inside
@@ -72,7 +72,7 @@ class CssElements:
         **Render order**: the renderer emits ``importcss`` children
         first (CSS requires ``@import`` to precede every other
         directive), then ``cssvar`` declarations as a single implicit
-        ``:root { ... }`` block, then ``selector`` / ``selector_list``
+        ``:root { ... }`` block, then ``selector`` / ``selectorList``
         blocks in insertion order.
 
         **What we validate**: the parent container (bag root only)
@@ -94,7 +94,7 @@ class CssElements:
         ...
 
     @element(sub_tags="selector,rule,cssvar")
-    def selector_list(self):
+    def selectorList(self):
         """Container for a comma-separated selector-list.
 
         Use when the same rule(s) apply to more than one selector.
@@ -104,7 +104,7 @@ class CssElements:
 
     @element(sub_tags="")
     def rule(self):
-        """The property block of a selector or selector_list.
+        """The property block of a selector or selectorList.
 
         Properties are passed as kwargs; underscores are converted
         to hyphens in the output.
@@ -165,12 +165,12 @@ class CssElements:
           length. **Not validated**.
 
         **Grammar position**: child of ``stylesheet`` only. Cannot be
-        placed under a ``selector``, ``rule``, ``selector_list`` or
+        placed under a ``selector``, ``rule``, ``selectorList`` or
         directly on the bag root — open a ``stylesheet`` first.
 
         **Render order**: the renderer emits all ``importcss``
         children of a ``stylesheet`` *before* any selector,
-        selector_list, or cssvar block, in their insertion order.
+        selectorList, or cssvar block, in their insertion order.
 
         **Render syntax**: when multiple optional kwargs are present
         the order is fixed as

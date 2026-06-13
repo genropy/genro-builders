@@ -30,9 +30,9 @@ client's hands: the path is always the node's own attribute.
 Declaring both `data-set-pointer` and `data-fire-pointer` on one node
 is an authoring error.
 
-## The subscriber is a data_controller
+## The subscriber is a dataController
 
-`data_controller(func="del_row", label="^commands.del_row")` — the
+`dataController(func="del_row", label="^commands.del_row")` — the
 canonical data-element machinery: the fired event triggers the
 controller, the func performs the STRUCTURAL store op (`Bag.pop`, or
 a SET of a whole new row bag). The iterate block re-renders because

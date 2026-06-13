@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """02 — Data attributes, reactive: change the data, the reader re-renders.
 
-A data_setter seeds ``name`` with a value and attributes; a div reads the
+A dataSetter seeds ``name`` with a value and attributes; a div reads the
 value (^name) and the attributes (^name?color, ^name?background). Inside a
 live section the data is changed and the nodes that read it re-render.
 """
@@ -13,7 +13,7 @@ from genro_builders.contrib.html.examples.reactive.example_app import ExampleApp
 
 class CustomPage(HtmlBuilder):
     def main(self, root):
-        root.data_setter(
+        root.dataSetter(
             destination="name", value="John", color="red", background="yellow",
         )
         root.body().div(

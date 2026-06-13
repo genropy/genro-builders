@@ -45,14 +45,14 @@ class CustomPage(HtmlBuilder):
     calls = {"grand": 0, "convert": 0}
 
     @component
-    def order_row(self, root, node_label=None):
+    def orderRow(self, root, node_label=None):
         row = root.div(datapath="." + node_label)
         row.input(value="^.qty", dtype="L")
         row.span("^.total")
         row.span("^.converted")
-        row.data_formula(destination=".total", func="row_total",
+        row.dataFormula(destination=".total", func="row_total",
                          qty="^.qty", price="^.price")
-        row.data_formula(destination=".converted", func="convert",
+        row.dataFormula(destination=".converted", func="convert",
                          total="^.total", rate="^header.rate")
 
     def setup(self, data):
@@ -65,8 +65,8 @@ class CustomPage(HtmlBuilder):
 
     def main(self, root):
         body = root.body()
-        body.order_row(iterate="^rows", id="rows_block")
-        body.data_formula(destination="grand", func="grand_total",
+        body.orderRow(iterate="^rows", id="rows_block")
+        body.dataFormula(destination="grand", func="grand_total",
                           rows="^rows", _on_start=True)
         body.span("^grand", id="grand_cell")
 
@@ -100,8 +100,8 @@ class LivelockPage(HtmlBuilder):
 
     def main(self, root):
         body = root.body()
-        body.data_formula(destination="ping", func="bump", value="^pong")
-        body.data_formula(destination="pong", func="bump", value="^ping")
+        body.dataFormula(destination="ping", func="bump", value="^pong")
+        body.dataFormula(destination="pong", func="bump", value="^ping")
         body.span("^ping")
 
     @staticmethod

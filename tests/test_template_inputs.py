@@ -25,7 +25,7 @@ def _render(main_fn):
 def test_template_input_is_consumed_not_emitted():
     def main(root):
         body = root.body()
-        body.data_setter("mywidth", 120)
+        body.dataSetter("mywidth", 120)
         body.div("testo", w="^mywidth", width="${w}px")
 
     out = _render(main)
@@ -46,7 +46,7 @@ def test_dual_use_goes_through_a_template_itself():
 def test_value_template_consumes_its_inputs():
     def main(root):
         body = root.body()
-        body.data_setter("nome", "Mario")
+        body.dataSetter("nome", "Mario")
         body.div("Ciao ${n}", n="^nome")
 
     out = _render(main)

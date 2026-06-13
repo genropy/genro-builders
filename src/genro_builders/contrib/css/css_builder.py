@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """CssBuilder — CSS dialect for genro-builders (level 1).
 
-Level 1 grammar covers ``stylesheet``, ``selector``, ``selector_list``,
+Level 1 grammar covers ``stylesheet``, ``selector``, ``selectorList``,
 ``rule`` (property declarations with optional ``media`` / ``supports``
 kwargs), ``cssvar`` (CSS custom property declarations) and
 ``importcss`` (``@import`` directives). At-rules beyond ``@media`` /

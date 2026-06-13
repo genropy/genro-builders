@@ -22,7 +22,7 @@ def test_mask_wraps_the_rendered_value():
     class Page(HtmlBuilder):
         def main(self, root) -> None:
             body = root.body()
-            body.data_setter("temperatura", 38.5, mask="%s°")
+            body.dataSetter("temperatura", 38.5, mask="%s°")
             body.div("^temperatura")
 
     out = _mounted(Page).render(target=False)
@@ -33,7 +33,7 @@ def test_mask_applies_to_attribute_pointers_too():
     class Page(HtmlBuilder):
         def main(self, root) -> None:
             body = root.body()
-            body.data_setter("larghezza", 120, mask="%spx")
+            body.dataSetter("larghezza", 120, mask="%spx")
             body.div("x", title="^larghezza")
 
     out = _mounted(Page).render(target=False)
@@ -48,8 +48,8 @@ def test_formula_bindings_receive_the_raw_datum():
 
         def main(self, root) -> None:
             body = root.body()
-            body.data_setter("temp", 10, mask="%s°")
-            body.data_formula("doppio", "doubled", t="^temp", _on_start=True)
+            body.dataSetter("temp", 10, mask="%s°")
+            body.dataFormula("doppio", "doubled", t="^temp", _on_start=True)
             body.div("^doppio")
 
     out = _mounted(Page).render(target=False)
@@ -61,7 +61,7 @@ def test_mask_composes_with_recipe_templates():
     class Page(HtmlBuilder):
         def main(self, root) -> None:
             body = root.body()
-            body.data_setter("prezzo", 99, mask="€ %s")
+            body.dataSetter("prezzo", 99, mask="€ %s")
             body.div("x", p="^prezzo", title="costa ${p}")
 
     out = _mounted(Page).render(target=False)
@@ -72,7 +72,7 @@ def test_wdg_attributes_travel_with_the_datum_and_win():
     class Page(HtmlBuilder):
         def main(self, root) -> None:
             body = root.body()
-            body.data_setter(
+            body.dataSetter(
                 "temperatura", 39.2, mask="%s°",
                 _wdg={"color": "red", "font_weight": "bold"},
             )
@@ -89,8 +89,8 @@ def test_mask_formats_fixed_decimals():
     class Page(HtmlBuilder):
         def main(self, root) -> None:
             body = root.body()
-            body.data_setter("prezzo", 45.0, mask="%.2f")
-            body.data_setter("sconto", 7, mask="€ %.2f")
+            body.dataSetter("prezzo", 45.0, mask="%.2f")
+            body.dataSetter("sconto", 7, mask="€ %.2f")
             body.div("^prezzo")
             body.div("^sconto")
 
@@ -115,11 +115,11 @@ def test_cell_patches_present_like_the_render():
 
     class Page(HtmlBuilder):
         @component
-        def order_row(self, root, node_label=None):
+        def orderRow(self, root, node_label=None):
             row = root.div(datapath="." + node_label)
             row.input(value="^.qty", dtype="L")
             row.span("^.total")
-            row.data_formula(destination=".total", func="row_total",
+            row.dataFormula(destination=".total", func="row_total",
                              qty="^.qty", price="^.price")
 
         def setup(self, data):
@@ -128,7 +128,7 @@ def test_cell_patches_present_like_the_render():
             data.set_item("rows.r1.total", 10.0, mask="%.2f")
 
         def main(self, root):
-            root.body().order_row(iterate="^rows", id="rows_block")
+            root.body().orderRow(iterate="^rows", id="rows_block")
 
         @staticmethod
         def row_total(qty, price):
@@ -154,7 +154,7 @@ def test_wdg_does_not_travel_on_attribute_pointers():
     class Page(HtmlBuilder):
         def main(self, root) -> None:
             body = root.body()
-            body.data_setter("temp", 10, _wdg={"color": "red"})
+            body.dataSetter("temp", 10, _wdg={"color": "red"})
             body.div("x", title="^temp")
 
     out = _mounted(Page).render(target=False)

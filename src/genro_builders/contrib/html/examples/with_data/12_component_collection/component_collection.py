@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """12 — A component collection: the @component citizen. See readme.md.
 
-``DemoComponents`` is the didactic mini collection: ``labeled_input``
+``DemoComponents`` is the didactic mini collection: ``labeledInput``
 (label + input, the reactive ``value`` pointer passes through to the
 inner <input>, CMP.4) and ``swatch`` (a colored box reading a
 pointer). The effective widget kit lives in genro-ws-web.
@@ -24,9 +24,9 @@ class CustomPage(HtmlBuilder, DemoComponents):
         # The name in the source is the contract (CMP.1); the value
         # pointer reaches the inner <input> with its write-back
         # address (CMP.4).
-        body.labeled_input(label="Name", value="^.name")
+        body.labeledInput(label="Name", value="^.name")
         # Extra attrs reach the inner input untouched:
-        body.labeled_input(label="Nickname", value="^.nickname",
+        body.labeledInput(label="Nickname", value="^.nickname",
                            placeholder="optional")
         # A closed component reading a pointer in an attribute:
         body.swatch(color="^.color")

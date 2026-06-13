@@ -1,7 +1,7 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""05 — Reactive controller: change an input, the data_controller re-runs.
+"""05 — Reactive controller: change an input, the dataController re-runs.
 
-A data_controller reads ^.start and writes ^.count / ^.quiet via SET/PUT.
+A dataController reads ^.start and writes ^.count / ^.quiet via SET/PUT.
 Inside a live section the input is changed; the controller re-runs with the
 new value and the spans that read its outputs re-render.
 """
@@ -19,8 +19,8 @@ class CustomPage(HtmlBuilder):
 
     def main(self, root):
         box = root.body().div(datapath="box")
-        box.data_setter(".start", 7)
-        box.data_controller(func="init_box", start="^.start", _on_start=True)
+        box.dataSetter(".start", 7)
+        box.dataController(func="init_box", start="^.start", _on_start=True)
         box.span("^.count")
         box.span("^.quiet")
 
