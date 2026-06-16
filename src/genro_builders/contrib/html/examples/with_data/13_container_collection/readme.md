@@ -4,7 +4,7 @@
 (`@container`, CMP.9): pieces that generate REAL source nodes at call
 time, which the CALLER fills. It is NOT the product kit — the
 effective containers (border/tab, with data-driven switching and
-iframe-safe morphs) live in **genro-ws-web**.
+iframe-safe morphs) live in a downstream application layer.
 
 ```python
 class Page(HtmlBuilder, DemoContainers):

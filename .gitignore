@@ -156,9 +156,5 @@ src/temp/
 # Local secondary worktrees (e.g. worktrees/blueprint for consultation)
 worktrees/
 
-# Live demo: generated render targets (runtime output, not source)
-src/genro_builders/contrib/live/resources/out.html
-src/genro_builders/contrib/live/resources/out.xml
-
 # Local Claude Code config (launch.json etc.)
 .claude/

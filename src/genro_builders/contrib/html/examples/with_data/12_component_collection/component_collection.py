@@ -4,7 +4,8 @@
 ``DemoComponents`` is the didactic mini collection: ``labeledInput``
 (label + input, the reactive ``value`` pointer passes through to the
 inner <input>, CMP.4) and ``swatch`` (a colored box reading a
-pointer). The effective widget kit lives in genro-ws-web.
+pointer). The effective widget kit lives in a downstream application
+layer.
 """
 from __future__ import annotations
 

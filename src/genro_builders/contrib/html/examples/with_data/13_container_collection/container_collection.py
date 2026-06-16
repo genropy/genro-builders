@@ -4,8 +4,8 @@
 ``DemoContainers`` is the didactic mini collection: ``card`` generates
 REAL source nodes at call time (title bar + body) and returns the body
 pane the CALLER fills (CMP.9 — fillability is the discriminant between
-the two citizens). The effective containers (border/tab) live in
-genro-ws-web.
+the two citizens). The effective containers (border/tab) live in a
+downstream application layer.
 """
 from __future__ import annotations
 

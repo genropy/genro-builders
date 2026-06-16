@@ -187,6 +187,25 @@ output. The test suite runs them all (`tests/test_examples.py`).
 - Per-grammar references: [HTML](docs/grammars/html.md), [SVG](docs/grammars/svg.md), [CSS](docs/grammars/css.md), [XSD](docs/grammars/xsd.md)
 - Architectural contract and roadmap: [`roadmap/`](roadmap/)
 
+## Downstream
+
+genro-builders is a generic engine: the grammars, the renderers, and the
+reactive data binding know nothing about who consumes them. The source carries
+no reference to any downstream layer — this is the one place that names them.
+Known consumers in the Genro ecosystem:
+
+- **[genro-ws-web](https://github.com/genropy/genro-ws-web)** — WebSocket-driven
+  reactive SPA framework (the production widget kit and the push transport live
+  here)
+- **[genro-office](https://github.com/genropy/genro-office)** — Office document
+  generation (Word and Excel builders)
+- **[genro-print](https://github.com/genropy/genro-print)** — print and PDF
+  generation system
+- **[genro-textual](https://github.com/genropy/genro-textual)** — Textual UI
+  framework for Bag-driven applications
+- **[genro-scriba](https://github.com/genropy/genro-scriba)** — infrastructure
+  configuration file generator (Traefik, Docker Compose, and more)
+
 ## License
 
 Apache License 2.0 — Copyright 2025 Softwell S.r.l.

@@ -2,7 +2,8 @@
 """Didactic mini collection — the component/container mechanics.
 
 NOT a product widget kit: the effective collections (typed input
-widgets, border/tab containers, client bindings) live in genro-ws-web.
+widgets, border/tab containers, client bindings) live in a downstream
+application layer.
 These few pieces demonstrate the two CMP citizens on the smallest
 possible surface:
 

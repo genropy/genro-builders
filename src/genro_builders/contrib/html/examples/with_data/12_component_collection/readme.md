@@ -3,7 +3,8 @@
 `DemoComponents` is the didactic mini collection: how to package
 `@component` pieces in a mixin and use them as grammar. It is NOT the
 product widget kit — the effective collections (typed input widgets,
-`labeled_field`, client bindings) live in **genro-ws-web**.
+`labeled_field`, client bindings) live in a downstream application
+layer.
 
 ```python
 class Page(HtmlBuilder, DemoComponents):

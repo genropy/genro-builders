@@ -52,7 +52,7 @@ into the enclosing container replace.
 
 ## Why it matters
 
-Measured on the ws-web scale demos (container-replace era): one qty
+Measured on the scale demos (container-replace era): one qty
 edit cost ~60ms at 30 rows, ~600ms at 300, ~30s at 3000 (a quadratic
 re-registration on top of the linear render). With per-row patches
 the edit cost stops depending on the collection size.

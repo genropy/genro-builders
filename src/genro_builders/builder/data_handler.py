@@ -1127,14 +1127,14 @@ def live(func: Any) -> Any:
     """Method decorator: the whole method is a live section.
 
     Sugar over ``with handler.live():`` for methods that are mutation
-    entry points (a websocket message handler, an RPC). The handler is
+    entry points (a message handler, an RPC). The handler is
     found on the instance: ``self`` itself when the method lives on a
     ``BuilderHandler``, ``self.handler`` otherwise (apps and builders
     both carry one).
 
-        class WsLiveApp(...):
+        class App(...):
             @live
-            def on_ws_message(self, path, value):
+            def on_message(self, path, value):
                 self.handler.data.set_item(path, value)
 
     Use the context manager directly when the section must be narrower
