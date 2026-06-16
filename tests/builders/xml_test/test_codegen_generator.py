@@ -170,11 +170,32 @@ def test_render_is_deterministic(gen):
 
 def test_unknown_tag_names_are_slugged(gen):
     """A tag like ``my-tag`` is not a valid Python identifier; the
-    generator must alias it via ``@element(tags='my-tag')``."""
+    generator keeps a valid method name and emits the real tag via
+    ``@element(_meta={'render_tag': 'my-tag'})``."""
     model = NamespaceModel(elements=[ElementModel(name="my-tag")])
     src = gen.render(model, "Demo")
-    assert "tags='my-tag'" in src
+    assert "_meta={'render_tag': 'my-tag'}" in src
     assert "def my_tag(self):" in src
+
+
+def test_keyword_tag_uses_trailing_underscore_not_render_tag(gen):
+    """A tag that is a Python keyword (``del``) takes the trailing-
+    underscore form; no ``render_tag`` is needed — the renderer strips
+    the ``_`` back. A parent referencing it does so by the internal name
+    (``del_``)."""
+    model = NamespaceModel(
+        elements=[
+            ElementModel(
+                name="wrapper",
+                children=[ChildModel(name="del", min_occurs=0, max_occurs=None)],
+            ),
+            ElementModel(name="del"),
+        ],
+    )
+    src = gen.render(model, "Demo")
+    assert "def del_(self):" in src
+    assert "render_tag" not in src
+    assert "sub_tags='del_'" in src
 
 
 def test_generated_module_is_executable_and_renders(gen):

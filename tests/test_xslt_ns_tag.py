@@ -40,6 +40,9 @@ class _NsBuilder(BuilderBase):
     @element()
     def a(self): ...
 
+    @element()
+    def del_(self): ...  # 'del' is a Python keyword: trailing-underscore form
+
 
 def _render(main):
     """Mount a one-off ``_NsBuilder`` around ``main`` and return its XML."""
@@ -108,3 +111,28 @@ def test_prefixed_tag_independent_of_xmlns_declaration():
     ``xmlns:xsl`` is a malformed document, the user's responsibility)."""
     out = _render(lambda root: root.stylesheet().value_of(select="x"))
     assert "<xsl:value-of" in out
+
+
+def test_keyword_tag_emits_without_trailing_underscore():
+    """A method named for a Python keyword (``del_``) emits the bare tag
+    (``del``): the trailing-underscore convention is resolved on emission,
+    no ``render_tag`` declared."""
+    out = _render(lambda root: root.table().del_("gone"))
+    assert "<del>gone</del>" in out
+    assert "del_" not in out
+
+
+def test_keyword_node_tag_stays_python_legal():
+    """The node tag keeps the Python-legal name (``del_``); only the
+    emitted markup drops the underscore."""
+
+    class _H(_NsBuilder):
+        def main(self, root):
+            root.table().del_("gone")
+
+    page = _H()
+    BuilderHandler().add_builder(page)
+    table = next(iter(page.source))
+    d = next(iter(table.value))
+    assert d.node_tag == "del_"
+    assert "<del>" in page.render(target=False)

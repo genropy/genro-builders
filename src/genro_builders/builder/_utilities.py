@@ -268,19 +268,18 @@ def _parse_sub_tags_spec(spec: str) -> dict[str, tuple[int, int]] | str:
 def _decorated_method_info(
     name: str, obj: Any,
 ) -> tuple[list[str], Any, dict]:
-    """Build (tag_list, obj, decorator_info) for a decorated method."""
+    """Build (tag_list, obj, decorator_info) for a decorated method.
+
+    The tag is the method name (``_``-prefixed names are framework
+    internals and yield no tag). A tag that is not a valid Python
+    identifier is emitted via ``_meta['render_tag']``, not by aliasing
+    the schema key.
+    """
     decorator_info = obj._decorator
     if decorator_info.get("abstract"):
         return [name], obj, decorator_info
-    else:
-        tag_list: list[str] = [] if name.startswith("_") else [name]
-        tags_raw = decorator_info.get("tags")
-        if tags_raw:
-            if isinstance(tags_raw, str):
-                tag_list.extend(t.strip() for t in tags_raw.split(",") if t.strip())
-            else:
-                tag_list.extend(tags_raw)
-        return tag_list, obj, decorator_info
+    tag_list: list[str] = [] if name.startswith("_") else [name]
+    return tag_list, obj, decorator_info
 
 
 def _pop_decorated_methods(cls: type, builder_base: type):

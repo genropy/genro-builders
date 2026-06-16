@@ -28,6 +28,7 @@ carrying the node's user attributes plus the ``render_attributes`` — read in
 
 from __future__ import annotations
 
+import keyword
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -665,18 +666,25 @@ class RendererBase:
 
         - ``render_tag`` replaces the node's tag (a sub-builder boundary:
           ``html`` -> ``foreignObject``; an XSLT instruction:
-          ``for_each`` -> ``xsl:for-each``);
+          ``for_each`` -> ``xsl:for-each``). It is for tags a method name
+          cannot spell (a hyphen, a colon) — NOT for a Python-keyword
+          clash, which the trailing-underscore convention resolves on its
+          own (``del_`` -> ``del``, see below).
         - ``render_attributes`` (framework attrs, e.g. the foreignObject
           xmlns) merge over the node's own, framework winning on clash.
 
-        A node with neither falls back to its ``node_tag``. A node with
-        no tag at all is a contract violation, not something to paper
-        over with the auto-label — raise.
+        A node with neither falls back to its ``node_tag``, stripping a
+        trailing ``_`` when the bare name is a Python keyword: the schema
+        keeps a valid identifier (``del_``) while the markup emits the
+        real tag (``del``). A node with no tag at all is a contract
+        violation, not something to paper over with the auto-label — raise.
         """
         render_tag, render_attributes = node._get_meta(
             "render_tag,render_attributes",
         )
         tag = render_tag or node.node_tag
+        if tag and tag.endswith("_") and keyword.iskeyword(tag[:-1]):
+            tag = tag[:-1]
         if not tag:
             raise ValueError(
                 f"node {node.label!r} has no tag to render "

@@ -162,10 +162,10 @@ class PythonGenerator:
             out.write(f"    # XSD tag: {alias}\n")
 
         decorator_args: list[str] = []
-        if alias and alias != method_name:
-            decorator_args.append(f"tags={alias!r}")
         if sub_tags is not None:
             decorator_args.append(f"sub_tags={sub_tags!r}")
+        if alias and alias != method_name:
+            decorator_args.append(f"_meta={{'render_tag': {alias!r}}}")
 
         if not decorator_args:
             out.write("    @element()\n")
@@ -187,17 +187,22 @@ class PythonGenerator:
     def _build_sub_tags(self, children: list[ChildModel]) -> str | None:
         if not children:
             return None
+        # Sub_tags names the children by their schema key (the method
+        # name), which is the slugged form: a child whose XSD tag is not
+        # a valid Python identifier enters the schema under its slug, so
+        # the parent must reference that slug, not the raw XSD tag.
         # Collapse duplicate names by widest range.
         merged: dict[str, tuple[int, int | None]] = {}
         for ch in children:
-            prev = merged.get(ch.name)
+            child_key, _alias = self._safe_method_name(ch.name)
+            prev = merged.get(child_key)
             if prev is None:
-                merged[ch.name] = (ch.min_occurs, ch.max_occurs)
+                merged[child_key] = (ch.min_occurs, ch.max_occurs)
                 continue
             pmin, pmax = prev
             new_min = min(pmin, ch.min_occurs)
             new_max = None if pmax is None or ch.max_occurs is None else max(pmax, ch.max_occurs)
-            merged[ch.name] = (new_min, new_max)
+            merged[child_key] = (new_min, new_max)
 
         parts: list[str] = []
         for name, (min_o, max_o) in merged.items():
@@ -317,17 +322,22 @@ class PythonGenerator:
     def _safe_method_name(self, tag: str) -> tuple[str, str | None]:
         """Return (method_name, alias_or_None).
 
-        XSD tag names containing characters not allowed in Python
-        identifiers, or colliding with Python keywords, are slugged.
-        The original XSD tag is preserved via ``@element(tags=...)``.
+        An XSD tag that is a Python keyword takes the trailing-underscore
+        form (``del`` -> ``del_``) and needs no alias: the renderer strips
+        the ``_`` back on emission. A tag with characters not allowed in an
+        identifier (a hyphen, a colon) cannot be spelled at all, so it is
+        slugged and the real tag returned as alias, to be preserved via
+        ``@element(_meta={'render_tag': ...})``.
         """
+        if tag.isidentifier() and not keyword.iskeyword(tag):
+            return tag, None
+        if tag.isidentifier() and keyword.iskeyword(tag):
+            return f"{tag}_", None
         identifier = re.sub(r"[^0-9a-zA-Z_]", "_", tag)
         if not identifier or not identifier[0].isalpha() and identifier[0] != "_":
             identifier = f"_{identifier}"
         if keyword.iskeyword(identifier):
             identifier = f"{identifier}_"
-        if identifier == tag:
-            return tag, None
         return identifier, tag
 
     # ------------------------------------------------------------------
