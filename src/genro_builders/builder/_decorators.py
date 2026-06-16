@@ -116,6 +116,7 @@ def element(
     parent_tags: str | None = None,
     inherits_from: str | None = None,
     node_label: str | None = None,
+    collection_key: str | None = None,
     _meta: dict[str, Any] | None = None,
 ) -> Callable:
     """Decorator to mark a method as element handler.
@@ -141,6 +142,13 @@ def element(
             ``body``), so it is reachable by a stable key instead of an
             auto-generated one. Omitted -> the node gets an auto-label.
             The caller's ``node_label=`` argument overrides this.
+        collection_key: Declares this element a COLLECTION: each child's
+            label is its natural key instead of an auto-label. The value
+            is either a child attribute name (``'code'`` -> label =
+            ``attr['code']``) or a ``${...}`` template over child
+            attributes (``'${code}_${env}'``). Strict: a missing attribute
+            (or template part), a duplicate resulting key among siblings,
+            or an explicit ``node_label=`` on a child all raise.
         _meta: Dict of metadata for renderers/compilers (e.g.
             compile_class, compile_module, renderer_svg_style).
 
@@ -166,6 +174,7 @@ def element(
                 "parent_tags": parent_tags,
                 "inherits_from": inherits_from,
                 "node_label": node_label,
+                "collection_key": collection_key,
                 "_meta": _meta,
             }.items()
             if v is not None

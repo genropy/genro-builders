@@ -12,11 +12,16 @@ created through the same path), child placement, all validation checks
 from __future__ import annotations
 
 import inspect
+import re
 from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
 
 from ._utilities import _check_type, _parse_parent_tags_spec, _parse_sub_tags_spec
+
+# Same ``${name}`` shape as the render-time templates (base._TEMPLATE_RE),
+# but resolved here at build time against the new node's attributes.
+_COLLECTION_KEY_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 if TYPE_CHECKING:
     from genro_bag import BagNode
@@ -181,11 +186,26 @@ class _GrammarMixin:
             if meta:
                 attr["_meta"] = meta
 
-        node_label = (
-            node_label
-            or child_info.get("node_label")
-            or self._auto_label(build_where, node_tag)
-        )
+        collection_key = parent_check[1].get("collection_key") if parent_check else None
+        if collection_key:
+            if node_label is not None:
+                raise ValueError(
+                    f"'{node_tag}': node_label is not allowed in a collection "
+                    f"(parent declares collection_key={collection_key!r}); "
+                    "the natural key is the label",
+                )
+            node_label = self._resolve_collection_key(collection_key, node_tag, attr)
+            if build_where.node(node_label) is not None:
+                raise ValueError(
+                    f"duplicate collection key {node_label!r} among "
+                    f"'{node_tag}' siblings",
+                )
+        else:
+            node_label = (
+                node_label
+                or child_info.get("node_label")
+                or self._auto_label(build_where, node_tag)
+            )
         child_node = build_where.set_item(
             node_label, node_value, _attributes=dict(attr),
             node_position=node_position, node_tag=node_tag,
@@ -207,6 +227,28 @@ class _GrammarMixin:
         while build_where.node(f"{node_tag}_{n}") is not None:
             n += 1
         return f"{node_tag}_{n}"
+
+    def _resolve_collection_key(
+        self, key: str, node_tag: str, attr: dict[str, Any],
+    ) -> str:
+        """Resolve a collection child's label from its natural key.
+
+        ``key`` is either a ``${...}`` template over the child's
+        attributes or a single attribute name. Strict: every referenced
+        attribute must be present and not None, else raise — a collection
+        member without its key is an authoring error, not an auto-label.
+        """
+        def _value(name: str) -> str:
+            if attr.get(name) is None:
+                raise ValueError(
+                    f"'{node_tag}': collection key needs attribute "
+                    f"{name!r}, which is missing",
+                )
+            return str(attr[name])
+
+        if "${" in key:
+            return _COLLECTION_KEY_RE.sub(lambda m: _value(m.group(1)), key)
+        return _value(key)
 
     def _command_on_node(
         self,

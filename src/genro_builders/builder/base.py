@@ -145,6 +145,7 @@ class BuilderBase(
             documentation = obj.__doc__
             call_args_validations = _extract_validators_from_signature(obj)
             node_label = decorator_info.get("node_label")
+            collection_key = decorator_info.get("collection_key")
 
             for tag in tag_list:
                 if is_abstract:
@@ -166,6 +167,7 @@ class BuilderBase(
                         documentation=documentation,
                         call_args_validations=call_args_validations,
                         node_label=node_label,
+                        collection_key=collection_key,
                     )
 
         # Inject the data-element stubs declared on BuilderBase into this
