@@ -148,7 +148,7 @@ clear pointer to the offending kwarg.
 ## Worked examples
 
 `01_introduction/` under
-[../../src/genro_builders/contrib/css/examples/](../../src/genro_builders/contrib/css/examples/)
+[src/genro_builders/contrib/css/examples/](https://github.com/genropy/genro-builders/tree/main/src/genro_builders/contrib/css/examples/)
 is a three-view example covering rules, selector lists, custom
 properties, and `@media` kwargs.
 

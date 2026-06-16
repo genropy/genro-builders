@@ -114,7 +114,7 @@ Validation errors raise `ValueError` at `create()` time.
 ## Worked examples
 
 Examples under
-[../../src/genro_builders/contrib/svg/examples/](../../src/genro_builders/contrib/svg/examples/):
+[src/genro_builders/contrib/svg/examples/](https://github.com/genropy/genro-builders/tree/main/src/genro_builders/contrib/svg/examples/):
 
 - `01_introduction/` — three-view (`.py`, `.ipynb`, `.svg`).
 - Plus legacy single-view examples (`badge_sheet/`, `bar_chart/`,

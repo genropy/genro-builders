@@ -150,7 +150,7 @@ Validation errors raise `ValueError` at `create()` time.
 ## Worked examples
 
 Three ready-to-run examples live under
-[../../src/genro_builders/contrib/html/examples/](../../src/genro_builders/contrib/html/examples/),
+[src/genro_builders/contrib/html/examples/](https://github.com/genropy/genro-builders/tree/main/src/genro_builders/contrib/html/examples/),
 each in the three-view format (`.py`, `.ipynb`, rendered `.html`):
 
 - `00_hello_world/` and following — see `examples/no_data/`.

@@ -30,6 +30,8 @@ project: **genro-ws-web**, built on genro-builders.
   how the lifecycle works, where the data lives.
 - **[Decorators](builders/decorators.md)** — `@element`, `@abstract`,
   sub-builders, and the data-elements.
+- **[Components](builders/components.md)** — `@component` and
+  `@container`: reusable grammar, the three calling forms.
 - **[Common patterns](builders/patterns.md)** — `._` chaining,
   `node_by_id`, render targets.
 - **Grammars** — per-grammar reference:
@@ -74,6 +76,7 @@ getting-started
 
 builders/overview
 builders/decorators
+builders/components
 builders/patterns
 ```
 

@@ -20,7 +20,7 @@ from genro_builders.builder import (
 | `@element`  | Declare a tag in the grammar.              | Ignored (declarative).|
 | `@abstract` | Declare an abstract base for inheritance.  | Ignored (declarative).|
 | `@container` | A reusable construction block, invocable from a node. | Runs (builds). |
-| `@component` | A named grammar element with a body, expanded ephemerally at render time. Three calling forms: explicit params, `store` (record anchor), `iterate` (one expansion per child). Composes fractally. | Runs (builds). See contract area `CMP` and the examples `with_data/07`-`11`. |
+| `@component` | A named grammar element with a body, expanded ephemerally at render time. Bare decorator (no arguments). The element is then *called* in three forms — explicit params, `store`, `iterate`. See [Components](components.md). | Runs (builds). |
 
 There is **no** separate `@subbuilder` or `@data_element` decorator.
 Both are ordinary `@element` declarations marked in their `_meta`:
@@ -34,7 +34,8 @@ See the dedicated sections below.
 
 ## `@element`
 
-Declares a concrete tag.
+Declares a concrete tag. **The tag is the method name** — there is no
+`tags` argument.
 
 ```python
 @element(sub_tags='h1,p[]')
@@ -43,6 +44,21 @@ def body(self): ...
 @element(sub_tags='', parent_tags='ul,ol')
 def li(self): ...
 ```
+
+### A tag that is a Python keyword
+
+When the tag clashes with a Python keyword (`del`, `class`, `for`…), name
+the method with a trailing underscore: the renderer strips it on emission.
+
+```python
+@element(sub_tags='*')
+def del_(self): ...        # the markup is <del>...</del>
+```
+
+For a tag a method name cannot spell at all — a hyphen or a colon
+(`order-line`, `xsl:for-each`) — declare the emitted tag explicitly via
+`_meta={'render_tag': '...'}` (see *Sub-builders* below); the method keeps
+a valid name, the renderer emits the real tag.
 
 `sub_tags` syntax:
 
@@ -60,6 +76,44 @@ The element can only appear under one of these tags.
 
 `inherits_from` — name of an abstract element whose `sub_tags` are
 inherited.
+
+`node_label` (optional) — a fixed default label for a singleton element,
+so the node is reachable by a stable key instead of an auto-generated one
+(`body_0`, `body_1`…). HTML's `body` and `head` use it. The caller's
+`node_label=` argument, if given, overrides this default.
+
+```python
+@element(sub_tags='...', node_label='body')
+def body(self): ...
+# page.source['body'] — not 'body_0'
+```
+
+`collection_key` (optional) — declares the element a **collection**: each
+child is labelled by its natural key instead of an auto-label. The value
+is either a child attribute name, or a `${...}` template over child
+attributes. It is **strict** — a missing attribute, a duplicate key among
+siblings, or an explicit `node_label=` on a child all raise.
+
+```python
+@element(sub_tags='database', collection_key='code')
+def databases(self): ...
+
+db = root.databases()
+db.database(code='maindb', name='abh_878')
+db.database(code='logistic', name='logadelby')
+# db['maindb'], db['logistic'] — not database_0, database_1
+
+# template form: collection_key='${code}_${env}'  ->  label 'maindb_prod'
+```
+
+To point at a default member, pass an ordinary attribute on the
+collection node naming the chosen key — there is no special framework
+parameter, it is a plain attribute your application reads:
+
+```python
+db = root.databases(default='maindb')   # 'default' is just an attribute
+# the application reads node.attr['default'] to pick the default member
+```
 
 `_meta` (optional) — a dict of metadata attached to the schema entry.
 The framework reads `_meta["data_element"]` to recognise a data-element
