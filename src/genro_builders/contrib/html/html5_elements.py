@@ -70,7 +70,7 @@ class Html5Elements:
 
     @element(
         sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del_,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
-        fixed_node_label='body',
+        node_label='body',
     )
     def body(self): ...
 
@@ -213,7 +213,7 @@ class Html5Elements:
 
     @element(
         sub_tags='base,link,meta,noscript,script,style,template,title',
-        fixed_node_label='head',
+        node_label='head',
     )
     def head(self): ...
 

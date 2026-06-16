@@ -144,7 +144,7 @@ class BuilderBase(
             meta = decorator_info.get("_meta")
             documentation = obj.__doc__
             call_args_validations = _extract_validators_from_signature(obj)
-            fixed_node_label = decorator_info.get("fixed_node_label")
+            node_label = decorator_info.get("node_label")
 
             for tag in tag_list:
                 if is_abstract:
@@ -165,7 +165,7 @@ class BuilderBase(
                         _meta=meta,
                         documentation=documentation,
                         call_args_validations=call_args_validations,
-                        fixed_node_label=fixed_node_label,
+                        node_label=node_label,
                     )
 
         # Inject the data-element stubs declared on BuilderBase into this

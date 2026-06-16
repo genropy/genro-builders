@@ -183,7 +183,7 @@ class _GrammarMixin:
 
         node_label = (
             node_label
-            or child_info.get("fixed_node_label")
+            or child_info.get("node_label")
             or self._auto_label(build_where, node_tag)
         )
         child_node = build_where.set_item(
