@@ -91,6 +91,7 @@ def _abstract_form(node: Any) -> dict[str, Any]:
         "sub_tags": node.get_attr("sub_tags"),
         "parent_tags": node.get_attr("parent_tags"),
         "inherits_from": inherits_from,
+        "ns": node.get_attr("ns"),
         "_meta": _meta_copy(node.get_attr("_meta")),
     }
 
@@ -103,6 +104,7 @@ def _element_form(node: Any) -> dict[str, Any]:
         "sub_tags": node.get_attr("sub_tags"),
         "parent_tags": node.get_attr("parent_tags"),
         "inherits_from": inherits_from,
+        "ns": node.get_attr("ns"),
         "attributes": None,
         "_meta": _meta_copy(node.get_attr("_meta")),
     }

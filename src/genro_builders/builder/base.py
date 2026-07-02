@@ -146,6 +146,12 @@ class BuilderBase(
             call_args_validations = _extract_validators_from_signature(obj)
             node_label = decorator_info.get("node_label")
             collection_key = decorator_info.get("collection_key")
+            # ``ns`` (namespace prefix) is optional: only the elements that
+            # declare it carry the attribute, so nodes without a namespace
+            # stay clean and the inherits_from merge (``not result[k]``) is
+            # never tripped by a spurious ``ns=None``.
+            ns = decorator_info.get("ns")
+            ns_attr = {"ns": ns} if ns is not None else {}
 
             for tag in tag_list:
                 if is_abstract:
@@ -156,6 +162,7 @@ class BuilderBase(
                         inherits_from=inherits_from,
                         _meta=meta,
                         documentation=documentation,
+                        **ns_attr,
                     )
                 else:
                     cls._class_schema.set_item(
@@ -168,6 +175,7 @@ class BuilderBase(
                         call_args_validations=call_args_validations,
                         node_label=node_label,
                         collection_key=collection_key,
+                        **ns_attr,
                     )
 
         # Inject the data-element stubs declared on BuilderBase into this
@@ -1420,8 +1428,11 @@ class BuilderBase(
     #: ancestor chain, never emitted. A dialect that introduces a new
     #: node-meta extends this set, e.g.
     #: ``_meta_attrs = BuilderBase._meta_attrs | {"_my_marker"}``.
+    #: ``ns`` is the namespace prefix: the renderer consumes it to compose
+    #: ``<ns>:<tag>`` (in ``_handle_meta``), so it is grammar meta, never
+    #: an emitted XML attribute.
     _meta_attrs: frozenset[str] = frozenset(
-        {"node_id", "_meta", "_anchor", "datapath"},
+        {"node_id", "_meta", "_anchor", "datapath", "ns"},
     )
 
     #: Retained attribute FAMILIES (name prefixes): declared on the

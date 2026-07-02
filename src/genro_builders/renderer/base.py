@@ -672,6 +672,14 @@ class RendererBase:
           own (``del_`` -> ``del``, see below).
         - ``render_attributes`` (framework attrs, e.g. the foreignObject
           xmlns) merge over the node's own, framework winning on clash.
+        - ``ns`` (a schema attribute, not ``_meta``) prefixes the tag:
+          ``ns='xs'`` on element ``sequence`` emits ``xs:sequence``. It
+          composes ``<ns>:<tag>`` from the method name AFTER the keyword
+          strip (so ``import_`` -> ``import`` -> ``xs:import``), and only
+          when there is no explicit ``render_tag`` (which wins, being the
+          exact literal tag). A leading ``<dialect>_`` prefix on the tag
+          is dropped first (``xsd_element`` -> ``xs:element``), the escape
+          for a method whose bare name would shadow a decorator/API name.
 
         A node with neither falls back to its ``node_tag``, stripping a
         trailing ``_`` when the bare name is a Python keyword: the schema
@@ -690,6 +698,17 @@ class RendererBase:
                 f"node {node.label!r} has no tag to render "
                 "(no render_tag, no node_tag)",
             )
+        ns = node.get_attr("ns")
+        if ns and not render_tag:
+            # A method named for the dialect prefix (``xsd_element``, to
+            # avoid shadowing the ``element`` decorator) drops that prefix
+            # before composing the local name: ``ns='xs'`` + method
+            # ``xsd_element`` -> ``xs:element``. Same escape ``_schema_tag``
+            # uses for dispatch, here on the emitted local name.
+            dialect_prefix = f"{node.builder._name}_"
+            if tag.startswith(dialect_prefix):
+                tag = tag[len(dialect_prefix):]
+            tag = f"{ns}:{tag}"
         if render_attributes:
             runtime_attrs = {**runtime_attrs, **render_attributes}
         return tag, runtime_attrs

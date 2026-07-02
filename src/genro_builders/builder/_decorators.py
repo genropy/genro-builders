@@ -117,6 +117,7 @@ def element(
     inherits_from: str | None = None,
     node_label: str | None = None,
     collection_key: str | None = None,
+    ns: str | None = None,
     _meta: dict[str, Any] | None = None,
 ) -> Callable:
     """Decorator to mark a method as element handler.
@@ -149,6 +150,13 @@ def element(
             attributes (``'${code}_${env}'``). Strict: a missing attribute
             (or template part), a duplicate resulting key among siblings,
             or an explicit ``node_label=`` on a child all raise.
+        ns: Namespace prefix for the emitted tag. ``ns='xs'`` on a method
+            ``sequence`` emits ``<xs:sequence>``: the renderer composes
+            ``<ns>:<tag>`` from the method name, so the prefix is declared
+            once per element instead of repeated in each ``render_tag``.
+            An explicit ``render_tag`` (in ``_meta``) wins over ``ns``.
+            Being per-element, ``ns`` supports mixed namespaces in one
+            grammar (prefixed instructions alongside bare elements).
         _meta: Dict of metadata for renderers/compilers (e.g.
             compile_class, compile_module, renderer_svg_style).
 
@@ -175,6 +183,7 @@ def element(
                 "inherits_from": inherits_from,
                 "node_label": node_label,
                 "collection_key": collection_key,
+                "ns": ns,
                 "_meta": _meta,
             }.items()
             if v is not None
@@ -192,6 +201,7 @@ def abstract(
     sub_tags: str | tuple[str, ...] = "",
     parent_tags: str | tuple[str, ...] | None = None,
     inherits_from: str | None = None,
+    ns: str | None = None,
     _meta: dict[str, Any] | None = None,
 ) -> Callable:
     """Decorator to define an abstract element (for inheritance only).
@@ -204,6 +214,10 @@ def abstract(
         sub_tags: Valid child tags with cardinality (see element decorator).
         parent_tags: Valid parent tags with cardinality.
         inherits_from: Comma-separated list of abstract names to inherit from.
+        ns: Namespace prefix inherited by concrete elements (see element
+            decorator). An abstract carrying ``ns='xs'`` lets elements that
+            inherit from it emit prefixed tags without declaring ``ns``
+            themselves.
         _meta: Dict of metadata for renderers/compilers.
 
     Example:
@@ -228,6 +242,8 @@ def abstract(
         }
         if parent_tags is not None:
             info["parent_tags"] = parent_tags
+        if ns is not None:
+            info["ns"] = ns
         if _meta:
             info["_meta"] = _meta
         return _DeclarativeMarker(func.__name__, func.__doc__, info, func)

@@ -186,6 +186,15 @@ class _GrammarMixin:
             if meta:
                 attr["_meta"] = meta
 
+        # The namespace prefix ``ns`` (a first-class schema attribute, not
+        # ``_meta``) rides onto the node the same way, so the renderer can
+        # compose ``<ns>:<tag>``. Only when declared: nodes without a
+        # namespace stay clean. An explicit ``ns`` in ``attr`` wins.
+        if "ns" not in attr:
+            ns = child_info.get("ns")
+            if ns:
+                attr["ns"] = ns
+
         collection_key = parent_check[1].get("collection_key") if parent_check else None
         if collection_key:
             if node_label is not None:
