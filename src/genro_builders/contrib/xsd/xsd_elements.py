@@ -67,7 +67,7 @@ class XsdElements:
     @el(sub_tags="*", ns="xs")
     def restriction(self): ...
 
-    @el(sub_tags="", ns="xs")
+    @el(sub_tags="*", ns="xs")
     def enumeration(self): ...
 
     @el(sub_tags="", ns="xs")
