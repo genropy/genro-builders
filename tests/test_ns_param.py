@@ -140,25 +140,27 @@ def test_ns_inherited_from_abstract():
     assert '<xs:element name="X">' in out
 
 
-class _XsdPrefixBuilder(BuilderBase):
-    """A method named for the dialect prefix (``xsd_element``) avoids
+class _PrefixProbeBuilder(BuilderBase):
+    """A method named for the dialect prefix (``prb_element``) avoids
     shadowing the ``element`` decorator; with ``ns='xs'`` the emitted tag
-    drops the prefix and gains the namespace: ``xs:element``."""
+    drops the ``<dialect>_`` prefix and gains the namespace: ``xs:element``.
+    Uses a probe ``_name`` (not a real dialect name) so the global builder
+    registry is not clobbered when other tests define that dialect."""
 
-    _name = "xsd"
+    _name = "prb"
     _default_render_mode = "xml"
 
     @el(sub_tags="*", ns="xs")
     def schema(self): ...
 
     @el(sub_tags="*", ns="xs")
-    def xsd_element(self): ...
+    def prb_element(self): ...
 
 
 def test_dialect_prefix_stripped_before_ns_compose():
-    """``xsd_element`` + ``ns='xs'`` -> ``xs:element`` (prefix dropped)."""
-    out = _render(lambda root: root.schema().xsd_element(name="Consultorio"),
-                  builder=_XsdPrefixBuilder)
+    """``prb_element`` + ``ns='xs'`` -> ``xs:element`` (``<dialect>_`` dropped)."""
+    out = _render(lambda root: root.schema().prb_element(name="Consultorio"),
+                  builder=_PrefixProbeBuilder)
     assert '<xs:element name="Consultorio">' in out
-    assert "xsd_element" not in out
-    assert "xs:xsd_element" not in out
+    assert "prb_element" not in out
+    assert "xs:prb_element" not in out
