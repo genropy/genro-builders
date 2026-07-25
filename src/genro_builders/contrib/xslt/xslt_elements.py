@@ -39,87 +39,87 @@ class XsltElements:
     """Mixin: the XSLT instruction vocabulary (``xslt:*``)."""
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:stylesheet"})
-    def stylesheet(self):
+    def stylesheet(self, **kwargs):
         """Root of a stylesheet. Carries ``version`` and the namespace
         declaration ``xmlns_xslt`` (emitted as ``xmlns:xslt``)."""
         ...
 
     @element(_meta={"render_tag": "xslt:output"})
-    def xslt_output(self):
+    def xslt_output(self, **kwargs):
         """Serialization options for the result tree (``method``,
         ``encoding``, ``indent``). Named ``xslt_output`` to leave the bare
         ``output`` for the HTML ``<output>`` tag."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:template"})
-    def xslt_template(self):
+    def xslt_template(self, **kwargs):
         """A transformation rule, selected by ``match`` (pattern) or
         invoked by ``name``. Named ``xslt_template`` to leave the bare
         ``template`` for the HTML ``<template>`` tag."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:apply-templates"})
-    def apply_templates(self):
+    def apply_templates(self, **kwargs):
         """Process the nodes chosen by ``select`` with their matching
         templates."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:call-template"})
-    def call_template(self):
+    def call_template(self, **kwargs):
         """Invoke a named template (``name``)."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:param"})
-    def param(self):
+    def param(self, **kwargs):
         """A template/stylesheet parameter (``name``, optional default
         via ``select`` or body)."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:with-param"})
-    def with_param(self):
+    def with_param(self, **kwargs):
         """Pass an argument (``name``, ``select``) to a called template."""
         ...
 
     @element(_meta={"render_tag": "xslt:value-of"})
-    def value_of(self):
+    def value_of(self, **kwargs):
         """Insert the string value of the XPath ``select`` into the
         output."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:for-each"})
-    def for_each(self):
+    def for_each(self, **kwargs):
         """Iterate over the node-set chosen by ``select``."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:if"})
-    def if_(self):
+    def if_(self, **kwargs):
         """Conditional: emit the body when the XPath ``test`` is true.
         Named ``if_`` (``if`` is a Python keyword); the emitted tag is
         ``xslt:if`` from ``render_tag``, independent of the method name."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:choose"})
-    def choose(self):
+    def choose(self, **kwargs):
         """Multi-branch conditional: a series of ``when`` plus an
         optional ``otherwise``."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:when"})
-    def when(self):
+    def when(self, **kwargs):
         """A branch of ``choose``, taken when its ``test`` is true."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:otherwise"})
-    def otherwise(self):
+    def otherwise(self, **kwargs):
         """The fallback branch of ``choose``."""
         ...
 
     @element(_meta={"render_tag": "xslt:text"})
-    def text(self):
+    def text(self, **kwargs):
         """Literal text, with control over output escaping/whitespace."""
         ...
 
     @element(sub_tags="*", _meta={"render_tag": "xslt:variable"})
-    def variable(self):
+    def variable(self, **kwargs):
         """A named variable (``name``, value via ``select`` or body)."""
         ...

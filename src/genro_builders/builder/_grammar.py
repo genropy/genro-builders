@@ -17,7 +17,12 @@ from typing import TYPE_CHECKING, Any
 
 from genro_bag import Bag
 
-from ._utilities import _check_type, _parse_parent_tags_spec, _parse_sub_tags_spec
+from ._utilities import (
+    FRAMEWORK_CALL_KWARGS,
+    _check_type,
+    _parse_parent_tags_spec,
+    _parse_sub_tags_spec,
+)
 
 # Same ``${name}`` shape as the render-time templates (base._TEMPLATE_RE),
 # but resolved here at build time against the new node's attributes.
@@ -106,7 +111,7 @@ class _GrammarMixin:
                         raise ValueError(f"Duplicate node_id '{node_id}'.")
 
             # Validate original kwargs BEFORE the method call
-            self._validate_call_args(info, node_value, kwargs)
+            self._validate_call_args(info, node_value, kwargs, node_tag)
 
             # Element: no adapter, register directly with original kwargs
             kwargs.pop("node_value", None)
@@ -311,13 +316,55 @@ class _GrammarMixin:
     # Validation
     # -----------------------------------------------------------------------
 
+    def _validate_declared_names(
+        self,
+        info: dict,
+        attr: dict[str, Any],
+        node_tag: str,
+    ) -> None:
+        """Reject attributes the element's signature does not declare.
+
+        A signature without ``**kwargs`` states a closed set, exactly as it
+        would in plain Python: an unexpected keyword is an error, not a new
+        attribute. Declaring ``**kwargs`` is how an element opts into an
+        open set -- what a markup dialect wants (``data-*``, ``aria-*``)
+        and what a configuration grammar must not have, since there a typo
+        is otherwise indistinguishable from a deliberate field.
+
+        Runs before the type checks: it is the cheapest test, and reporting
+        an unknown name beats reporting a type error on a name that should
+        not be there at all.
+        """
+        if info.get("accepts_var_keyword"):
+            return
+        declared = info.get("declared_names")
+        if declared is None:
+            return  # element predating the signature contract: stay open
+
+        unknown = sorted(
+            set(attr) - set(declared) - FRAMEWORK_CALL_KWARGS
+        )
+        if not unknown:
+            return
+
+        accepted = ", ".join(sorted(declared)) or "(none)"
+        raise ValueError(
+            f"Element '{node_tag}' does not accept "
+            f"{', '.join(repr(k) for k in unknown)}. "
+            f"Declared attributes: {accepted}. "
+            f"Add **kwargs to its signature to accept arbitrary attributes."
+        )
+
     def _validate_call_args(
         self,
         info: dict,
         node_value: Any,
         attr: dict[str, Any],
+        node_tag: str = "",
     ) -> None:
         """Validate attributes and node_value. Raises ValueError if invalid."""
+        self._validate_declared_names(info, attr, node_tag)
+
         call_args_validations = info.get("call_args_validations")
         if not call_args_validations:
             return
@@ -402,9 +449,9 @@ class _GrammarMixin:
         Raises on a child not allowed or over its maximum (incremental
         check, fired at every insertion). Returns the list of child tags
         whose MINIMUM cardinality is not yet satisfied: meaningless while
-        building (the document is naturally incomplete), collected by
-        ``BuilderBase.validate`` when the document is declared finished
-        (pre-render).
+        building (the document is naturally incomplete), collected by the
+        renderer's pre-render pass and reported through
+        ``BuilderBase.render``.
 
         Args:
             node: The node to validate.

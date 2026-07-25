@@ -149,16 +149,25 @@ SIGNATURE_SKIP_PARAMS = frozenset({
 })
 
 #: Framework keywords accepted at CALL time by every element, whatever its
-#: signature. They are consumed from ``node.attr`` by the renderer and the
-#: data handler (node identity, data binding, iteration), never declared by
-#: the grammar author, so a closed signature must not reject them.
+#: signature. Node placement and identity (``node_label``, ``node_position``,
+#: ``node_id``, ``id``), data binding and iteration (``datapath``, ``store``,
+#: ``iterate``, ``lazy``, ``target_id``) are addressed to the framework, not
+#: to the grammar, and ``_tag`` is an internal marker stripped right after
+#: validation. ``id`` is the patch identity the renderer reads off the node
+#: (``node.attr.get("id") or builder.target_id(node)``). None of them is
+#: ever declared by a grammar author, so a closed signature must not
+#: reject them.
 FRAMEWORK_CALL_KWARGS = frozenset({
+    "node_label",
+    "node_position",
     "node_id",
+    "id",
     "target_id",
     "datapath",
     "iterate",
     "store",
     "lazy",
+    "_tag",
 })
 
 def _extract_signature_info(fn: Callable) -> tuple[dict[str, tuple[Any, list, Any]], set[str], bool]:

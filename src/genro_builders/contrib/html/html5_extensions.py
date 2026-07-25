@@ -22,7 +22,7 @@ class Html5Extensions:
     """Mixin layering Genro-specific decorators above the W3C grammar."""
 
     @element(_meta={"subbuilder": "svg"})
-    def svg(self):
+    def svg(self, **kwargs):
         """Switch to the SVG dialect from this node down (BLD.2).
 
         A sub-builder element: ``_meta['subbuilder']`` switches the active

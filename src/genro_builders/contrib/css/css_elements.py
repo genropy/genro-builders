@@ -48,7 +48,7 @@ class CssElements:
     """Mixin defining the level-1 CSS grammar for CssBuilder."""
 
     @element(sub_tags="selector,selectorList,cssvar,importcss")
-    def stylesheet(self):
+    def stylesheet(self, **kwargs):
         """Top-level container holding the whole CSS document.
 
         A stylesheet is the optional "shell" that groups every other
@@ -83,7 +83,7 @@ class CssElements:
         ...
 
     @element(sub_tags="rule,cssvar,selector")
-    def selector(self):
+    def selector(self, **kwargs):
         """A single CSS selector. The case container.
 
         Built from structured kwargs (``tag``, ``id``, ``class_``,
@@ -94,7 +94,7 @@ class CssElements:
         ...
 
     @element(sub_tags="selector,rule,cssvar")
-    def selectorList(self):
+    def selectorList(self, **kwargs):
         """Container for a comma-separated selector-list.
 
         Use when the same rule(s) apply to more than one selector.
@@ -103,7 +103,7 @@ class CssElements:
         ...
 
     @element(sub_tags="")
-    def rule(self):
+    def rule(self, **kwargs):
         """The property block of a selector or selectorList.
 
         Properties are passed as kwargs; underscores are converted
@@ -120,12 +120,12 @@ class CssElements:
         ...
 
     @element(sub_tags="")
-    def cssvar(self):
+    def cssvar(self, **kwargs):
         """A CSS custom property declaration (``--name: value;``)."""
         ...
 
     @element(sub_tags="")
-    def importcss(self):
+    def importcss(self, **kwargs):
         """A CSS ``@import`` directive — pull an external stylesheet
         into the current document.
 
