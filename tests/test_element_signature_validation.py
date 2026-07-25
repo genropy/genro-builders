@@ -3,7 +3,7 @@
 
 A declarative ``@element`` declares its accepted call arguments through
 its signature (parameter names, type hints, ``Annotated`` validators).
-``__init_subclass__`` reads those via ``_extract_validators_from_signature``
+``__init_subclass__`` reads those via ``_extract_signature_info``
 into the schema's ``call_args_validations``, and ``_validate_call_args``
 enforces them at call time.
 

@@ -35,7 +35,7 @@ from ._decorators import element
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
 from ._utilities import (
-    _extract_validators_from_signature,
+    _extract_signature_info,
     _iter_data_element_methods,
     _parse_sub_tags_spec,
     _pop_decorated_methods,
@@ -143,7 +143,8 @@ class BuilderBase(
             inherits_from = decorator_info.get("inherits_from", "")
             meta = decorator_info.get("_meta")
             documentation = obj.__doc__
-            call_args_validations = _extract_validators_from_signature(obj)
+            call_args_validations, declared_names, accepts_var_keyword = (
+                _extract_signature_info(obj))
             node_label = decorator_info.get("node_label")
             collection_key = decorator_info.get("collection_key")
             # ``ns`` (namespace prefix) is optional: only the elements that
@@ -173,6 +174,8 @@ class BuilderBase(
                         _meta=meta,
                         documentation=documentation,
                         call_args_validations=call_args_validations,
+                        declared_names=declared_names,
+                        accepts_var_keyword=accepts_var_keyword,
                         node_label=node_label,
                         collection_key=collection_key,
                         **ns_attr,
@@ -184,7 +187,8 @@ class BuilderBase(
         # only here. Injected AFTER the dialect's own elements so a data-element
         # (e.g. ``data``) overrides a same-named dialect tag (e.g. HTML <data>).
         for tag_list, obj, decorator_info in _iter_data_element_methods(BuilderBase):
-            call_args_validations = _extract_validators_from_signature(obj)
+            call_args_validations, declared_names, accepts_var_keyword = (
+                _extract_signature_info(obj))
             for tag in tag_list:
                 cls._class_schema.set_item(
                     tag, None,
@@ -194,6 +198,8 @@ class BuilderBase(
                     _meta=decorator_info.get("_meta"),
                     documentation=obj.__doc__,
                     call_args_validations=call_args_validations,
+                    declared_names=declared_names,
+                    accepts_var_keyword=accepts_var_keyword,
                 )
 
         # Validate `inherits_from` references: each name in the
@@ -1384,7 +1390,7 @@ class BuilderBase(
                     inherits_from=decorator.get("inherits_from", ""),
                     _meta=decorator.get("_meta"),
                     documentation=obj.__doc__,
-                    call_args_validations=_extract_validators_from_signature(obj),
+                    call_args_validations=_extract_signature_info(obj)[0],
                 )
                 self._schema_tag_names[name.lower()] = name
 

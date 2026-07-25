@@ -492,7 +492,12 @@ class _GrammarMixin:
         computed keys. Common keys (presence depends on element type):
 
             sub_tags, sub_tags_compiled, parent_tags, parent_tags_compiled,
-            call_args_validations, _meta, documentation.
+            call_args_validations, declared_names, accepts_var_keyword,
+            _meta, documentation.
+
+        ``declared_names`` is every parameter the element's signature
+        declares; ``accepts_var_keyword`` says whether it declares
+        ``**kwargs``, i.e. whether that set is open.
 
         Sub-builder and data-element markers are not separate top-level
         keys: they live inside ``_meta`` (``_meta["subbuilder"]`` is the
