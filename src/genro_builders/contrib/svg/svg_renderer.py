@@ -11,6 +11,9 @@ identifiers can't contain hyphens. The renderer rewrites underscore
 attributes listed in ``_KEBAB_ATTRS`` to their hyphenated form
 (``stroke_width`` → ``stroke-width``). ``_class`` / ``_for`` map to
 ``class`` / ``for`` like in HTML.
+
+``pretty=True`` produces multi-line indented output, two spaces per
+level of depth — same contract as the HTML and XML renderers.
 """
 
 from __future__ import annotations
@@ -66,6 +69,8 @@ class SvgRenderer(RendererBase):
         runtime_attrs: dict[str, Any],
         *,
         tag: str,
+        pretty: bool = False,
+        depth_offset: int = 0,
         **_opts: Any,
     ) -> str:
         """Emit the SVG fragment for ``node``.
@@ -77,15 +82,24 @@ class SvgRenderer(RendererBase):
           for empty leaves).
         - Void tags use the XHTML-style self-closing form preferred
           by SVG tooling (``<rect ... />``).
+        - ``pretty`` indents by wrapper-rooted depth, one node per line;
+          ``depth_offset`` shifts it for the nodes of a component
+          expansion, whose own root sits at 0.
         """
         attrs = self._format_attrs(runtime_attrs)
+        indent = "  " * self._node_depth(node, depth_offset) if pretty else ""
+        newline = "\n" if pretty else ""
         if tag in _VOID_TAGS:
-            return f"<{tag}{attrs} />"
+            return f"{indent}<{tag}{attrs} />{newline}"
         if isinstance(item, list):
-            return f"<{tag}{attrs}>{''.join(item)}</{tag}>"
+            body = "".join(item)
+            return f"{indent}<{tag}{attrs}>{newline}{body}{indent}</{tag}>{newline}"
         if item is None:
-            return f"<{tag}{attrs}></{tag}>"
-        return f"<{tag}{attrs}>{self._escape_text(item)}</{tag}>"
+            return f"{indent}<{tag}{attrs}></{tag}>{newline}"
+        return (
+            f"{indent}<{tag}{attrs}>{self._escape_text(item)}"
+            f"</{tag}>{newline}"
+        )
 
     def _format_attrs(self, attrs: dict[str, Any]) -> str:
         parts: list[str] = []

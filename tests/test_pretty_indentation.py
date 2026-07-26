@@ -10,6 +10,9 @@ and accumulates through nested and recursive expansions.
 
 Indentation is cosmetic — the markup is valid either way — so these tests
 assert the leading whitespace, which is the only thing that was wrong.
+
+HTML, XML and SVG share the contract and the depth helper, so a dialect
+boundary (``<svg>`` inside HTML) keeps counting from where it sits.
 """
 from __future__ import annotations
 
@@ -84,6 +87,40 @@ def test_offset_accumulates_through_a_recursive_component():
     assert "      <span>root</span>\n" in out     # depth 3: inside that li
     assert "        <li>\n" in out                # depth 4: the nested row
     assert "          <span>child</span>\n" in out  # depth 5
+
+
+def test_svg_indents_too_including_void_tags():
+    """SVG honours the same contract; a void tag is one self-closing line."""
+    from genro_builders.contrib.svg import SvgBuilder
+
+    class Drawing(SvgBuilder):
+        def main(self, root) -> None:
+            g = root.g()
+            g.rect(x="0", y="0", width="10", height="10")
+            g.text("label", x="5", y="20")
+
+    drawing = Drawing()
+    BuilderHandler().add_builder(drawing)
+    assert drawing.render(target=False, pretty=True) == (
+        "<g>\n"
+        '  <rect x="0" y="0" width="10" height="10" />\n'
+        '  <text x="5" y="20">label</text>\n'
+        "</g>\n"
+    )
+
+
+def test_depth_is_continuous_across_a_dialect_boundary():
+    """An <svg> subtree inside HTML keeps counting from where it sits."""
+    class Page(HtmlBuilder):
+        def main(self, root) -> None:
+            svg = root.body().figure().svg(width="20", height="20")
+            svg.g().circle(cx="5", cy="5", r="2")
+
+    out = _render(Page)
+    assert "  <figure>\n" in out                 # depth 1
+    assert '    <svg width="20" height="20">\n' in out   # depth 2
+    assert "      <g>\n" in out                  # depth 3
+    assert '        <circle cx="5" cy="5" r="2" />\n' in out  # depth 4
 
 
 def test_pretty_off_emits_no_whitespace():
