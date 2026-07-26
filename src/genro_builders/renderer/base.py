@@ -285,7 +285,12 @@ class RendererBase:
         opts: dict,
     ) -> Any:
         """ONE expansion: throw-away root, body call, single-tree check,
-        rendered fragment."""
+        rendered fragment.
+
+        The expansion renders with the component node's depth as offset:
+        its own root is at 0, but it is emitted where the component sits,
+        so ``pretty`` must indent it as a child of that place.
+        """
         root = node.builder._expansion_root(datapath=anchor)
         body(root, **body_kwargs)
         roots = list(root.nodes)
@@ -294,6 +299,9 @@ class RendererBase:
                 f"component '{node.node_tag}' must build a tree, not "
                 f"a forest: {len(roots)} root nodes",
             )
+        opts = {**opts, "depth_offset": self._node_depth(
+            node, opts.get("depth_offset", 0),
+        )}
         return self.render(roots[0], **opts)
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
@@ -504,7 +512,7 @@ class RendererBase:
         """Escape an attribute value (also escapes double quotes)."""
         return str(value).translate(_ATTR_ESCAPE)
 
-    def _node_depth(self, node: Any) -> int:
+    def _node_depth(self, node: Any, depth_offset: int = 0) -> int:
         """Wrapper-rooted depth of ``node`` (user top-level sits at 0).
 
         Read off ``node.fullpath``: the path is dot-separated from the
@@ -515,7 +523,13 @@ class RendererBase:
         node. Only used for ``pretty`` indentation, so a label that
         happened to contain a dot would skew indentation by one level —
         never correctness.
+
+        A component expansion is built in a throw-away root of its own
+        (``_expansion_root``), so its nodes are rooted at 0 while they
+        are emitted INSIDE the document. ``depth_offset`` carries the
+        component node's own depth across that boundary, which is the
+        only thing the fullpath cannot know.
         """
-        return max(node.fullpath.count(".") - 1, 0)
+        return max(node.fullpath.count(".") - 1, 0) + depth_offset
 
 
