@@ -8,7 +8,7 @@ reads stay raw.
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderHandler, TargetWrapper, component
+from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilder
 
 
@@ -98,56 +98,6 @@ def test_mask_formats_fixed_decimals():
     assert "<div>45.00</div>" in out
     assert "<div>€ 7.00</div>" in out
 
-
-def test_cell_patches_present_like_the_render():
-    class Probe(TargetWrapper):
-        accepts_partial = True
-        render_opts = {"include_datapath": True}
-
-        def __init__(self):
-            self.batches = []
-
-        def full(self, document):
-            self.full_html = document
-
-        def partial(self, patches):
-            self.batches.append(patches)
-
-    class Page(HtmlBuilder):
-        @component
-        def orderRow(self, root, node_label=None):
-            row = root.div(datapath="." + node_label)
-            row.input(value="^.qty", dtype="L")
-            row.span("^.total")
-            row.dataFormula(destination=".total", func="row_total",
-                             qty="^.qty", price="^.price")
-
-        def setup(self, data):
-            data.set_item("rows.r1.qty", 2)
-            data.set_item("rows.r1.price", 5.0)
-            data.set_item("rows.r1.total", 10.0, mask="%.2f")
-
-        def main(self, root):
-            root.body().orderRow(iterate="^rows", id="rows_block")
-
-        @staticmethod
-        def row_total(qty, price):
-            return round(float(qty) * float(price), 2)
-
-    page = Page(name="main")
-    probe = Probe()
-    page.set_render_target(probe)
-    handler = BuilderHandler(application=object())
-    handler.add_builder(page)
-    handler.activate()
-    assert ">10.00</span>" in probe.full_html
-    with handler.live():
-        handler.data.set_item("main.rows.r1.qty", 3)
-    # total -> 15.0; the value-only TEXT op must ship the MASKED value
-    # ("15.00"): the cell lane presents exactly like the render does.
-    texts = [p for batch in probe.batches for p in batch
-             if p.get("op") == "text"]
-    assert texts and texts[-1]["value"] == "15.00"
 
 
 def test_wdg_does_not_travel_on_attribute_pointers():

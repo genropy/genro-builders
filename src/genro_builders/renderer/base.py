@@ -29,14 +29,20 @@ carrying the node's user attributes plus the ``render_attributes`` — read in
 from __future__ import annotations
 
 import keyword
-from contextlib import contextmanager
+import warnings
 from pathlib import Path
 from typing import Any
 
 from genro_bag import Bag
 
-from ..builder.data_handler import LAZY_PAGE_SIZE
 from ..builder.source_bag import SourceBag
+
+#: Data-elements that recompute on a data change: they need a cascade, so
+#: they are inert in a static document. Declared and injected into every
+#: dialect all the same — the same page is written once, tried static, then
+#: mounted reactive without touching a line. The renderer warns when it
+#: meets one with no reactivity behind it (see ``render``).
+REACTIVE_DATA_ELEMENTS = ("dataFormula", "dataController")
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
 _ATTR_ESCAPE = str.maketrans(
@@ -153,6 +159,16 @@ class RendererBase:
         """
         item, ra = node.builder.runtime_values(node)
         if node._get_meta("data_element"):
+            if (node.node_tag in REACTIVE_DATA_ELEMENTS
+                    and not node.builder._is_reactive):
+                warnings.warn(
+                    f"{node.node_tag} at {node.fullpath} is inert: it "
+                    "recomputes on a data change and this document has no "
+                    "reactivity. Seed the value with dataSetter, or mount "
+                    "the page on a handler with an application.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             return None
         if node._get_meta("component"):
             return self._render_component(node, ra, **opts)
@@ -183,8 +199,8 @@ class RendererBase:
         into it: exactly ONE tree (one root element), a forest raises.
         The call's attributes saturate the body's signature: plain
         values resolved, REACTIVE POINTERS passed through as pointers,
-        absolutized at the component node (``^volume:rest``, context
-        free) — the ADDRESS must reach the final node the body builds,
+        absolutized at the component node (context free) — the ADDRESS
+        must reach the final node the body builds,
         where it resolves exactly like a hand-written one and emits the
         write-back hook (CMP.4). The walk then re-enters on the tree
         the body built, so dialect dispatch, nested components and
@@ -199,7 +215,7 @@ class RendererBase:
         # self-recursive component (a tree) stop at the leaves.
         if "iterate" not in node.attr:
             return self._expand_block(
-                node, body, anchor, body_kwargs, (), opts,
+                node, body, anchor, body_kwargs, opts,
             )
         if iterable is None:
             return []
@@ -212,21 +228,9 @@ class RendererBase:
                 f"component '{node.node_tag}': iterate must resolve to a "
                 f"Bag, got {type(iterable).__name__}",
             )
-        if (
-            node.attr.get("lazy")
-            and opts.get("include_datapath")
-            and node.builder.handler is not None
-        ):
-            # Lazy is a REACTIVE-render concern, like derived identity:
-            # a static render has no client to scroll, so the full
-            # document is its only meaningful output.
-            return self._render_lazy_component(
-                node, body, anchor, iterable, opts,
-            )
         return [
             self._expand_block(
-                node, body, anchor, {"node_label": child.label},
-                (child.label,), opts,
+                node, body, anchor, {"node_label": child.label}, opts,
             )
             for child in iterable.nodes
         ]
@@ -268,22 +272,23 @@ class RendererBase:
         # expansion's input would carry a literal: mute to write-back).
         # Absolutized in the component node's context (the expansion
         # tree is detached, a relative form would resolve against
-        # nothing); the volume syntax keeps it context-free. The body
-        # builds structure with it — computing on a datum is data
-        # logic, and data logic belongs to data-elements.
+        # nothing). An absolute path is context-free by itself: it does
+        # not start with ``.``, so it survives re-entering
+        # ``abs_datapath`` on a node whose ancestors carry a datapath.
+        # The body builds structure with it — computing on a datum is
+        # data logic, and data logic belongs to data-elements.
         for name in runtime_attrs:
             raw = node.attr.get(name)
             if node.pointer_type(raw) == "^":
-                volume, _, rest = node.abs_datapath(raw).partition(".")
-                runtime_attrs[name] = f"^{volume}:{rest}"
+                runtime_attrs[name] = f"^{node.abs_datapath(raw)}"
         return body, iterable, anchor, runtime_attrs
 
     def _expand_block(
         self, node: Any, body: Any, anchor: Any, body_kwargs: dict,
-        wb_labels: tuple, opts: dict,
+        opts: dict,
     ) -> Any:
         """ONE expansion: throw-away root, body call, single-tree check,
-        derived identity (reactive render only), rendered fragment."""
+        rendered fragment."""
         root = node.builder._expansion_root(datapath=anchor)
         body(root, **body_kwargs)
         roots = list(root.nodes)
@@ -292,319 +297,7 @@ class RendererBase:
                 f"component '{node.node_tag}' must build a tree, not "
                 f"a forest: {len(roots)} root nodes",
             )
-        if opts.get("include_datapath"):
-            # Derived identity is a REACTIVE-render concern, like
-            # the auto-id: the static render stays untouched.
-            self._register_expansion_writeback(node, roots[0], wb_labels)
         return self.render(roots[0], **opts)
-
-    def render_expansion_block(
-        self, node: Any, label: str | None = None, **opts: Any,
-    ) -> Any:
-        """Render ONE expansion block of a component node — the per-row
-        patch unit (CMP.7). ``label`` addresses the row of an iterate
-        component (``None`` = the single store-anchored block). Same
-        prep, same body, same registration as the walk: the fragment
-        cannot diverge from a full render.
-        """
-        _item, runtime_attrs = node.builder.runtime_values(node)
-        body, _iterable, anchor, body_kwargs = self._expansion_inputs(
-            node, runtime_attrs,
-        )
-        if label is not None:
-            body_kwargs = {"node_label": label}
-            wb_labels: tuple = (label,)
-        else:
-            wb_labels = ()
-        return self._expand_block(
-            node, body, anchor, body_kwargs, wb_labels, opts,
-        )
-
-    def _render_lazy_component(
-        self, node: Any, body: Any, anchor: Any, iterable: Any, opts: dict,
-    ) -> list:
-        """First paint of a lazy iterate: page 0 inline plus the marker.
-
-        Two natures, one shape (lazy-iterate contract). An anchor with
-        a ``read_only`` RESOLVER (immutable data): the query ran ONCE
-        in ``runtime_values``, the snapshot parks on the handler (the
-        freezed selection) and page 0 renders through the silent
-        transit. A STORE-BACKED anchor (mutable data): no parking, no
-        transit — the collection lives in the store, block pointers
-        resolve naturally, pages slice it LIVE. Either way the MARKER
-        closes the run with the FIRE lane and the baked counts; the
-        client fabricates placeholders for the rest and asks pages as
-        the scroll demands.
-        """
-        builder = node.builder
-        handler = builder.handler
-        base = str(node.attr.get("id") or builder.target_id(node))
-        # Re-expansion starts clean: every entry under the base —
-        # painted rows of ANY page, the marker — belongs to the DOM
-        # this render replaces.
-        builder._purge_writeback_prefix(base)
-        anchor_node = handler.data.get_node(
-            node.abs_datapath(node.attr["iterate"]),
-        )
-        lazy_resolver = (
-            anchor_node.resolver if anchor_node is not None else None
-        )
-        fragments = []
-        labels: list[str] = []
-        if lazy_resolver is not None:
-            total, page_size = handler.lazy_park(base, iterable)
-            if total:
-                snapshot, labels = handler.lazy_page(base, 0)
-                with self._lazy_transit(node, snapshot):
-                    for label in labels:
-                        fragments.append(self._expand_block(
-                            node, body, anchor, {"node_label": label},
-                            (label,), opts,
-                        ))
-        else:
-            total, page_size = len(iterable), LAZY_PAGE_SIZE
-            if total:
-                labels = handler.lazy_page_of(iterable, 0)
-                for label in labels:
-                    fragments.append(self._expand_block(
-                        node, body, anchor, {"node_label": label},
-                        (label,), opts,
-                    ))
-        # The marker wears the SAME tag as the row blocks (a tr among
-        # the trs, a li among the lis: DOM validity, no per-dialect
-        # marker). A build-only probe of the body reveals it: building
-        # is structure, no pointer resolves, nothing renders.
-        probe = builder._expansion_root(datapath=anchor)
-        body(probe, node_label=labels[0] if labels else "probe")
-        row_tag = list(probe.nodes)[0].node_tag
-        fragments.append(self._render_lazy_marker(
-            node, base, row_tag, total, page_size, opts,
-        ))
-        handler.lazy_subscribe(base, node)
-        # A (re)render restarts the delivered set: whatever pages the
-        # client had died with the DOM this run replaces.
-        handler.lazy_track(base, labels, fresh=True)
-        return fragments
-
-    def render_lazy_page(self, node: Any, page: int, **opts: Any) -> str:
-        """Render ONE page of a lazy iterate — the ``page`` op payload.
-
-        Same prep, same body, same registration as any block render
-        (the oracle holds). A resolver anchor serves from the parking
-        through the silent transit; a store-backed anchor slices the
-        LIVE collection — always current, nothing to restore.
-        """
-        handler = node.builder.handler
-        base = str(node.attr.get("id") or node.builder.target_id(node))
-        anchor_abs = node.abs_datapath(node.attr["iterate"])
-        anchor_node = handler.data.get_node(anchor_abs)
-        fragments = []
-        if anchor_node is not None and anchor_node.resolver is not None:
-            snapshot, labels = handler.lazy_page(base, page)
-            with self._lazy_transit(node, snapshot):
-                for label in labels:
-                    block = self.render_expansion_block(node, label, **opts)
-                    fragments.append(
-                        "".join(block) if isinstance(block, list) else block,
-                    )
-        else:
-            labels = handler.lazy_page_of(
-                handler.data.get_item(anchor_abs), page,
-            )
-            for label in labels:
-                block = self.render_expansion_block(node, label, **opts)
-                fragments.append(
-                    "".join(block) if isinstance(block, list) else block,
-                )
-        handler.lazy_track(base, labels)
-        return "".join(fragments)
-
-    @contextmanager
-    def _lazy_transit(self, node: Any, snapshot: Any) -> Any:
-        """The silent transit: the snapshot becomes the anchor's value
-        for the duration of a block render — canonical API, no events,
-        resolver detached — and the store comes out exactly as it went
-        in: the resolver back in place, nothing deposited, no spurious
-        row events.
-        """
-        handler = node.builder.handler
-        anchor_abs = node.abs_datapath(node.attr["iterate"])
-        saved = handler.data.get_node(anchor_abs).resolver
-        handler.data.set_item(
-            anchor_abs, snapshot, resolver=False, do_trigger=False,
-        )
-        try:
-            yield
-        finally:
-            handler.data.set_item(
-                anchor_abs, None, resolver=saved, do_trigger=False,
-            )
-
-    def _render_lazy_marker(
-        self, node: Any, base: str, tag: str, total: int, page_size: int,
-        opts: dict,
-    ) -> Any:
-        """The lazy marker: an empty element closing the page-0 run.
-
-        Wears ``tag`` — the row blocks' own root tag — and carries the
-        reserved FIRE lane plus the baked counts the client needs
-        (total rows, page size); registered in the writeback map under
-        the component's prefix — a fire target like any click target,
-        with a MACHINERY id (``<base>.lazy``).
-        """
-        builder = node.builder
-        root = builder._expansion_root()
-        getattr(root, tag)(
-            id=f"{base}.lazy",
-            **{
-                "data-fire-pointer": f"_lazy.{base}",
-                "data-lazy-total": str(total),
-                "data-lazy-page": str(page_size),
-            },
-        )
-        marker = list(root.nodes)[0]
-        builder._writeback_add(base, f"{base}.lazy", marker)
-        return self.render(marker, **opts)
-
-    def _register_expansion_writeback(
-        self, comp_node: Any, tree_root: Any, labels: tuple,
-    ) -> None:
-        """Derived identity for expansion nodes — the virtual-children
-        map, write-back side (CMP.7).
-
-        Expansion nodes never get a serial of their own (they
-        reincarnate); their identity is DERIVED and deterministic:
-        ``<base>[.<iteration label>...].<ordinal>`` — base is the
-        component node's id (serial or author's), labels are the row
-        identities of the stores crossed, the ordinal follows the
-        body's build order (the body is code, the rebuild is
-        identical). The composite id is stamped as the author-id (the
-        renderer emits it, the auto-id skips), and the WRITABLE nodes
-        land in ``builder._writeback_map``: composite id -> expansion
-        node — the node a mutate resolves to read dtype, validate_*,
-        envelope and the write-back address. Re-expansion purges its
-        own prefix first, so the map never holds stale rows.
-        """
-        builder = comp_node.builder
-        base = comp_node.attr.get("id") or builder.target_id(comp_node)
-        if base is None:
-            return
-        prefix = ".".join((str(base), *labels))
-        builder._purge_writeback_prefix(prefix)
-        handler = builder.handler
-        # The cell catalog rebuilds per expansion and is identical for
-        # every row (the body is code): reset, the last row wins.
-        if len(labels) == 1:
-            cmap = getattr(builder, "_cell_map", None)
-            if cmap is None:
-                cmap = builder._cell_map = {}
-            cmap[base] = {}
-        rule_nodes: list[Any] = []
-        counter = 0
-        queue = [tree_root]
-        while queue:
-            current = queue.pop(0)
-            if current._get_meta("data_element"):
-                # Row logic: cataloged, never rendered (no ordinal, no
-                # id). The rule is a rule of MUTATION — loaded data is
-                # trusted as-is, so a "start" has no meaning here and a
-                # seeding element would be a render-time write.
-                if current.node_tag == "dataSetter":
-                    raise ValueError(
-                        "dataSetter inside an expansion body: seeding "
-                        "is a render-time write, expansions are pure "
-                        "projections",
-                    )
-                if current.attr.get("_on_start"):
-                    raise ValueError(
-                        "_on_start inside an expansion body: row logic "
-                        "is mutation-only (loaded data is trusted)",
-                    )
-                if handler is not None:
-                    rule_nodes.append(current)
-                continue
-            counter += 1
-            composite = f"{prefix}.{counter}"
-            current.attr["id"] = composite
-            # Only WRITE-BACK nodes enter the map: a pointer on a
-            # writable attribute (value/checked), or a click target
-            # (set-pointer writes a declared value, fire-pointer sends
-            # an event message). A pure reader (a td showing ^.name)
-            # re-renders via pointer_map, it is not a mutation target.
-            writable = any(
-                name in ("value", "checked")
-                for name, _pointer in current.pointers()
-            ) or current.attr.get("data-set-pointer") is not None \
-              or current.attr.get("data-fire-pointer") is not None
-            if writable:
-                builder._writeback_add(prefix, composite, current)
-            self._register_cell(comp_node, current, labels, counter)
-            if isinstance(current.value, SourceBag):
-                queue.extend(current.value.nodes)
-        if handler is not None:
-            raw_anchor = (
-                comp_node.attr.get("iterate") or comp_node.attr.get("store")
-            )
-            anchor_abs = (
-                comp_node.abs_datapath(raw_anchor) if raw_anchor else None
-            )
-            if labels:
-                row_prefix = f"{anchor_abs}.{labels[-1]}"
-            else:
-                row_prefix = anchor_abs
-            handler.set_component_rules(
-                owner=str(base), anchor=anchor_abs,
-                store_mode=bool(raw_anchor) and not labels,
-                rule_nodes=rule_nodes, row_prefix=row_prefix,
-            )
-
-    def _register_cell(
-        self, comp_node: Any, current: Any, labels: tuple, ordinal: int,
-    ) -> None:
-        """Catalog a patchable CELL: in-row field -> (ordinal, op).
-
-        The body is code, so the ordinal of "who shows ``.field``" is
-        the SAME for every row: the catalog is per COMPONENT, built
-        once per registration. Two shapes qualify — a node whose VALUE
-        is exactly one reactive pointer (a text cell) and a reactive
-        ``value`` attribute (an input). The field key is the pointer's
-        residual against the ROW path: a pointer landing outside the
-        row (a shared header datum) is not a cell. Everything richer
-        (templates, checked, nested labels) stays out: those rows fall
-        back to the row replace.
-        """
-        if len(labels) != 1:
-            return
-        builder = comp_node.builder
-        base = comp_node.attr.get("id") or builder.target_id(comp_node)
-        cmap = getattr(builder, "_cell_map", None)
-        if cmap is None:
-            cmap = builder._cell_map = {}
-        specs = cmap.setdefault(base, {})
-
-        def in_row_field(pointer: str) -> str | None:
-            anchor = comp_node.abs_datapath(comp_node.attr["iterate"])
-            row_prefix = f"{anchor}.{labels[0]}."
-            abs_path = current.abs_datapath(pointer)
-            if not abs_path.startswith(row_prefix):
-                return None
-            return abs_path[len(row_prefix):]
-
-        if (
-            isinstance(current.value, str)
-            and current.pointer_type(current.value) == "^"
-        ):
-            field = in_row_field(current.value)
-            if field is not None:
-                specs.setdefault(field, []).append((ordinal, "text", None))
-        raw_value = current.attr.get("value")
-        if (
-            isinstance(raw_value, str)
-            and current.pointer_type(raw_value) == "^"
-        ):
-            field = in_row_field(raw_value)
-            if field is not None:
-                specs.setdefault(field, []).append((ordinal, "attr", "value"))
 
     def render_children(self, nodes: Any, **opts: Any) -> list[Any]:
         """Render each node in ``nodes`` and collect the fragments.

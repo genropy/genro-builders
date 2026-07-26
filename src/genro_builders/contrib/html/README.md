@@ -54,8 +54,9 @@ print(page.render())
 # ...<h1>Updated</h1>...
 ```
 
-Push reactivity Level 0 (`handler.live()` with an application) is in;
-finer granularity is on the roadmap (`RX`).
+Re-render is the whole reactivity model here: change the data, render
+again. Fine-grained reactivity is refounded on a compiled bag emitted by
+a future `livehtml` render mode — see the `RX` area of the contract.
 
 ## Examples
 
@@ -67,8 +68,9 @@ by what the page needs:
 - **with_data/** — pages that bind to data via pointers (`^`/`=`,
   datapath, presentation with `mask`/`_wdg`).
 - **with_logic/** — data-elements (`dataSetter`/`dataFormula`/
-  `dataController`).
-- **reactive/** — live sections and reactive recompute.
+  `dataController`). `dataFormula` and `dataController` recompute on a
+  data change, so without reactivity they only run when flagged
+  `_on_start=True`; the renderer warns when it meets an inert one.
 
 Run an example from its folder: `python <name>.py`. The test suite runs
 them all (`tests/test_examples.py`).

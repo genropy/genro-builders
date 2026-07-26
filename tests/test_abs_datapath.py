@@ -1,15 +1,14 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Tests for SourceBagNode.abs_datapath.
 
-Composes the absolute datastore path for a node's pointer/path. The
-builder is mounted on a BuilderHandler under a data segment (here
-``main``), so every resolved path is prefixed with that segment.
+Composes the absolute datastore path for a node's pointer/path. The store
+is flat — one handler drives one builder — so an absolute path carries no
+leading segment: ``field`` composes to ``field``, not ``<mount>.field``.
 
 Covers all supported path forms:
 
-    ``field``           — absolute on the segment
+    ``field``           — already absolute, returned as is
     ``^field``          — strip pointer mark
-    ``volume:field``    — another segment (volume) instead of ``main``
     ``field?attr``      — preserve ?attr tail
     ``.x``              — relative: walk ancestor datapath chain
     ``a.#parent.b``     — #parent collapses preceding segment
@@ -17,7 +16,7 @@ Covers all supported path forms:
     ``#ANCHOR.x``       — nearest ancestor with attr _anchor present
     ``#<node_id>.x``    — node carrying that node_id
 
-Test pattern: a CustomPage(HtmlBuilder) named ``main`` is mounted via
+Test pattern: a CustomPage(HtmlBuilder) is mounted via
 ``BuilderHandler.add_builder(page)``; assert on the string returned by
 abs_datapath, never on private helpers.
 """
@@ -45,23 +44,23 @@ def _leaf(main_fn: Callable, node_id: str = "leaf"):
 
 
 def _simple():
-    """A bare leaf node (no datapath ancestors), in segment ``main``."""
+    """A bare leaf node: no datapath ancestors to walk."""
     return _leaf(lambda root: root.body(node_id="leaf"))
 
 
 # ---------------------------------------------------------------------------
-# Absolute on the segment
+# Absolute paths
 # ---------------------------------------------------------------------------
 
 
-def test_absolute_field_gets_segment_prefix():
+def test_absolute_field_is_returned_as_is():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("field") == "main.field"
+    assert leaf.abs_datapath("field") == "field"
 
 
-def test_absolute_dotted_path_gets_segment_prefix():
+def test_absolute_dotted_path_is_returned_as_is():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("user.name") == "main.user.name"
+    assert leaf.abs_datapath("user.name") == "user.name"
 
 
 # ---------------------------------------------------------------------------
@@ -71,12 +70,12 @@ def test_absolute_dotted_path_gets_segment_prefix():
 
 def test_pointer_mark_is_stripped():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("^field") == "main.field"
+    assert leaf.abs_datapath("^field") == "field"
 
 
 def test_pointer_mark_stripped_on_dotted_path():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("^user.name") == "main.user.name"
+    assert leaf.abs_datapath("^user.name") == "user.name"
 
 
 # ---------------------------------------------------------------------------
@@ -86,47 +85,17 @@ def test_pointer_mark_stripped_on_dotted_path():
 
 def test_equals_mark_is_stripped():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("=field") == "main.field"
+    assert leaf.abs_datapath("=field") == "field"
 
 
 def test_equals_mark_stripped_on_dotted_path():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("=user.name") == "main.user.name"
-
-
-def test_equals_mark_with_volume():
-    _page, leaf = _simple()
-    assert leaf.abs_datapath("=vol:field") == "vol.field"
+    assert leaf.abs_datapath("=user.name") == "user.name"
 
 
 def test_equals_mark_with_attr_tail():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("=field?color") == "main.field?color"
-
-
-def test_equals_mark_volume_and_attr_combined():
-    _page, leaf = _simple()
-    assert leaf.abs_datapath("=vol:user.name?size") == "vol.user.name?size"
-
-
-# ---------------------------------------------------------------------------
-# Volume: another segment instead of ``main``
-# ---------------------------------------------------------------------------
-
-
-def test_volume_is_the_leading_segment():
-    _page, leaf = _simple()
-    assert leaf.abs_datapath("vol:field") == "vol.field"
-
-
-def test_volume_with_pointer_mark():
-    _page, leaf = _simple()
-    assert leaf.abs_datapath("^vol:field") == "vol.field"
-
-
-def test_volume_on_dotted_path():
-    _page, leaf = _simple()
-    assert leaf.abs_datapath("vol:user.name") == "vol.user.name"
+    assert leaf.abs_datapath("=field?color") == "field?color"
 
 
 # ---------------------------------------------------------------------------
@@ -136,22 +105,12 @@ def test_volume_on_dotted_path():
 
 def test_attr_tail_preserved():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("field?color") == "main.field?color"
+    assert leaf.abs_datapath("field?color") == "field?color"
 
 
 def test_attr_tail_preserved_with_pointer_mark():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("^field?color") == "main.field?color"
-
-
-def test_volume_and_attr_combined():
-    _page, leaf = _simple()
-    assert leaf.abs_datapath("vol:field?color") == "vol.field?color"
-
-
-def test_pointer_volume_and_attr_combined():
-    _page, leaf = _simple()
-    assert leaf.abs_datapath("^vol:user.name?size") == "vol.user.name?size"
+    assert leaf.abs_datapath("^field?color") == "field?color"
 
 
 # ---------------------------------------------------------------------------
@@ -166,22 +125,22 @@ def _with_datapath():
 
 def test_relative_resolves_via_ancestor_datapath():
     _page, leaf = _with_datapath()
-    assert leaf.abs_datapath(".name") == "main.myform.name"
+    assert leaf.abs_datapath(".name") == "myform.name"
 
 
 def test_relative_with_attr_tail_preserved():
     _page, leaf = _with_datapath()
-    assert leaf.abs_datapath(".name?color") == "main.myform.name?color"
+    assert leaf.abs_datapath(".name?color") == "myform.name?color"
 
 
 def test_relative_with_pointer_mark():
     _page, leaf = _with_datapath()
-    assert leaf.abs_datapath("^.name") == "main.myform.name"
+    assert leaf.abs_datapath("^.name") == "myform.name"
 
 
 def test_relative_with_equals_mark():
     _page, leaf = _with_datapath()
-    assert leaf.abs_datapath("=.name") == "main.myform.name"
+    assert leaf.abs_datapath("=.name") == "myform.name"
 
 
 def test_relative_chains_through_relative_ancestor_datapath():
@@ -193,7 +152,7 @@ def test_relative_chains_through_relative_ancestor_datapath():
         inner.span(node_id="leaf")
 
     _page, leaf = _leaf(build)
-    assert leaf.abs_datapath(".name") == "main.form.row.name"
+    assert leaf.abs_datapath(".name") == "form.row.name"
 
 
 def test_relative_without_anchor_raises_value_error():
@@ -208,7 +167,7 @@ def test_relative_walk_uses_leaf_datapath_too():
     _page, leaf = _leaf(
         lambda root: root.body().div(node_id="leaf", datapath="own")
     )
-    assert leaf.abs_datapath(".name") == "main.own.name"
+    assert leaf.abs_datapath(".name") == "own.name"
 
 
 # ---------------------------------------------------------------------------
@@ -218,24 +177,19 @@ def test_relative_walk_uses_leaf_datapath_too():
 
 def test_parent_collapses_preceding_segment():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("a.b.#parent.c") == "main.a.c"
+    assert leaf.abs_datapath("a.b.#parent.c") == "a.c"
 
 
 def test_parent_collapses_multiple_segments():
     _page, leaf = _simple()
-    assert leaf.abs_datapath("a.b.c.#parent.#parent.d") == "main.a.d"
+    assert leaf.abs_datapath("a.b.c.#parent.#parent.d") == "a.d"
 
 
 def test_parent_after_relative_resolution():
     """#parent applies AFTER the ancestor walk has composed the path."""
     _page, leaf = _with_datapath()       # body.datapath="myform"
     # relative resolves to "myform.row.name", then #parent collapses "row"
-    assert leaf.abs_datapath(".row.#parent.name") == "main.myform.name"
-
-
-def test_parent_with_volume_and_attr():
-    _page, leaf = _simple()
-    assert leaf.abs_datapath("vol:a.b.#parent.c?color") == "vol.a.c?color"
+    assert leaf.abs_datapath(".row.#parent.name") == "myform.name"
 
 
 def test_parent_with_nothing_to_cancel_raises():
@@ -255,7 +209,7 @@ def test_symbolic_form_with_formId():
     _page, leaf = _leaf(
         lambda root: root.body(formId="inv", datapath="f").div(node_id="leaf")
     )
-    assert leaf.abs_datapath("#FORM.x") == "main.f.x"
+    assert leaf.abs_datapath("#FORM.x") == "f.x"
 
 
 def test_symbolic_form_with_form_true():
@@ -263,7 +217,7 @@ def test_symbolic_form_with_form_true():
     _page, leaf = _leaf(
         lambda root: root.body(form=True, datapath="f").div(node_id="leaf")
     )
-    assert leaf.abs_datapath("#FORM.x") == "main.f.x"
+    assert leaf.abs_datapath("#FORM.x") == "f.x"
 
 
 def test_symbolic_form_walks_past_unmarked_intermediate():
@@ -275,7 +229,7 @@ def test_symbolic_form_walks_past_unmarked_intermediate():
         inner.span(node_id="leaf")
 
     _page, leaf = _leaf(build)
-    assert leaf.abs_datapath("#FORM.x") == "main.f.x"
+    assert leaf.abs_datapath("#FORM.x") == "f.x"
 
 
 def test_symbolic_form_without_marked_ancestor_raises_key_error():
@@ -289,7 +243,7 @@ def test_symbolic_anchor_with_attribute_presence():
     _page, leaf = _leaf(
         lambda root: root.body(_anchor="whatever", datapath="a").div(node_id="leaf")
     )
-    assert leaf.abs_datapath("#ANCHOR.x") == "main.a.x"
+    assert leaf.abs_datapath("#ANCHOR.x") == "a.x"
 
 
 def test_symbolic_anchor_value_is_arbitrary():
@@ -297,7 +251,7 @@ def test_symbolic_anchor_value_is_arbitrary():
     _page, leaf = _leaf(
         lambda root: root.body(_anchor=True, datapath="a").div(node_id="leaf")
     )
-    assert leaf.abs_datapath("#ANCHOR.x") == "main.a.x"
+    assert leaf.abs_datapath("#ANCHOR.x") == "a.x"
 
 
 def test_symbolic_anchor_without_marker_raises_key_error():
@@ -311,7 +265,7 @@ def test_symbolic_node_id_resolves_via_node_by_id():
     _page, leaf = _leaf(
         lambda root: root.body(node_id="hub", datapath="rec").div(node_id="leaf")
     )
-    assert leaf.abs_datapath("#hub.x") == "main.rec.x"
+    assert leaf.abs_datapath("#hub.x") == "rec.x"
 
 
 def test_symbolic_unknown_id_raises_key_error():
@@ -325,4 +279,4 @@ def test_symbolic_with_pointer_mark():
     _page, leaf = _leaf(
         lambda root: root.body(formId="inv", datapath="f").div(node_id="leaf")
     )
-    assert leaf.abs_datapath("^#FORM.x") == "main.f.x"
+    assert leaf.abs_datapath("^#FORM.x") == "f.x"
