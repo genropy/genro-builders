@@ -58,6 +58,13 @@ docs = [
 xsd = [
     "xmlschema>=4.0,<5",
 ]
+xslt = [
+    # The XSLT transpiler parses stylesheets with lxml (etree at
+    # contrib/xslt/transpiler/backend.py) and the HTML5 schema importer
+    # reads the RNG grammar with it. An import at module top level, so
+    # the feature does not work without it.
+    "lxml>=5.0",
+]
 yaml = [
     "PyYAML>=6.0",
 ]
@@ -71,7 +78,7 @@ reverse = [
     "tree-sitter-css>=0.25",
 ]
 all = [
-    "genro-builders[dev,docs,xsd,yaml,jupyter,reverse]",
+    "genro-builders[dev,docs,xsd,xslt,yaml,jupyter,reverse]",
 ]
 
 [project.urls]
