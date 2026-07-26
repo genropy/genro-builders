@@ -133,6 +133,20 @@ def test_framework_kwargs_pass_a_closed_signature():
     node.annotated(name="x", bucket="b", node_id="m1")
 
 
+def test_id_is_not_a_framework_kwarg():
+    """``id`` is a dialect's word, not the core's.
+
+    HTML has an ``id`` attribute; a configuration or SQL grammar does not.
+    Exempting it framework-wide would let every grammar silently accept a
+    name that means nothing to it — so a closed signature rejects it like
+    any other undeclared attribute, and an element that wants it declares
+    it.
+    """
+    node = _mounts_node()
+    with pytest.raises(ValueError, match="does not accept 'id'"):
+        node.annotated(name="x", bucket="b", id="whatever")
+
+
 def test_markup_element_keeps_arbitrary_attributes():
     """The dialects declare **kwargs, so HTML attributes still flow."""
     from genro_builders.contrib.html import HtmlBuilder

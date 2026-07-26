@@ -251,9 +251,6 @@ class RendererBase:
         # record (or the collection) changes, the block re-renders.
         iterable = runtime_attrs.pop("iterate", None)
         runtime_attrs.pop("store", None)
-        # ``id`` is chain machinery (the writeback identity uses it as
-        # the expansion's prefix base), never a body kwarg.
-        runtime_attrs.pop("id", None)
         # ``lazy`` is machinery too: the laziness opt-in of the iterate
         # (lazy-iterate contract), consumed by the walk, never a body
         # kwarg.

@@ -150,18 +150,22 @@ SIGNATURE_SKIP_PARAMS = frozenset({
 
 #: Framework keywords accepted at CALL time by every element, whatever its
 #: signature. Node placement and identity (``node_label``, ``node_position``,
-#: ``node_id``, ``id``), data binding and iteration (``datapath``, ``store``,
+#: ``node_id``), data binding and iteration (``datapath``, ``store``,
 #: ``iterate``, ``lazy``, ``target_id``) are addressed to the framework, not
 #: to the grammar, and ``_tag`` is an internal marker stripped right after
-#: validation. ``id`` is the patch identity the renderer reads off the node
-#: (``node.attr.get("id") or builder.target_id(node)``). None of them is
-#: ever declared by a grammar author, so a closed signature must not
-#: reject them.
+#: validation. None of them belongs to any dialect's vocabulary, so a
+#: closed signature must not reject them.
+#:
+#: ``id`` is deliberately NOT here. It is an HTML attribute -- a dialect's
+#: word, not the core's -- even though the reactive renderer reads it off
+#: the node as the patch identity (``node.attr.get("id") or target_id``).
+#: Exempting it would let every grammar, SQL or configuration alike,
+#: silently accept a name that means nothing to it. An element that wants
+#: ``id`` declares it, like any other attribute.
 FRAMEWORK_CALL_KWARGS = frozenset({
     "node_label",
     "node_position",
     "node_id",
-    "id",
     "target_id",
     "datapath",
     "iterate",
