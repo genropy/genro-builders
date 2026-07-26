@@ -136,22 +136,66 @@ def _check_type(value: Any, tp: Any) -> bool:
 # Signature / validator extraction
 # ---------------------------------------------------------------------------
 
-def _extract_validators_from_signature(fn: Callable) -> dict[str, tuple[Any, list, Any]]:
-    """Extract type hints with validators from function signature.
+#: Framework parameters an element may declare in its signature to receive
+#: build-time context. They are not user attributes, so they take no part in
+#: validation. ``node_value`` is deliberately absent: it IS a user parameter,
+#: validated and re-injected by ``_validate_call_args``.
+SIGNATURE_SKIP_PARAMS = frozenset({
+    "self",
+    "build_where",
+    "node_tag",
+    "node_label",
+    "node_position",
+})
+
+#: Framework keywords accepted at CALL time by every element, whatever its
+#: signature. Node placement and identity (``node_label``, ``node_position``,
+#: ``node_id``), data binding and iteration (``datapath``, ``store``,
+#: ``iterate``, ``lazy``, ``target_id``) are addressed to the framework, not
+#: to the grammar, and ``_tag`` is an internal marker stripped right after
+#: validation. None of them belongs to any dialect's vocabulary, so a
+#: closed signature must not reject them.
+#:
+#: ``id`` is deliberately NOT here. It is an HTML attribute -- a dialect's
+#: word, not the core's -- even though the reactive renderer reads it off
+#: the node as the patch identity (``node.attr.get("id") or target_id``).
+#: Exempting it would let every grammar, SQL or configuration alike,
+#: silently accept a name that means nothing to it. An element that wants
+#: ``id`` declares it, like any other attribute.
+FRAMEWORK_CALL_KWARGS = frozenset({
+    "node_label",
+    "node_position",
+    "node_id",
+    "target_id",
+    "datapath",
+    "iterate",
+    "store",
+    "lazy",
+    "_tag",
+})
+
+def _extract_signature_info(fn: Callable) -> tuple[dict[str, tuple[Any, list, Any]], set[str], bool]:
+    """Read an element signature: type validators, declared names, openness.
 
     Declarative decorators (@element/@abstract) return an inert
     ``_DeclarativeMarker`` rather than the function. The marker keeps the
     original function under ``_func`` for introspection; read the signature
     from there so call-argument validation survives the decoration.
+
+    Structure and types are separate concerns. The signature always states
+    which names it declares and whether it is open (``**kwargs``); type
+    hints are extra information, honoured only where present. Returns:
+
+        validators: ``{name: (base_type, validators, default)}`` for the
+            ANNOTATED parameters only. Insertion order is meaningful --
+            data-elements map their positional call args onto field names
+            by zipping this dict's keys.
+        declared_names: every parameter the signature declares, annotated
+            or not. This is the closed set an element accepts.
+        accepts_var_keyword: the signature declares ``**kwargs``, so the
+            accepted attribute set is open by the author's intent.
     """
     fn = getattr(fn, "_func", fn)
-    skip_params = {
-        "self",
-        "build_where",
-        "node_tag",
-        "node_label",
-        "node_position",
-    }
 
     try:
         hints = get_type_hints(fn, include_extras=True)
@@ -160,23 +204,30 @@ def _extract_validators_from_signature(fn: Callable) -> dict[str, tuple[Any, lis
             f"cannot resolve type hints for element {fn.__qualname__!r}: {exc}"
         ) from exc
 
-    result = {}
+    validators: dict[str, tuple[Any, list, Any]] = {}
+    declared_names: set[str] = set()
+    accepts_var_keyword = False
     sig = inspect.signature(fn)
 
     for name, param in sig.parameters.items():
-        if name in skip_params:
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            accepts_var_keyword = True
             continue
-        if param.kind in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL):
+        if param.kind is inspect.Parameter.VAR_POSITIONAL:
             continue
+        if name in SIGNATURE_SKIP_PARAMS:
+            continue
+
+        declared_names.add(name)
 
         tp = hints.get(name)
         if tp is None:
             continue
 
-        base, validators = _split_annotated(tp)
-        result[name] = (base, validators, param.default)
+        base, param_validators = _split_annotated(tp)
+        validators[name] = (base, param_validators, param.default)
 
-    return result
+    return validators, declared_names, accepts_var_keyword
 
 
 # ---------------------------------------------------------------------------

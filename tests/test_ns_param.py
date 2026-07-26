@@ -29,22 +29,22 @@ class _NsParamBuilder(BuilderBase):
     _default_render_mode = "xml"
 
     @el(sub_tags="*", ns="xs")
-    def schema(self): ...
+    def schema(self, **kwargs): ...
 
     @el(sub_tags="*", ns="xs")
-    def sequence(self): ...
+    def sequence(self, **kwargs): ...
 
     @el(ns="xs")
-    def element(self): ...
+    def element(self, **kwargs): ...
 
     @el(ns="xs")
-    def import_(self): ...  # 'import' is a Python keyword
+    def import_(self, **kwargs): ...  # 'import' is a Python keyword
 
     @el(sub_tags="*")
-    def table(self): ...  # no ns -> bare tag
+    def table(self, **kwargs): ...  # no ns -> bare tag
 
     @el(ns="xs", _meta={"render_tag": "xs:explicit-wins"})
-    def override(self): ...  # explicit render_tag must win over ns
+    def override(self, **kwargs): ...  # explicit render_tag must win over ns
 
 
 def _render(main, builder=_NsParamBuilder):
@@ -122,13 +122,13 @@ class _NsInheritBuilder(BuilderBase):
     _default_render_mode = "xml"
 
     @abstract(sub_tags="*", ns="xs")
-    def _xs(self): ...
+    def _xs(self, **kwargs): ...
 
     @el(sub_tags="*", inherits_from="_xs")
-    def schema(self): ...
+    def schema(self, **kwargs): ...
 
     @el(inherits_from="_xs")
-    def element(self): ...
+    def element(self, **kwargs): ...
 
 
 def test_ns_inherited_from_abstract():
@@ -151,10 +151,10 @@ class _PrefixProbeBuilder(BuilderBase):
     _default_render_mode = "xml"
 
     @el(sub_tags="*", ns="xs")
-    def schema(self): ...
+    def schema(self, **kwargs): ...
 
     @el(sub_tags="*", ns="xs")
-    def prb_element(self): ...
+    def prb_element(self, **kwargs): ...
 
 
 def test_dialect_prefix_stripped_before_ns_compose():

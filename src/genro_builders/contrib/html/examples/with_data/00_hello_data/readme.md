@@ -21,21 +21,23 @@ and replaced by its value (`Hello Folk`).
 
 ## Mount the page on a handler
 
-The data lives on a `BuilderHandler`. Mounting the page gives it its own
-data segment and connects its pointers to that data:
+The data lives on a `BuilderHandler`. Mounting the page connects its
+pointers to that data:
 
 ```python
 page = CustomPage()
 handler = BuilderHandler()
-handler.add_builder(main=page)    # segment "main"; page.data is its bag
+handler.add_builder(page)         # page.data IS the store
 page.set_render_target("output.html")
-page.create()                     # setup(self.data) then main(self.source)
 page.render(pretty=True)
 print(page.rendered_target)
 ```
 
-- `add_builder(main=page)` mounts the page under the segment `main`.
-- `create()` runs `setup` (seeds the data) then `main` (builds the source).
+- `add_builder(page)` mounts the page and creates it. One handler drives
+  one builder, and the store is flat: `message` is addressed as
+  `message`, with no leading segment.
+- Mounting runs `create()`: `setup` (seeds the data) then `main` (builds
+  the source), then the first calculation of the data-elements.
 - `render()` resolves the pointers and writes the target file.
 
 ## Output

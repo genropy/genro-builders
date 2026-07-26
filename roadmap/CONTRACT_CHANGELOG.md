@@ -5,11 +5,109 @@ recente è in testa. Il contratto in vigore descrive **lo stato d'arrivo**,
 pulito e autoconsistente; questo file racconta **come ci si è arrivati**.
 
 Le versioni superate vivono per intero in `roadmap/outdated_versions/`
-(`architecture-contract-v0.3.md` … `-v0.7.0.md`, più l'addendum renderer
+(`architecture-contract-v0.3.md` … `-v0.8.0.md`, più l'addendum renderer
 consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 "cosa cambia" storico.
 
 ---
+
+## v0.9.0 — 2026-07-26 (static first: handler piatto, reattività alla compiled bag)
+
+La svolta non è una rimozione, è una **diagnosi**. Il piano di lavoro
+partiva per togliere ~1000 righe di macchinario di patch e aprire il
+"gate D9" (far registrare in `pointer_map` i pointer interni a
+un'espansione `iterate`). Misurandolo è emersa la contraddizione: con
+`iterate` i nodi ripetuti **non esistono** — la source tiene la ricetta,
+gli N blocchi sono un fatto del render, gettato dopo l'uso. Registrarne i
+pointer voleva dire o mettere in mappa riferimenti a nodi morti, o
+innestare l'espansione nella source, cioè materializzare come struttura
+ciò che il modello definisce come output. E
+`roadmap/render-architecture.md` §4 documentava l'espansione effimera
+come **voluta**.
+
+Quindi l'apparato che si voleva togliere non era reattività mal
+collocata: era il **surrogato di una struttura che non esisteva**, che
+ricostruiva a posteriori l'identità che un albero materializzato avrebbe
+avuto gratis. La risposta non sta dentro `iterate` ma in un terzo oggetto
+fra ricetta e piatto: una **compiled bag**, emessa da un render mode
+`livehtml` (`RX.5`), dove le righe esistono come entità indirizzabili con
+fullpath propri senza toccare la source. Il gate D9 resta chiuso: la
+domanda "i nodi dell'espansione esistono?" ha risposta diversa sui due
+lati, e quella è la soluzione. Per l'HTML con renderer JS, poi, Python non
+ha bisogno di reattività: la compiled bag vive già dall'altro capo del
+filo (il DOM guidato da `genro-dom-js` su `bag-js`) — Python stava
+duplicando, male, una macchina che il client ha già.
+
+**Handler riscritto, non sfoltito** (`HND.1`-`HND.5`). Il file dichiarava
+nel docstring "fornisce i dati e traccia chi legge cosa"; sotto teneva
+anche motore reattivo, coda formule, motore di regole, corsia lazy ed
+economia delle patch. Riga 7 diceva "non è un render engine", riga 48
+decideva quando N patch di riga coalizzano in un replace di contenitore.
+Sottrarre lasciava un residuo, riscrivere ha dato il file che il docstring
+descrive: **1148 → 129 righe**, in `builder/builder_handler.py` (il modulo
+prende il nome della classe). Fuori: `live()` e il suo `RLock`,
+`activate()`, `add_render_path`/`render_nodes`/`_optimize_render`, le
+regole di riga, la coda delle formule, i sei metodi `lazy_*`,
+`record_removed_id`. Dentro: dati, montaggio, `setup`, `pointer_map`.
+
+**Datastore piatto** (`HND.2`, `HND.3`, `DAT.2`, `PAG.1`, `PAG.2`). Il
+multibuilder esce con la reattività, per misura: di ~100 call site di
+`add_builder`, **esattamente uno** montava più di un builder, e ws-web ne
+monta uno per pagina per connessione. Il segmento `_` condiviso e il
+multibuilder erano la stessa feature — un segmento condiviso non
+significa nulla senza più builder con cui condividerlo — e sono usciti
+insieme. Conseguenza più visibile all'utente: un path assoluto perde il
+segmento iniziale (`main.field` → `field`) e la forma `volume:field`
+scompare. Il pass-through dei kwargs-pointer (`CMP.4`) non ne ha bisogno:
+un path assoluto è context-free da sé, perché non inizia con `.` e
+sopravvive al rientro in `abs_datapath` su un nodo d'espansione.
+
+**`dataFormula` e `dataController`: dichiarabili, inerti, segnalati**
+(`DAT.4`). Ricalcolano su cambio dato, e senza cascata il loro "dopo" non
+esiste. Decisione dell'utente in sessione: non toglierli e non farne un
+errore — restano in grammatica e il renderer emette un `UserWarning`
+quando ne incontra uno su documento non reattivo. La ragione è d'autore:
+*"così posso prima provare non reattivo e poi passare al reattivo"* — la
+stessa pagina si scrive una volta, si prova statica, si monta reattiva
+senza toccare una riga. Marcati `_on_start=True` calcolano al `create()`.
+`data_logic` / `_build_data_logic` / `_resolve_logic_func` restano
+intatti: sono la macchina che `RX.5` riprenderà, e ora hanno la loro
+prima copertura diretta (`tests/test_data_logic.py`) — la fixture che
+avrebbe dovuto coprirli era doppiamente morta (nessuno la importava, e
+importava `HtmlBuilderHandler`, classe inesistente).
+
+**`CMP.7` riscritta** (142 → 50 righe): resta ciò che è vero — l'espansione
+effimera, corretta proprio perché nulla deve raggiungerla — ed escono
+identità derivata, mappa dei figli virtuali, patch di riga e di cella,
+catalogo campo→ordinale, purge indicizzato, corsia lazy, motore a
+coordinate. I **numeri di performance sono conservati** perché sono la
+baseline di chi costruirà il grid data-widget e la compiled bag: coda
+formule (broadcast 1500 righe 2,9s → 113ms), purge indicizzato (15,8M di
+`startswith` a 1500 righe, 36M su broadcast a 3000; primo paint lineare
+puro, ~2,1 ms/riga), e il costo residuo (body per riga + HTML intero sul
+filo, 3,7MB a 3000 righe con client innocente: parse 56ms, layout 340ms).
+
+**`target_id` resta**, l'identità derivata no. Il seriale per documento
+serve ancora a `include_datapath`, che è opzione di render anche statica;
+cade la catena `<base>.<label>....<ordinale>`, e nella compiled bag al suo
+posto c'è un **path**, che ogni nodo di bag ha per costruzione — così `id`
+esce dal core in modo strutturale, non come effetto collaterale.
+
+Conseguenza accettata: **Python non ha reattività fine** finché la
+compiled bag non esiste. L'apparato è depositato integralmente in
+`genro-ws-web@c88c6e6` (`attic/partial-render/`), la cui specifica di
+ricostruzione resta `roadmap/render-layer-html-ws.md` — valida per il
+deposito, non come specifica per Python. Cancellati da qui: i 20 esempi
+`reactive/`, `with_data/03_common_segment`, tre moduli di test del
+protocollo di patch e la fixture morta. Suite: **306 verdi** (prima 7
+rossi / 350 verdi — i rossi erano esempi reattivi e un test di patch, ora
+cancellati: nulla è stato "riparato", il soggetto è venuto meno).
+Copertura 83% → 84%, mypy 49 → 22 findings.
+
+Nota d'igiene rilevata durante il passaggio: il contratto citava ancora
+`contrib/ws_live` come implementazione di riferimento dell'Application,
+migrata in genro-ws-web col commit `6d3002a` — riferimento stantio,
+corretto in `APP`.
 
 ## v0.8.0 — emendamento del 2026-06-12 notte (purge writeback indicizzato)
 

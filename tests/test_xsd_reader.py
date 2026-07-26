@@ -26,7 +26,7 @@ class _GnrXsdBuilder(XsdBuilder):
     _name = "gnrxsdtest"
 
     @el(sub_tags="", ns="ed")
-    def editor(self): ...
+    def editor(self, **kwargs): ...
 
 
 def test_roundtrip_pure_xsd():

@@ -158,10 +158,10 @@ def test_inherits_from_unknown_raises_value_error() -> None:
             _name = None  # not registered
 
             @abstract(sub_tags="span,a")
-            def phrasing(self): ...
+            def phrasing(self, **kwargs): ...
 
             @element(inherits_from="ghost")
-            def p(self): ...
+            def p(self, **kwargs): ...
 
 
 def test_inherits_from_partial_unknown_in_list_raises() -> None:
@@ -173,10 +173,10 @@ def test_inherits_from_partial_unknown_in_list_raises() -> None:
             _name = None
 
             @abstract(sub_tags="span")
-            def phrasing(self): ...
+            def phrasing(self, **kwargs): ...
 
             @element(inherits_from="phrasing,ghost")
-            def p(self): ...
+            def p(self, **kwargs): ...
 
 
 # ---------------------------------------------------------------------------
@@ -192,12 +192,12 @@ def test_abstracts_section_is_topologically_ordered() -> None:
         _name = None  # not registered
 
         @abstract(sub_tags="a,b,c")
-        def base_phrasing(self): ...
+        def base_phrasing(self, **kwargs): ...
 
         # Declared *before* base_phrasing in source order but must
         # come *after* in the exported document.
         @abstract(sub_tags="d,e,f", inherits_from="base_phrasing")
-        def extended_phrasing(self): ...
+        def extended_phrasing(self, **kwargs): ...
 
     document = _Topo.__mro__[0]  # ensure class is built
 
@@ -221,4 +221,4 @@ def test_unrecognized_sub_tags_item_raises_at_class_definition():
     with pytest.raises(ValueError, match="unrecognized sub_tags item"):
         class Broken(BuilderBase):
             @element(sub_tags="div [1]")
-            def box(self): ...
+            def box(self, **kwargs): ...

@@ -40,6 +40,7 @@ class XmlRenderer(RendererBase):
         *,
         tag: str,
         pretty: bool = False,
+        depth_offset: int = 0,
         **_opts: Any,
     ) -> str:
         """Emit the XML fragment for ``node``.
@@ -51,10 +52,12 @@ class XmlRenderer(RendererBase):
           for empty leaves).
         - XML has no void tags: a childless, textless element is
           ``<tag></tag>``.
-        - ``pretty`` indents by wrapper-rooted depth, one node per line.
+        - ``pretty`` indents by wrapper-rooted depth, one node per line;
+          ``depth_offset`` shifts it for the nodes of a component
+          expansion, whose own root sits at 0.
         """
         attrs = self._format_attrs(runtime_attrs)
-        indent = "  " * self._node_depth(node) if pretty else ""
+        indent = "  " * self._node_depth(node, depth_offset) if pretty else ""
         newline = "\n" if pretty else ""
         if isinstance(item, list):
             body = "".join(item)

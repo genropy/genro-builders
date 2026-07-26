@@ -19,7 +19,7 @@ from genro_builders.builder._decorators import _DeclarativeMarker
 def test_element_returns_declarative_marker():
     """@element drops the function and returns a marker object."""
     @element()
-    def div(self): ...
+    def div(self, **kwargs): ...
 
     assert isinstance(div, _DeclarativeMarker)
     assert div.__name__ == "div"
@@ -29,7 +29,7 @@ def test_element_returns_declarative_marker():
 def test_element_marker_is_not_callable():
     """The marker has no __call__, so direct invocation must fail."""
     @element()
-    def div(self): ...
+    def div(self, **kwargs): ...
 
     try:
         div()
@@ -41,7 +41,7 @@ def test_element_marker_is_not_callable():
 def test_element_preserves_docstring_in_marker():
     """The marker exposes the original __doc__."""
     @element()
-    def div(self):
+    def div(self, **kwargs):
         """Block-level container."""
         ...
 
@@ -50,7 +50,7 @@ def test_element_preserves_docstring_in_marker():
 
 def test_abstract_returns_declarative_marker():
     @abstract(sub_tags="span,a")
-    def phrasing(self): ...
+    def phrasing(self, **kwargs): ...
 
     assert isinstance(phrasing, _DeclarativeMarker)
     assert phrasing._decorator["abstract"] is True
@@ -63,7 +63,7 @@ def test_element_warns_when_body_is_clearly_non_empty():
         warnings.simplefilter("always")
 
         @element()
-        def with_body(self):
+        def with_body(self, **kwargs):
             x = 1
             y = 2
             return x + y
@@ -79,7 +79,7 @@ def test_element_does_not_warn_for_empty_body():
         warnings.simplefilter("always")
 
         @element()
-        def empty(self): ...
+        def empty(self, **kwargs): ...
 
     messages = [str(w.message) for w in recorded if "empty" in str(w.message)]
     assert not messages
@@ -91,7 +91,7 @@ def test_element_does_not_warn_for_docstring_plus_ellipsis():
         warnings.simplefilter("always")
 
         @element()
-        def with_doc(self):
+        def with_doc(self, **kwargs):
             """A docstring is fine."""
             ...
 

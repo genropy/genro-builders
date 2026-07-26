@@ -53,8 +53,8 @@ def test_expansion_pointers_never_register():
     handler = BuilderHandler(application=object())   # tracking needs an app
     handler.add_builder(page)
     page.render()
-    assert "p.rec" in handler.pointer_map          # the anchor, on the node
-    assert "p.rec.label" not in handler.pointer_map  # the expansion: nothing
+    assert "rec" in handler.pointer_map          # the anchor, on the node
+    assert "rec.label" not in handler.pointer_map  # the expansion: nothing
 
 
 def test_iterate_must_resolve_to_a_bag():
@@ -137,9 +137,9 @@ def test_component_empty_expansion_raises():
 
 def test_pointer_kwarg_passes_through_to_the_body():
     """CMP.4 pass-through: a kwarg whose raw value is a reactive pointer
-    saturates the body as an ABSOLUTIZED POINTER (volume syntax), not as
-    the resolved value — the address must reach the final node, where it
-    resolves like a hand-written one and emits the write-back hook."""
+    saturates the body as an ABSOLUTIZED POINTER, not as the resolved
+    value — the address must reach the final node, where it resolves like
+    a hand-written one and emits the write-back hook."""
     from genro_builders.builder import BuilderHandler
 
     class Components:
@@ -159,4 +159,4 @@ def test_pointer_kwarg_passes_through_to_the_body():
     handler.add_builder(page)
     out = page.render(target=False, include_datapath=True)
     assert 'value="mario"' in out                      # display resolved
-    assert 'data-value-pointer="p.people.name"' in out  # the address: write-back
+    assert 'data-value-pointer="people.name"' in out  # the address: write-back

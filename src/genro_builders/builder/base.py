@@ -35,7 +35,7 @@ from ._decorators import element
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
 from ._utilities import (
-    _extract_validators_from_signature,
+    _extract_signature_info,
     _iter_data_element_methods,
     _parse_sub_tags_spec,
     _pop_decorated_methods,
@@ -143,7 +143,8 @@ class BuilderBase(
             inherits_from = decorator_info.get("inherits_from", "")
             meta = decorator_info.get("_meta")
             documentation = obj.__doc__
-            call_args_validations = _extract_validators_from_signature(obj)
+            call_args_validations, declared_names, accepts_var_keyword = (
+                _extract_signature_info(obj))
             node_label = decorator_info.get("node_label")
             collection_key = decorator_info.get("collection_key")
             # ``ns`` (namespace prefix) is optional: only the elements that
@@ -173,6 +174,8 @@ class BuilderBase(
                         _meta=meta,
                         documentation=documentation,
                         call_args_validations=call_args_validations,
+                        declared_names=declared_names,
+                        accepts_var_keyword=accepts_var_keyword,
                         node_label=node_label,
                         collection_key=collection_key,
                         **ns_attr,
@@ -184,7 +187,8 @@ class BuilderBase(
         # only here. Injected AFTER the dialect's own elements so a data-element
         # (e.g. ``data``) overrides a same-named dialect tag (e.g. HTML <data>).
         for tag_list, obj, decorator_info in _iter_data_element_methods(BuilderBase):
-            call_args_validations = _extract_validators_from_signature(obj)
+            call_args_validations, declared_names, accepts_var_keyword = (
+                _extract_signature_info(obj))
             for tag in tag_list:
                 cls._class_schema.set_item(
                     tag, None,
@@ -194,6 +198,8 @@ class BuilderBase(
                     _meta=decorator_info.get("_meta"),
                     documentation=obj.__doc__,
                     call_args_validations=call_args_validations,
+                    declared_names=declared_names,
+                    accepts_var_keyword=accepts_var_keyword,
                 )
 
         # Validate `inherits_from` references: each name in the
@@ -339,11 +345,11 @@ class BuilderBase(
     def __init__(self, name: str | None = None) -> None:
         """Initialize the builder: identity, grammar state, source wrapper.
 
-        ``name`` is the builder's identity towards a handler: the mount
-        name, i.e. the label of its data segment. Omitted, it defaults to
-        the dialect typology (``_name``, e.g. ``"html"``) — fine for a
-        bare builder (no data) or for a single mounted builder; a handler
-        mounting two builders with the same name raises at ``add_builder``.
+        ``name`` is the builder's identity — a label, not an address: the
+        datastore is flat, so the name is no longer a path segment.
+        Omitted, it defaults to the dialect typology (``_name``, e.g.
+        ``"html"``); a builder with no name at all is rejected at
+        ``add_builder``.
 
         Renderers are exposed as ``renderer_<mode>`` properties on the
         builder class. The base class declares ``renderer_xml`` so the
@@ -365,9 +371,9 @@ class BuilderBase(
         self._sourceroot.set_backref()
         self._default_targets: dict[str, Any] = {}
         # Data source. ``handler`` is set when a BuilderHandler mounts this
-        # builder (add_builder); ``data`` is its segment bag. A bare
-        # builder (no_data) keeps handler=None and an empty data bag, so
-        # setup(self.data) is harmless.
+        # builder (add_builder); ``data`` is then the handler's store,
+        # whole. A bare builder (no_data) keeps handler=None and an empty
+        # data bag, so setup(self.data) is harmless.
         self.handler: Any = None
         self.data: Bag = Bag()
         # data-element logic sources, resolved lazily by ``data_logic``.
@@ -596,15 +602,6 @@ class BuilderBase(
         property), then forwards a normalized event to the user hook
         :meth:`on_source_change`. Mapkeep is structural, not user-facing:
         it MUST happen even if the user does not override the public hook.
-        Finally records the touched path AND the event kind on the
-        handler's render queue: ``ins``/``del`` address the CHILD node —
-        the flush emits an ``insert``/``remove`` patch, the container is
-        derivable from the path — while ``upd`` addresses the node itself
-        (a ``replace``). A component child has no bounding element (it
-        manifests as N sibling blocks), so its structural unit is the
-        enclosing element: the lift to the container happens HERE, while
-        the node is still in hand — a deleted node is gone from the
-        source by flush time.
         """
         if evt == "ins":
             self.on_source_change(node, "ins", evt_detail=None, **kw)
@@ -618,18 +615,6 @@ class BuilderBase(
             if detail in ("attrs", "value_attr"):
                 self._on_upd_attrs(node, kw.get("attrs_diff") or {})
             self.on_source_change(node, "upd", evt_detail=detail, **kw)
-        # Queue key = mount name (the only cross-builder identity); the
-        # leading structural segment (SOURCE_ROOT) is dropped from the path.
-        path = ".".join(pathlist[1:])
-        if evt in ("ins", "del") and not node._get_meta("component"):
-            child_path = f"{path}.{node.label}" if path else node.label
-            if evt == "del":
-                self.handler.record_removed_id(
-                    self.name, child_path, getattr(node, "_target_id", None),
-                )
-            self.handler.add_render_path(self.name, child_path, kind=evt)
-        else:
-            self.handler.add_render_path(self.name, path, kind="upd")
 
     def on_source_change(
         self, node: Any, evt: str, evt_detail: str | None = None, **kw: Any
@@ -924,378 +909,6 @@ class BuilderBase(
             return str(mask) % value
         return value
 
-    def render_nodes(self, entries: list, target: Any = None, **opts: Any) -> Any:
-        """Render the touched nodes accumulated during a ``live`` section.
-
-        The destination decides the shape of the flush: a partial-capable
-        :class:`TargetWrapper` receives one batch of per-node patches,
-        anything else gets a full render as before. ``entries`` are the
-        optimizer's ``(kind, path)`` pairs; every patch id is a
-        ``target_id`` serial (the same the reactive render emits on the
-        element). The kind picks the op:
-
-        - ``upd`` -> ``{"id", "op": "replace", "html"}`` — the node
-          re-rendered as an outer fragment;
-        - ``ins`` -> ``{"id": <container | None>, "op": "insert",
-          "before": <sibling id | None>, "html"}`` — the new child only;
-          ``before`` anchors the DOM position (``None`` = append, a
-          ``None`` container = the document root);
-        - ``del`` -> ``{"id", "op": "remove"}`` — the node is gone from
-          the source; the id was captured at the delete event;
-        - ``row_upd``/``row_ins``/``row_del`` -> the same three ops on
-          ONE row block of an iterate component, addressed by derived
-          identity (``<base>.<label>.1`` — the body's first element):
-          the fragment is :meth:`render_expansion_block`, never the
-          whole container.
-        """
-        mode = self._default_render_mode
-        renderer = getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
-        effective_target = self._get_target(target, renderer)
-        if not (
-            isinstance(effective_target, TargetWrapper)
-            and effective_target.accepts_partial
-        ):
-            return self.render(target=target, **opts)
-        opts = {**effective_target.render_opts, **opts}
-        # (op, path, node, label, field): node is None for remove,
-        # label only on the row/cell ops, field only on the cells.
-        plan: list[tuple[str, str, Any, str | None, str | None]] = []
-        for kind, path, label, field in entries:
-            if kind == "del":
-                plan.append(("remove", path, None, None, None))
-                continue
-            node = self.source.get_node(path)
-            if node is None:
-                raise ValueError(
-                    f"queued render path {path!r} is no longer in the source",
-                )
-            if kind == "cell_upd":
-                plan.append(("cell", path, node, label, field))
-                continue
-            if kind == "row_upd":
-                plan.append(("row_replace", path, node, label, None))
-                continue
-            if kind == "row_ins":
-                plan.append(("row_insert", path, node, label, None))
-                continue
-            if kind == "row_del":
-                plan.append(("row_remove", path, node, label, None))
-                continue
-            if kind == "page":
-                plan.append(("page", path, node, label, None))
-                continue
-            if kind == "ins":
-                plan.append(("insert", path, node, None, None))
-                continue
-            if node._get_meta("component"):
-                # An iterate component renders as N sibling blocks with no
-                # bounding element: its replacement unit is the enclosing
-                # element (the caller's container), a real DOM node with
-                # an id. A component sitting at the source root has no
-                # enclosing element — the whole document is the unit.
-                parent = node.parent_bag.parent_node
-                parent_path = (
-                    self.source.relative_path(parent)
-                    if parent is not None else None
-                )
-                if not parent_path:
-                    return self.render(target=target, **opts)
-                path, node = parent_path, parent
-            plan.append(("replace", path, node, None, None))
-        # The lifts may have introduced duplicates or new ancestors: the
-        # same two reductions _optimize_render applies, on the plan. A
-        # replace at P covers ANY op under it (its fragment renders the
-        # final subtree) — the component's row and cell ops included —
-        # the replace itself excluded.
-        seen: set[tuple[str, str, str | None, str | None]] = set()
-        deduped: list[tuple[str, str, Any, str | None, str | None]] = []
-        for op, path, node, label, field in plan:
-            if (op, path, label, field) in seen:
-                continue
-            seen.add((op, path, label, field))
-            deduped.append((op, path, node, label, field))
-        replace_paths = {
-            path for op, path, _, _, _ in deduped if op == "replace"
-        }
-        deduped = [
-            entry for entry in deduped
-            if not any(
-                other != entry[1] and entry[1].startswith(other + ".")
-                for other in replace_paths
-            )
-            and not (
-                entry[0] in ("cell", "row_replace", "row_insert",
-                             "row_remove")
-                and entry[1] in replace_paths
-            )
-        ]
-        patches: list[dict[str, Any]] = []
-        for position, (op, path, node, label, field) in enumerate(deduped):
-            if op == "cell":
-                # Value-only patch: no body, no render, no re-registration
-                # — the wire carries {id, value} downstream too. Leaves
-                # the catalog does not know (templates, checked, richer
-                # cells) fall back to the row replace.
-                base = node.attr.get("id") or self.target_id(node)
-                specs = (
-                    getattr(self, "_cell_map", {}).get(base) or {}
-                ).get(field)
-                if not specs:
-                    fragment = renderer.render_expansion_block(
-                        node, label, **opts,
-                    )
-                    if isinstance(fragment, list):
-                        fragment = "".join(fragment)
-                    patches.append({
-                        "id": f"{base}.{label}.1", "op": "replace",
-                        "html": fragment,
-                    })
-                    continue
-                anchor_abs = node.abs_datapath(node.attr["iterate"])
-                data_node = self.handler.data.get_node(
-                    f"{anchor_abs}.{label}.{field}",
-                )
-                value = data_node.value if data_node is not None else None
-                if data_node is not None:
-                    # The cell lane presents exactly like the render
-                    # does: the masked value rides the wire.
-                    value = self._present_value(data_node, value)
-                text = "" if value is None else str(value)
-                for ordinal, cell_kind, attr_name in specs:
-                    cell_id = f"{base}.{label}.{ordinal}"
-                    if cell_kind == "text":
-                        patches.append({
-                            "id": cell_id, "op": "text", "value": text,
-                        })
-                    else:
-                        patches.append({
-                            "id": cell_id, "op": "attr",
-                            "name": attr_name, "value": text,
-                        })
-                continue
-            if op == "page":
-                # Lazy iterate: ONE op per page, addressed by the
-                # component's base — the client owns the placeholders,
-                # no DOM anchor travels with the patch.
-                base = node.attr.get("id") or self.target_id(node)
-                page_num = int(label)
-                patches.append({
-                    "id": str(base), "op": "page", "page": page_num,
-                    "html": renderer.render_lazy_page(
-                        node, page_num, **opts,
-                    ),
-                })
-                continue
-            if op == "row_remove":
-                # Derived identity needs no capture at the delete event:
-                # the address is arithmetic. The dead row's writeback
-                # entries die here (no re-expansion will purge them).
-                base = node.attr.get("id") or self.target_id(node)
-                patches.append({"id": f"{base}.{label}.1", "op": "remove"})
-                self._purge_writeback_prefix(f"{base}.{label}")
-                continue
-            if op in ("row_replace", "row_insert"):
-                base = node.attr.get("id") or self.target_id(node)
-                fragment = renderer.render_expansion_block(
-                    node, label, **opts,
-                )
-                if isinstance(fragment, list):
-                    fragment = "".join(fragment)
-                if op == "row_replace":
-                    patches.append({
-                        "id": f"{base}.{label}.1", "op": "replace",
-                        "html": fragment,
-                    })
-                    continue
-                before, fallback = self._row_insert_anchor(node, base, label)
-                if fallback:
-                    # No anchorable element after the block (a component
-                    # sibling follows): the container replace is the unit.
-                    container = node.parent_bag.parent_node
-                    if container is None:
-                        return self.render(target=target, **opts)
-                    whole = renderer.render(container, **opts)
-                    if isinstance(whole, list):
-                        whole = "".join(whole)
-                    patches.append({
-                        "id": self.target_id(container), "op": "replace",
-                        "html": whole,
-                    })
-                    continue
-                container = node.parent_bag.parent_node
-                container_id = (
-                    self.target_id(container)
-                    if container is not None else None
-                )
-                patches.append({
-                    "id": container_id, "op": "insert",
-                    "before": before, "html": fragment,
-                })
-                continue
-            if op == "remove":
-                target_id = self.handler.removed_target_id(self.name, path)
-                if target_id is None:
-                    # Never rendered with identity: nothing in the DOM.
-                    continue
-                patches.append({"id": target_id, "op": "remove"})
-                continue
-            if op == "insert":
-                # A sibling whose own insert comes LATER in this batch is
-                # not in the DOM yet when this patch applies: anchors are
-                # pre-existing or already-applied elements only.
-                pending = {
-                    later_path
-                    for later_op, later_path, _, _, _ in deduped[position + 1:]
-                    if later_op == "insert"
-                }
-                before, component_sibling = self._insert_anchor(node, pending)
-                if component_sibling:
-                    # No single id can anchor the insert next to a
-                    # component (N blocks, no bounding element): the
-                    # container replace is the unit, as for the lift.
-                    container_path = path.rpartition(".")[0]
-                    if not container_path:
-                        return self.render(target=target, **opts)
-                    container = self.source.get_node(container_path)
-                    fragment = renderer.render(container, **opts)
-                    if isinstance(fragment, list):
-                        fragment = "".join(fragment)
-                    patches.append({
-                        "id": self.target_id(container), "op": "replace",
-                        "html": fragment,
-                    })
-                    continue
-                fragment = renderer.render(node, **opts)
-                if fragment is None:
-                    continue                  # transparent: no markup
-                if isinstance(fragment, list):
-                    fragment = "".join(fragment)
-                container = node.parent_bag.parent_node
-                container_id = (
-                    self.target_id(container)
-                    if path.rpartition(".")[0] else None
-                )
-                patches.append({
-                    "id": container_id, "op": "insert",
-                    "before": before, "html": fragment,
-                })
-                continue
-            fragment = renderer.render(node, **opts)
-            if fragment is None:
-                # A transparent reader (a data-element: e.g. a formula
-                # re-collected as reader of the mutated path) emits no
-                # markup; its EFFECT — the value it wrote — queued its
-                # own readers already.
-                continue
-            if isinstance(fragment, list):
-                fragment = "".join(fragment)
-            patches.append({
-                "id": self.target_id(node), "op": "replace", "html": fragment,
-            })
-        effective_target.partial(patches)
-        return None
-
-    def _insert_anchor(
-        self, node: Any, pending: set[str],
-    ) -> tuple[Any, bool]:
-        """Anchor for an insert patch: ``(before_id, component_sibling)``.
-
-        The DOM position of the new element is the ``target_id`` of the
-        first FOLLOWING sibling already present when the patch applies.
-        Skipped: transparent siblings (data-elements render no markup)
-        and ``pending`` ones (their own insert applies later in this
-        batch). A component sibling manifests as N blocks with no
-        bounding element — no single id can anchor there, the caller
-        falls back to replacing the container. ``before`` is ``None``
-        when nothing anchorable follows: append at the end.
-        """
-        siblings = list(node.parent_bag)
-        index = next(i for i, sib in enumerate(siblings) if sib is node)
-        for sib in siblings[index + 1:]:
-            if sib._get_meta("data_element"):
-                continue
-            if sib._get_meta("component"):
-                return None, True
-            if self.source.relative_path(sib) in pending:
-                continue
-            return self.target_id(sib), False
-        return None, False
-
-    def _row_insert_anchor(
-        self, comp_node: Any, base: str, label: str,
-    ) -> tuple[Any, bool]:
-        """Anchor for a row-insert patch: ``(before_id, fallback)``.
-
-        The new row lands before the block of the row that FOLLOWS it
-        in the collection's bag order (derived id, pure arithmetic).
-        After the LAST row the anchor is the first renderable source
-        sibling following the component; a component sibling has no
-        anchorable id — ``fallback`` tells the caller to replace the
-        container instead. ``before=None`` appends at the end.
-        """
-        anchor_abs = comp_node.abs_datapath(comp_node.attr["iterate"])
-        collection = self.handler.data.get_item(anchor_abs)
-        labels = list(collection.keys())
-        index = labels.index(label)
-        if index + 1 < len(labels):
-            return f"{base}.{labels[index + 1]}.1", False
-        before, component_sibling = self._insert_anchor(comp_node, set())
-        return before, component_sibling
-
-    def _writeback_add(self, prefix: str, key: str, node: Any) -> None:
-        """Register a writable expansion node under its row prefix.
-
-        Two structures, one truth: the flat ``_writeback_map`` answers
-        the mutate (composite id -> node, one dict hit); the prefix
-        index — a segment tree, key-sets under the ``None`` slot —
-        lets the purge pay for its OWN subtree only, never a scan of
-        the whole map.
-        """
-        wmap = getattr(self, "_writeback_map", None)
-        if wmap is None:
-            wmap = self._writeback_map = {}
-        wmap[key] = node
-        index = getattr(self, "_writeback_index", None)
-        if index is None:
-            index = self._writeback_index = {}
-        for segment in prefix.split("."):
-            index = index.setdefault(segment, {})
-        index.setdefault(None, set()).add(key)
-
-    def _purge_writeback_prefix(self, prefix: str) -> None:
-        """Drop a prefix's derived ids from the writeback map — indexed.
-
-        Re-expansion purges its own prefix before re-registering; a
-        REMOVED row never re-expands, so its entries are purged at
-        patch time (the row's rules already died at the delete event,
-        anchor-based, on the data handler). The segment tree pops the
-        prefix's subtree (nested rows included) and deletes exactly
-        those keys: O(own entries), where the old full-map scan was
-        the first-paint quadratic (CMP.7).
-        """
-        wmap = getattr(self, "_writeback_map", None)
-        index = getattr(self, "_writeback_index", None)
-        if not wmap or index is None:
-            return
-        segments = prefix.split(".")
-        parent = index
-        for segment in segments[:-1]:
-            parent = parent.get(segment)
-            if parent is None:
-                return
-        subtree = parent.pop(segments[-1], None)
-        if subtree is None:
-            return
-        stack = [subtree]
-        while stack:
-            level = stack.pop()
-            for segment, child in level.items():
-                if segment is None:
-                    for key in child:
-                        del wmap[key]
-                else:
-                    stack.append(child)
-
     def _get_target(self, target: Any, renderer: Any) -> Any:
         """Resolve the render target for a render call.
 
@@ -1384,7 +997,7 @@ class BuilderBase(
                     inherits_from=decorator.get("inherits_from", ""),
                     _meta=decorator.get("_meta"),
                     documentation=obj.__doc__,
-                    call_args_validations=_extract_validators_from_signature(obj),
+                    call_args_validations=_extract_signature_info(obj)[0],
                 )
                 self._schema_tag_names[name.lower()] = name
 

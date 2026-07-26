@@ -154,19 +154,9 @@ class _SourceBagNodeMixin:
         Unlike ``_resolve_builder`` (the local dialect, an ``<svg>``
         subtree resolves to the SVG builder), this is the builder mounted
         on the document — read from the source root via ``Bag.root``. It
-        owns the data segment, so data resolution goes through here.
+        owns the datastore, so data resolution goes through here.
         """
         return self.parent_bag.root._builder
-
-    @property
-    def root_builder_name(self) -> Any:
-        """Return the mount name of the page builder.
-
-        The builder carries its name from construction; ``add_builder``
-        mounts it under that name in the handler's ``_dataroot``, so it
-        is the leading segment of an absolute data path for this tree.
-        """
-        return self.root_builder.name
 
     def _check_unique_id(self, node_id: Any) -> None:
         """Raise ValueError if ``node_id`` is already taken in the
@@ -252,19 +242,17 @@ class _SourceBagNodeMixin:
         """Compose the absolute path for ``path`` relative to this node.
 
         Pure address composition: returns *where* a datum lives as a
-        string, never reads the datastore. Supported syntactic forms:
+        string, never reads the datastore. The store is flat — one handler
+        drives one builder — so an absolute path carries no leading
+        segment. Supported syntactic forms:
 
-            ``field``               — absolute on this builder's segment;
-                                       the segment name is prepended
+            ``field``               — already absolute, returned as is
             ``^...`` / ``=...``     — pointer mark stripped, recurses.
                                        ``abs_datapath`` is neutral wrt
                                        the prefix; the lazy/eager
                                        distinction (``^`` vs ``=``)
                                        lives in ``runtime_values``
                                        and in the pointer-map registry
-            ``volume:field``        — ``volume`` is the leading segment
-                                       instead of this builder's own (so
-                                       ``_:x`` reaches the common segment)
             ``field?attr``          — ``?attr`` is preserved at the tail
             ``.field`` / ``.x``     — relative: walk ancestors and
                                        chain their ``datapath`` attribute
@@ -295,30 +283,21 @@ class _SourceBagNodeMixin:
         if "?" in path:
             path, attr = path.split("?", 1)
 
-        volume = self.root_builder_name
-        if ":" in path and not path.startswith("."):
-            volume, path = path.split(":", 1)
-            return self._compose_abs_path(volume, path, attr)
-
         if path.startswith("#"):
             return self._resolve_symbolic_datapath(path, raw)
 
         if path.startswith("."):
             path = self._compose_relative_datapath(path, raw)
-        return self._compose_abs_path(volume, path, attr)
+        return self._finalize_abs_path(path, attr)
 
-    def _compose_abs_path(
-        self, volume: str, path: str, attr: str | None,
-    ) -> str:
-        """Compose ``volume.path`` into an absolute datastore path.
+    def _finalize_abs_path(self, path: str, attr: str | None) -> str:
+        """Collapse ``path`` into a final absolute datastore path.
 
-        ``path`` is collapsed (``#parent`` segments resolved) before the
-        leading ``volume`` segment is prepended, so the segment is never
-        cancelled; ``?attr`` is re-attached at the tail when present.
+        ``#parent`` segments are resolved and ``?attr`` is re-attached at
+        the tail when present.
         """
         path = self._collapse_parent_datapath(path, path)
-        base = f"{volume}.{path}"
-        return f"{base}?{attr}" if attr else base
+        return f"{path}?{attr}" if attr else path
 
     def _compose_relative_datapath(self, path: str, raw: str) -> str:
         """Resolve a relative path by walking ancestors.
@@ -444,10 +423,9 @@ class _SourceBagNodeMixin:
         """Read the datastore at ``path`` resolved relative to this node.
 
         ``path`` is composed via :meth:`abs_datapath` into an absolute
-        path on ``handler.data`` (the segmented ``_dataroot``); it accepts
-        the same syntactic forms (absolute, relative ``.x``, ``#FORM``,
-        ``#ANCHOR``, ``#<node_id>``, ``volume:rest``, with or without the
-        ``^``/``=`` prefix).
+        path on ``handler.data``; it accepts the same syntactic forms
+        (absolute, relative ``.x``, ``#FORM``, ``#ANCHOR``,
+        ``#<node_id>``, with or without the ``^``/``=`` prefix).
 
         When ``autocreate=True``, a ``None`` value at ``path`` (missing or
         explicitly ``None``) is seeded with ``default`` before the read —

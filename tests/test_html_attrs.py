@@ -60,7 +60,7 @@ def test_boolean_attr_reactive_pointer_decides_presence():
     handler = BuilderHandler()
     handler.add_builder(page)
     assert "disabled" not in page.render(target=False)
-    handler.data["main.locked"] = True
+    handler.data["locked"] = True
     assert "<input disabled" in page.render(target=False)
 
 

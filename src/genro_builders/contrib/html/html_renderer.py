@@ -118,6 +118,7 @@ class HtmlRenderer(RendererBase):
         xml: bool = True,
         pretty: bool = False,
         include_datapath: bool = False,
+        depth_offset: int = 0,
         **_extra: Any,
     ) -> str:
         """Emit the HTML5 fragment for ``node``.
@@ -130,7 +131,8 @@ class HtmlRenderer(RendererBase):
         - ``xml`` selects XHTML-style void tags (``<br/>`` vs
           ``<br>``).
         - ``pretty`` enables multi-line indented output (2 spaces per
-          level).
+          level); ``depth_offset`` shifts it when the node comes from a
+          component expansion, whose own root sits at 0.
         - ``include_datapath`` emits, next to each pointer-bound
           attribute, a ``data-<name>-pointer`` carrying its absolute
           datapath — the hook client-side code uses to write back.
@@ -139,7 +141,7 @@ class HtmlRenderer(RendererBase):
         if include_datapath:
             attrs += self._auto_id_attr(node, runtime_attrs)
             attrs += self._datapath_attrs(node)
-        depth = self._node_depth(node)
+        depth = self._node_depth(node, depth_offset)
         indent = "  " * depth if pretty else ""
         newline = "\n" if pretty else ""
         if tag in _VOID_TAGS:

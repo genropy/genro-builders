@@ -24,7 +24,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          # The suite covers the optional dialects too (xsd, xslt, css
+          # reverse, yaml), and their test modules import the third-party
+          # parser at top level — with ``[dev]`` alone pytest fails during
+          # COLLECTION, before a single test runs.
+          pip install -e ".[dev,xsd,xslt,yaml,reverse]"
 
       - name: Run tests with coverage
         run: |

@@ -30,7 +30,7 @@ class SvgExtensions:
             "render_attributes": {"xmlns": "http://www.w3.org/1999/xhtml"},
         },
     )
-    def html(self):
+    def html(self, **kwargs):
         """Switch to the HTML dialect from this node down (BLD.2).
 
         A sub-builder element: ``_meta['subbuilder']`` switches the active

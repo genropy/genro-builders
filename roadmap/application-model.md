@@ -2,7 +2,16 @@
 
 **Versione**: 0.2.0
 **Ultimo aggiornamento**: 2026-06-10
-**Status**: 🟢 RECEPITO dal contratto v0.8.0 (area `APP`).
+**Status**: 🟡 PARZIALMENTE SUPERATO dal contratto v0.9.0 (area `APP`).
+
+> **Stato dopo il contratto v0.9.0 (2026-07-26).** La sezione `live()`
+> descritta qui **non esiste più**: è uscita col resto dell'apparato
+> reattivo ed è depositata in `genro-ws-web@c88c6e6`. Resta valido il
+> ruolo dell'Application come strato fra il mondo esterno e l'handler, e
+> resta vero che è lei ad accendere la tracciatura dei lettori
+> (`pointer_map`, `RX.3`) — ma non c'è più una sezione critica da
+> presupporre, perché aggiornare significa **rendere di nuovo** (`RX.1`).
+> Il contesto della reattività fine sarà la compiled bag (`RX.5`).
 
 Spiega cos'è l'**Application** in genro-builders, perché la reattività vive
 solo al suo interno, e come si usa in modo canonico (anche nei test: senza
