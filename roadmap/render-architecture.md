@@ -8,9 +8,18 @@ writing a new dialect — especially an *object* dialect (widgets, live
 objects) or a reactive layer outside this repo.
 
 This document describes how rendering works and where the line falls
-between what the **core** owns and what each **renderer** decides. It is
-descriptive for the total render (which already honours the line) and
-prescriptive for the partial render (which does not yet).
+between what the **core** owns and what each **renderer** decides.
+
+> **Status after contract v0.9.0 (2026-07-26).** The parts on the TOTAL
+> render, the universal walk and the core/renderer line are **current** —
+> they describe the static core as it now is. The parts on the PARTIAL
+> render describe machinery that has **left the codebase**: it lives in
+> `genro-ws-web@c88c6e6` (`attic/partial-render/`). §4's ephemeral
+> expansion is not just still valid, it is the clause the whole change
+> turned on (`CMP.7`): the expansion is correct as a render-time fact,
+> and materialising it belongs to the compiled bag (`RX.5`). §6.1 on `id`
+> leaving the core is superseded in its mechanism — a path replaces the
+> identity, so no `target_id_name` indirection is needed.
 
 ---
 

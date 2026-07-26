@@ -6,6 +6,12 @@
 **Parent**: [render-architecture.md](render-architecture.md)
 **Implementation**: `genro-dom-js` (JS port, 109 tests green)
 
+> **Status after contract v0.9.0 (2026-07-26).** This layer becomes the
+> **primary direction**, not one option of three: for HTML with a JS
+> renderer Python needs no reactivity of its own, because the compiled bag
+> already lives on this side of the wire (the DOM over `bag-js`), where the
+> nodes are real by nature. The Python half of the bridge is `RX.5`.
+
 The layer where the recipe is shipped once and everything else happens
 client-side. It is the traditional Genropy model — most of the GUI logic
 in JS — rebuilt on the builders' architecture.

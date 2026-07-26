@@ -1,5 +1,13 @@
 # Lazy iterate — la pigrizia sta nel dato
 
+> **Stato dopo il contratto v0.9.0 (2026-07-26).** La corsia lazy
+> descritta qui è stata **rimossa dal core** (i sei metodi `lazy_*`
+> dell'handler e il render dei marker) e depositata in
+> `genro-ws-web@c88c6e6`. Il modello a scroll virtuale guidato dal client
+> resta la direzione giusta, ma presuppone una struttura materializzata
+> lato client: si ricostruisce sopra la compiled bag (`RX.5`), non sopra
+> l'espansione effimera (`CMP.7`).
+
 **Versione**: 0.4.1
 **Ultimo aggiornamento**: 2026-06-12
 **Status**: 🔴 DA REVISIONARE — formalizza le decisioni D1-D4 condivise il

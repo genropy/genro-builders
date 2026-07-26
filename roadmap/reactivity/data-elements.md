@@ -3,8 +3,18 @@
 **Version**: 0.2.1
 **Last Updated**: 2026-06-10
 **Status**: 🔴 DA REVISIONARE — fetta 1 (singola ondata) IMPLEMENTATA;
-cascata multi-ondata (fetta 2) ancora da implementare; modello non ancora
-approvato
+la "fetta 2" NON è più rinviata ma **ricollocata** (vedi nota); modello
+non ancora approvato
+
+> **Stato dopo il contratto v0.9.0 (2026-07-26).** Restano validi: il
+> modello dei data-element come `@element` marcati, il compute sul builder,
+> la risoluzione della `func` per nome via `data_logic`, e il primo calcolo
+> al `create()`. **Cambia il regime**: senza reattività `dataFormula` e
+> `dataController` sono inerti (calcolano solo se `_on_start=True`) e il
+> renderer li segnala con un `UserWarning` — restano dichiarabili di
+> proposito, così la stessa pagina si prova statica e poi si monta
+> reattiva. La cascata multi-ondata descritta qui (coda FIFO, anti-loop,
+> ondate) appartiene alla compiled bag (`RX.5`), non a Python.
 
 > **Nota 2026-06-10 (contratto v0.8.0)** — leggere con due aggiornamenti:
 > il compute vive sul **builder** (`compute_logic`; l'handler coordina la

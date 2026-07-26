@@ -6,6 +6,13 @@
 registrazione alla lettura) è REALIZZATA e in develop (`45ec6a7`); il resto
 (datapath variabile, collection store, master-detail frattale) è ancora visione.
 
+> **Stato dopo il contratto v0.9.0 (2026-07-26).** La registrazione alla
+> lettura (§11) resta nel core e regge: la `pointer_map` si popola leggendo
+> ed è opt-in sull'Application (`RX.3`). La visione (datapath variabile,
+> collection store, master-detail frattale) è intatta come visione, ma va
+> pensata sopra la compiled bag (`RX.5`): è là che una selezione può
+> ri-ancorare un sottoalbero indirizzabile.
+
 > **Nota 2026-06-10** — il design dei component è stato deciso (contratto
 > v0.8.0 area `CMP`, verbale in `roadmap/component-design.md`) e SUPERA due
 > punti di questo documento:

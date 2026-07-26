@@ -5,6 +5,12 @@
 **Status**: 🔴 DA REVISIONARE
 **Parent**: [render-architecture.md](render-architecture.md)
 
+> **Status after contract v0.9.0 (2026-07-26).** This layer is now **the
+> whole Python core**, not merely the baseline of three: the handler is
+> flat and static (`HND`), and updating means re-rendering (`RX.1`). Read
+> it as current, with one correction — absolute data paths no longer carry
+> a leading mount segment (`field`, not `page.field`).
+
 The baseline layer: a source tree in, a document out. No client, no
 reactivity, no identity. Everything the other two layers add sits on top
 of this — and this layer must keep working when they are removed.

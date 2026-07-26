@@ -5,6 +5,17 @@
 **Status**: 🔴 DA REVISIONARE
 **Parent**: [render-architecture.md](render-architecture.md)
 
+> **Status after contract v0.9.0 (2026-07-26).** The machinery described
+> here **no longer exists in genro-builders**: it was removed and
+> deposited verbatim in `genro-ws-web@c88c6e6`
+> (`attic/partial-render/`). This document stays valid as the **rebuild
+> spec for that deposit**, and NOT as a specification for Python. What
+> replaces it is not a repair of this design but a different one: a
+> compiled bag emitted by a `livehtml` render mode, with the wire
+> carrying **bag mutations** (`ins`/`upd`/`del` on a path) instead of DOM
+> ops (`RX.5`). Whoever rebuilds this should read `CMP.7` first, to see
+> why the identity apparatus described below was a surrogate.
+
 The layer that keeps everything in Python and sends the browser a stream
 of patches. This document exists so it can be **rebuilt from outside**
 `genro-builders` — the test being: *imagine ws-web never existed; build

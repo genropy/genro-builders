@@ -3,7 +3,8 @@
 **Last Updated**: 2026-06-10
 **Status**: 🟡 APPROVATO PARZIALMENTE — path grammar, pointers, datapath,
 `abs_datapath`, errors and invariants still hold; the document-model and
-volume sections are superseded (see note below).
+volume sections are superseded, and volumes are now GONE entirely (see
+the two notes below).
 **Audience**: Contributors writing or maintaining `genro-builders`,
 and users building applications on top of `BuilderHandler`.
 
@@ -24,6 +25,23 @@ and users building applications on top of `BuilderHandler`.
 > Sections 3-7 and 10-12 (path grammar, pointers, datapath,
 > `abs_datapath`, symbolic pointers, errors, invariants) remain the
 > reference, read against the segmented datastore.
+
+> **Realignment note (2026-07-26, contract v0.9.0)** — the segmentation
+> that the note above still assumed is **gone**, and with it volumes in
+> every form:
+> - the datastore is **flat**: one handler drives one builder, so there is
+>   no per-builder segment and no shared `_` (`HND.2`). `handler.data` and
+>   `builder.data` are the same object;
+> - **`volume:field` no longer exists** as syntax (`DAT.2`): with no
+>   segments there is no volume to choose. Every table row and example
+>   below that uses the `vol:path` form describes a removed feature —
+>   read them as history;
+> - absolute paths lose their leading segment: `field`, not `page.field`.
+> What still holds, and is the reason the rest of this document stays
+> useful: relative paths (`.x`), the ancestor `datapath` chain, `#parent`,
+> the symbolic scopes (`#FORM`, `#ANCHOR`, `#<node_id>`), the `?attr`
+> tail, and read-time registration — all unchanged, all still tested
+> (`tests/test_abs_datapath.py`).
 
 This document is the companion of
 [architecture-contract.md](architecture-contract.md). The contract

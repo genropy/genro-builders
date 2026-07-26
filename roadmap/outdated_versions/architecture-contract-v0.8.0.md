@@ -1,34 +1,24 @@
-# Architecture contract — genro-builders — v0.9.0
+# Architecture contract — genro-builders — v0.8.0
 
-**Status**: 🟢 IN VIGORE dal 2026-07-26.
-**Sostituisce**: v0.8.0 (archiviata in
-`roadmap/outdated_versions/architecture-contract-v0.8.0.md`).
+**Status**: 🟢 IN VIGORE dal 2026-06-10.
+**Sostituisce**: v0.7.0 (archiviata in
+`roadmap/outdated_versions/architecture-contract-v0.7.0.md`).
 
 Il diff logico tra versioni del contratto vive in
 `roadmap/CONTRACT_CHANGELOG.md`.
 
-**Svolta della v0.9.0 — static first.** Il core è **statico**: un handler
-piatto che serve i dati a UN builder. La reattività fine non si ripara in
-Python, si rifonda su una **compiled bag** emessa da un render mode
-`livehtml` (`RX.5`) — perché l'apparato precedente (identità derivata,
-`target_id`, motore di regole, corsia lazy, protocollo di patch) non era
-reattività mal collocata: era il **surrogato di una struttura che non
-esisteva**, che ricostruiva a posteriori l'identità che un albero
-materializzato avrebbe avuto gratis. Multibuilder e segmentazione del
-datastore escono con esso: erano la stessa feature del segmento `_`, e un
-segmento condiviso non significa nulla senza più builder con cui
-condividerlo.
-
 **Stato del codice rispetto al contratto**: il codice è allineato su:
 identità dei nodi, render subsystem (walk universale, dispatch per-nodo,
 minimi di cardinalità), data binding pull-based con registrazione alla
-lettura, data-element e compute "fetta 1", **handler statico piatto**
-(`HND`: un builder, un datastore senza segmenti), **component** (`CMP`:
-singolo/store/iterate/frattale). Il re-render è il modello di
-aggiornamento: si mutano i dati e si rende di nuovo. Restano da
-implementare: la **compiled bag** e il render mode `livehtml` (`RX.5`,
-ricerca, documento di disegno proprio), e con essi ogni reattività fine;
-**`@container`** (`CMP.9`, deciso 2026-06-11),
+lettura, data-element e compute "fetta 1", handler multibuilder
+(`add_builder`/`activate`), reattività push Livello 0 con `live()` come
+sezione critica e coda di render per mount, **component** (`CMP`:
+singolo/store/iterate/frattale, reattività L0), **render parziale**
+(`RX.1`: TargetWrapper, busta `replace`/`insert`/`remove`, optimizer di
+netting, identità seriale `target_id`). Restano da implementare: la
+cascata reattiva multi-ondata dei data-element ("fetta 2", `DAT.4`), i
+livelli di reattività con granularità SRC/DATA (`RX`) e il per-riga dei
+component (`CMP.7`), **`@container`** (`CMP.9`, deciso 2026-06-11),
 `<domain>requires`/`include_components` (`CMP.6`), lo **`@slot`**
 (`PAG.6`, design completo, codice assente) e lo strato Application
 (`APP`).
@@ -53,19 +43,19 @@ la minor del contratto, si conserva la versione superata in
 
 - **Builder**: la grammar di un dialetto (`HtmlBuilder`, `SvgBuilder`,
   `CssBuilder`, `XsdBuilder`, ...) E l'identità di un documento: porta
-  `name` (etichetta, non indirizzo), `source`, `create()`/`render()`.
-  Una **pagina** è una subclass di builder con `main(self, root)`.
-- **BuilderHandler**: la sorgente dati del builder montato. Possiede UN
-  `_dataroot` piatto, monta UN builder (`add_builder`) e possiede la
-  `pointer_map`. Non è un render engine; si sottoclassa solo per
-  `setup()`.
+  `name` (nome di mount), `source`, `create()`/`render()`. Una **pagina**
+  è una subclass di builder con `main(self, root)`.
+- **BuilderHandler**: la sorgente dati dei builder montati. Possiede UN
+  `_dataroot` segmentato, monta N builder per nome (`add_builder`),
+  possiede `pointer_map`, `activate()` e la sezione critica `live()`.
+  Non si sottoclassa e non è un render engine.
 - **Application**: lo strato fra il mondo esterno (websocket, REPL,
-  thread) e l'handler. Accende la tracciatura dei lettori
-  (`pointer_map`, `RX.3`); la reattività fine arriverà con `RX.5`.
+  thread) e l'handler. La reattività live presuppone un'Application
+  (`APP`).
 - **Source**: il bag (`SourceBag`) popolato in `create`, serializzato in
   `render`. Vive sotto il segmento strutturale `SOURCE_ROOT` (`_root_`).
-- **Data**: il datastore dell'handler, piatto: `handler.data` e
-  `builder.data` sono lo stesso oggetto (`HND.2`).
+- **Data**: il datastore segmentato dell'handler; ogni builder montato
+  legge/scrive il proprio segmento (`builder.data`), `_` è il comune.
 - **Data-element**: `@element` marcato `_meta['data_element']` che porta
   logica sui dati (kind: `data_setter`/`data_formula`/`data_controller`),
   trasparente al render, eseguito dal compute (`DAT.3`/`DAT.4`).
@@ -90,14 +80,11 @@ la minor del contratto, si conserva la versione superata in
 2. **Con dati** — builder montato su un `BuilderHandler` (nessuna
    Application): pointer `^`/`=` risolti al render, data-element,
    compute. Pull-only: nessun auto-render.
-3. **Con re-render** — si mutano i dati e si rende di nuovo (`RX.1`):
-   nessuna sezione critica, nessun render automatico. Con
-   un'Application la `pointer_map` si popola e dice chi legge cosa; il
-   consumatore reattivo di quella mappa arriva con la compiled bag
-   (`RX.5`).
+3. **Con live** — handler + **Application**: `activate()` arma la
+   reattività, le mutazioni avvengono dentro `live()` e producono
+   render automatici. Il mondo esterno parla con l'Application.
 
-Il dettaglio della reattività vive in `roadmap/reactivity/`, **da
-rileggere alla luce di `RX.5`**.
+Il dettaglio per scenario della reattività vive in `roadmap/reactivity/`.
 
 ## Principio cross-runtime: un linguaggio, due interpreti
 
@@ -118,21 +105,23 @@ documento** (`n1`, `n2`, ...) assegnato al nodo generante alla prima
 emissione e conservato sull'oggetto (slot, mai un attributo della bag):
 legato all'oggetto e non alla posizione, nessuna mutazione strutturale
 lo invalida; deterministico (ordine di render) per i fixture
-committati. Lo emette il render che lo chiede (`include_datapath`) su
-OGNI elemento; l'id d'autore vince e rinuncia all'indirizzabilità. Il
-render statico puro non porta identità: non gli serve.
-
-L'**identità derivata** delle espansioni (`<base>.<label>....<ordinale>`)
-esce con la v0.9.0: era la ricostruzione a posteriori di un indirizzo per
-nodi che non esistono (`CMP.7`). Nella compiled bag (`RX.5`) al suo posto
-c'è un **path**, che ogni nodo di una bag ha per costruzione — ed è la
-ragione per cui `id` esce dal core in modo strutturale e non come effetto
-collaterale.
+committati. Il render reattivo lo emette su OGNI elemento (qualunque
+elemento può diventare bersaglio, contenitore o ancora a runtime);
+l'id d'autore vince e rinuncia all'indirizzabilità. La mutazione
+strutturale viaggia come `insert` (frammento nuovo + ancora `before`) /
+`remove`; la sostituzione di contenitore resta (per ora) l'unità di
+patch per le espansioni component. Le espansioni non ricevono MAI un
+seriale proprio (reincarnano): la loro identità è **derivata e
+deterministica** — `<base>.<label di iterazione>....<ordinale>`, dove
+la base è l'id del nodo component (seriale o d'autore), le label sono
+le identità delle righe negli store attraversati e l'ordinale segue
+l'ordine di costruzione del body (codice: il rebuild è identico).
+Solo nel render reattivo; il render statico non porta identità.
+Residui noti: stato client effimero.
 [Emendamento 2026-06-11: sostituisce "identità per path" — il path
 slittava ad ogni insert, il seriale è inerte.]
-[Emendamento 2026-07-26 (v0.9.0): il seriale resta come identità
-d'elemento su richiesta; cade l'identità derivata delle espansioni e con
-essa la mappa dei figli virtuali.]
+[Emendamento 2026-06-11 sera: identità derivata delle espansioni —
+vedi CMP.7, mappa dei figli virtuali implementata lato write-back.]
 
 ---
 
@@ -159,7 +148,8 @@ separato da `@element`. Da `<svg>` in giù il builder attivo è
 - **Propagazione dell'handler**: `get_subbuilder` istanzia il
   sub-builder e gli passa l'handler del padre (a cascata sui sub-builder
   annidati), così i pointer del sottoalbero risolvono sugli stessi dati
-  del documento. Il sub-builder è solo grammatica: non porta dati propri.
+  del documento. Il sub-builder è solo grammatica: non ha un segmento
+  dati proprio.
 - **Confine letterale**: il nodo-involucro di confine fra dialetti
   (`svg` dentro html, `foreignObject` dentro svg) emette i propri
   attributi **letterali nei due sensi**: non appartiene per intero a
@@ -195,19 +185,19 @@ alla prima chiamata.
 
 ### PAG.1 — Il nome appartiene al builder
 
-`BuilderBase(name=...)`: `name` è l'identità del builder — un'etichetta,
-non un indirizzo (il datastore è piatto, `HND.2`). Omesso, default =
-tipologia del dialetto (`_name`, es. `"html"`). `add_builder` **legge** il
-nome, mai lo assegna; unico vincolo = che ci sia. Una pagina = una
-subclass di builder con `main(self, root)`.
+`BuilderBase(name=...)`: `name` è l'identità di mount verso l'handler
+(la label del suo segmento dati). Omesso, default = tipologia del
+dialetto (`_name`, es. `"html"`). `add_builder` **legge** il nome, mai
+lo assegna; unico vincolo = collisione (e `_`, riservato al segmento
+comune). Una pagina = una subclass di builder con `main(self, root)`.
 
 ### PAG.2 — Source sotto `SOURCE_ROOT` (`_root_`)
 
 La source vive sotto il segmento strutturale `SOURCE_ROOT = "_root_"`
 di un wrapper-root: garanzia albero-non-foresta. È una **costante
 strutturale, MAI un indirizzo**: la partizione semantica del documento
-la decide l'autore col `datapath`, non una segmentazione imposta.
-`self.source` è il payload che `main` popola; il wrapper ha il
+è il primo livello della DATA bag (nomi di mount + `_`), non della
+source. `self.source` è il payload che `main` popola; il wrapper ha il
 backref acceso (necessario ad `abs_datapath` e a ogni risalita
 ancestor).
 
@@ -216,16 +206,17 @@ ancestor).
 ```python
 page = CustomerPage(name="customer")
 handler = BuilderHandler()
-handler.add_builder(page)        # monta e crea
+handler.add_builder(page)        # monta, semina il segmento, crea
 page.render(target="out.html")
 ```
 
-`create()` esegue: `setup(self.data)` (semina i dati), `main(self.source)`
-(costruisce il documento), poi il **primo calcolo** (ogni `data_setter` +
-formula/controller marcati `_on_start`, via `compute_logic`). Se il
-contesto è reattivo (`APP`), `create()` arma anche la subscribe della
-**source**, che tiene coerente la `pointer_map` sulle mutazioni di
-struttura (`DAT.2`).
+`create()` esegue: `setup(self.data)` (semina i dati del segmento),
+`main(self.source)` (costruisce il documento), poi il **primo calcolo**
+(ogni `data_setter` + formula/controller marcati `_on_start`, via
+`compute_logic`). Se il contesto è reattivo (`APP`), `create()` arma
+anche la subscribe della **source**; la subscribe dei **dati** la arma
+`activate()` sull'handler (`HND.4`) — dopo il primo render, perché la
+`pointer_map` si popola leggendo (`DAT.2`).
 
 Un builder nudo (scenario 1) fa `create()` + `render()` da solo:
 `handler=None`, data bag vuota, `setup` innocuo.
@@ -246,9 +237,9 @@ dialetti XSD è la prima rete strutturale, non sostituisce la
 validazione XSD a valle. (Il massimo di cardinalità è verificato
 all'inserimento.)
 
-Non esiste un ingresso di render parziale: aggiornare = rendere di nuovo
-(`RX.1`). Il render parziale su struttura materializzata è competenza
-della compiled bag (`RX.5`).
+`render_nodes(nodes, **opts)` è l'ingresso del flush di `live()`:
+al passo uno ignora la lista e rende tutto il builder; il render
+parziale per nodo è un raffinamento successivo (`RX.1`).
 
 ### PAG.5 — `node_by_id` sul builder; l'unicità la garantisce il root builder
 
@@ -301,70 +292,60 @@ metodi, comportamento dello slot orfano) in fase TDD.
 
 Una pagina è un builder; un builder che legge pointer ha bisogno di una
 sorgente dati. Il `BuilderHandler` è quella sorgente: possiede UN
-`_dataroot` e monta UN builder su di esso. **Non è un render engine**:
+`_dataroot` segmentato e monta i builder per nome consegnando a ognuno
+il proprio segmento. **Non si sottoclassa e non è un render engine**:
 il render vive sul builder. L'handler fornisce i dati e (alla lettura)
-traccia chi legge cosa (`pointer_map`). Si sottoclassa solo per
-`setup()`, che è un override-point, non un punto di estensione del
-comportamento.
+traccia chi legge cosa (`pointer_map`).
 
-Il modulo porta il nome della classe (`builder/builder_handler.py`).
+L'orchestratore multi-handler ("SUITE") è **dissolto**: il caso che lo
+motivava (documenti eterogenei su dati condivisi — excel+word,
+traefik/compose/k8s) è coperto dal multibuilder (N builder su segmenti
++ `_` comune).
 
-L'orchestratore multi-handler ("SUITE") resta **dissolto**, e con la
-v0.9.0 lo è anche il **multibuilder** che lo aveva sostituito: di ~100
-call site di `add_builder`, esattamente uno montava più di un builder.
-Documenti eterogenei su dati condivisi si compongono con N handler, o —
-quando servirà davvero — sopra la compiled bag (`RX.5`).
+### HND.2 — `_dataroot` segmentato; `_` è il segmento comune
 
-### HND.2 — `_dataroot` piatto: nessun segmento, nessun `_`
+Primo livello del datastore = nomi di mount + `_` (creato alla nascita,
+spazio condiviso fra i builder montati). `handler.data` espone l'intero
+datastore segmentato; `builder.data` il proprio segmento.
+`handler.setup(data)` è l'override-point per seminare il comune.
+Il backref è acceso alla nascita (parte del contratto strutturale).
 
-Il datastore è UNA Bag. `handler.data` e `builder.data` sono **lo stesso
-oggetto**: non c'è un segmento per builder da distinguere dal tutto, e
-non c'è il segmento comune `_` (aveva senso solo fra più builder).
-Un path assoluto non porta segmento iniziale: `counter`, non
-`page.counter`. `handler.setup(data)` è l'override-point per seminare il
-datastore, e riceve la radice. Il backref è acceso alla nascita (parte
-del contratto strutturale).
+### HND.3 — `add_builder(*builders)`: monta per nome e crea
 
-### HND.3 — `add_builder(builder)`: monta e crea
+Per ogni builder: verifica il nome (assente → errore; `_` → errore;
+duplicato → errore), registra, crea il segmento, inietta `handler` e
+`data` (il segmento), mette l'handler sul source-root (ogni nodo lo
+raggiunge via property `handler`, `BAG.3`), e chiama `create()`
+(`PAG.3`). Il primo builder montato è il default.
 
-Verifica il nome (assente → errore: un builder senza nome non ha
-identità), registra il builder, inietta `handler` e `data` (il datastore
-intero), mette l'handler sul source-root (ogni nodo lo raggiunge via
-property `handler`, `BAG.3`), e chiama `create()` (`PAG.3`). Montare un
-secondo builder è un errore: un handler guida un builder.
+### HND.4 — `activate()`: chiude l'avviamento
 
-Il `name` del builder resta la sua identità — un'etichetta, non un
-indirizzo: non è più un segmento di path.
+`activate()` rende ogni builder montato (il **primo render popola la
+pointer_map**, `DAT.2`), poi — se c'è un'Application — arma la
+subscribe dei **dati** e accende `_live_enabled`. `live()` prima di
+`activate()` → `RuntimeError` (una pagina mai resa non è reattiva:
+mappa vuota, nulla reagirebbe).
 
-### HND.4 — L'avviamento è il montaggio; il re-render è l'aggiornamento
-
-Non c'è `activate()`: montare crea, e il render si chiede quando serve.
-Il modello di aggiornamento del core statico è il **re-render** — si
-mutano i dati, si rende di nuovo — e non richiede né sezione critica né
-protocollo di patch. La `pointer_map` continua a popolarsi come effetto
-della lettura (`DAT.2`) e serve a chi vuole sapere chi legge cosa; il
-consumatore reattivo di quella mappa arriverà con la compiled bag
-(`RX.5`).
-
-### HND.5 — Thread safety non promessa
+### HND.5 — Thread safety non promessa; `live()` è l'unica serializzazione
 
 `BuilderHandler` e le classi correlate non sono thread-safe (proprietà
 ereditata da `genro_bag.Bag`). Il framework non introduce lock sui
-mutatori né su `render()`, e non esiste più una sezione critica di
-mutazione: chi condivide un handler fra thread sincronizza da sé.
+mutatori né su `render()`; l'unica eccezione è l'`RLock` che fa di
+`live()` la sezione critica di mutazione (`RX.1`). Chi condivide un
+handler fra thread muta **dentro `live()`**; la sincronizzazione di
+ogni altro accesso è responsabilità sua.
 
 ---
 
 ## Area APP — Application (da formalizzare in dettaglio)
 
 L'Application è lo strato fra il mondo esterno e l'handler: possiede il
-ciclo di vita (websocket, REPL, scheduler), tutto sync. La sua presenza
-accende la tracciatura dei lettori (`pointer_map`, `RX.3`); la reattività
-fine che la consumerà arriva con la compiled bag (`RX.5`).
-L'implementazione di riferimento **non vive più qui**: lo strato
-applicativo è migrato in **genro-ws-web** (commit `6d3002a`), che con la
-v0.9.0 diventa un ponte fra due compiled bag invece di un produttore di
-patch. Il design del livello
+ciclo di vita (websocket, REPL, scheduler), incanala ogni mutazione
+dentro `live()` (il lock lo prende `live()`, l'Application non lo tocca
+mai), tutto sync. La reattività live **presuppone** un'Application
+(`activate()` arma la subscribe dei dati solo se presente).
+L'implementazione di riferimento attuale è `contrib/ws_live` (live app
+su websocket, script `genro-ws-live`). Il design del livello
 applicativo — desktop a pane-iframe, registro delle pagine vive (il
 gnrdaemon dissolto dall'async), websocket unico master/satelliti con
 chiave di routing — è approvato in `roadmap/application-registry.md`
@@ -428,14 +409,12 @@ attivo i resolver possono diventare dependency-tracked.
 Un nodo della source può contenere un pointer; al render si legge dalla
 data bag. Tassonomia completa: assoluti `^path`; relativi `^.x`/`^..x`;
 simbolici `^#node_id.path` e scope `^#FORM.x` ecc.; con attributo
-`^path?attr`. `^` sottoscrive, `=` legge una-tantum. La forma
-`volume:field` è **uscita** in v0.9.0 con la segmentazione (`HND.2`):
-senza segmenti non c'è un volume da scegliere.
+`^path?attr`. `^` sottoscrive, `=` legge una-tantum.
 
 **La risoluzione vive sul builder** (`builder.runtime_values(node)`,
 che raggiunge l'handler via `self.handler`); il nodo è il soggetto
-(`abs_datapath` compone i path assoluti, `#parent` collassato — nessun
-segmento anteposto). Il trigger è la **walk del render**: il walk
+(`abs_datapath` compone i path assoluti anteponendo segmento e volume,
+`#parent` collassato). Il trigger è la **walk del render**: il walk
 universale di `RendererBase` chiama `runtime_values` per ogni nodo; un
 renderer speciale può guidare la propria walk.
 
@@ -443,12 +422,11 @@ renderer speciale può guidare la propria walk.
 dell'handler (`dict[abs_path, dict[id(node), node]]`) NON si popola a
 priori: si auto-popola come **effetto della lettura** — `runtime_values`
 registra ogni `^` mentre lo legge (`handler._register_path`); `=` viene
-letto e basta. Corollario: **la mappa esiste solo dopo un render** — una
-pagina mai resa non sa chi legge cosa. La registrazione è opt-in
-sull'Application: senza, un render one-shot non paga la mappa.
-Asimmetria strutturale: *aggiungere* alla mappa = effetto del render;
-*togliere* = azione esplicita su mutazione della source (il render non sa
-cosa esisteva prima).
+letto e basta. Invariante: **una pagina deve fare il primo render per
+finire l'avviamento** (per questo `activate()` rende prima di armare,
+`HND.4`). Asimmetria strutturale: *aggiungere* alla mappa = effetto del
+render; *togliere* = azione esplicita su mutazione della source (il
+render non sa cosa esisteva prima).
 
 **Macro reattive sul nodo**: `SET` (scrive, reason default) / `PUT`
 (scrive, `reason=False`) / `FIRE` (evento, `fired=True`, non persiste)
@@ -467,32 +445,22 @@ attributo piatto (mai `node.value`), anche quando è una Bag.
 
 ### DAT.4 — Compute dei data-element
 
-Esecutore unico `compute_logic(nodes)` **sul builder**. Primo calcolo in
-`create()` (`PAG.3`): girano tutti i `dataSetter` più ciò che è marcato
-`_on_start=True`. `_compute_node` dispatcha sul kind: setter → seed;
-formula **pura** `func(**bindings)` → scrive `destination`; controller →
+Esecutore unico `compute_logic(nodes)` **sul builder**; l'handler
+coordina la cascata multi-builder (`execute_logic` raggruppa i nodi
+toccati per builder e delega). Primo calcolo in `create()` (`PAG.3`).
+`_compute_node` dispatcha sul kind: setter → seed; formula **pura**
+`func(**bindings)` → scrive `destination`; controller →
 `func(node, **bindings)` (effetti). I binding si risolvono sempre via
 `runtime_values` (stesso risolutore di ogni reader). `func` =
 `@staticmethod` risolta **per nome** via `data_logic` (sx→dx,
 prima-vince, errori espliciti — forma canonica per il cross-runtime: la
 source serializza il nome, non il callable).
 
-**Formula e controller senza reattività: dichiarabili, inerti,
-segnalati.** `dataFormula` e `dataController` ricalcolano su cambio dato:
-senza cascata il loro "dopo" non esiste. Restano comunque **dichiarati e
-iniettati in ogni dialetto**, e il renderer emette un `UserWarning`
-quando ne incontra uno su un documento non reattivo. La ragione è
-d'autore, non di macchina: la stessa pagina si scrive UNA volta, si prova
-statica, e si monta reattiva senza toccare una riga. Marcati
-`_on_start=True` calcolano al `create()` — la lettura-a-composizione, che
-in regime statico è l'unico "dopo" disponibile. `data_logic` /
-`_build_data_logic` / `_resolve_logic_func` restano intatti: sono la
-macchina che la compiled bag (`RX.5`) riprenderà.
-
-La cascata — raccolta per granularità contro la `pointer_map`, coda FIFO
-breadth-first, anti-loop, ondate multiple — appartiene alla compiled bag
-e non vive più in Python: la vecchia "fetta 2" non è rinviata, è
-**ricollocata** (`RX.5`).
+Granularità della raccolta (`_relevant_nodes`): match node / container
+/ child contro la `pointer_map`; si tengono solo i data-element; dedup.
+**Fetta 1 (implementata)**: una sola ondata. **Fetta 2 (rinviata)**:
+coda FIFO breadth-first, anti-loop (dict node→input + backstop),
+cascata completa.
 
 ### DAT.5 — Presentazione lato dati: `mask` e `_wdg`
 
@@ -591,9 +559,8 @@ pointer relativi.
 
 **Pass-through dei kwargs-pointer** (emendamento 2026-06-11): un kwarg
 il cui valore crudo è un **pointer reattivo** satura la firma come
-**pointer assolutizzato**, non come valore risolto — ed essendo assoluto
-è context-free da sé (non inizia con `.`, quindi sopravvive al rientro in
-`abs_datapath` su un nodo d'espansione). L'indirizzo deve raggiungere il nodo finale che
+**pointer assolutizzato** (sintassi `^volume:rest`, context-free), non
+come valore risolto. L'indirizzo deve raggiungere il nodo finale che
 il body costruisce: lì si risolve come un pointer scritto a mano ed
 emette il gancio di write-back (`data-value-pointer`) — risolverlo
 prima del body lo consumerebbe (input muto). I valori non-pointer e i
@@ -614,55 +581,147 @@ copia per-istanza dello schema (la classe resta intatta). La famiglia
 js/css a seguire) è da ricostruire sul modello attuale (era
 sull'handler pensionato).
 
-### CMP.7 — L'espansione è effimera: corretta senza reattività, reale nella compiled bag
+### CMP.7 — Reattività: subscription grossa, risoluzione fine
 
 I pointer interni alle espansioni **non entrano mai** nella
 pointer_map. In mappa c'è solo il nodo component (i suoi pointer
-dichiarati). Con `iterate` i nodi ripetuti **non esistono**: la source
-tiene UN nodo component (la ricetta), gli N blocchi sono un fatto del
-render, gettato dopo l'uso — i nodi reincarnano a ogni render.
+dichiarati). La granularità per-riga si ricava con l'**aritmetica dei
+path**: evento sotto la radice dell'iterate → residuo → primo segmento
+= label del child (quale blocco), resto = cosa è cambiato. Eventi
+strutturali con la stessa aritmetica. L'**identità dell'unità
+per-riga**: le espansioni non portano `target_id` per costruzione
+(reincarnano) — la loro identità è DERIVATA (Premessa: catena
+`base.label....ordinale`). La **mappa dei figli virtuali** è
+IMPLEMENTATA lato write-back (2026-06-11, verificata su semplice/
+annidato/iterato/iterato-annidato): al render reattivo dell'espansione
+il renderer stampa l'id derivato su ogni nodo (id d'autore del
+component = base della catena; `id` è macchinario consumato, mai un
+kwarg del body) e registra in `builder._writeback_map` i soli nodi
+SCRIVIBILI (pointer su `value`/`checked`, oppure click target:
+`data-set-pointer`/`data-fire-pointer` — i lettori puri no):
+`{id derivato → nodo}`. Il nodo trattenuto è la sede di tipizzazione
+(dtype), validazione (`validate_*`) e destinazione (pointer →
+`abs_datapath`): il mutate risolve l'id e legge TUTTO dal nodo —
+niente path né dtype dal filo. La ri-espansione purga il proprio
+prefisso (coerente con l'effimero).
 
-**Senza reattività questo è corretto e basta.** Nulla deve raggiungere
-l'espansione: i pointer si risolvono come lettura a tempo di
-composizione, e il blocco si rifà quando si rifà il render (`RX.1`).
-L'espansione effimera non è un compromesso, è la forma giusta di una
-ricetta.
+**Patch per-riga (implementate 2026-06-12).** L'evento dati sotto
+l'àncora di un iterate classifica PER RIGA (aritmetica dei path: il
+primo segmento del residuo nomina la riga; `row_upd`/`row_ins`/
+`row_del` secondo profondità ed evento). Il flush patcha il SOLO
+blocco, indirizzato per identità derivata — il primo elemento del
+body è l'ordinale 1, quindi il blocco È `<base>.<label>.1`, puro
+calcolo (anche per il remove: nessuna cattura all'evento). Il
+frammento esce da `render_expansion_block` — stessa preparazione,
+stesso body, stessa registrazione del walk: l'ORACOLO garantisce che
+il per-riga non diverga mai dal render totale. L'insert si ancora al
+blocco della riga successiva nell'ordine della busta (dopo l'ultima:
+il primo fratello source renderizzabile dopo il component). La riga
+morta purga le proprie voci di writeback al patch.
 
-**Storia, e perché la v0.9.0 la riscrive.** La v0.8.0 costruiva sopra
-questa clausola un apparato per dare identità fine a nodi che non ce
-l'hanno: identità derivata (catena `base.label....ordinale`), mappa dei
-figli virtuali per il write-back, patch per-riga e di cella, catalogo
-campo→ordinale, coda delle formule con dedup, indice di purge del
-writeback, corsia lazy, motore di regole a coordinate. Funzionava ed era
-profilato (vedi sotto). Ma era il **surrogato di una struttura che non
-esisteva**: ricostruiva a posteriori l'identità che un albero
-materializzato avrebbe avuto gratis. Aprire il "gate D9" (registrare i
-pointer interni) richiedeva o riferimenti a nodi morti nella
-pointer_map, o innestare l'espansione nella source — cioè materializzare
-come struttura ciò che il modello definisce come output di render.
+**Patch di cella (implementate 2026-06-12).** La mutazione di UNA
+foglia della riga non ri-rende nemmeno il blocco: alla registrazione
+il walk costruisce il **catalogo per-component** campo → ordinale
+(il body è codice: l'ordinale di "chi mostra `.campo`" è lo stesso
+per ogni riga; due forme — valore-pointer puro = cella di testo,
+attributo `value` reattivo = input) e il flush spedisce **op di solo
+valore** lette dallo store, senza body né render: `text` per i
+lettori, `attr` per gli input (sovranità del controllo a fuoco lato
+client). Il filo porta `{id, value}` anche in DISCESA — simmetrico
+del mutate. Il broadcast del binding condiviso (cambio in testata su
+N righe) = esattamente N patch-valore: **le celle non coalizzano
+mai**; `CELLS_PER_ROW_LIMIT` collassa una riga riscritta quasi tutta
+nel suo replace, `ROW_COALESCE_LIMIT` resta per i flood STRUTTURALI.
+Le foglie che il catalogo non conosce (template, `checked`, celle
+ricche) ricadono sul replace di riga. Iterate annidati: granularità
+alla riga ESTERNA (la subscription sta sul component più esterno).
 
-La risposta non è dentro `iterate`: è la **compiled bag** (`RX.5`), dove
-le righe esistono come entità indirizzabili con fullpath propri, senza
-toccare la source. La domanda "i nodi dell'espansione esistono?" ha
-risposta diversa sui due lati, e questa è la soluzione, non il problema.
-Tutto l'apparato è depositato in `genro-ws-web@c88c6e6`
-(`attic/partial-render/`); la sua specifica è
-`roadmap/render-layer-html-ws.md`.
+**Coda delle formule con dedup (implementata 2026-06-12 notte).**
+Dentro una sezione live una scrittura non ESEGUE le formule
+dipendenti: le **accoda** (FIFO, dedup sui pendenti — chiave
+`(spec, riga)` per le regole component, il nodo per i data-element di
+pagina; un'unica coda). Il drain corre all'uscita outermost di
+`live()`, PRIMA del flush dei render: l'ordine FIFO è la
+stratificazione — la cascata accoda le regole di riga davanti ai
+lettori larghi di pagina (il grand total), così ogni formula legge lo
+stato assestato dello strato sotto. Le scritture del drain rientrano
+nella cascata e possono ri-accodare (nuovo input durante il drain: il
+dedup è SOLO sui pendenti). I **controller restano sincroni**: un
+comando non è una funzione dello stato (due comandi = due esecuzioni)
+e il payload del FIRE non persiste (differito leggerebbe None). La
+riga morta in coda non esegue (stesso check di esistenza del
+dispatch: la regola non può risuscitarla). Backstop: un contatore
+per chiave nel drain (`FORMULA_REQUEUE_LIMIT`) ferma il livelock
+(a → b → a) con errore esplicito che nomina la regola. Era il residuo
+(1) profilato il 2026-06-12 sera: un grand total con binding `^rows`
+su un broadcast di N righe ricalcolava N volte, ognuna O(N) — a 1500
+righe una sola formula portava il broadcast da 113ms a 2,9s; ora
+esegue UNA volta per flush, sullo stato assestato (il legacy
+micro-batchava i calc per la stessa ragione).
 
-**Numeri da conservare** (misurati il 2026-06-12, baseline per chi
-costruirà il grid data-widget e la compiled bag): coda delle formule —
-un grand total con binding `^rows` su broadcast di 1500 righe passava da
-2,9s a 113ms eseguendo una volta per flush invece di N; purge
-indicizzato — la ri-registrazione scandiva la wmap per ogni riga (15,8M
-di `startswith` a 1500 righe, 36M su un broadcast a 3000), e l'indice a
-segmenti ha reso il primo paint lineare puro (750/1500/3000 =
-1,53/3,09/6,20s, ~2,1 ms/riga). Il costo residuo era la costante
-lineare: il body riesegue per ogni riga attraverso la macchina
-grammaticale (~1/3), risoluzione e composizione dei pointer (~1/3), e il
-documento viaggia come HTML intero (3,7MB a 3000 righe — il client è
-innocente: parse 56ms, layout 340ms). Direzioni nominate allora e ancora
-valide: riempimento progressivo a chunk (percezione) e grid data-widget
-JS che riceve la proiezione JSON invece dell'HTML (costo).
+**Purge writeback indicizzato (implementato 2026-06-12 notte).** La
+ri-registrazione del re-render completo scandiva l'intera wmap per
+OGNI riga (15,8M di `startswith` a 1500 righe: la componente
+quadratica del primo paint). Ora la mappa piatta resta la verità del
+mutate (id composito → nodo, un hit di dizionario) e accanto vive un
+**indice a segmenti** (`_writeback_index`: albero per segmento di
+prefisso, chiavi nello slot `None`): registrazione e purge — ambo i
+siti, riespansione e row_del — pagano solo il PROPRIO sottoalbero
+(righe annidate incluse), mai una scansione. Primo paint headless:
+750/1500/3000 = 1,53/3,09/6,20s — **lineare puro** (~2,1 ms/riga).
+
+Residuo noto: il primo paint resta LINEARE ma con costante piena —
+il body riesegue per ogni riga attraverso la macchina grammaticale
+(~1/3), risoluzione pointer e composizione (~1/3) — e il documento
+viaggia come HTML intero (3,7MB a 3000 righe; il client è innocente:
+parse 56ms + layout 340ms). Direzioni: riempimento progressivo a
+chunk sulla corsia insert esistente (percezione), grid data-widget
+JS (costo: il server manda la proiezione JSON, non l'HTML).
+
+**Comando di pagina (corsia FIRE, implementata 2026-06-11).** Un click
+che deve ESEGUIRE logica (non scrivere un dato) resta una mutazione
+`{id, value}`: il nodo dichiara `data-fire-pointer` (il path da firare
+— il topic) ed eventualmente `data-fire-value` (il messaggio); il
+server risolve il nodo per identità e FIRA il path (`_fired`, mai
+persistito) — il datastore fa da bus messaggi. Regola ibrida del
+payload: il `data-fire-value` del nodo vince (click = pura identità;
+il "−" per riga porta la label, baked all'espansione); senza
+dichiarazione il `value` del client È il messaggio (anche JSON ricco,
+mai tipizzato: è un messaggio, non un dato); senza nulla → `True`.
+Dichiarare set E fire sullo stesso nodo = errore d'autore. Il
+sottoscrittore è un `data_controller` canonico col binding sul topic:
+la sua func esegue l'op STRUTTURALE sullo store (pop / SET di una
+riga-bag nuova) e il blocco iterante si ri-rende perché lo store è
+cambiato.
+
+**Row logic (implementata 2026-06-11; motore a coordinate
+2026-06-12).** I data-element dichiarati nel body di un component
+sono **regole di MUTAZIONE**: il documento caricato è fidato così
+com'è (il render non calcola MAI nulla; `_on_start` e `data_setter`
+in un body d'espansione → errore esplicito). Le regole sono
+**TEMPLATE per-component, mai istanze per-riga**: il body è codice,
+la regola della riga 45 È la regola della riga 46 — il walk di
+registrazione compila ogni regola in uno spec (binding residualizzati
+contro la riga di registrazione: suffisso di riga `.qty`/`?qty` o
+path assoluto; func risolta subito, fallimento rumoroso alla
+registrazione) e il catalogo è **indipendente dal numero di righe**.
+Il dispatch è per **scomposizione in coordinate**: il path
+dell'evento si decompone (àncora → label di riga → campo) risalendo i
+prefissi (l'annidato vince col prefisso più lungo), il campo colpisce
+l'indice by-field del component, la label dice SU QUALE riga
+istanziare — hit di dizionario, mai una scansione del catalogo. I
+binding condivisi (cambio in testata) sono le uniche voci assolute:
+un evento esegue lo spec su ogni riga VIVA della collezione. Un
+evento a livello di riga (sostituzione in blocco, `upd_attrs` della
+modalità attributi) esegue tutte le regole del component per quella
+riga. L'esecuzione sta nella cascata; le scritture rientrano e
+concatenano (qty → total → controvalore). I controller ricevono un
+**RowContext** legato alle coordinate dell'evento (un nodo trattenuto
+risolverebbe i relativi contro la riga di registrazione). La **riga
+morta non esegue nulla**: la guardia è il check di esistenza nel
+dispatch (un sottoalbero cancellato non ha nodo — la regola non può
+risuscitarlo), nessun purge necessario: i template non appartengono
+alle righe.
 
 ### CMP.8 — Componibilità frattale
 
@@ -733,83 +792,53 @@ Il CSS oggi non è reattivo: `CssRenderer` legge `node.attr` crudo
 
 ---
 
-## Area RX — Reattività
+## Area RX — Reattività push
 
-### RX.1 — Il re-render è il modello di aggiornamento del core statico
+### RX.1 — `live()` è LA sezione critica di mutazione (Livello 0+)
 
-Si mutano i dati, si rende di nuovo. Nessuna sezione critica, nessuna
-coda di render, nessun protocollo di patch: il render è già la funzione
-che porta i dati nel documento, e rifarlo è la via più corta e sempre
-corretta per rifletterne il cambio.
+Chi muta il documento (source o data) lo fa dentro
+`with handler.live():` — entrare = acquisire l'`RLock` dell'handler
+(prendere il lock = entrare nella sezione). Le sezioni di altri thread
+si accodano; la cascata reattiva gira **dentro** la sezione (stesso
+stack, nessuna ri-acquisizione). L'annidamento stesso-thread si
+**fonde** nella sezione esterna: una coda, un solo flush all'uscita
+esterna, `target` vietato alla sezione annidata (il target della
+sezione vince sul default registrato, per quella sezione sola).
 
-Escono con la v0.9.0, e con essi il `target_id`, l'identità derivata,
-l'optimizer di netting e la busta `replace`/`insert`/`remove`: la
-`live()` come sezione critica, il decoratore `@live`, la coda per mount
-(`add_render_path`), `render_nodes`, la corsia lazy e il catalogo delle
-regole di riga. Il materiale è depositato in
-`genro-ws-web@c88c6e6` (`attic/partial-render/`) e la sua specifica di
-ricostruzione resta `roadmap/render-layer-html-ws.md`.
+**Coda di render unificata**: ogni evento source/data registra il path
+toccato per mount (`add_render_path(builder_name, path)`); fuori
+sezione non si accoda nulla (nessun flush in arrivo). Il flush rende
+ogni builder con almeno un nodo toccato. Al passo uno il flush fa un
+render totale per builder (`render_nodes` ignora la lista);
+`_optimize_render` è pass-through — render parziale per nodo e
+riduzione della lista sono il raffinamento successivo.
+
+Decoratore **`@live`** (esportato da `genro_builders.builder`): avvolge
+un metodo nella sezione (`self` handler, o `self.handler`).
+
+Richiede Application + `activate()` (`HND.4`): senza, `RuntimeError`.
+**Vietato il live senza Application** — varrebbe come sezione che gira a
+vuoto (nessuna subscribe armata): anche i test passano dall'App.
 
 ### RX.2 — Il dispatcher push è capability del base
 
 Non esclusivo di una sottoclasse async; la differenza sync/async è solo
 lo scheduling dei callback (immediato nel writer thread vs schedulato
-nel loop). Il `Bag` porta gli eventi nativi (`ins`/`upd`/`del` su un
-path): sono il vocabolario su cui la compiled bag (`RX.5`) si costruirà.
+nel loop).
 
-### RX.3 — La `pointer_map` è opt-in sull'Application
+### RX.3 — Attivazione per handler
 
-`_register_path` è no-op senza Application: un render one-shot non paga
-la tracciatura. Con Application la mappa si popola alla lettura
-(`DAT.2`) e dice chi legge cosa — il suo consumatore reattivo arriva con
-`RX.5`.
+`_live_enabled` default `False` (l'handler nasce strutturale); lo
+accende `activate()` dopo il primo render. Nessun costo per chi non usa
+la reattività.
 
 ### RX.4 — Organizzazione di `roadmap/reactivity/`
 
 SourceDispatcher (topology) e DataDispatcher (valori) restano macchine
-distinte nei livelli con granularità. Specifiche di dettaglio:
-`reactivity/contract.md`, `reactivity/data-elements.md`,
-`reactivity/variable-datapath.md` (visione: datapath variabile,
-master-detail, collection store). **Tutte da rileggere alla luce di
-`RX.5`**: descrivono l'apparato Python uscito con la v0.9.0.
-
-### RX.5 — La reattività fine si rifonda su una compiled bag (ricerca)
-
-Senza reattività la source è una **ricetta** e il render è il piatto: i
-pointer funzionano come lettura a tempo di composizione, e l'espansione
-effimera di `iterate`/`@component` è corretta perché nulla deve
-raggiungerla (`CMP.7`).
-
-Con reattività serve un terzo oggetto fra ricetta e piatto: una
-**compiled bag**, la forma espansa e materializzata della source. Non il
-piatto (la stringa HTML) ma la struttura che *tiene* i punti reattivi —
-è lei il target, porta la mappa, reagisce alle mutazioni, e si collega
-al mondo (nodi DOM, widget). Là l'espansione di `iterate` è **reale
-senza toccare la source**: le righe esistono come entità indirizzabili,
-con fullpath propri e pointer registrati. Il gate D9 non va aperto: la
-domanda "i nodi dell'espansione esistono?" ha semplicemente risposta
-diversa sui due lati, e va bene così.
-
-Dove vive la scelta: **un render mode**, come sempre in questo sistema
-(`renderer_<mode>`). `html` emette chunk di testo e `finalize` produce la
-stringa; `livehtml` emette dict e `finalize` costruisce la compiled bag.
-Il walk non cambia — è già agnostico, e cosa *sia* un frammento è sempre
-stata decisione del renderer di dialetto. Corollari: il render statico non
-paga nulla; la granularità è per-render, non per-documento; nessun
-`StaticHandler`/`ReactiveHandler`.
-
-Sul filo passano **mutazioni di bag** (`ins`/`upd`/`del` su un path), non
-operazioni DOM: Python dice *cosa è cambiato nella struttura*, il client
-decide *come diventa DOM*. È così che `id` esce dal core in modo
-strutturale — una mutazione indirizza un **path**, che ogni nodo ha. E per
-la stessa ragione sblocca il render a oggetti di genro-sql.
-
-**Stato: ricerca, non implementazione** — progettarla mentre si
-implementa è come è nato l'apparato scartato. Documento di disegno
-proprio: `temp/design_static_first_compiled_bag_2026-07-26.md`
-(🔴 DA REVISIONARE), con le questioni aperte (dove vive `.compiled[mode]`,
-cosa significa "proxied", `render` monolitico o in due passi, opts di
-documento, contratto di forma con `bag-js`).
+distinte nei livelli con granularità; il Livello 0 le fonde di
+proposito. Specifiche di dettaglio: `reactivity/contract.md`,
+`reactivity/data-elements.md`, `reactivity/variable-datapath.md`
+(visione: datapath variabile, master-detail, collection store).
 
 ---
 
@@ -833,12 +862,7 @@ Aperte:
 
 Chiuse (per memoria):
 
-- **SUITE dissolta** nel multibuilder handler (v0.8.0), e il
-  multibuilder a sua volta dissolto nell'handler singolo (v0.9.0,
-  `HND.1`): un handler, un builder, un datastore piatto.
-- **Reattività fine ricollocata** sulla compiled bag (`RX.5`): non si
-  ripara in Python, e l'apparato v0.8.0 era il surrogato di una
-  struttura mancante (`CMP.7`).
+- **SUITE dissolta** nel multibuilder handler (`HND.1`).
 - **Component reintrodotti** col design `CMP` (la rimozione v0.4 è
   superata: l'asimmetria Python/JS è sciolta dal nodo nominato +
   espansione effimera per interprete). Il ripiego v0.4 "tag custom JS

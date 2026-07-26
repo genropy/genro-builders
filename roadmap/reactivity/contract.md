@@ -6,6 +6,14 @@ contratto principale; scritta contro il v0.5.0).
 **Sostituisce**: niente (file nuovo).
 **Citato da**: `roadmap/architecture-contract.md`, sezione `RX.4`.
 
+> **Stato dopo il contratto v0.9.0 (2026-07-26).** Il Livello 0 qui
+> specificato — `live()` come sezione critica, coda di render per mount,
+> `activate()` che arma le subscribe — **non esiste più nel codice**: è
+> uscito con la v0.9.0 ed è depositato in `genro-ws-web@c88c6e6`. Vale
+> come documentazione di quell'apparato, non come specifica di Python. La
+> reattività si rifonda su una compiled bag (`RX.5`), e la ragione per cui
+> questa strada non si riparava sta in `CMP.7`.
+
 > **Nota 2026-06-10 (contratto v0.8.0)** — il Livello 0 è implementato,
 > con tre evoluzioni rispetto a questa specifica. Dove divergono, vale
 > `RX.1` del contratto:
