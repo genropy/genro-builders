@@ -13,7 +13,7 @@ output type is XML (``XmlRenderer`` via ``renderer_xml``).
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderBase, BuilderHandler, element
+from genro_builders.builder import BuilderBase, element
 
 XSL_URI = "http://www.w3.org/1999/XSL/Transform"
 
@@ -52,7 +52,7 @@ def _render(main):
 
     _H.main = lambda self, root: main(root)
     page = _H()
-    BuilderHandler().add_builder(page)
+    page.create()
     return page.render(target=False)
 
 
@@ -77,7 +77,7 @@ def test_node_tag_stays_python_legal():
             root.stylesheet(xmlns_xsl=XSL_URI).for_each(select="url")
 
     page = _H()
-    BuilderHandler().add_builder(page)
+    page.create()
     sheet = next(iter(page.source))
     fe = next(iter(sheet.value))
     assert fe.node_tag == "for_each"
@@ -131,7 +131,7 @@ def test_keyword_node_tag_stays_python_legal():
             root.table().del_("gone")
 
     page = _H()
-    BuilderHandler().add_builder(page)
+    page.create()
     table = next(iter(page.source))
     d = next(iter(table.value))
     assert d.node_tag == "del_"

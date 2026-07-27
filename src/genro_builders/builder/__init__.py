@@ -13,7 +13,6 @@ from ._decorators import (
 )
 from ._validators import Range, Regex
 from .base import BuilderBase
-from .builder_handler import BuilderHandler
 from .source_bag import SourceBag, SourceBagNode
 from .target_wrapper import TargetWrapper
 
@@ -21,7 +20,6 @@ __all__ = [
     "BuilderBase",
     "SourceBag",
     "SourceBagNode",
-    "BuilderHandler",
     "TargetWrapper",
     "Range",
     "Regex",

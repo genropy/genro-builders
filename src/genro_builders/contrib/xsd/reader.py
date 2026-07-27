@@ -34,7 +34,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-from genro_builders.builder import BuilderHandler
 
 XS_URI = "http://www.w3.org/2001/XMLSchema"
 
@@ -52,17 +51,15 @@ class XsdReader:
         ``self.builder`` per the parent-passes-self convention."""
         self.builder = builder
 
-    def read(self, source: str | Path, handler: Any = None) -> Any:
+    def read(self, source: str | Path) -> Any:
         """Parse ``source`` (a path or an XSD string) and populate the
         builder's source tree. Return the builder.
 
         The reader IS the builder's recipe: instead of a hand-written
         ``main``, the walk populates the tree. It installs that walk as the
-        instance ``main`` and mounts the builder on a handler (a fresh
-        ``BuilderHandler`` if none is given), so mounting runs the walk
-        exactly where ``create`` would have run ``main`` — the source root
-        gets its handler, the tree is built through the normal grammar
-        entry points.
+        instance ``main`` and calls ``create()``, so the walk runs exactly
+        where ``create`` would have run ``main`` — the tree is built
+        through the normal grammar entry points.
         """
         root_el = self._parse(source)
         # Application namespaces met during the walk, prefix -> uri, keyed
@@ -75,7 +72,7 @@ class XsdReader:
         # parent is the node just created. ``parent_node=None`` marks the
         # Bag-root case.
         self.builder.main = lambda root: self._build(root_el, parent_node=None)
-        (handler or BuilderHandler()).add_builder(self.builder)
+        self.builder.create()
         self._declare_app_namespaces()
         return self.builder
 

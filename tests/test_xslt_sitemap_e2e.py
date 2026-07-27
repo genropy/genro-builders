@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from lxml import etree
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.xslt import XsltBuilder
 from genro_builders.xml.examples.sitemap import SitemapBuilder
 
@@ -57,13 +56,13 @@ class _Sitemap(SitemapBuilder):
 
 def _stylesheet_str() -> str:
     sheet = _SitemapToHtml()
-    BuilderHandler().add_builder(sheet)
+    sheet.create()
     return sheet.render(target=False, doc_header=True)
 
 
 def _sitemap_str() -> str:
     sm = _Sitemap()
-    BuilderHandler().add_builder(sm)
+    sm.create()
     return sm.render(mode="xml", target=False, doc_header=True)
 
 

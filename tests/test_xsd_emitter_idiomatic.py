@@ -15,7 +15,6 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.xsd import XsdBuilder
 from genro_builders.contrib.xsd.emitter import XsdEmitter
 from genro_builders.contrib.xsd.reader import XsdReader
@@ -61,7 +60,7 @@ TYPED_ELEMENT_XSD = (
 
 
 def _mounted(builder):
-    BuilderHandler().add_builder(builder)
+    builder.create()
     return builder
 
 

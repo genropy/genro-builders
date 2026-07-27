@@ -7,10 +7,9 @@ The grammar-aware logic lives in the mixins; the base classes from
 ``genro-bag`` stay untouched.
 
 Every node carries the ``_builder`` slot — the active dialect for that
-node, set at attach time. The owning handler is not a node slot: it lives
-on the source root and a node reaches it through the ``handler``
-property (``Bag.root``), so the node stays light. Immutability of the
-slot is a convention, not enforced.
+node, set at attach time — and nothing else: the datastore is not a node
+slot, a node reaches it through its builder (:attr:`data`), so the node
+stays light. Immutability of the slot is a convention, not enforced.
 
 This module defines the bag/node pair (``SourceBag`` /
 ``SourceBagNode``): a Bag/BagNode carrying the active builder plus
@@ -65,10 +64,9 @@ def _dispatch_container(builder: Any, target: Any, name: str) -> Any | None:
 class _SourceBagNodeMixin:
     """Builder-aware logic for nodes: schema dispatch via __getattr__.
 
-    The actual slots ``_builder``/``_handler`` are declared on the
-    final ``SourceBagNode`` class (BagNode itself uses __slots__,
-    so the slots must live on the concrete class to avoid a layout
-    conflict).
+    The actual ``_builder`` slot is declared on the final
+    ``SourceBagNode`` class (BagNode itself uses __slots__, so the slot
+    must live on the concrete class to avoid a layout conflict).
     """
 
     __slots__ = ()
@@ -119,36 +117,16 @@ class _SourceBagNodeMixin:
         return [meta.get(n) for n in names]
 
     @property
-    def handler(self) -> Any:
-        """Return the handler that owns this tree.
+    def data(self) -> Any:
+        """The document's datastore, reached through the owning builder.
 
-        The handler is unique for the whole document (host plus any
-        sub-builders), so it lives on the source root and is read from
-        there via ``Bag.root`` — unlike ``_resolve_builder``, which is a
-        single hop because the active builder is local to the node (an
-        ``<svg>`` subtree resolves to the SVG builder). ``None`` on a
-        DETACHED tree (a component expansion) — the D9 gate.
+        Same name as ``builder.data`` and the same object: one Bag per
+        document, whatever level you read it from. Works on a DETACHED
+        tree too (a component expansion), because the builder is resolved
+        by the ancestor walk, not by the tree's root — an expansion node
+        reads and writes the SAME datastore as the document it projects.
         """
-        return self.parent_bag.root._handler
-
-    @property
-    def data_handler(self) -> Any:
-        """The document's handler for DATA access.
-
-        Same object as :attr:`handler` on an attached tree; on a
-        detached one (a component expansion: ``handler`` is None by
-        design, the identity gate) the document's handler is reached
-        through the owning builder — an expansion node reads and
-        writes the SAME datastore as the document it projects (its row
-        logic computes through here).
-
-        The name is about DATA access on a node; it has nothing to do with
-        the ``data_handler`` module deleted with the static-first rewrite.
-        """
-        handler = self.parent_bag.root._handler
-        if handler is None:
-            handler = self._resolve_builder().handler
-        return handler
+        return self._resolve_builder().data
 
     @property
     def root_builder(self) -> Any:
@@ -426,7 +404,7 @@ class _SourceBagNodeMixin:
         """Read the datastore at ``path`` resolved relative to this node.
 
         ``path`` is composed via :meth:`abs_datapath` into an absolute
-        path on ``handler.data``; it accepts the same syntactic forms
+        path on :attr:`data`; it accepts the same syntactic forms
         (absolute, relative ``.x``, ``#FORM``, ``#ANCHOR``,
         ``#<node_id>``, with or without the ``^``/``=`` prefix).
 
@@ -434,7 +412,7 @@ class _SourceBagNodeMixin:
         explicitly ``None``) is seeded with ``default`` before the read —
         the two cases are intentionally not distinguished.
         """
-        data = self.data_handler.data
+        data = self.data
         abs_path = self.abs_datapath(path)
         if autocreate and data.get_item(abs_path) is None:
             data.set_item(abs_path, default)
@@ -451,7 +429,7 @@ class _SourceBagNodeMixin:
         """Write ``value`` into the datastore at ``path``.
 
         ``path`` is composed via :meth:`abs_datapath` into an absolute
-        path on ``handler.data`` (same forms as :meth:`get_relative_data`).
+        path on :attr:`data` (same forms as :meth:`get_relative_data`).
         ``attributes``/``fired``/``reason`` are forwarded to
         ``Bag.set_item`` as the underscore-prefixed parameters. ``reason``
         is polymorphic: the subscriber receives whatever object is
@@ -460,9 +438,8 @@ class _SourceBagNodeMixin:
         declares itself the origin; pass ``reason=False`` (``PUT``) to
         override.
         """
-        handler = self.data_handler
         abs_path = self.abs_datapath(path)
-        handler.data.set_item(
+        self.data.set_item(
             abs_path,
             value,
             _attributes=attributes,
@@ -586,8 +563,8 @@ class _SourceBagNodeMixin:
 class _SourceBagMixin:
     """Builder-aware logic for bags: schema dispatch via __getattribute__.
 
-    Bag itself does not use __slots__, so ``_builder``/``_handler``
-    live in ``__dict__`` on the concrete class.
+    Bag itself does not use __slots__, so ``_builder`` lives in
+    ``__dict__`` on the concrete class.
     """
 
     __slots__ = ()
@@ -659,7 +636,7 @@ class SourceBagNode(BagNode, _SourceBagNodeMixin):
 class SourceBag(Bag, _SourceBagMixin):
     """Bag with builder-aware attribute dispatch.
 
-    The handler instantiates one as ``self.source``; ``new_root``
+    The builder instantiates one as ``self.source``; ``new_root``
     returns a detached one for offline subtree building.
     """
 
@@ -670,16 +647,13 @@ class SourceBag(Bag, _SourceBagMixin):
         source: dict[str, Any] | None = None,
         *,
         builder: Any = None,
-        handler: Any = None,
     ):
-        """Initialize the bag and attach the active builder/handler.
+        """Initialize the bag and attach the active builder.
 
         Args:
             source: Optional dict to seed the Bag (mirrors ``Bag.__init__``).
             builder: BuilderBase instance whose schema drives attribute
                 dispatch on this bag (and on nodes attached to it).
-            handler: BuilderHandler that owns the tree this bag belongs to.
         """
         super().__init__(source=source)
         self._builder = builder
-        self._handler = handler

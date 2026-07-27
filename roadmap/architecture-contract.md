@@ -54,17 +54,11 @@ la minor del contratto, si conserva la versione superata in
   `CssBuilder`, `XsdBuilder`, ...) E l'identità di un documento: porta
   `name` (etichetta, non indirizzo), `source`, `create()`/`render()`.
   Una **pagina** è una subclass di builder con `main(self, root)`.
-- **BuilderHandler**: la sorgente dati del builder montato. Possiede UN
-  `_dataroot` piatto, monta UN builder (`add_builder`) e possiede la
-  `pointer_map`. Non è un render engine; si sottoclassa solo per
-  `setup()`.
-- **Application**: lo strato fra il mondo esterno (websocket, REPL,
-  thread) e l'handler. Accende la tracciatura dei lettori
-  (`pointer_map`, `RX.3`); la reattività fine arriverà con `RX.5`.
 - **Source**: il bag (`SourceBag`) popolato in `create`, serializzato in
   `render`. Vive sotto il segmento strutturale `SOURCE_ROOT` (`_root_`).
-- **Data**: il datastore dell'handler, piatto: `handler.data` e
-  `builder.data` sono lo stesso oggetto (`HND.2`).
+- **Data**: il datastore, UNA Bag piatta posseduta dal builder:
+  `builder.data`, raggiungibile da qualunque nodo come `node.data`
+  (`HND`).
 - **Data-element**: `@element` marcato `_meta['data_element']` che porta
   logica sui dati (kind: `data_setter`/`data_formula`/`data_controller`),
   trasparente al render, eseguito dal compute (`DAT.3`/`DAT.4`).
@@ -74,29 +68,31 @@ la minor del contratto, si conserva la versione superata in
 - **Container**: pezzo riusabile che **genera source alla chiamata**
   (`CMP.9`): il body corre una volta e scrive nodi veri, riempibili dal
   chiamante. Erede di `@struct_method` (nome pensionato).
-- **Pointer**: riferimento a un dato (`^path` reattivo, `=path`
-  passivo), risolto a render time leggendo la data bag.
+- **Pointer**: riferimento a un dato (`^path` dichiarato come "segue il
+  dato", `=path` passivo), risolto a render time leggendo la data bag.
+  In statico i due si risolvono identici: `^` è una dichiarazione
+  d'intento su cui agirebbe un motore reattivo.
 - **Resolver** (pull): nodo con computazione lazy, eseguita alla lettura.
 - **node_id**: identità opzionale e immutabile di un nodo, come una
   primary key; unicità **per documento**, garantita dal root builder
   (`BAG.4`).
 
-## I tre scenari d'uso
+## I due scenari d'uso
 
-1. **Senza dati** — builder nudo: nessun handler, `name` omissibile
-   (default: la tipologia del dialetto). Costruisce e rende, nessun
-   pointer. Script, generazione statica.
-2. **Con dati** — builder montato su un `BuilderHandler` (nessuna
-   Application): pointer `^`/`=` risolti al render, data-element,
-   compute. Pull-only: nessun auto-render.
-3. **Con re-render** — si mutano i dati e si rende di nuovo (`RX.1`):
-   nessuna sezione critica, nessun render automatico. Con
-   un'Application la `pointer_map` si popola e dice chi legge cosa; il
-   consumatore reattivo di quella mappa arriva con il motore reattivo
-   (`RX.5`).
+1. **Senza dati** — `name` omissibile (default: la tipologia del
+   dialetto). Costruisce e rende, nessun pointer. Script, generazione
+   statica.
+2. **Con dati** — `setup(data)` semina il datastore, i pointer `^`/`=`
+   si risolvono al render, i data-element calcolano al `create()`.
+   Pull-only: nessun auto-render. L'aggiornamento è il **re-render**
+   (`RX.1`) — si mutano i dati e si rende di nuovo, senza sezione critica.
+
+I due scenari differiscono per quello che l'autore scrive, non per gli
+oggetti in gioco: in entrambi c'è un builder e basta.
 
 Il dettaglio della reattività vive in `roadmap/reactivity/`, **da
-rileggere alla luce di `RX.5`**.
+rileggere alla luce di `RX.5`**; il codice reattivo rimosso e dove
+ripescarlo è in `roadmap/reactivity/removed-machinery.md`.
 
 ## Principio cross-runtime: un linguaggio, due interpreti
 
@@ -195,9 +191,8 @@ alla prima chiamata.
 ### PAG.1 — Il nome appartiene al builder
 
 `BuilderBase(name=...)`: `name` è l'identità del builder — un'etichetta,
-non un indirizzo (il datastore è piatto, `HND.2`). Omesso, default =
-tipologia del dialetto (`_name`, es. `"html"`). `add_builder` **legge** il
-nome, mai lo assegna; unico vincolo = che ci sia. Una pagina = una
+non un indirizzo (il datastore è piatto, `HND`). Omesso, default =
+tipologia del dialetto (`_name`, es. `"html"`). Una pagina = una
 subclass di builder con `main(self, root)`.
 
 ### PAG.2 — Source sotto `SOURCE_ROOT` (`_root_`)
@@ -214,20 +209,16 @@ ancestor).
 
 ```python
 page = CustomerPage(name="customer")
-handler = BuilderHandler()
-handler.add_builder(page)        # monta e crea
+page.create()                    # setup + main + calcolo dei data-element
 page.render(target="out.html")
 ```
 
 `create()` esegue: `setup(self.data)` (semina i dati), `main(self.source)`
 (costruisce il documento), poi il **calcolo** di ogni data-element, una
-volta, in ordine di documento (via `compute_logic`). Se il
-contesto è reattivo (`APP`), `create()` arma anche la subscribe della
-**source**, che tiene coerente la `pointer_map` sulle mutazioni di
-struttura (`DAT.2`).
+volta, in ordine di documento (via `compute_logic`). Nient'altro: non
+arma subscribe, non registra nulla.
 
-Un builder nudo (scenario 1) fa `create()` + `render()` da solo:
-`handler=None`, data bag vuota, `setup` innocuo.
+Un builder senza dati fa lo stesso: data bag vuota, `setup` innocuo.
 
 ### PAG.4 — `render(mode, target, **opts)` sul builder, due passi
 
@@ -322,81 +313,58 @@ dati (`RX.5`): su una lista di chunk di testo non c'è nulla da validare.
 
 ---
 
-## Area HND — BuilderHandler (datastore)
+## Area HND — RITIRATA: il datastore è del builder
 
-### HND.1 — L'handler è la sorgente dati, non un engine
+`BuilderHandler` **non esiste più** (rimosso il 2026-07-27). Un builder
+che legge pointer non ha bisogno di una sorgente dati separata: la
+sorgente è sua.
 
-Una pagina è un builder; un builder che legge pointer ha bisogno di una
-sorgente dati. Il `BuilderHandler` è quella sorgente: possiede UN
-`_dataroot` e monta UN builder su di esso. **Non è un render engine**:
-il render vive sul builder. L'handler fornisce i dati e (alla lettura)
-traccia chi legge cosa (`pointer_map`). Si sottoclassa solo per
-`setup()`, che è un override-point, non un punto di estensione del
-comportamento.
+Perché è uscito: metà dell'handler era `pointer_map` più i metodi che la
+mantenevano — inerti senza Application, e senza consumatore, perché il
+consumatore è il motore reattivo che non è mai arrivato. L'altra metà era
+una Bag e un hook `setup`, cose che il builder ha già. Restava un oggetto
+da costruire e legare per ottenere una Bag, e un `add_builder` il cui nome
+mentiva sulla cardinalità (un solo builder, errore al secondo).
 
-Il modulo porta il nome della classe (`builder/builder_handler.py`).
+Quel che resta, e sta sul builder (`BLD`):
 
-L'orchestratore multi-handler ("SUITE") resta **dissolto**, e con la
-v0.9.0 lo è anche il **multibuilder** che lo aveva sostituito: di ~100
-call site di `add_builder`, esattamente uno montava più di un builder.
-Documenti eterogenei su dati condivisi si compongono con N handler, o —
-quando servirà davvero — sopra il motore reattivo (`RX.5`).
+- **`builder.data`** è IL datastore: UNA Bag piatta per documento, backref
+  acceso alla nascita. Un path assoluto non porta segmento iniziale
+  (`counter`, non `page.counter`); non c'è segmento per builder né il
+  segmento comune `_`.
+- **`node.data`** raggiunge la stessa Bag da qualunque nodo, risalendo al
+  builder: stesso nome a ogni livello. Funziona anche su un albero
+  staccato (un'espansione di component), che il vecchio `node.handler` non
+  poteva — là era `None`, e `data_handler` faceva due tentativi per
+  aggirarlo.
+- **`setup(data)`** sul builder è l'unico override-point per seminare il
+  datastore, chiamato da `create()` (`PAG.3`).
+- **`get_subbuilder`** propaga il DATASTORE al sub-builder, dove prima
+  propagava l'handler: stesso invariante, l'oggetto giusto.
 
-### HND.2 — `_dataroot` piatto: nessun segmento, nessun `_`
+Non c'è avviamento: `create()` costruisce, `render()` si chiama quando
+serve, e l'aggiornamento è il **re-render** (`RX.1`).
 
-Il datastore è UNA Bag. `handler.data` e `builder.data` sono **lo stesso
-oggetto**: non c'è un segmento per builder da distinguere dal tutto, e
-non c'è il segmento comune `_` (aveva senso solo fra più builder).
-Un path assoluto non porta segmento iniziale: `counter`, non
-`page.counter`. `handler.setup(data)` è l'override-point per seminare il
-datastore, e riceve la radice. Il backref è acceso alla nascita (parte
-del contratto strutturale).
+**Thread safety non promessa**: proprietà ereditata da `genro_bag.Bag`.
+Il framework non introduce lock sui mutatori né su `render()`.
 
-### HND.3 — `add_builder(builder)`: monta e crea
-
-Verifica il nome (assente → errore: un builder senza nome non ha
-identità), registra il builder, inietta `handler` e `data` (il datastore
-intero), mette l'handler sul source-root (ogni nodo lo raggiunge via
-property `handler`, `BAG.3`), e chiama `create()` (`PAG.3`). Montare un
-secondo builder è un errore: un handler guida un builder.
-
-Il `name` del builder resta la sua identità — un'etichetta, non un
-indirizzo: non è più un segmento di path.
-
-### HND.4 — L'avviamento è il montaggio; il re-render è l'aggiornamento
-
-Non c'è `activate()`: montare crea, e il render si chiede quando serve.
-Il modello di aggiornamento del core statico è il **re-render** — si
-mutano i dati, si rende di nuovo — e non richiede né sezione critica né
-protocollo di patch. La `pointer_map` continua a popolarsi come effetto
-della lettura (`DAT.2`) e serve a chi vuole sapere chi legge cosa; il
-consumatore reattivo di quella mappa arriverà con il motore reattivo
-(`RX.5`).
-
-### HND.5 — Thread safety non promessa
-
-`BuilderHandler` e le classi correlate non sono thread-safe (proprietà
-ereditata da `genro_bag.Bag`). Il framework non introduce lock sui
-mutatori né su `render()`, e non esiste più una sezione critica di
-mutazione: chi condivide un handler fra thread sincronizza da sé.
+Il codice rimosso, e dove ripescarlo quando la reattività sarà
+disegnata: `roadmap/reactivity/removed-machinery.md`.
 
 ---
 
-## Area APP — Application (da formalizzare in dettaglio)
+## Area APP — RITIRATA con l'handler
 
-L'Application è lo strato fra il mondo esterno e l'handler: possiede il
-ciclo di vita (websocket, REPL, scheduler), tutto sync. La sua presenza
-accende la tracciatura dei lettori (`pointer_map`, `RX.3`); la reattività
-fine che la consumerà arriva con il motore reattivo (`RX.5`).
-L'implementazione di riferimento **non vive più qui**: lo strato
-applicativo è migrato in **genro-ws-web** (commit `6d3002a`), che con la
-v0.9.0 diventa un ponte fra due strutture materializzate invece di un produttore di
-patch. Il design del livello
-applicativo — desktop a pane-iframe, registro delle pagine vive (il
-gnrdaemon dissolto dall'async), websocket unico master/satelliti con
-chiave di routing — è approvato in `roadmap/application-registry.md`
-(2026-06-10). La formalizzazione fine dell'area (API, hook,
-multi-sessione) è rimandata a quando ws_live si stabilizza.
+L'Application era lo strato fra il mondo esterno e l'handler, e la sua
+presenza accendeva la tracciatura dei lettori. Uscita insieme
+all'handler il 2026-07-27: senza `pointer_map` non accende nulla.
+
+Il design del livello applicativo resta valido e vive altrove — in
+**genro-ws-web** (l'implementazione è migrata col commit `6d3002a`), e il
+disegno approvato in `roadmap/application-registry.md` (2026-06-10):
+desktop a pane-iframe, registro delle pagine vive, websocket unico
+master/satelliti con chiave di routing. Il motore reattivo (`RX.5`) dirà
+di che strato ha bisogno; non lo anticipa questo contratto.
 
 ---
 
@@ -466,16 +434,17 @@ segmento anteposto). Il trigger è la **walk del render**: il walk
 universale di `RendererBase` chiama `runtime_values` per ogni nodo; un
 renderer speciale può guidare la propria walk.
 
-**Registrazione alla lettura (signals-like).** La `pointer_map`
-dell'handler (`dict[abs_path, dict[id(node), node]]`) NON si popola a
-priori: si auto-popola come **effetto della lettura** — `runtime_values`
-registra ogni `^` mentre lo legge (`handler._register_path`); `=` viene
-letto e basta. Corollario: **la mappa esiste solo dopo un render** — una
-pagina mai resa non sa chi legge cosa. La registrazione è opt-in
-sull'Application: senza, un render one-shot non paga la mappa.
-Asimmetria strutturale: *aggiungere* alla mappa = effetto del render;
-*togliere* = azione esplicita su mutazione della source (il render non sa
-cosa esisteva prima).
+**Lettura, non registrazione.** `runtime_values` **legge** il dato e
+basta: `^` e `=` si risolvono identici, la differenza è la dichiarazione
+d'intento dell'autore. La `pointer_map` (registrazione alla lettura,
+`dict[abs_path, dict[id(node), node]]`) è uscita col resto del tracking
+il 2026-07-27 — vedi `HND` e
+`roadmap/reactivity/removed-machinery.md`. Il principio che l'aveva
+generata resta buono e va ripreso dal motore reattivo: la mappa si
+auto-popola come effetto della lettura, quindi **esiste solo dopo un
+render**, e l'asimmetria è strutturale (aggiungere = effetto del render;
+togliere = azione esplicita, perché il render non sa cosa esisteva
+prima).
 
 **Macro reattive sul nodo**: `SET` (scrive, reason default) / `PUT`
 (scrive, `reason=False`) / `FIRE` (evento, `fired=True`, non persiste)
@@ -800,12 +769,18 @@ lo scheduling dei callback (immediato nel writer thread vs schedulato
 nel loop). Il `Bag` porta gli eventi nativi (`ins`/`upd`/`del` su un
 path): sono il vocabolario su cui il motore reattivo (`RX.5`) si costruirà.
 
-### RX.3 — La `pointer_map` è opt-in sull'Application
+### RX.3 — RITIRATA: la `pointer_map` è uscita col tracking
 
-`_register_path` è no-op senza Application: un render one-shot non paga
-la tracciatura. Con Application la mappa si popola alla lettura
-(`DAT.2`) e dice chi legge cosa — il suo consumatore reattivo arriva con
-`RX.5`.
+Era "opt-in sull'Application": `_register_path` no-op senza, mappa
+popolata alla lettura con. Uscita il 2026-07-27 insieme all'handler e
+all'Application: una mappa senza consumatore è un costo senza incasso —
+il consumatore era il motore reattivo, mai arrivato.
+
+Il **principio** resta da riprendere (`DAT.2`): registrazione come
+effetto della lettura, mappa che esiste solo dopo un render, asimmetria
+fra aggiungere e togliere. Il codice: vedi
+`roadmap/reactivity/removed-machinery.md`, che dice anche quale difetto
+non ripetere (scansione lineare su mappa piatta di stringhe).
 
 ### RX.4 — Organizzazione di `roadmap/reactivity/`
 

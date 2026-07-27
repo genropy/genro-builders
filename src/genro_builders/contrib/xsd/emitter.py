@@ -98,7 +98,6 @@ class XsdEmitter:
             f'"""Generated XSD schema recreated as {class_name}."""',
             "from __future__ import annotations",
             "",
-            "from genro_builders.builder import BuilderHandler",
             "from genro_builders.contrib.xsd import XsdBuilder",
         ]
         if any("@component" in m for m in extra_methods):
@@ -117,7 +116,7 @@ class XsdEmitter:
             "",
             'if __name__ == "__main__":',
             f"    page = {class_name}()",
-            "    BuilderHandler().add_builder(page)",
+            "    page.create()",
             "    print(page.render(target=False, doc_header=True, pretty=True))",
         ])
         return "\n".join(lines) + "\n"

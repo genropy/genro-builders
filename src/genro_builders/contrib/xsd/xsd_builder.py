@@ -14,7 +14,6 @@ any schema, nothing about Genropy or widgets. A downstream layer
 
 Example::
 
-    from genro_builders.builder import BuilderHandler
     from genro_builders.contrib.xsd import XsdBuilder
 
     XS = "http://www.w3.org/2001/XMLSchema"
@@ -25,7 +24,7 @@ Example::
             el = schema.element(name="Consultorio", type="xs:string")
 
     doc = MySchema()
-    BuilderHandler().add_builder(doc)
+    doc.create()
     doc.create()
     print(doc.render(target=False, doc_header=True))
 """
@@ -45,7 +44,6 @@ class XsdBuilder(XmlBuilderBase, XsdElements):
 
 
 if __name__ == "__main__":
-    from genro_builders.builder import BuilderHandler
 
     XS = "http://www.w3.org/2001/XMLSchema"
 
@@ -55,6 +53,6 @@ if __name__ == "__main__":
             schema.element(name="Consultorio", type="xs:string")
 
     page = _Demo()
-    BuilderHandler().add_builder(page)
+    page.create()
     page.create()
     print(page.render(target=False, doc_header=True, pretty=True))

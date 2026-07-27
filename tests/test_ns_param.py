@@ -12,7 +12,7 @@ builders, independent of any dialect. Output type is XML.
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderBase, BuilderHandler, abstract
+from genro_builders.builder import BuilderBase, abstract
 from genro_builders.builder import element as el
 
 # ``element`` is imported under an alias because this grammar declares a
@@ -53,7 +53,7 @@ def _render(main, builder=_NsParamBuilder):
 
     _H.main = lambda self, root: main(root)
     page = _H()
-    BuilderHandler().add_builder(page)
+    page.create()
     return page.render(target=False)
 
 
@@ -108,7 +108,7 @@ def test_node_tag_stays_python_legal():
             root.schema().sequence()
 
     page = _H()
-    BuilderHandler().add_builder(page)
+    page.create()
     schema = next(iter(page.source))
     seq = next(iter(schema.value))
     assert seq.node_tag == "sequence"

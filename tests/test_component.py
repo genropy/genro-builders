@@ -31,11 +31,10 @@ def test_component_forest_raises():
         page.render()
 
 
-def test_expansion_pointers_never_register():
-    """CMP.7: the pointer_map holds the component node's own pointers
-    (here the ``store`` anchor); the expansion's relative pointers
-    resolve at render but register nothing."""
-    from genro_builders.builder import BuilderHandler
+def test_expansion_resolves_relative_pointers_against_its_anchor():
+    """The expansion's ``^.label`` resolves against the component's
+    ``store`` anchor: the body is written once, relative, and reads
+    whatever record the caller anchored it to."""
 
     class Components:
         @component
@@ -50,15 +49,11 @@ def test_expansion_pointers_never_register():
             root.body().card(store="^rec")
 
     page = Page(name="p")
-    handler = BuilderHandler(application=object())   # tracking needs an app
-    handler.add_builder(page)
-    page.render()
-    assert "rec" in handler.pointer_map          # the anchor, on the node
-    assert "rec.label" not in handler.pointer_map  # the expansion: nothing
+    page.create()
+    assert "<div>x</div>" in page.render(target=False)
 
 
 def test_iterate_must_resolve_to_a_bag():
-    from genro_builders.builder import BuilderHandler
 
     class Components:
         @component
@@ -73,8 +68,7 @@ def test_iterate_must_resolve_to_a_bag():
             root.body().row(iterate="^scalar")
 
     page = Page(name="p")
-    handler = BuilderHandler()
-    handler.add_builder(page)
+    page.create()
     with pytest.raises(TypeError, match="iterate must resolve to a Bag"):
         page.render()
 
@@ -83,7 +77,6 @@ def test_nesting_matrix_single_in_single_and_single_in_iterate():
     """D10 matrix cells not covered by the examples (10 covers
     iterate-in-iterate, 11 covers self-recursion): a single component
     inside a single one, and a single component inside an iterate."""
-    from genro_builders.builder import BuilderHandler
 
     class Components:
         @component
@@ -112,8 +105,7 @@ def test_nesting_matrix_single_in_single_and_single_in_iterate():
             body.table().tbody().row(iterate="^rows")
 
     page = Page(name="p")
-    handler = BuilderHandler()
-    handler.add_builder(page)
+    page.create()
     out = page.render()
     assert out.count('<span class="badge">') == 3
     assert "Hello" in out and "one" in out and "two" in out
@@ -140,7 +132,6 @@ def test_pointer_kwarg_passes_through_to_the_body():
     saturates the body as an ABSOLUTIZED POINTER, not as the resolved
     value — the address must reach the final node, where it resolves like
     a hand-written one and emits the write-back hook."""
-    from genro_builders.builder import BuilderHandler
 
     class Components:
         @component
@@ -155,8 +146,7 @@ def test_pointer_kwarg_passes_through_to_the_body():
             root.body().namebox(value="^people.name")
 
     page = Page(name="p")
-    handler = BuilderHandler(application=object())
-    handler.add_builder(page)
+    page.create()
     out = page.render(target=False, include_datapath=True)
     assert 'value="mario"' in out                      # display resolved
     assert 'data-value-pointer="people.name"' in out  # the address: write-back

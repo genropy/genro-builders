@@ -12,7 +12,6 @@ form-widget vocabularies inside ``xs:appinfo``.
 
 Example::
 
-    from genro_builders.builder import BuilderHandler
     from genro_builders.contrib.xsd import XsdBuilder
 
     XS = "http://www.w3.org/2001/XMLSchema"
@@ -22,7 +21,7 @@ Example::
             root.schema(xmlns_xs=XS).element(name="Foo", type="xs:string")
 
     doc = MySchema()
-    BuilderHandler().add_builder(doc)
+    doc.create()
     doc.create()
     print(doc.render(target=False, doc_header=True))
 """

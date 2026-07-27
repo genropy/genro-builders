@@ -32,7 +32,7 @@ XML-on-the-wire dialects (XSLT and the schema-generated ones); default
 render mode is `xml`. The namespace-tag mechanism (`_meta`
 `ns`/`local`, `xmlns_<prefix>` attributes) lives on the core
 `XmlRenderer`. A generated dialect is an ordinary builder: subclass it
-for a page, or mount it on a `BuilderHandler` like any other.
+for a page, or use it directly like any other.
 
 The XML render is the core's real `XmlRenderer` (pointers resolved,
 framework markers filtered) — see [HTML grammar](html.md) for the `xml`

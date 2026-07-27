@@ -11,7 +11,6 @@ from decimal import Decimal
 
 import pytest
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.xml.transpiler import (
     AttributeModel,
     ChildModel,
@@ -221,7 +220,7 @@ def test_generated_module_is_executable_and_renders(gen):
             root.Greeting().Subject("hi")
 
     doc = MyDoc()   # name defaults to the generated _name typology ("demo")
-    BuilderHandler().add_builder(doc)
+    doc.create()
     assert doc.render(mode="xml", target=False) == (
         "<Greeting><Subject>hi</Subject></Greeting>"
     )

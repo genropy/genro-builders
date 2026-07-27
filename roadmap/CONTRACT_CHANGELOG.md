@@ -11,6 +11,57 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## Emendamento v0.9.0 — 2026-07-27 (`HND` e `APP` RITIRATE: via l'handler)
+
+`BuilderHandler` è rimosso. Il datastore è del builder.
+
+**Perché.** Metà dell'handler era `pointer_map` più i tre metodi che la
+mantenevano: inerti senza Application e **senza consumatore**, perché il
+consumatore è il motore reattivo, al terzo o quarto tentativo senza
+esito. L'altra metà era una Bag e un hook `setup` — cose che il builder ha
+già. Restava un oggetto da costruire e legare per ottenere una Bag, e un
+`add_builder` il cui nome mentiva sulla cardinalità (accettava un solo
+builder e sollevava al secondo, residuo del multibuilder).
+
+**È una deroga deliberata** alla regola "non eliminare scaffolding
+predisposto": lì la condizione era *verificare l'intento*, e qui l'intento
+non è verificabile perché il disegno non esiste. Meglio uno statico
+minimo che infrastruttura che vincola il prossimo disegno a una forma
+pensata per i tentativi precedenti.
+
+**Cosa esce**: `BuilderHandler` (file intero), `add_builder`,
+`pointer_map` + `_register_path`/`_unregister_pointer`/`_update_pointer_map`,
+l'Application, la subscribe della source armata in `create()` con i suoi
+gestori (`_on_source_event`, `_on_upd_value`, `_on_upd_attrs`,
+`_value_nature`, `on_source_change`), `_is_reactive`, e sul nodo le
+property `handler`/`data_handler` con lo slot `_handler`.
+
+**Cosa lo sostituisce, e legge meglio**: `builder.data` è IL datastore;
+**`node.data`** lo raggiunge da qualunque nodo risalendo al builder —
+stesso nome a ogni livello, e funziona anche su un albero staccato, che il
+vecchio `node.handler` non poteva (là era `None`, e `data_handler` faceva
+due tentativi per aggirarlo). `get_subbuilder` propaga il datastore invece
+dell'handler; `target_id` distingue un nodo di documento da uno
+d'espansione chiedendo se la radice del suo albero è il `_sourceroot` del
+builder, senza slot né handler.
+
+**Misurato**: `base.py` + `source_bag.py` + l'handler da 1891 a 1627
+righe (**-264**) e un file in meno. L'output del render **non cambia di un
+byte** — `test_examples.py` confronta il committato.
+
+**Non escono** `get_relative_data`/`set_relative_data` né le macro
+`SET`/`GET`/`PUT`/`FIRE`, `fired` e `reason` compresi: non sono
+scaffolding reattivo, i flag viaggiano nella pipeline di subscribe di
+`genro_bag` e **niente in questo pacchetto agisce su di essi**.
+
+`DAT.2` conserva il *principio* della registrazione alla lettura (che il
+motore reattivo riprenderà) dichiarando uscito il codice. `RX.3` diventa
+una clausola ritirata. Il codice rimosso e dove ripescarlo:
+**`roadmap/reactivity/removed-machinery.md`** — la traccia è git, non un
+`attic/`: uno sha è esatto per sempre, una copia invecchia in silenzio.
+
+---
+
 ## Emendamento v0.9.0 — 2026-07-27 (`RX.5`: due motori, non un render mode)
 
 `RX.5` prescriveva il *come*: una **compiled bag** emessa da un render

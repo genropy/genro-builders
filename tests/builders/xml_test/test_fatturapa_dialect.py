@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.xml.examples.fatturapa import FatturaElettronicaBuilder
 
 _FATTURAPA_DIR = (
@@ -75,7 +74,7 @@ def test_handler_renders_minimal_document_to_xml():
             root.FatturaElettronica(versione="FPA12", SistemaEmittente="TESTSW")
 
     page = MinimalInvoice()
-    BuilderHandler().add_builder(page)
+    page.create()
     # attribute-serialization test on a deliberately partial document
     xml = page.render(mode="xml", target=False)
     assert "<FatturaElettronica" in xml
@@ -91,7 +90,7 @@ def test_handler_writes_xml_to_file(tmp_path):
     out = tmp_path / "invoice.xml"
     page = MinimalInvoice()
     page.set_render_target(str(out), "xml")
-    BuilderHandler().add_builder(page)
+    page.create()
     page.render()   # deliberately partial document
     body = out.read_text()
     assert body.startswith("<FatturaElettronica")
@@ -177,7 +176,7 @@ def test_validate_source_reports_an_incomplete_invoice():
             root.FatturaElettronica(versione="FPA12")
 
     page = MinimalInvoice()
-    BuilderHandler().add_builder(page)
+    page.create()
     problems = page.validate_source()
     missing = [tag for _path, tags in problems for tag in tags]
     assert "FatturaElettronicaHeader" in missing

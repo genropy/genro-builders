@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.xml.examples.sitemap import SitemapBuilder
 
 _SITEMAP_DIR = (
@@ -46,7 +45,7 @@ def test_handler_renders_a_sitemap_document():
             home.priority(Decimal("1.0"))
 
     page = MySitemap()
-    BuilderHandler().add_builder(page)
+    page.create()
     xml = page.render(mode="xml", target=False)
     assert xml == (
         "<urlset><url>"
@@ -63,7 +62,7 @@ def test_pretty_render_is_multiline():
             root.urlset().url().loc("https://x/")
 
     page = MySitemap()
-    BuilderHandler().add_builder(page)
+    page.create()
     pretty = page.render(mode="xml", pretty=True, target=False)
     assert "\n" in pretty
     assert pretty.startswith("<urlset>")

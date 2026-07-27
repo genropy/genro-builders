@@ -286,10 +286,8 @@ class _GrammarMixin:
             # @subbuilder node (e.g. <svg>) propagate its own dialect
             # down into the freshly-created sub-bag instead of leaking
             # the host dialect.
-            parent_bag = node.parent_bag
-            node.value = type(parent_bag)(
+            node.value = type(node.parent_bag)(
                 builder=node._resolve_builder(),
-                handler=parent_bag._handler,
             )
 
         if child_tag in self._schema:

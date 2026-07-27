@@ -12,7 +12,6 @@ from __future__ import annotations
 import pytest
 import xmlschema
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.xsd import XsdBuilder
 from genro_builders.contrib.xsd.emitter import XsdEmitter
 from genro_builders.contrib.xsd.reader import XsdReader
@@ -31,7 +30,7 @@ PERSON = (
 
 def _mounted(builder):
     """Mount a fresh builder and return it (add_builder runs its main)."""
-    BuilderHandler().add_builder(builder)
+    builder.create()
     return builder
 
 

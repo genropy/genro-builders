@@ -12,7 +12,6 @@ mounted on the generic ``BuilderHandler`` like any other dialect.
 
 Example::
 
-    from genro_builders.builder import BuilderHandler
     from genro_builders.contrib.xslt import XsltBuilder
 
     XSL = "http://www.w3.org/1999/XSL/Transform"
@@ -25,7 +24,7 @@ Example::
             tpl.html().body().h1("Sitemap")
 
     sheet = SitemapToHtml()
-    BuilderHandler().add_builder(sheet)
+    sheet.create()
     sheet.create()
     print(sheet.render(target=False, doc_header=True))
 """

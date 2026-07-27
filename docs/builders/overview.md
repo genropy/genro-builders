@@ -20,10 +20,10 @@ The framework is built around three concrete classes:
   walks the source bag and emits a string. Exposed as
   `renderer_<mode>` properties on the builder class; instances are
   fresh and ephemeral (one `render()` call each).
-- **BuilderHandler** — the data source. It mounts ONE builder
-  (`add_builder`) on one FLAT datastore — absolute paths with no leading
-  segment — and tracks readers (`pointer_map`). It does not render. Only
-  needed when the page reads data; it is not subclassed.
+The builder also owns the **datastore**: one FLAT Bag, `page.data`,
+absolute paths with no leading segment. `setup(data)` seeds it, pointers
+read it, and any node reaches it as `node.data` — same name at every
+level.
 
 ## The two phases
 
@@ -43,12 +43,12 @@ page.render()  # serializes source
 
 The source bag is inspectable as `page.source` after `create()`.
 
-With data, the handler mounts and creates the page:
+With data it is the same two phases — `setup` seeds the store, the
+pointers read it:
 
 ```python
 page = CustomerPage(name="customer")
-handler = BuilderHandler()
-handler.add_builder(page)   # mounts the page, calls create()
+page.create()               # setup(data) + main(source) + data-elements
 page.render()
 ```
 
@@ -96,11 +96,10 @@ class CustomerPage(HtmlBuilder):
 | Rendering (string output) | Renderer (`renderer_<mode>` property, fresh per call) |
 | Render targets (file, stream, callable; per mode) | Builder instance |
 | Node lookup by id | Builder (`node_by_id`, per-builder namespace) |
-| Data (one flat datastore, no segments) | BuilderHandler |
-| Pointer tracking (`pointer_map`) | BuilderHandler |
+| Data (one flat datastore, no segments) | Builder instance (`page.data`, `node.data` from any node) |
 
 This separation is fixed by the architecture contract (areas
-`BLD` / `PAG` / `HND`). See `roadmap/architecture-contract.md`.
+`BLD` / `PAG`). See `roadmap/architecture-contract.md`.
 
 ## What is here, and what is next
 
@@ -123,4 +122,4 @@ Designed but not yet implemented:
   `roadmap/component-design.md`.
 - **Reactivity** — the document is static: a data change is followed by
   rendering again. Fine-grained reactivity is a separate engine (`RX`),
-  still under design, not this handler.
+  still under design.

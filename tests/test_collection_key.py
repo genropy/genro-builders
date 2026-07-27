@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from genro_builders.builder import BuilderBase, BuilderHandler, element
+from genro_builders.builder import BuilderBase, element
 
 
 class _CfgBuilder(BuilderBase):
@@ -45,7 +45,7 @@ def _build(main):
 
     _H.main = lambda self, root: main(root)
     page = _H()
-    BuilderHandler().add_builder(page)
+    page.create()
     return page
 
 

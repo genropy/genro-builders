@@ -361,14 +361,13 @@ class BuilderBase(
         The source lives under the structural ``SOURCE_ROOT`` segment of
         a wrapper root (tree-not-forest guarantee, never an address):
         ``self.source`` is the payload the ``main`` recipe populates,
-        ``_sourceroot`` the wrapper that carries it. ``handler=None`` —
-        a bare builder renders itself, with no datastore behind it.
+        ``_sourceroot`` the wrapper that carries it.
         """
         self.name: str | None = name or type(self)._name
         self._schema = type(self)._class_schema
         self._schema_tag_names = type(self)._schema_tag_names
-        self._sourceroot: SourceBag = SourceBag(builder=self, handler=None)
-        self._sourceroot[SOURCE_ROOT] = SourceBag(builder=self, handler=None)
+        self._sourceroot: SourceBag = SourceBag(builder=self)
+        self._sourceroot[SOURCE_ROOT] = SourceBag(builder=self)
         self.source: SourceBag = self._sourceroot[SOURCE_ROOT]
         self._sourceroot.set_backref()
         self._default_targets: dict[str, Any] = {}
@@ -377,12 +376,11 @@ class BuilderBase(
         # emits (text chunks, dicts, objects). A re-render replaces the
         # entry.
         self.materialized: dict[str, Any] = {}
-        # Data source. ``handler`` is set when a BuilderHandler mounts this
-        # builder (add_builder); ``data`` is then the handler's store,
-        # whole. A bare builder (no_data) keeps handler=None and an empty
-        # data bag, so setup(self.data) is harmless.
-        self.handler: Any = None
+        # The datastore: ONE flat Bag per document, owned by the builder.
+        # ``setup`` seeds it, pointers read it, ``node.data`` reaches it
+        # from any node through the ancestor walk.
         self.data: Bag = Bag()
+        self.data.set_backref()
         # data-element logic sources, resolved lazily by ``data_logic``.
         self._data_logic: list[Any] | None = None
         # Sub-builder instances, one per dialect name (see get_subbuilder).
@@ -418,16 +416,15 @@ class BuilderBase(
 
         The returned source carries this builder (so the grammar API
         works: ``root.div(...)`` etc.) and has backref enabled (so
-        ``parent_node`` is usable). It carries **no handler**: it is not
-        connected to a pointer_map, has no reactive subscribes, cannot
-        ``create()`` or ``render()``.
+        ``parent_node`` is usable). It cannot ``create()`` or
+        ``render()``: it is a subtree, not a document.
 
         Typical use: pre-build a subtree offline, then attach it as the
         value of some node in a document's source; the next render walks
-        it and registers its pointers at read time. The throw-away root
-        itself is not retained by anything.
+        it and resolves its pointers. The throw-away root itself is not
+        retained by anything.
         """
-        root = SourceBag(builder=self, handler=None)
+        root = SourceBag(builder=self)
         root.set_backref()
         return root
 
@@ -447,10 +444,10 @@ class BuilderBase(
         is the machinery's own object — so the body's relative pointers
         (``^.company``) find it through the ordinary ancestor climb.
         """
-        wrapper = SourceBag(builder=self, handler=None)
+        wrapper = SourceBag(builder=self)
         attrs = {"datapath": datapath} if datapath else {}
         wrapper.set_item(
-            SOURCE_ROOT, SourceBag(builder=self, handler=None),
+            SOURCE_ROOT, SourceBag(builder=self),
             _attributes=attrs,
         )
         wrapper.set_backref()
@@ -467,16 +464,16 @@ class BuilderBase(
         ``id(builder)`` serves them all with a single sub-renderer).
         Used when a ``_meta['subbuilder']`` element switches the active
         dialect mid-document (e.g. ``body.svg(...)`` inside HTML). The
-        host's handler is passed on so the sub-builder resolves pointers
+        host's DATASTORE is passed on so the sub-builder resolves pointers
         against the same document data; it cascades to nested
-        sub-builders, and is re-synced on every hit so a host mounted
-        after a first bare render keeps the invariant.
+        sub-builders, and is re-synced on every hit so a host whose data
+        was replaced after a first render keeps the invariant.
         """
         subbuilder = self._subbuilders.get(name)
         if subbuilder is None:
             subbuilder = type(self).get_builder_class(name)()
             self._subbuilders[name] = subbuilder
-        subbuilder.handler = self.handler
+        subbuilder.data = self.data
         return subbuilder
 
     def main(self, root: SourceBag) -> None:
@@ -492,11 +489,10 @@ class BuilderBase(
     def setup(self, data: Any) -> None:
         """Override point: populate the datastore.
 
-        Receives the datastore WHOLE — it is flat, there is no per-builder
-        segment: the handler's store when mounted, an empty bag otherwise.
-        Default no-op — a page with pointers overrides it to seed the
-        values its ``main`` reads. Called by :meth:`create` before
-        ``main``.
+        Receives the datastore WHOLE — one flat Bag per document, no
+        per-builder segment. Default no-op — a page with pointers
+        overrides it to seed the values its ``main`` reads. Called by
+        :meth:`create` before ``main``.
         """
 
     def create(self) -> None:
@@ -523,27 +519,6 @@ class BuilderBase(
                 condition=lambda n: bool(n._get_meta("data_element")),
             )
         )
-        # Subscribe to the SOURCE (structure) so that a mutation keeps the
-        # handler's pointer_map coherent and reaches the on_source_change
-        # hook. Armed only with an application behind it: a one-shot render
-        # does not maintain a map nobody reads.
-        if self._is_reactive:
-            self._sourceroot.subscribe(
-                "builder_source",
-                insert=self._on_source_event,
-                update=self._on_source_event,
-                delete=self._on_source_event,
-            )
-
-    @property
-    def _is_reactive(self) -> bool:
-        """True when mounted on a handler that has an application.
-
-        A builder with no data has no handler: it renders one-shot. Only a
-        builder on a handler with an application pays for the read-time
-        pointer tracking and the source subscribe that keeps it coherent.
-        """
-        return bool(self.handler and self.handler.application)
 
     def node_by_id(self, node_id: str) -> Any:
         """Return the source node carrying ``node_id`` in this builder.
@@ -567,13 +542,14 @@ class BuilderBase(
         the OBJECT, not to its position, so no structural mutation can
         stale it.
 
-        Expansion nodes (``handler is None``, the D9 gate) get none:
-        they reincarnate at every render — no stable identity to name.
+        Expansion nodes get none: they live in a throw-away wrapper, not
+        in the document's own ``_sourceroot``, and they reincarnate at
+        every render — no stable identity to name.
         """
         existing = getattr(node, "_target_id", None)
         if existing is not None:
             return existing
-        if node.handler is None:
+        if node.parent_bag.root is not node._resolve_builder()._sourceroot:
             return None
         root = node.root_builder
         root._target_serial += 1
@@ -581,88 +557,7 @@ class BuilderBase(
         return node._target_id
 
     # ------------------------------------------------------------------
-    # Source reactivity (change handling on the builder; pointer-map
-    # maintenance delegated to the handler)
-    # ------------------------------------------------------------------
-
-    def _on_source_event(
-        self, node: Any, evt: str, pathlist: list[str], **kw: Any
-    ) -> None:
-        """Internal dispatcher for events on this builder's ``_sourceroot``.
-
-        Maintains the handler's ``pointer_map`` coherent across the
-        mutation (mapkeep is delegated to the handler — the map is its
-        property), then forwards a normalized event to the user hook
-        :meth:`on_source_change`. Mapkeep is structural, not user-facing:
-        it MUST happen even if the user does not override the public hook.
-        """
-        if evt == "ins":
-            self.on_source_change(node, "ins", evt_detail=None, **kw)
-        elif evt == "del":
-            self.handler._unregister_pointer(node)
-            self.on_source_change(node, "del", evt_detail=None, **kw)
-        else:
-            detail = evt[4:] if evt.startswith("upd_") else evt
-            if detail in ("value", "value_attr"):
-                self._on_upd_value(node, kw.get("oldvalue"))
-            if detail in ("attrs", "value_attr"):
-                self._on_upd_attrs(node, kw.get("attrs_diff") or {})
-            self.on_source_change(node, "upd", evt_detail=detail, **kw)
-
-    def on_source_change(
-        self, node: Any, evt: str, evt_detail: str | None = None, **kw: Any
-    ) -> None:
-        """Override point: a node in the source tree changed.
-
-        Normalized event: ``evt`` is ``"ins"`` / ``"del"`` / ``"upd"``,
-        ``evt_detail`` carries the update kind for ``"upd"``. Default
-        no-op. Runs AFTER the structural pointer-map maintenance.
-        """
-
-    def _value_nature(self, v: Any) -> str:
-        """Classify a value as ``"bag"``, ``"pointer"`` or ``"scalar"``.
-
-        Used by :meth:`_on_upd_value` to dispatch on the kind of the value
-        being replaced.
-        """
-        if isinstance(v, Bag):
-            return "bag"
-        if isinstance(v, str) and v.startswith("^"):
-            return "pointer"
-        return "scalar"
-
-    def _on_upd_value(self, node: Any, oldvalue: Any) -> None:
-        """De-register the old value's pointers across an ``upd_value`` event.
-
-        Only the OLD side acts, so the dispatch is on the old value's kind
-        (``"scalar"``, ``"pointer"``, ``"bag"`` — see :meth:`_value_nature`),
-        whatever replaces it: a scalar had nothing registered, a pointer
-        de-registers itself, a bag de-registers its whole subtree.
-        Registration of the new value is the render's job (read-time
-        ``_register_path``).
-        """
-        match self._value_nature(oldvalue):
-            case "pointer":
-                self.handler._update_pointer_map(node, [("", oldvalue)])
-            case "bag":
-                for old_child in oldvalue:
-                    self.handler._unregister_pointer(old_child)
-
-    def _on_upd_attrs(self, node: Any, attrs_diff: dict) -> None:
-        """De-register old attr-pointers across an ``upd_attrs`` event.
-
-        ``attrs_diff`` is the per-attribute diff produced by ``genro_bag``:
-        ``{attr_name: {"old": old_value, "new": new_value}, ...}``. Only
-        the old pointer is de-registered; the new one is re-registered by
-        the render that follows.
-        """
-        for attrname, change in attrs_diff.items():
-            old_v = change.get("old")
-            if isinstance(old_v, str) and old_v.startswith("^"):
-                self.handler._update_pointer_map(node, [(attrname, old_v)])
-
-    # ------------------------------------------------------------------
-    # Data-element logic (first calculation; reactive cascade later)
+    # Data-element logic
     # ------------------------------------------------------------------
 
     def compute_logic(self, nodes: Iterable[Any]) -> None:
@@ -756,11 +651,15 @@ class BuilderBase(
         """Resolve the pointers/templates carried by ``node``.
 
         Returns ``(runtime_value, runtime_attrs)``. Resolution lives on
-        the builder (it reaches the handler via ``self.handler``); ``node``
-        is just the subject whose pointers are resolved. ``^``/``=``
-        strings are read from ``handler.data`` at the node's absolute path;
-        ``^`` readers register in the pointer_map; ``${name}`` templates
+        the builder, which owns the datastore; ``node`` is just the subject
+        whose pointers are resolved. ``^``/``=`` strings are read from
+        ``self.data`` at the node's absolute path; ``${name}`` templates
         expand against the resolved attrs.
+
+        ``^`` and ``=`` resolve identically here: the difference is an
+        author's declaration of INTENT (``^`` "this is meant to follow the
+        datum"), which a reactive engine would act on. A static render
+        reads both, once.
 
         An attribute referenced by a ``${...}`` template of the same node
         is a template input: once expanded it has been consumed, and it is
@@ -780,15 +679,7 @@ class BuilderBase(
                 resolved[k] = v
                 continue
             abs_path = node.abs_datapath(v)
-            value = self.handler.data.get_item(abs_path)
-            # Read-time registration — but only for nodes of the live
-            # document. Expansion nodes (their root wrapper carries no
-            # handler) read and resolve like anyone else, yet never enter
-            # the pointer_map: the subscription stays on the component
-            # node, whose declared pointers (store/iterate/params) DID
-            # register (CMP.7 — coarse subscription, fine resolution).
-            if ptype == "^" and node.handler is not None:
-                self.handler._register_path(node, abs_path)
+            value = self.data.get_item(abs_path)
             # The datum knows how to present itself. Presentation only:
             # never for a data-element's bindings (formulas want the raw
             # datum) and never for ``?attr`` reads (raw by definition).
@@ -798,7 +689,7 @@ class BuilderBase(
             #   datum carries onto its reader — the exception that
             #   travels with the data (e.g. an alarm color).
             if not is_data_element and "?" not in abs_path:
-                data_node = self.handler.data.get_node(abs_path)
+                data_node = self.data.get_node(abs_path)
                 if data_node is not None:
                     value = self._present_value(data_node, value)
                     if k is None:
@@ -894,7 +785,7 @@ class BuilderBase(
     ) -> Any:
         """Render the built source via ``renderer_<mode>``.
 
-        Pointer-free path: the builder renders itself, no handler needed.
+        The builder renders itself: grammar, data and render in one object.
         ``mode`` defaults to the dialect's ``_default_render_mode``;
         ``target`` follows :meth:`_get_target` (``False`` returns the
         string, a falsy value falls back to a registered target, a truthy

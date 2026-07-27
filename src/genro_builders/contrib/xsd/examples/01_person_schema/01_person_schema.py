@@ -23,7 +23,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.xsd import XsdBuilder
 
 XS = "http://www.w3.org/2001/XMLSchema"
@@ -56,7 +55,7 @@ class PersonSchema(XsdBuilder):
 
 if __name__ == "__main__":
     page = PersonSchema()
-    BuilderHandler().add_builder(page)  # mounts and builds the source
+    page.create()  # mounts and builds the source
     rendered = page.render(target=False, doc_header=True, pretty=True)
 
     output = Path(__file__).with_suffix(".xsd")

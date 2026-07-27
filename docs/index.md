@@ -56,10 +56,10 @@ in code — live in `roadmap/` at the repo root:
 ## Status of the current scaffold
 
 This documentation skeleton describes the framework as it exists
-**today**: pull-based binding with read-time registration (`DAT.2`),
+**today**: pull-based binding resolved at render time (`DAT.2`),
 data presentation (`mask`/`_wdg`, `DAT.5`), data-elements at the first
-calculation (`DAT.4`), a handler that mounts one builder on one flat
-datastore (`HND`), and components (`@component`/`@container`). The
+calculation (`DAT.4`), one flat datastore owned by the builder (`BLD`),
+and components (`@component`/`@container`). The
 document is STATIC: a data change is followed by rendering again.
 Features still under design — `@slot`, the data-element recompute,
 fine-grained reactivity as a separate engine (`RX`) — live in `roadmap/`

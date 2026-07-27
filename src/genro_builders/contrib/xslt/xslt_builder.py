@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.xml import XmlBuilderBase
 
 from ..html.html5_elements import Html5Elements
@@ -40,7 +39,6 @@ class XsltBuilder(XmlBuilderBase, XsltElements, Html5Elements):
 
 if __name__ == "__main__":
     page = XsltBuilder()
-    handler = BuilderHandler()
-    handler.add_builder(page)
+    page.create()
     page.create()
     print(page.render(target=False))

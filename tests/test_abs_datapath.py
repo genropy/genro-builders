@@ -26,7 +26,6 @@ from typing import Callable
 
 import pytest
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilder
 
 
@@ -38,8 +37,7 @@ def _leaf(main_fn: Callable, node_id: str = "leaf"):
             main_fn(root)
 
     page = Page(name="main")
-    handler = BuilderHandler()
-    handler.add_builder(page)   # mounts under page.name and runs create()
+    page.create()   # mounts under page.name and runs create()
     return page, page.node_by_id(node_id)
 
 

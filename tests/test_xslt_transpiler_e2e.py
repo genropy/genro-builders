@@ -17,7 +17,6 @@ from pathlib import Path
 
 from lxml import etree
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.xslt.transpiler import XsltTranspiler
 from genro_builders.contrib.xslt.transpiler.__main__ import main
 
@@ -51,7 +50,7 @@ def _regenerate(xslt_source: str) -> str:
     namespace: dict[str, object] = {}
     exec(code, namespace)  # noqa: S102 - executing our own generated code
     page = namespace["RoundTrip"]()
-    BuilderHandler().add_builder(page)
+    page.create()
     return page.render(target=False, doc_header=True)
 
 
@@ -82,6 +81,6 @@ def test_cli_writes_output_file(tmp_path):
     namespace: dict[str, object] = {}
     exec(code, namespace)  # noqa: S102
     page = namespace["Sitemap"]()
-    BuilderHandler().add_builder(page)
+    page.create()
     regenerated = page.render(target=False, doc_header=True)
     assert _canon(regenerated) == _canon(_EXAMPLE.read_text(encoding="utf-8"))

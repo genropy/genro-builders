@@ -54,7 +54,7 @@ print(page.render(pretty=True))
   are `renderer_<mode>` properties on the builder class.
 
 See [Builders overview](builders/overview.md) for the full lifecycle,
-including the data-bound scenario (`BuilderHandler`).
+including the data-bound scenario (`setup` and pointers).
 
 ## SVG and CSS
 

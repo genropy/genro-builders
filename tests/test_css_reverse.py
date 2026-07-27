@@ -10,7 +10,6 @@ import pytest
 
 pytest.importorskip("tree_sitter_css")
 
-from genro_builders.builder import BuilderHandler  # noqa: E402
 from genro_builders.contrib.css import CssBuilder  # noqa: E402
 from genro_builders.contrib.css.transpiler import CssTranspiler  # noqa: E402
 from genro_builders.contrib.css.transpiler.backend import _parse_css  # noqa: E402
@@ -53,7 +52,7 @@ def _roundtrip(css: str) -> str:
     namespace: dict = {}
     exec(code, namespace)
     page = namespace["ReversedCss"]()
-    BuilderHandler().add_builder(page)
+    page.create()
     return page.render() or ""
 
 

@@ -232,8 +232,8 @@ the positional args onto the field names, and flags the node
 > **Status**: all three compute at `create()`, once, in **document
 > order** — the calculation walks the source tree top to bottom. So the
 > datastore is complete before the render starts, and a node may read a
-> value a data-element writes further DOWN the page. A page using them
-> needs a `BuilderHandler`, since the destination is the datastore.
+> value a data-element writes further DOWN the page. The destination is
+> the builder's own datastore (`page.data`).
 >
 > It is a single pass and there is no recompute: a formula reading a value
 > that another formula writes AFTER it sees the earlier value, silently.

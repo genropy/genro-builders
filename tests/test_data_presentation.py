@@ -8,13 +8,12 @@ reads stay raw.
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilder
 
 
 def _mounted(page_cls):
     page = page_cls(name="main")
-    BuilderHandler().add_builder(page)
+    page.create()
     return page
 
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from genro_builders.builder import BuilderBase, BuilderHandler
+from genro_builders.builder import BuilderBase
 from genro_builders.contrib.xslt import XsltBuilder
 from genro_builders.xml import XmlBuilderBase
 
@@ -29,7 +29,7 @@ def test_renderer_is_xmlrenderer():
             root.stylesheet()
 
     page = _S()
-    BuilderHandler().add_builder(page)
+    page.create()
     assert type(page.renderer_xml).__name__ == "XmlRenderer"
 
 
@@ -40,4 +40,4 @@ def test_grammar_rejects_unknown_element():
 
     page = _S()
     with pytest.raises(AttributeError):
-        BuilderHandler().add_builder(page)
+        page.create()

@@ -16,13 +16,13 @@ boundary (``<svg>`` inside HTML) keeps counting from where it sits.
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderHandler, component
+from genro_builders.builder import component
 from genro_builders.contrib.html import HtmlBuilder
 
 
 def _render(page_cls):
     page = page_cls()
-    BuilderHandler().add_builder(page)
+    page.create()
     return page.render(target=False, pretty=True)
 
 
@@ -100,7 +100,7 @@ def test_svg_indents_too_including_void_tags():
             g.text("label", x="5", y="20")
 
     drawing = Drawing()
-    BuilderHandler().add_builder(drawing)
+    drawing.create()
     assert drawing.render(target=False, pretty=True) == (
         "<g>\n"
         '  <rect x="0" y="0" width="10" height="10" />\n'
@@ -137,5 +137,5 @@ def test_pretty_off_emits_no_whitespace():
             root.body().ul().row(iterate="^items")
 
     page = Page()
-    BuilderHandler().add_builder(page)
+    page.create()
     assert page.render(target=False) == "<body><ul><li>alpha</li></ul></body>"

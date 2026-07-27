@@ -8,7 +8,7 @@ composes ``xs:*`` tags through the ``ns="xs"`` parameter (no per-element
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderBase, BuilderHandler
+from genro_builders.builder import BuilderBase
 from genro_builders.contrib.xsd import XsdBuilder
 from genro_builders.xml import XmlBuilderBase
 
@@ -23,7 +23,7 @@ def _render(main):
 
     _S.main = lambda self, root: main(root)
     doc = _S()
-    BuilderHandler().add_builder(doc)
+    doc.create()
     return doc.render(target=False)
 
 

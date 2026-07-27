@@ -87,10 +87,9 @@ A **builder** declares the grammar of a dialect (decorators
 `dataFormula` / `dataController` are plain `@element` marked as
 data) and is also the document: it owns `name`, `source`,
 `create()`/`render()`, and exposes its renderers as `renderer_<mode>`
-properties. A **handler** (`BuilderHandler`) is the data source: it
-mounts ONE builder (`add_builder`) on one FLAT datastore — absolute
-paths with no leading segment — and tracks who reads what
-(`pointer_map`). It does not render. A
+properties. It also owns its **datastore**: one FLAT Bag, `builder.data`,
+with absolute paths and no leading segment — reachable from any node as
+`node.data`. A
 **renderer** is responsible for one mode: the universal walk produces
 fragments via dialect-specific `rendered_item`, then `finalize` ships
 the result to the target.
@@ -100,13 +99,15 @@ the result to the target.
 Attribute values and node text can carry pointers and templates,
 resolved at render time:
 
-- `^path` — reactive pointer (read and subscribed)
+- `^path` — pointer declared as meant to follow the datum
 - `=path` — passive pointer (read only)
+
+Both resolve the same way in a static render: the difference is the
+author's declaration of intent, which a reactive engine would act on.
 - `${name}` — template token; an attribute referenced by a template
   of the same node is a consumed input, never emitted
 
 ```python
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilder
 
 
@@ -119,8 +120,7 @@ class Page(HtmlBuilder):
 
 
 page = Page()
-handler = BuilderHandler()
-handler.add_builder(page)      # mounts the page and creates it
+page.create()                  # setup + main + the data-elements
 print(page.render())
 # ...<h1>Hello</h1>...
 
@@ -183,7 +183,7 @@ output. The test suite runs them all (`tests/test_examples.py`).
 ## Documentation
 
 - [Getting Started](docs/getting-started.md) — first page in 5 minutes
-- [Builders overview](docs/builders/overview.md) — builder/handler/renderer split
+- [Builders overview](docs/builders/overview.md) — builder/renderer split
 - [Decorators](docs/builders/decorators.md) — `@element`, `@abstract`, sub-builders, data-elements
 - [Common patterns](docs/builders/patterns.md) — `._` chaining, `node_by_id`, render targets
 - Per-grammar references: [HTML](docs/grammars/html.md), [SVG](docs/grammars/svg.md), [CSS](docs/grammars/css.md), [XSD](docs/grammars/xsd.md)

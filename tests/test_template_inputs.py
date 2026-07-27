@@ -8,7 +8,6 @@ composed with an authored unit (``w="^mywidth", width="${w}px"``).
 """
 from __future__ import annotations
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilder
 
 
@@ -18,7 +17,7 @@ def _render(main_fn):
             main_fn(root)
 
     page = Page(name="main")
-    BuilderHandler().add_builder(page)
+    page.create()
     return page.render(target=False)
 
 

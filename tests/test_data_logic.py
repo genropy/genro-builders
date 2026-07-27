@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import pytest
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilder
 
 
@@ -45,7 +44,7 @@ class AreaPage(HtmlBuilder):
 
 def _mount(page_cls):
     page = page_cls(name="main")
-    BuilderHandler().add_builder(page)
+    page.create()
     return page
 
 

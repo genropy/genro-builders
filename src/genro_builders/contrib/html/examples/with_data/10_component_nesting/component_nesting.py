@@ -2,7 +2,7 @@
 """10 — Component nesting: components inside components. See readme.md."""
 from __future__ import annotations
 
-from genro_builders.builder import BuilderHandler, component
+from genro_builders.builder import component
 from genro_builders.contrib.html import HtmlBuilder
 
 
@@ -41,8 +41,7 @@ class CustomPage(HtmlBuilder, CommonComponents):
 
 if __name__ == "__main__":
     page = CustomPage()
-    handler = BuilderHandler()
-    handler.add_builder(page)
+    page.create()
     page.set_render_target("output.html")
     page.render(pretty=True)
     print(page.rendered_target)

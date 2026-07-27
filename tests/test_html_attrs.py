@@ -48,7 +48,6 @@ def test_boolean_attr_false_emits_nothing():
 
 
 def test_boolean_attr_reactive_pointer_decides_presence():
-    from genro_builders.builder import BuilderHandler
 
     class Page(HtmlBuilder):
         def main(self, root) -> None:
@@ -57,10 +56,10 @@ def test_boolean_attr_reactive_pointer_decides_presence():
             body.input(disabled="^locked", html_type="text")
 
     page = Page(name="main")
-    handler = BuilderHandler()
-    handler.add_builder(page)
+    page.create()
     assert "disabled" not in page.render(target=False)
-    handler.data["locked"] = True
+    # Re-render is the update model: change the datum, render again.
+    page.data.set_item("locked", True)
     assert "<input disabled" in page.render(target=False)
 
 

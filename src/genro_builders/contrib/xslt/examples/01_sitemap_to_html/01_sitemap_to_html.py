@@ -28,7 +28,6 @@ from pathlib import Path
 
 from lxml import etree
 
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.xslt import XsltBuilder
 from genro_builders.xml.examples.sitemap import SitemapBuilder
 
@@ -77,7 +76,7 @@ class SampleSitemap(SitemapBuilder):
 if __name__ == "__main__":
     # 1. Build the stylesheet and render it (XML output, doc header on).
     sheet = SitemapToHtml()
-    BuilderHandler().add_builder(sheet)
+    sheet.create()
     stylesheet_xml = sheet.render(target=False, doc_header=True, pretty=True)
 
     output_xslt = Path(__file__).with_suffix(".xslt")
@@ -86,7 +85,7 @@ if __name__ == "__main__":
 
     # 2. Build a sample sitemap document.
     sm = SampleSitemap()
-    BuilderHandler().add_builder(sm)
+    sm.create()
     sitemap_xml = sm.render(mode="xml", target=False, doc_header=True)
 
     # 3. Apply the stylesheet to the sitemap with lxml — the real XSLT
