@@ -3,17 +3,20 @@
 
 Builders declare a domain-specific grammar via decorators (@element,
 @abstract). Sub-builders and data-elements are ordinary @element marked
-in their ``_meta`` (``subbuilder`` / ``data_element``); BuilderHandlers
-drive the create/render lifecycle on top of the grammar.
+in their ``_meta`` (``subbuilder`` / ``data_element``). A builder is also
+the document: it owns the create/render lifecycle on top of its grammar.
 
 Core classes:
     BuilderBase: Grammar base — @element, @abstract (sub-builders and
         data-elements are @element with the matching ``_meta`` marker).
+        ``create()`` populates ``self.source``, ``render()`` serializes
+        it through the renderer of the requested mode.
     SourceBag / SourceBagNode: the bag/node pair. Contain the slots
         ``_builder`` and ``_handler`` and the grammar-aware attribute
-        resolution. The handler populates a ``SourceBag`` as
-        ``self.source`` in ``handler.create()`` and serializes it in
-        ``handler.render()``.
+        resolution.
+
+A builder that reads pointers is mounted on a ``BuilderHandler``, which
+supplies the data and does not render.
 """
 
 from genro_builders.builder import BuilderBase, SourceBag, SourceBagNode, container

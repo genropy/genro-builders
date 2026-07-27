@@ -10,9 +10,8 @@ kwargs), ``cssvar`` (CSS custom property declarations) and
 scope and will be handled by a dedicated future subtask.
 
 The grammar lives in ``CssElements``. Rendering lives on
-``CssRenderer`` (``render_css`` method). Compilation (future) lives
-on ``CssCompiler``. The builder only wires them together
-(decision 8, renegotiated 2026-05-12).
+``CssRenderer`` (``render_css`` method). The builder only wires them
+together (decision 8, renegotiated 2026-05-12).
 
 The class also exposes the two reverse classmethods ``from_css`` and
 ``from_css_file``: see their docstrings for the documented exception
@@ -47,7 +46,7 @@ class CssBuilder(BuilderBase, CssElements):
         return CssRenderer(builder=self)
 
     # ------------------------------------------------------------------
-    # Reverse: from CSS source to CssBuilderHandler Python source
+    # Reverse: from CSS source to CssBuilder Python source
     # ------------------------------------------------------------------
     #
     # The two reverse entry points are declared as classmethods on the
@@ -77,7 +76,7 @@ class CssBuilder(BuilderBase, CssElements):
         """Parse a CSS string and emit equivalent CssBuilder Python.
 
         The output is a complete Python module containing an
-        ``import`` line for ``CssBuilderHandler`` and a subclass
+        ``import`` line for ``CssBuilder`` and a subclass
         named ``class_name`` whose ``main(self, root)`` rebuilds the
         input CSS via the builder API. The emitted ``main`` always
         opens a ``root.stylesheet()`` as its first statement.

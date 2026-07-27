@@ -39,9 +39,9 @@ from ..builder.source_bag import SourceBag
 
 #: Data-elements that recompute on a data change: they need a cascade, so
 #: they are inert in a static document. Declared and injected into every
-#: dialect all the same — the same page is written once, tried static, then
-#: mounted reactive without touching a line. The renderer warns when it
-#: meets one with no reactivity behind it (see ``render``).
+#: dialect all the same, so that the page which will be mounted reactive
+#: is written once and can be tried static first. The renderer warns when
+#: it meets one, since nothing recomputes it here (see ``render``).
 REACTIVE_DATA_ELEMENTS = ("dataFormula", "dataController")
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
@@ -96,12 +96,12 @@ class RendererBase:
     # ------------------------------------------------------------------
 
     def add_render(self, builder: Any, renderer: RendererBase) -> None:
-        """Seed the cache with a renderer for ``builder``.
+        """Pre-seed the cache with the renderer to use for ``builder``.
 
-        Called by the handler on R0 right after instantiation to
-        register the main builder/renderer pair: the walk then hits
-        the cache for every native node and only pays a property
-        lookup on foreign (sub-builder) nodes.
+        Nothing in the package calls it: the renderer registers itself for
+        its own builder in ``__init__`` and ``get_render`` resolves the
+        foreign ones on demand. It stays as the way a host application
+        overrides that resolution for a given builder.
         """
         self.renders[id(builder)] = renderer
 
@@ -198,12 +198,12 @@ class RendererBase:
         receives a fresh throw-away root and builds the real structure
         into it: exactly ONE tree (one root element), a forest raises.
         The call's attributes saturate the body's signature: plain
-        values resolved, REACTIVE POINTERS passed through as pointers,
-        absolutized at the component node (context free) — the ADDRESS
-        must reach the final node the body builds,
-        where it resolves exactly like a hand-written one and emits the
-        write-back hook (CMP.4). The walk then re-enters on the tree
-        the body built, so dialect dispatch, nested components and
+        values resolved, POINTERS passed through as pointers, absolutized
+        at the component node (context free) — the ADDRESS must reach the
+        final node the body builds, where it resolves exactly like a
+        hand-written one (and, under ``include_datapath``, emits the same
+        ``data-<name>-pointer``). The walk then re-enters on the tree the
+        body built, so dialect dispatch, nested components and
         sub-builders apply as usual.
         """
         body, iterable, anchor, body_kwargs = self._expansion_inputs(
