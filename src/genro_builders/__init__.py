@@ -21,7 +21,7 @@ supplies the data and does not render.
 
 from genro_builders.builder import BuilderBase, SourceBag, SourceBagNode, container
 
-__version__ = "0.18.0"
+__version__ = "0.20.0"
 
 __all__ = [
     "BuilderBase",
