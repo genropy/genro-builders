@@ -62,8 +62,8 @@ calculation (`DAT.4`), a handler that mounts one builder on one flat
 datastore (`HND`), and components (`@component`/`@container`). The
 document is STATIC: a data change is followed by rendering again.
 Features still under design — `@slot`, the data-element recompute,
-reactivity on a compiled bag (`RX`) — live in `roadmap/` and will move
-to `docs/` when they ship.
+fine-grained reactivity as a separate engine (`RX`) — live in `roadmap/`
+and will move to `docs/` when they ship.
 
 ```{toctree}
 :hidden:

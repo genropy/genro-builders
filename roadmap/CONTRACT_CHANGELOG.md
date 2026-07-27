@@ -11,6 +11,46 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## Emendamento v0.9.0 — 2026-07-27 (`RX.5`: due motori, non un render mode)
+
+`RX.5` prescriveva il *come*: una **compiled bag** emessa da un render
+mode `livehtml`, con `html` che emette chunk di testo e `livehtml` dict.
+La prescrizione cade; la motivazione resta.
+
+**Cosa resta vero.** Senza reattività la source è una ricetta e
+l'espansione effimera è corretta (`CMP.7`). Con reattività serve un terzo
+oggetto fra ricetta e piatto — una struttura materializzata dove le righe
+esistono come entità indirizzabili. Sul filo passano **mutazioni di bag**
+(`ins`/`upd`/`del` su un path), non operazioni DOM, ed è così che `id`
+esce dal core in modo strutturale: una mutazione indirizza un path, che
+ogni nodo ha.
+
+**Cosa cambia.** Il reattivo NON è il motore statico con un render mode
+in più: è un **ridisegno separato**, libero di avere la sua discesa
+dell'albero. Il costo accettato sono due implementazioni del "come un
+albero diventa output"; la grammatica resta UNA, perché è il vocabolario
+dell'autore e una pagina deve poter passare da un mondo all'altro.
+
+Ne segue che i **data-element divergono nel regime**: lo statico li
+esegue al `create()` (`DAT.4` — è l'unico che può, non c'è browser
+dall'altra parte), il reattivo li **trasporta** perché sono widget e chi
+esegue è il browser. La regola dell'emendamento precedente resta valida
+dov'è nata, cioè nello statico.
+
+Direzioni registrate come aperte, nessuna decisa: l'espansione
+materializzata nella source come valore di un resolver del `Bag` (con il
+precedente `GnrDomSrc.remote` del legacy); un **compiler** come oggetto
+separato analogo al renderer, che scende dall'alto perché un albero di
+oggetti vivi ha bisogno del padre prima dei figli — e serve anche a
+genro-sql; se i pointer restino simbolici nella struttura e si attualizzino
+alla consegna.
+
+Nota di prosa: i riferimenti a "compiled bag" nelle altre clausole
+diventano "motore reattivo" — dicevano *quando* (arriva con `RX.5`), non
+*come*, quindi restano valide col nome cambiato.
+
+---
+
 ## Emendamento v0.9.0 — 2026-07-27 (`PAG.4` in due passi, `PAG.7` `validate_source`)
 
 Due cose che stavano nello stesso metodo si separano.

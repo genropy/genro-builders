@@ -238,9 +238,8 @@ the positional args onto the field names, and flags the node
 > It is a single pass and there is no recompute: a formula reading a value
 > that another formula writes AFTER it sees the earlier value, silently.
 > Ordering the calculations is the author's job. The recompute on a data
-> change is refounded together with the rest of the reactivity on a
-> compiled bag emitted by a `livehtml` render mode — see the `RX` area of
-> the contract and `roadmap/reactivity/data-elements.md`.
+> change belongs to the reactive engine, still under design — see the `RX`
+> area of the contract and `roadmap/reactivity/data-elements.md`.
 
 ## Declarative bodies
 

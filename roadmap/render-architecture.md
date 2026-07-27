@@ -17,7 +17,7 @@ between what the **core** owns and what each **renderer** decides.
 > `genro-ws-web@c88c6e6` (`attic/partial-render/`). §4's ephemeral
 > expansion is not just still valid, it is the clause the whole change
 > turned on (`CMP.7`): the expansion is correct as a render-time fact,
-> and materialising it belongs to the compiled bag (`RX.5`). §6.1 on `id`
+> and materialising it belongs to the reactive engine (`RX.5`). §6.1 on `id`
 > leaving the core is superseded in its mechanism — a path replaces the
 > identity, so no `target_id_name` indirection is needed.
 

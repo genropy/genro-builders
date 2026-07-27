@@ -9,9 +9,9 @@ Il diff logico tra versioni del contratto vive in
 
 **Svolta della v0.9.0 — static first.** Il core è **statico**: un handler
 piatto che serve i dati a UN builder. La reattività fine non si ripara in
-Python, si rifonda su una **compiled bag** emessa da un render mode
-`livehtml` (`RX.5`) — perché l'apparato precedente (identità derivata,
-`target_id`, motore di regole, corsia lazy, protocollo di patch) non era
+Python: si rifonda in un **motore separato** (`RX.5`, ricerca) — perché
+l'apparato precedente (identità derivata, `target_id`, motore di regole,
+corsia lazy, protocollo di patch) non era
 reattività mal collocata: era il **surrogato di una struttura che non
 esisteva**, che ricostruiva a posteriori l'identità che un albero
 materializzato avrebbe avuto gratis. Multibuilder e segmentazione del
@@ -26,9 +26,8 @@ lettura, data-element e compute "fetta 1", **handler statico piatto**
 (`HND`: un builder, un datastore senza segmenti), **component** (`CMP`:
 singolo/store/iterate/frattale). Il re-render è il modello di
 aggiornamento: si mutano i dati e si rende di nuovo. Restano da
-implementare: la **compiled bag** e il render mode `livehtml` (`RX.5`,
-ricerca, documento di disegno proprio), e con essi ogni reattività fine;
-**`@container`** (`CMP.9`, deciso 2026-06-11),
+implementare: il **motore reattivo** (`RX.5`, ricerca) e con esso ogni
+reattività fine; **`@container`** (`CMP.9`, deciso 2026-06-11),
 `<domain>requires`/`include_components` (`CMP.6`), lo **`@slot`**
 (`PAG.6`, design completo, codice assente) e lo strato Application
 (`APP`).
@@ -93,7 +92,7 @@ la minor del contratto, si conserva la versione superata in
 3. **Con re-render** — si mutano i dati e si rende di nuovo (`RX.1`):
    nessuna sezione critica, nessun render automatico. Con
    un'Application la `pointer_map` si popola e dice chi legge cosa; il
-   consumatore reattivo di quella mappa arriva con la compiled bag
+   consumatore reattivo di quella mappa arriva con il motore reattivo
    (`RX.5`).
 
 Il dettaglio della reattività vive in `roadmap/reactivity/`, **da
@@ -124,7 +123,7 @@ render statico puro non porta identità: non gli serve.
 
 L'**identità derivata** delle espansioni (`<base>.<label>....<ordinale>`)
 esce con la v0.9.0: era la ricostruzione a posteriori di un indirizzo per
-nodi che non esistono (`CMP.7`). Nella compiled bag (`RX.5`) al suo posto
+nodi che non esistono (`CMP.7`). Nel motore reattivo (`RX.5`) al suo posto
 c'è un **path**, che ogni nodo di una bag ha per costruzione — ed è la
 ragione per cui `id` esce dal core in modo strutturale e non come effetto
 collaterale.
@@ -252,7 +251,7 @@ controllo che l'autore non ha chiesto.
 
 Non esiste un ingresso di render parziale: aggiornare = rendere di nuovo
 (`RX.1`). Il render parziale su struttura materializzata è competenza
-della compiled bag (`RX.5`).
+delil motore reattivo (`RX.5`).
 
 ### PAG.5 — `node_by_id` sul builder; l'unicità la garantisce il root builder
 
@@ -341,7 +340,7 @@ L'orchestratore multi-handler ("SUITE") resta **dissolto**, e con la
 v0.9.0 lo è anche il **multibuilder** che lo aveva sostituito: di ~100
 call site di `add_builder`, esattamente uno montava più di un builder.
 Documenti eterogenei su dati condivisi si compongono con N handler, o —
-quando servirà davvero — sopra la compiled bag (`RX.5`).
+quando servirà davvero — sopra il motore reattivo (`RX.5`).
 
 ### HND.2 — `_dataroot` piatto: nessun segmento, nessun `_`
 
@@ -371,7 +370,7 @@ Il modello di aggiornamento del core statico è il **re-render** — si
 mutano i dati, si rende di nuovo — e non richiede né sezione critica né
 protocollo di patch. La `pointer_map` continua a popolarsi come effetto
 della lettura (`DAT.2`) e serve a chi vuole sapere chi legge cosa; il
-consumatore reattivo di quella mappa arriverà con la compiled bag
+consumatore reattivo di quella mappa arriverà con il motore reattivo
 (`RX.5`).
 
 ### HND.5 — Thread safety non promessa
@@ -388,10 +387,10 @@ mutazione: chi condivide un handler fra thread sincronizza da sé.
 L'Application è lo strato fra il mondo esterno e l'handler: possiede il
 ciclo di vita (websocket, REPL, scheduler), tutto sync. La sua presenza
 accende la tracciatura dei lettori (`pointer_map`, `RX.3`); la reattività
-fine che la consumerà arriva con la compiled bag (`RX.5`).
+fine che la consumerà arriva con il motore reattivo (`RX.5`).
 L'implementazione di riferimento **non vive più qui**: lo strato
 applicativo è migrato in **genro-ws-web** (commit `6d3002a`), che con la
-v0.9.0 diventa un ponte fra due compiled bag invece di un produttore di
+v0.9.0 diventa un ponte fra due strutture materializzate invece di un produttore di
 patch. Il design del livello
 applicativo — desktop a pane-iframe, registro delle pagine vive (il
 gnrdaemon dissolto dall'async), websocket unico master/satelliti con
@@ -519,7 +518,7 @@ valore scritto da una formula successiva vede il valore precedente, in
 silenzio. Ordinare i calcoli è responsabilità dell'autore, esattamente
 come in uno script — l'ordinamento per dipendenze è motore reattivo, non
 statico. `data_logic` / `_build_data_logic` / `_resolve_logic_func`
-restano intatti: sono la macchina che la compiled bag (`RX.5`)
+restano intatti: sono la macchina che il motore reattivo (`RX.5`)
 riprenderà.
 
 [Emendamento 2026-07-27: prima di questa revisione formula e controller
@@ -530,7 +529,7 @@ errore) e il warning con esso: si accendeva su tutti e 3 i punti della
 suite, tutti falsi positivi — pagine corrette che avevano già calcolato.]
 
 La cascata — raccolta per granularità contro la `pointer_map`, coda FIFO
-breadth-first, anti-loop, ondate multiple — appartiene alla compiled bag
+breadth-first, anti-loop, ondate multiple — appartiene al motore reattivo
 e non vive più in Python: la vecchia "fetta 2" non è rinviata, è
 **ricollocata** (`RX.5`).
 
@@ -654,7 +653,7 @@ copia per-istanza dello schema (la classe resta intatta). La famiglia
 js/css a seguire) è da ricostruire sul modello attuale (era
 sull'handler pensionato).
 
-### CMP.7 — L'espansione è effimera: corretta senza reattività, reale nella compiled bag
+### CMP.7 — L'espansione è effimera: corretta senza reattività, materializzata nel reattivo
 
 I pointer interni alle espansioni **non entrano mai** nella
 pointer_map. In mappa c'è solo il nodo component (i suoi pointer
@@ -681,7 +680,7 @@ pointer interni) richiedeva o riferimenti a nodi morti nella
 pointer_map, o innestare l'espansione nella source — cioè materializzare
 come struttura ciò che il modello definisce come output di render.
 
-La risposta non è dentro `iterate`: è la **compiled bag** (`RX.5`), dove
+La risposta non è dentro `iterate`: è una **struttura materializzata** (`RX.5`), dove
 le righe esistono come entità indirizzabili con fullpath propri, senza
 toccare la source. La domanda "i nodi dell'espansione esistono?" ha
 risposta diversa sui due lati, e questa è la soluzione, non il problema.
@@ -690,7 +689,7 @@ Tutto l'apparato è depositato in `genro-ws-web@c88c6e6`
 `roadmap/render-layer-html-ws.md`.
 
 **Numeri da conservare** (misurati il 2026-06-12, baseline per chi
-costruirà il grid data-widget e la compiled bag): coda delle formule —
+costruirà il grid data-widget e il motore reattivo): coda delle formule —
 un grand total con binding `^rows` su broadcast di 1500 righe passava da
 2,9s a 113ms eseguendo una volta per flush invece di N; purge
 indicizzato — la ri-registrazione scandiva la wmap per ogni riga (15,8M
@@ -799,7 +798,7 @@ ricostruzione resta `roadmap/render-layer-html-ws.md`.
 Non esclusivo di una sottoclasse async; la differenza sync/async è solo
 lo scheduling dei callback (immediato nel writer thread vs schedulato
 nel loop). Il `Bag` porta gli eventi nativi (`ins`/`upd`/`del` su un
-path): sono il vocabolario su cui la compiled bag (`RX.5`) si costruirà.
+path): sono il vocabolario su cui il motore reattivo (`RX.5`) si costruirà.
 
 ### RX.3 — La `pointer_map` è opt-in sull'Application
 
@@ -817,7 +816,7 @@ distinte nei livelli con granularità. Specifiche di dettaglio:
 master-detail, collection store). **Tutte da rileggere alla luce di
 `RX.5`**: descrivono l'apparato Python uscito con la v0.9.0.
 
-### RX.5 — La reattività fine si rifonda su una compiled bag (ricerca)
+### RX.5 — La reattività fine è un motore separato (ricerca)
 
 Senza reattività la source è una **ricetta** e il render è il piatto: i
 pointer funzionano come lettura a tempo di composizione, e l'espansione
@@ -825,7 +824,7 @@ effimera di `iterate`/`@component` è corretta perché nulla deve
 raggiungerla (`CMP.7`).
 
 Con reattività serve un terzo oggetto fra ricetta e piatto: una
-**compiled bag**, la forma espansa e materializzata della source. Non il
+**struttura materializzata**, la forma espansa della source. Non il
 piatto (la stringa HTML) ma la struttura che *tiene* i punti reattivi —
 è lei il target, porta la mappa, reagisce alle mutazioni, e si collega
 al mondo (nodi DOM, widget). Là l'espansione di `iterate` è **reale
@@ -834,26 +833,44 @@ con fullpath propri e pointer registrati. Il gate D9 non va aperto: la
 domanda "i nodi dell'espansione esistono?" ha semplicemente risposta
 diversa sui due lati, e va bene così.
 
-Dove vive la scelta: **un render mode**, come sempre in questo sistema
-(`renderer_<mode>`). `html` emette chunk di testo e `finalize` produce la
-stringa; `livehtml` emette dict e `finalize` costruisce la compiled bag.
-Il walk non cambia — è già agnostico, e cosa *sia* un frammento è sempre
-stata decisione del renderer di dialetto. Corollari: il render statico non
-paga nulla; la granularità è per-render, non per-documento; nessun
-`StaticHandler`/`ReactiveHandler`.
-
 Sul filo passano **mutazioni di bag** (`ins`/`upd`/`del` su un path), non
 operazioni DOM: Python dice *cosa è cambiato nella struttura*, il client
 decide *come diventa DOM*. È così che `id` esce dal core in modo
-strutturale — una mutazione indirizza un **path**, che ogni nodo ha. E per
-la stessa ragione sblocca il render a oggetti di genro-sql.
+strutturale — una mutazione indirizza un **path**, che ogni nodo ha.
+
+**Due motori, non uno che si estende.** Il reattivo NON è il motore
+statico con un render mode in più: è un **ridisegno separato**, che può
+avere la sua discesa dell'albero e la sua attualizzazione. La grammatica
+resta UNA — è il vocabolario dell'autore, e una pagina deve poter passare
+da un mondo all'altro. Ne segue che i **data-element divergono nel
+regime**: lo statico li ESEGUE al `create()` (`DAT.4`: è l'unico che può,
+non c'è browser dall'altra parte), il reattivo li **trasporta** — sono
+widget, Python non li esegue.
 
 **Stato: ricerca, non implementazione** — progettarla mentre si
-implementa è come è nato l'apparato scartato. Documento di disegno
-proprio: `temp/design_static_first_compiled_bag_2026-07-26.md`
-(🔴 DA REVISIONARE), con le questioni aperte (dove vive `.compiled[mode]`,
-cosa significa "proxied", `render` monolitico o in due passi, opts di
-documento, contratto di forma con `bag-js`).
+implementa è come è nato l'apparato scartato. Le clausole di questo
+contratto che ostacolassero il ridisegno **si cambiano**: portano in
+vicoli ciechi, non sono vincoli storici.
+
+Direzioni sul tavolo, nessuna decisa:
+
+- l'**espansione materializzata nella source** come valore di un
+  resolver del `Bag` (lazy, cachato, invalidabile): i pointer interni
+  starebbero su nodi che esistono, quindi entrerebbero nella
+  `pointer_map` per costruzione e il gate D9 si aprirebbe da sé. Prezzo:
+  la source dopo un render non è più quella che l'autore ha scritto.
+  Precedente legacy: `GnrDomSrc.remote` (parametri prefissati sul nodo,
+  marcatore sui parametri che sono path, `lazy` e cache dichiarati
+  dall'autore per nodo).
+- un **compiler** come oggetto separato analogo al renderer, che genera
+  oggetti invece di markup. Il walk attuale compone **dal basso** (i
+  figli sono frammenti finiti quando `rendered_item` li riceve), mentre
+  un albero di oggetti vivi ha bisogno della discesa **dall'alto** — il
+  padre esiste e si registra prima dei figli. Serve anche a genro-sql:
+  una macchina, due usi. Riferimento: `GnrStructObj` del legacy.
+- se i pointer restino **simbolici** nella struttura materializzata e si
+  attualizzino alla consegna (allora è un template che vive fra due
+  attualizzazioni) oppure siano risolti nella materializzazione.
 
 ---
 
@@ -880,7 +897,7 @@ Chiuse (per memoria):
 - **SUITE dissolta** nel multibuilder handler (v0.8.0), e il
   multibuilder a sua volta dissolto nell'handler singolo (v0.9.0,
   `HND.1`): un handler, un builder, un datastore piatto.
-- **Reattività fine ricollocata** sulla compiled bag (`RX.5`): non si
+- **Reattività fine ricollocata** sulil motore reattivo (`RX.5`): non si
   ripara in Python, e l'apparato v0.8.0 era il surrogato di una
   struttura mancante (`CMP.7`).
 - **Component reintrodotti** col design `CMP` (la rimozione v0.4 è
@@ -928,7 +945,7 @@ Contesto:
   dei component (confluito nell'area `CMP`).
 - `roadmap/reactivity/` — specifiche di dettaglio della reattività.
 - `src/genro_builders/builder/base.py`,
-  `src/genro_builders/builder/data_handler.py`,
+  `src/genro_builders/builder/builder_handler.py`,
   `src/genro_builders/builder/source_bag.py`,
   `src/genro_builders/renderer/base.py` — implementazione di
   riferimento.

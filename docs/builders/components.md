@@ -120,8 +120,8 @@ A component registers **one** reader — the component node itself — not
 one per expanded row: the expansion is ephemeral, it reincarnates at
 every render. So the way a block follows its data is rendering the
 document again, which re-expands it over the current values. Granular
-updates are refounded on a compiled bag emitted by a `livehtml` render
-mode — see the `RX` area of the contract.
+updates belong to a separate engine, still under design — see the `RX`
+area of the contract.
 
 ## Worked examples
 

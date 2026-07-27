@@ -131,8 +131,8 @@ print(page.render())
 ```
 
 Re-render is the whole reactivity model here: change the data, render
-again. Fine-grained reactivity is refounded on a compiled bag emitted by
-a future `livehtml` render mode — see the `RX` area of the contract.
+again. Fine-grained reactivity is a separate engine, still under design —
+see the `RX` area of the contract.
 
 The companion API on each source node:
 

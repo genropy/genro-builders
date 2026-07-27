@@ -6,8 +6,8 @@
 > **Stato dopo il contratto v0.9.0 (2026-07-26).** Le voci sulla
 > reattività push (Livello 0, `live()`, render parziale nel flush,
 > granularità SRC/DATA) non sono più "lavoro aperto" in Python: quel
-> codice è uscito e la reattività fine si rifonda sulla compiled bag
-> (`RX.5`), che è **ricerca con documento proprio**. Restano aperte, e
+> codice è uscito e la reattività fine si rifonda in un motore separato
+> (`RX.5`), che è **ricerca**. Restano aperte, e
 > invariate, le voci non reattive: `@container` (`CMP.9`),
 > `<domain>requires`/`include_components` (`CMP.6`), `@slot` (`PAG.6`),
 > `format` v2, `from_grammar`, e la formalizzazione di `APP`.

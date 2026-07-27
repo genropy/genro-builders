@@ -122,5 +122,5 @@ Designed but not yet implemented:
 - **`@slot`** (`PAG.6`) — fill-by-id at node birth. See
   `roadmap/component-design.md`.
 - **Reactivity** — the document is static: a data change is followed by
-  rendering again. Fine-grained reactivity is refounded on a compiled bag
-  emitted by a `livehtml` render mode (`RX`), not on this handler.
+  rendering again. Fine-grained reactivity is a separate engine (`RX`),
+  still under design, not this handler.
