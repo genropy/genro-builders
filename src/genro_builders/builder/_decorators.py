@@ -55,9 +55,9 @@ class _DeclarativeMarker:
         self.__doc__ = doc
         self._decorator = decorator
         # Keep the original function for signature introspection only
-        # (call-argument validation reads it via ``_extract_validators_from_
-        # signature``). The marker stays inert — no ``__call__`` — so direct
-        # invocation of ``cls.<tag>()`` still raises TypeError.
+        # (call-argument validation reads it via ``_extract_signature_info``).
+        # The marker stays inert — no ``__call__`` — so direct invocation of
+        # ``cls.<tag>()`` still raises TypeError.
         self._func = func
 
 
@@ -255,13 +255,12 @@ def container(func_or_name):
     """Decorator: a reusable piece that GENERATES SOURCE at call time.
 
     The body runs once, when the author calls it on a node, and writes
-    real source nodes — individually addressable (``target_id``),
-    individually patchable, and FILLABLE by the caller (the body
-    returns whatever handle is useful: a zone, a zones object, the
-    generated root). The other citizen, ``@component``, lives in the
-    render instead: ephemeral expansion, self-contained, data-driven.
-    The discriminator is fillability (contract CMP.9). Heir of the
-    retired ``@struct_method``.
+    real source nodes — individually addressable (``target_id``) and
+    FILLABLE by the caller (the body returns whatever handle is useful:
+    a zone, a zones object, the generated root). The other citizen,
+    ``@component``, lives in the render instead: ephemeral expansion,
+    self-contained, data-driven. The discriminator is fillability.
+    Heir of the retired ``@struct_method``.
 
     Naming rules:
         @container

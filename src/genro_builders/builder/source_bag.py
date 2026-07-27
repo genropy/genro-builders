@@ -1,16 +1,16 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Builder-aware Bag and BagNode — level 1 of the bag/node layering.
 
-Decision 3: ``SourceBag`` and ``SourceBagNode`` are obtained by
-combining ``Bag`` with ``_SourceBagMixin`` and ``BagNode`` with
-``_SourceBagNodeMixin``. The grammar-aware logic lives in the mixins;
-the base classes from ``genro-bag`` stay untouched.
+``SourceBag`` and ``SourceBagNode`` are obtained by combining ``Bag``
+with ``_SourceBagMixin`` and ``BagNode`` with ``_SourceBagNodeMixin``.
+The grammar-aware logic lives in the mixins; the base classes from
+``genro-bag`` stay untouched.
 
-Decision 10: every node carries the ``_builder`` slot — the active
-dialect for that node, set at attach time. The owning handler is not a
-node slot: it lives on the source root and a node reaches it through the
-``handler`` property (``Bag.root``). Immutability is convention-only
-during the restart (see ``feedback_lightweight_nodes.md``).
+Every node carries the ``_builder`` slot — the active dialect for that
+node, set at attach time. The owning handler is not a node slot: it lives
+on the source root and a node reaches it through the ``handler``
+property (``Bag.root``), so the node stays light. Immutability of the
+slot is a convention, not enforced.
 
 This module defines the bag/node pair (``SourceBag`` /
 ``SourceBagNode``): a Bag/BagNode carrying the active builder plus
@@ -141,6 +141,9 @@ class _SourceBagNodeMixin:
         through the owning builder — an expansion node reads and
         writes the SAME datastore as the document it projects (its row
         logic computes through here).
+
+        The name is about DATA access on a node; it has nothing to do with
+        the ``data_handler`` module deleted with the static-first rewrite.
         """
         handler = self.parent_bag.root._handler
         if handler is None:
@@ -429,7 +432,7 @@ class _SourceBagNodeMixin:
 
         When ``autocreate=True``, a ``None`` value at ``path`` (missing or
         explicitly ``None``) is seeded with ``default`` before the read —
-        the two cases are intentionally not distinguished (DBS-D1).
+        the two cases are intentionally not distinguished.
         """
         data = self.data_handler.data
         abs_path = self.abs_datapath(path)
@@ -451,7 +454,7 @@ class _SourceBagNodeMixin:
         path on ``handler.data`` (same forms as :meth:`get_relative_data`).
         ``attributes``/``fired``/``reason`` are forwarded to
         ``Bag.set_item`` as the underscore-prefixed parameters. ``reason``
-        is polymorphic (DB-D8): the subscriber receives whatever object is
+        is polymorphic: the subscriber receives whatever object is
         passed. Legacy parity (``gnrdomsource.js`` ``reason == null ?
         true``): an omitted ``reason`` becomes ``True``, so a plain write
         declares itself the origin; pass ``reason=False`` (``PUT``) to
@@ -476,8 +479,8 @@ class _SourceBagNodeMixin:
     ) -> None:
         """Write ``value`` to ``path`` marking the event as ``fired``.
 
-        Legacy shortcut for ``set_relative_data(..., fired=True)``
-        (DB-D7 point 5). Used when the write is a notification more
+        Legacy shortcut for ``set_relative_data(..., fired=True)``.
+        Used when the write is a notification more
         than a data mutation; the ``_fired`` flag flows through the
         Bag subscribe pipeline so downstream consumers can distinguish
         events meant as triggers from ordinary value updates.
@@ -490,16 +493,18 @@ class _SourceBagNodeMixin:
     # Reactive DSL macros (uppercase by design) — legacy gnrlang.js parity
     # ------------------------------------------------------------------
     #
-    # SET/GET/PUT/FIRE are the reactive write/read vocabulary a data-element
-    # func uses on its ``node`` (e.g. ``node.SET(".total", x)``). They are thin
-    # aliases of set_relative_data/get_relative_data with the reason/fired
-    # constants pre-wired. The UPPERCASE is deliberate (not a style slip): the
-    # node carries dozens of lowercase methods, and these few must stand out as
-    # the DSL operations that drive the reactive cascade — continuity with the
-    # legacy JS where developers recognise ``SET .x = ...`` / ``FIRE``.
+    # SET/GET/PUT/FIRE are the write/read vocabulary a data-element func uses
+    # on its ``node`` (e.g. ``node.SET(".total", x)``). They are thin aliases
+    # of set_relative_data/get_relative_data with the reason/fired constants
+    # pre-wired; the flags travel through the genro_bag subscribe pipeline,
+    # which still carries them, and nothing in this package acts on them. The
+    # UPPERCASE is deliberate (not a style slip): the node carries dozens of
+    # lowercase methods, and these few must stand out as the DSL operations —
+    # continuity with the legacy JS where developers recognise
+    # ``SET .x = ...`` / ``FIRE``.
 
     def SET(self, path: str, value: Any) -> None:
-        """Reactive write: ``set_relative_data`` with the default reason.
+        """Write: ``set_relative_data`` with the default reason.
 
         The omitted reason becomes ``True`` (the write is its own origin),
         per :meth:`set_relative_data` legacy parity.
@@ -507,7 +512,7 @@ class _SourceBagNodeMixin:
         self.set_relative_data(path, value)
 
     def GET(self, path: str) -> Any:
-        """Reactive read: ``get_relative_data(path)``."""
+        """Read: ``get_relative_data(path)``."""
         return self.get_relative_data(path)
 
     def PUT(self, path: str, value: Any) -> None:
