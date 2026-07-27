@@ -79,14 +79,14 @@ print(page.render())
 ## Architecture (one-paragraph map)
 
 A **builder** declares the grammar of a dialect (decorators
-`@element`, `@abstract`; the three data-elements `data_setter` /
-`data_formula` / `data_controller` are plain `@element` marked as
+`@element`, `@abstract`; the three data-elements `dataSetter` /
+`dataFormula` / `dataController` are plain `@element` marked as
 data) and is also the document: it owns `name`, `source`,
 `create()`/`render()`, and exposes its renderers as `renderer_<mode>`
-properties. A **handler** (`BuilderHandler`) is the data source: one
-segmented datastore that mounts N builders by name (`add_builder`),
-hands each its own data segment (`_` is the shared one), tracks who
-reads what (`pointer_map`) and owns the `live()` mutation section. A
+properties. A **handler** (`BuilderHandler`) is the data source: it
+mounts ONE builder (`add_builder`) on one FLAT datastore — absolute
+paths with no leading segment — and tracks who reads what
+(`pointer_map`). It does not render. A
 **renderer** is responsible for one mode: the universal walk produces
 fragments via dialect-specific `rendered_item`, then `finalize` ships
 the result to the target.
@@ -116,7 +116,7 @@ class Page(HtmlBuilder):
 
 page = Page()
 handler = BuilderHandler()
-handler.add_builder(page)      # mounts under page.name and creates
+handler.add_builder(page)      # mounts the page and creates it
 print(page.render())
 # ...<h1>Hello</h1>...
 
@@ -126,11 +126,9 @@ print(page.render())
 # ...<h1>Ciao</h1>...
 ```
 
-Push reactivity has a first level: with an application,
-`handler.activate()` arms the subscriptions, and inside a
-`with handler.live():` section every mutation queues a render flushed
-at the section exit (contract `RX.1`). Without an application,
-`live()` raises. Finer granularity is on the roadmap (`RX`).
+Re-render is the whole reactivity model here: change the data, render
+again. Fine-grained reactivity is refounded on a compiled bag emitted by
+a future `livehtml` render mode — see the `RX` area of the contract.
 
 The companion API on each source node:
 

@@ -28,7 +28,7 @@ print(page.render())
 ## Runtime data binding (pull-based)
 
 A page that reads pointers mounts on a `BuilderHandler` (the data
-source); `setup` seeds the page's own data segment:
+source); `setup` seeds the datastore, which is flat:
 
 ```python
 from genro_builders.builder import BuilderHandler
@@ -45,7 +45,7 @@ class Page(HtmlBuilder):
 
 page = Page()
 handler = BuilderHandler()
-handler.add_builder(page)   # mounts under page.name and creates
+handler.add_builder(page)   # mounts the page and creates it
 print(page.render())
 # ...<h1>Hello</h1>...
 

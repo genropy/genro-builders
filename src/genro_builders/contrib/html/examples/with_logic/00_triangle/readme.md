@@ -33,7 +33,8 @@ class CustomPage(HtmlBuilder):
 - `func="triangle_area"` names the `@staticmethod` to call.
 - `base="^base"`, `height="^height"` are the **bindings**: pointers
   resolved and passed to the function by keyword.
-- `destination="area"` is where the result is written (`main.area`).
+- `destination="area"` is where the result is written (`area` in the
+  flat datastore).
 - `_on_start=True` makes it run at `create()`.
 
 `area` does not exist until the formula runs; afterwards `^area` reads

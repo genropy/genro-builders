@@ -12,20 +12,23 @@
 Builder system for genro-bag — domain-specific grammars, rendering,
 runtime data binding via pointers.
 
-Provides `BagBuilderBase` (grammar) and `BuilderHandler` (engine that
-drives create/render on a single builder instance). Rendering lives
+Provides `BuilderBase` (grammar and document: it owns
+`create()`/`render()`) and `BuilderHandler` (the data source: it mounts
+ONE builder on one FLAT datastore and does not render). Rendering lives
 in `RendererBase` and dialect-specific subclasses, exposed on each
 builder as `renderer_<mode>` properties. Concrete dialects under
-`contrib/`: HTML (`HtmlBuilderHandler`), SVG (`SvgBuilderHandler`),
-CSS (`CssBuilderHandler`), XSD (schema codegen).
+`contrib/`: HTML (`HtmlBuilder`), SVG (`SvgBuilder`), CSS (`CssBuilder`),
+XSLT (`XsltBuilder`), XSD (schema codegen).
 
 Pull-based data binding is in (`^pointer` / `=pointer` / `${name}`
 templates, `node.runtime_values`, `handler.pointer_map`), together with
-the data-element compute (slice 1) and push reactivity Level 0
-(`handler.live(target)`). Later push-reactivity levels (data-element
-cascade slice 2, SRC/DATA granularity) are on the roadmap (`RX` area of
-the contract). The authoritative document is
-`roadmap/architecture-contract.md` v0.7.0.
+the data-elements at the first calculation and components
+(`@component`/`@container`). The core is STATIC: a data change is
+followed by rendering again — `live()`, the patch protocol and the
+render queue were removed, and fine-grained reactivity is refounded on a
+compiled bag emitted by a `livehtml` render mode (`RX` area of the
+contract). The authoritative document is
+`roadmap/architecture-contract.md` v0.9.0.
 
 ---
 

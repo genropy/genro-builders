@@ -1,7 +1,7 @@
 # Decorators
 
-**Last Updated**: 2026-06-10
-**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0.
+**Last Updated**: 2026-07-27
+**Status**: 🟢 APPROVATO — allineato al contratto v0.9.0.
 
 The grammar decorators live in
 [src/genro_builders/builder/_decorators.py](../../src/genro_builders/builder/_decorators.py)
@@ -27,7 +27,7 @@ Both are ordinary `@element` declarations marked in their `_meta`:
 
 - a **sub-builder** (dialect boundary) is
   `@element(_meta={"subbuilder": "<dialect>", ...})`;
-- a **data-element** (`data_setter`, `data_formula`, `data_controller`)
+- a **data-element** (`dataSetter`, `dataFormula`, `dataController`)
   is `@element(_meta={"data_element": True})`.
 
 See the dedicated sections below.
@@ -176,13 +176,13 @@ by `__init_subclass__` — so every builder has them without re-declaring:
 class BuilderBase(...):
 
     @element(_meta={"data_element": True})
-    def data_setter(self, destination: str, value: Any): ...
+    def dataSetter(self, destination: str, value: Any): ...
 
     @element(_meta={"data_element": True})
-    def data_formula(self, destination: str, func: str | Callable, **kwargs): ...
+    def dataFormula(self, destination: str, func: str | Callable, **kwargs): ...
 
     @element(_meta={"data_element": True})
-    def data_controller(self, func: str | Callable, **kwargs): ...
+    def dataController(self, func: str | Callable, **kwargs): ...
 ```
 
 The **kind is the tag name** (`node.node_tag`); there is no `kind`
@@ -190,27 +190,27 @@ parameter. The three kinds differ by graph role and output:
 
 | Tag | Signature | Role |
 |-----|-----------|------|
-| `data_setter` | `data_setter(destination, value)` | seed — writes `value` at `destination` (a `dict`/`Bag` is allowed); runs at create, always |
-| `data_formula` | `data_formula(destination, func, **bindings)` | computed — writes the return of `func(**bindings)` at `destination`; pure |
-| `data_controller` | `data_controller(func, **bindings)` | side effect — `func(node, **bindings)` may write any number of bag paths; no declared `destination` |
+| `dataSetter` | `dataSetter(destination, value)` | seed — writes `value` at `destination` (a `dict`/`Bag` is allowed); runs at create, always |
+| `dataFormula` | `dataFormula(destination, func, **bindings)` | computed — writes the return of `func(**bindings)` at `destination`; pure |
+| `dataController` | `dataController(func, **bindings)` | side effect — `func(node, **bindings)` may write any number of bag paths; no declared `destination` |
 
 Used near the structure, inside `main()`:
 
 ```python
 def main(self, root):
     body = root.body(datapath="x")
-    body.data_setter("price", 100)
-    body.data_setter("tax", 0.22)
-    body.data_formula("total", func="compute_total",
+    body.dataSetter("price", 100)
+    body.dataSetter("tax", 0.22)
+    body.dataFormula("total", func="compute_total",
                       price="^price", tax="^tax")
     body.p("^total")
 ```
 
-- **`destination`** (1st field of `data_setter`/`data_formula`) — where
+- **`destination`** (1st field of `dataSetter`/`dataFormula`) — where
   the result goes, absolute or relative (`".total"` is composed via
-  `abs_datapath`, like a pointer). `data_controller` has no
+  `abs_datapath`, like a pointer). `dataController` has no
   `destination`.
-- **`value`** (of `data_setter`) — kept as a flat attribute (not the
+- **`value`** (of `dataSetter`) — kept as a flat attribute (not the
   node value), so a `Bag` payload is not captured into the source tree.
 - **`func`** — the canonical form is a **`@staticmethod` name**
   (`func="compute_total"`), resolved left-to-right over the builder's
@@ -219,21 +219,26 @@ def main(self, root):
   but makes the page non-serializable and is not cross-language).
 - **`bindings`** (kwargs) — the `^pointer` inputs, always explicit,
   resolved via `runtime_values` and passed to `func` **by name**.
-  `data_formula`'s `func` is pure (`func(**bindings)`);
-  `data_controller`'s receives the node first (`func(node, **bindings)`).
+  `dataFormula`'s `func` is pure (`func(**bindings)`);
+  `dataController`'s receives the node first (`func(node, **bindings)`).
 - **`_on_start`** (formula/controller) — requests execution at the first
-  calculation in `create()`; `data_setter` always seeds at create.
+  calculation in `create()`; `dataSetter` always seeds at create.
 
 At runtime the dispatch goes through the same `_command_on_node` as any
 element; `element_call` recognises the `_meta['data_element']` mark, maps
 the positional args onto the field names, and flags the node
 `_is_data_element` (which the renderer skips).
 
-> **Status**: the data-elements run at first calculation (during
-> `create()`) and recompute in a single wave when a dependency mutates
-> (contract `DAT.4`, slice 1). The multi-wave cascade (slice 2) is not
-> yet implemented — see the `RX` area of the contract and
-> `roadmap/reactivity/data-elements.md`.
+> **Status**: `dataSetter` always seeds at first calculation (during
+> `create()`); a page using it needs a `BuilderHandler`, since the
+> destination is the datastore. `dataFormula` and `dataController`
+> recompute on a data change, so in a static document they only ever run
+> once, at that first calculation, and only when flagged `_on_start=True`.
+> The renderer emits a `UserWarning` on every one it meets in a
+> non-reactive document, whether or not it computed at start. The
+> recompute is refounded together with the rest of the reactivity on a
+> compiled bag emitted by a `livehtml` render mode — see the `RX` area of
+> the contract and `roadmap/reactivity/data-elements.md`.
 
 ## Declarative bodies
 

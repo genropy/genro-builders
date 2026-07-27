@@ -114,13 +114,14 @@ Components compose fractally: a component body may call other components,
 and datapaths compose across the levels. A component may even call
 *itself* to walk tree-shaped data, terminating when the data runs out.
 
-## Reactivity
+## Following the data
 
-A component registers **one** subscription — the component node itself —
-not one per expanded row. When the underlying data mutates, the block
-re-renders and the framework ships a granular patch (a single row or cell
-updates, not the whole block). For the per-row mechanics and live
-examples see the reactive examples `reactive/07`–`08`, `13`.
+A component registers **one** reader — the component node itself — not
+one per expanded row: the expansion is ephemeral, it reincarnates at
+every render. So the way a block follows its data is rendering the
+document again, which re-expands it over the current values. Granular
+updates are refounded on a compiled bag emitted by a `livehtml` render
+mode — see the `RX` area of the contract.
 
 ## Worked examples
 

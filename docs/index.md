@@ -1,7 +1,7 @@
 # genro-builders
 
-**Last Updated**: 2026-06-10
-**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0.
+**Last Updated**: 2026-07-27
+**Status**: 🟢 APPROVATO — allineato al contratto v0.9.0.
 
 Builder system for [genro-bag](https://github.com/genropy/genro-bag).
 Construct structured documents — HTML, SVG, CSS, XML dialects —
@@ -44,10 +44,9 @@ Documents describing where the project is heading — not yet shipped
 in code — live in `roadmap/` at the repo root:
 
 - `roadmap/architecture-contract.md` — the architectural contract
-  (v0.8.0, in vigore dal 2026-06-10).
+  (v0.9.0, in vigore dal 2026-07-26).
 - `roadmap/component-design.md` — the component design record.
-- `roadmap/data-architecture.md` — the data model (pointers,
-  datapath, segments).
+- `roadmap/data-architecture.md` — the data model (pointers, datapath).
 - `roadmap/implementation-roadmap.md` — the open-work map.
 - `roadmap/documentation-guide.md` — how to write docs.
 - `roadmap/history.md` — project timeline.
@@ -56,12 +55,13 @@ in code — live in `roadmap/` at the repo root:
 
 This documentation skeleton describes the framework as it exists
 **today**: pull-based binding with read-time registration (`DAT.2`),
-data presentation (`mask`/`_wdg`, `DAT.5`), data-elements with their
-compute slice 1 (`DAT.4`), the multibuilder handler (`HND`), and push
-reactivity Level 0 (`handler.live()`, `RX.1`). Features still under
-design — components (`CMP`), `@slot`, the data-element cascade,
-finer-grained reactivity — live in `roadmap/` and will move to
-`docs/` when they ship.
+data presentation (`mask`/`_wdg`, `DAT.5`), data-elements at the first
+calculation (`DAT.4`), a handler that mounts one builder on one flat
+datastore (`HND`), and components (`@component`/`@container`). The
+document is STATIC: a data change is followed by rendering again.
+Features still under design — `@slot`, the data-element recompute,
+reactivity on a compiled bag (`RX`) — live in `roadmap/` and will move
+to `docs/` when they ship.
 
 ```{toctree}
 :hidden:

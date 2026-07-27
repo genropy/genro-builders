@@ -1,7 +1,7 @@
 # Builders overview
 
-**Last Updated**: 2026-06-10
-**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0.
+**Last Updated**: 2026-07-27
+**Status**: 🟢 APPROVATO — allineato al contratto v0.9.0.
 
 A builder is a Python class that defines a grammar for a structured
 document — HTML, SVG, CSS, or any user-defined dialect — and IS the
@@ -13,17 +13,17 @@ The framework is built around three concrete classes:
 
 - **Builder** (`HtmlBuilder`, `SvgBuilder`, `CssBuilder`, ...) —
   declares the grammar via decorators AND carries the document: a
-  mount `name`, the `source` bag, `create()`/`render()`, the render
-  targets. A page is a builder subclass with `main(self, root)`.
+  `name` (a label, not an address), the `source` bag,
+  `create()`/`render()`, the render targets. A page is a builder
+  subclass with `main(self, root)`.
 - **Renderer** (`HtmlRenderer`, `SvgRenderer`, `CssRenderer`, ...) —
   walks the source bag and emits a string. Exposed as
   `renderer_<mode>` properties on the builder class; instances are
   fresh and ephemeral (one `render()` call each).
-- **BuilderHandler** — the data source. One segmented datastore that
-  mounts N builders by name (`add_builder`), hands each its own data
-  segment (`_` is the shared one), tracks readers (`pointer_map`) and
-  owns the `live()` mutation section. Only needed when the page reads
-  data; it is not subclassed.
+- **BuilderHandler** — the data source. It mounts ONE builder
+  (`add_builder`) on one FLAT datastore — absolute paths with no leading
+  segment — and tracks readers (`pointer_map`). It does not render. Only
+  needed when the page reads data; it is not subclassed.
 
 ## The two phases
 
@@ -47,7 +47,7 @@ With data, the handler mounts and creates the page:
 ```python
 page = CustomerPage(name="customer")
 handler = BuilderHandler()
-handler.add_builder(page)   # mounts under page.name, calls create()
+handler.add_builder(page)   # mounts the page, calls create()
 page.render()
 ```
 
@@ -95,8 +95,8 @@ class CustomerPage(HtmlBuilder):
 | Rendering (string output) | Renderer (`renderer_<mode>` property, fresh per call) |
 | Render targets (file, stream, callable; per mode) | Builder instance |
 | Node lookup by id | Builder (`node_by_id`, per-builder namespace) |
-| Data (segmented datastore, `_` shared segment) | BuilderHandler |
-| Pointer tracking, `live()` mutation section | BuilderHandler |
+| Data (one flat datastore, no segments) | BuilderHandler |
+| Pointer tracking (`pointer_map`) | BuilderHandler |
 
 This separation is fixed by the architecture contract (areas
 `BLD` / `PAG` / `HND`). See `roadmap/architecture-contract.md`.
@@ -109,20 +109,18 @@ Already implemented:
   at render time, with read-time pointer registration (`DAT.2`); data
   presentation via `mask`/`_wdg` (`DAT.5`); consumed template inputs
   (`DAT.6`).
-- **Data-elements** — `data_setter`, `data_formula`, `data_controller`
+- **Data-elements** — `dataSetter`, `dataFormula`, `dataController`
   (plain `@element` marked as data), first calculation during
-  `create()`, single-wave recompute on mutation (`DAT.4`). See
-  [Decorators](decorators.md).
-- **Multibuilder** — N pages on one handler, segmented data (`HND`).
-- **Push reactivity, Level 0** — with an application, inside
-  `with handler.live():` every mutation queues a render flushed at
-  the section exit (`RX.1`).
+  `create()`. Without reactivity the two recomputing ones are inert:
+  see [Decorators](decorators.md).
+- **Components** — `@component` (render-time ephemeral expansion,
+  `iterate` over a collection) and `@container` (generates real source
+  at call time). See [Components](components.md).
 
 Designed but not yet implemented:
 
-- **Components** (`CMP`) and **`@slot`** (`PAG.6`) — named reusable
-  structures with render-time expansion; fill-by-id at node birth.
-  See `roadmap/component-design.md`.
-- **Data-element cascade (slice 2)** — multi-wave re-firing (`DAT.4`).
-- **Finer-grained push reactivity** — partial render in the `live()`
-  flush, SRC/DATA granularity (`RX`).
+- **`@slot`** (`PAG.6`) — fill-by-id at node birth. See
+  `roadmap/component-design.md`.
+- **Reactivity** — the document is static: a data change is followed by
+  rendering again. Fine-grained reactivity is refounded on a compiled bag
+  emitted by a `livehtml` render mode (`RX`), not on this handler.
