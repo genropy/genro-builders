@@ -544,38 +544,18 @@ class BuilderBase(
             raise KeyError(node_id)
         return node
 
-    def node_by_target_id(self, target_id: str) -> Any:
-        """Return the source node whose serial is ``target_id``.
-
-        The upstream half of the identity bridge: patches go DOWN
-        addressed by serial, mutations come UP addressed the same way.
-        Walk-based like ``node_by_id`` (the serial lives in a slot, the
-        tree is the registry). Raises ``KeyError`` when no node carries
-        the serial — expansion content is NOT here: its derived ids
-        resolve in ``_writeback_map``.
-        """
-        queue = [self.source]
-        while queue:
-            for node in queue.pop(0).nodes:
-                if getattr(node, "_target_id", None) == target_id:
-                    return node
-                if isinstance(node.value, SourceBag):
-                    queue.append(node.value)
-        raise KeyError(target_id)
-
     def target_id(self, node: Any) -> str | None:
-        """Per-document serial bridging a source node to its DOM element.
+        """Per-document serial naming a source node in the output.
 
-        The reactive render emits it as the element's ``id``; patches
-        address the DOM through it. Assigned on first emission from the
-        root builder's counter (``n1``, ``n2``, ... — render order, so
-        deterministic for a given program), stored on the node, never
-        recomputed: it is bound to the OBJECT, not to its position, so
-        no structural mutation can stale it.
+        Emitted as the element's ``id`` under ``include_datapath``.
+        Assigned on first emission from the root builder's counter
+        (``n1``, ``n2``, ... — render order, so deterministic for a given
+        program), stored on the node, never recomputed: it is bound to
+        the OBJECT, not to its position, so no structural mutation can
+        stale it.
 
         Expansion nodes (``handler is None``, the D9 gate) get none:
-        they reincarnate at every render — no stable identity to bridge.
-        Their replacement unit is the enclosing element.
+        they reincarnate at every render — no stable identity to name.
         """
         existing = getattr(node, "_target_id", None)
         if existing is not None:
@@ -641,36 +621,17 @@ class BuilderBase(
     def _on_upd_value(self, node: Any, oldvalue: Any) -> None:
         """De-register the old value's pointers across an ``upd_value`` event.
 
-        Dispatches over the 9 transitions of (old kind, new kind) where
-        each kind is one of ``"scalar"``, ``"pointer"``, ``"bag"`` — see
-        :meth:`_value_nature`. Only the OLD side acts: registration of the
-        new value is the render's job (read-time ``_register_path``). The
-        empty branches are kept explicit as anchor points for the future
-        partial-render refactor.
+        Only the OLD side acts, so the dispatch is on the old value's kind
+        (``"scalar"``, ``"pointer"``, ``"bag"`` — see :meth:`_value_nature`),
+        whatever replaces it: a scalar had nothing registered, a pointer
+        de-registers itself, a bag de-registers its whole subtree.
+        Registration of the new value is the render's job (read-time
+        ``_register_path``).
         """
-        new = node.value
-        old_kind = self._value_nature(oldvalue)
-        new_kind = self._value_nature(new)
-        match (old_kind, new_kind):
-            case ("scalar", "scalar"):
-                pass
-            case ("scalar", "pointer"):
-                pass
-            case ("scalar", "bag"):
-                pass
-            case ("pointer", "scalar"):
+        match self._value_nature(oldvalue):
+            case "pointer":
                 self.handler._update_pointer_map(node, [("", oldvalue)])
-            case ("pointer", "pointer"):
-                self.handler._update_pointer_map(node, [("", oldvalue)])
-            case ("pointer", "bag"):
-                self.handler._update_pointer_map(node, [("", oldvalue)])
-            case ("bag", "scalar"):
-                for old_child in oldvalue:
-                    self.handler._unregister_pointer(old_child)
-            case ("bag", "pointer"):
-                for old_child in oldvalue:
-                    self.handler._unregister_pointer(old_child)
-            case ("bag", "bag"):
+            case "bag":
                 for old_child in oldvalue:
                     self.handler._unregister_pointer(old_child)
 

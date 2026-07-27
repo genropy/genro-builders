@@ -244,17 +244,13 @@ class RendererBase:
         body = getattr(type(builder), node.node_tag).__get__(builder, type(builder))
         # ``store``/``iterate`` are data anchors, not values: read RAW
         # from the node (runtime_values would resolve them to the data
-        # itself) and compose the segmentless path the wrapper carries as
-        # datapath. The resolved copies are dropped from the body's
-        # kwargs — machinery words, consumed. The component node's own
-        # pointers DID register in the pointer_map (CMP.7): when the
-        # record (or the collection) changes, the block re-renders.
+        # itself) and compose the path the wrapper carries as datapath.
+        # The resolved copies are dropped from the body's kwargs —
+        # machinery words, consumed. The component node's own pointers do
+        # register in the pointer_map: a re-render of the document reads
+        # the new value, so the block follows the data.
         iterable = runtime_attrs.pop("iterate", None)
         runtime_attrs.pop("store", None)
-        # ``lazy`` is machinery too: the laziness opt-in of the iterate
-        # (lazy-iterate contract), consumed by the walk, never a body
-        # kwarg.
-        runtime_attrs.pop("lazy", None)
         raw_anchor = node.attr.get("iterate") or node.attr.get("store")
         anchor = None
         if raw_anchor is not None:
