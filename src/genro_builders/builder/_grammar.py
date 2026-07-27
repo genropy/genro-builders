@@ -167,9 +167,16 @@ class _GrammarMixin:
         than spelled out as a method name), e.g. when injecting a subtree
         pre-built via ``BuilderBase.new_root``.
 
-        Auto-labels the new node via ``_auto_label`` when ``node_label``
-        is omitted, ensuring no collision with existing siblings in
-        ``build_where``.
+        The label comes from what the PARENT declares about this tag:
+
+        - a collection (``collection_key``) → the child's natural key;
+        - declared at most once (``x[1]``, ``x[0:1]``) → the tag itself,
+          since no ordinal is needed to tell one sibling from another;
+        - anything else → ``_auto_label`` (``tag_0``, ``tag_1``, ...).
+
+        In the first two cases the label belongs to the grammar, so an
+        explicit ``node_label`` raises rather than being silently honoured,
+        and so does a second node claiming a label already taken.
 
         Raises ValueError if validation fails, KeyError if parent tag not in schema.
         """
@@ -214,6 +221,18 @@ class _GrammarMixin:
                     f"duplicate collection key {node_label!r} among "
                     f"'{node_tag}' siblings",
                 )
+        elif parent_check is not None and self._is_singleton(parent_check[1], node_tag):
+            if node_label is not None:
+                raise ValueError(
+                    f"'{node_tag}': node_label is not allowed on a singleton "
+                    f"(its parent declares it at most once); the tag is the label",
+                )
+            node_label = node_tag
+            if build_where.node(node_label) is not None:
+                raise ValueError(
+                    f"'{node_tag}' is declared at most once in "
+                    f"'{parent_check[0].node_tag}' and is already present",
+                )
         else:
             node_label = (
                 node_label
@@ -234,6 +253,25 @@ class _GrammarMixin:
             raise
 
         return child_node
+
+    def _is_singleton(self, parent_info: dict, node_tag: str) -> bool:
+        """Whether the parent declares ``node_tag`` at most once.
+
+        Reads the MAXIMUM of the parent's compiled cardinality: ``x[1]``
+        and ``x[0:1]`` are both singletons — what matters is that a second
+        one cannot exist, not whether the first is mandatory. A singleton
+        needs no ordinal to be told apart from its siblings, so its label
+        is the tag itself (``head``, not ``head_0``).
+
+        False when the parent declares no cardinality (a bare ``x``, the
+        ``"*"`` wildcard) or when there is no parent element at all: the
+        top-level children of the source root have no declared bounds.
+        """
+        sub_tags_compiled = parent_info.get("sub_tags_compiled")
+        if not isinstance(sub_tags_compiled, dict):
+            return False
+        bounds = sub_tags_compiled.get(node_tag)
+        return bounds is not None and bounds[1] == 1
 
     def _auto_label(self, build_where: Bag, node_tag: str) -> str:
         """Generate unique label for a node: tag_0, tag_1, ..."""
@@ -447,9 +485,9 @@ class _GrammarMixin:
         Raises on a child not allowed or over its maximum (incremental
         check, fired at every insertion). Returns the list of child tags
         whose MINIMUM cardinality is not yet satisfied: meaningless while
-        building (the document is naturally incomplete), collected by the
-        renderer's pre-render pass and reported through
-        ``BuilderBase.render``.
+        building (the document is naturally incomplete), and reported on
+        demand by ``BuilderBase.validate_source`` — a render never
+        validates.
 
         Args:
             node: The node to validate.
