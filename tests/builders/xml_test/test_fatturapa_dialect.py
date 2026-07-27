@@ -77,7 +77,7 @@ def test_handler_renders_minimal_document_to_xml():
     page = MinimalInvoice()
     BuilderHandler().add_builder(page)
     # attribute-serialization test on a deliberately partial document
-    xml = page.render(mode="xml", target=False, validate=False)
+    xml = page.render(mode="xml", target=False)
     assert "<FatturaElettronica" in xml
     assert 'versione="FPA12"' in xml
     assert 'SistemaEmittente="TESTSW"' in xml
@@ -92,7 +92,7 @@ def test_handler_writes_xml_to_file(tmp_path):
     page = MinimalInvoice()
     page.set_render_target(str(out), "xml")
     BuilderHandler().add_builder(page)
-    page.render(validate=False)   # deliberately partial document
+    page.render()   # deliberately partial document
     body = out.read_text()
     assert body.startswith("<FatturaElettronica")
 
@@ -165,9 +165,12 @@ def test_regeneration_is_byte_identical():
     )
 
 
-def test_render_rejects_an_incomplete_invoice():
-    """Pre-render validation: the XSD minimums become real guarantees."""
-    import pytest
+def test_validate_source_reports_an_incomplete_invoice():
+    """The XSD minimums become real guarantees — when the author asks.
+
+    Rendering does not validate: a partial document renders. The check is
+    a step of its own, called on the source.
+    """
 
     class MinimalInvoice(FatturaElettronicaBuilder):
         def main(self, root):
@@ -175,5 +178,8 @@ def test_render_rejects_an_incomplete_invoice():
 
     page = MinimalInvoice()
     BuilderHandler().add_builder(page)
-    with pytest.raises(ValueError, match="FatturaElettronicaHeader"):
-        page.render(mode="xml", target=False)
+    problems = page.validate_source()
+    missing = [tag for _path, tags in problems for tag in tags]
+    assert "FatturaElettronicaHeader" in missing
+    # the same document renders without a sound
+    assert "<FatturaElettronica" in page.render(mode="xml", target=False)

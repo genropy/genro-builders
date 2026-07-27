@@ -372,6 +372,11 @@ class BuilderBase(
         self.source: SourceBag = self._sourceroot[SOURCE_ROOT]
         self._sourceroot.set_backref()
         self._default_targets: dict[str, Any] = {}
+        # Last walk result per render mode, kept instead of dropped: the
+        # materialized form of the source, whatever the mode's renderer
+        # emits (text chunks, dicts, objects). A re-render replaces the
+        # entry.
+        self.materialized: dict[str, Any] = {}
         # Data source. ``handler`` is set when a BuilderHandler mounts this
         # builder (add_builder); ``data`` is then the handler's store,
         # whole. A bare builder (no_data) keeps handler=None and an empty
@@ -826,9 +831,66 @@ class BuilderBase(
         resolved.update(carried)
         return runtime_value, resolved
 
+    def get_renderer(self, mode: str | None = None) -> Any:
+        """Return the renderer for ``mode`` (default: the dialect's own).
+
+        The ``renderer_<mode>`` properties are the single declaration of
+        which renderer serves which mode; this resolves one of them
+        without going through a render.
+        """
+        mode = mode or self._default_render_mode
+        return getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
+
+    def materialize(self, mode: str | None = None, **opts: Any) -> Any:
+        """Walk the source and keep the result in ``materialized[mode]``.
+
+        The walk's product — whatever the mode's renderer emits: text
+        chunks, dicts, live objects — is stored under the mode and also
+        returned. It does not validate and it does not deliver:
+        :meth:`render` composes this with ``finalize``, and calling the
+        two separately is what lets one walk feed several deliveries.
+        """
+        mode = mode or self._default_render_mode
+        renderer = self.get_renderer(mode)
+        self.materialized[mode] = renderer.render_children(
+            renderer.preprocess(self.source), **opts,
+        )
+        return self.materialized[mode]
+
+    def validate_source(self) -> list[tuple[str, list[str]]]:
+        """Report the source nodes whose minimum child cardinality is unmet.
+
+        Returns ``(fullpath, [missing tags])`` per incomplete node, empty
+        when the document is complete. The maximum is enforced at
+        insertion; the minimum only makes sense once the author declares
+        the document finished, which is why this is called, never implied
+        by a render.
+
+        It walks the SOURCE, so a component is the single node the author
+        wrote — the expansion it produces is a render-time fact and is not
+        inspected here. For XSD dialects this is the structural first net,
+        not a replacement for full XSD validation downstream.
+
+        Each node is checked against its OWN builder's grammar, so a
+        sub-builder subtree is validated by the dialect that authored it.
+        Nodes the containment grammar ignores (data-elements, sub-builder
+        envelopes, components) are skipped, per
+        :meth:`require_sub_tag_validation`.
+        """
+        problems = []
+        for _path, node in self.source.walk():
+            builder = node.builder
+            if not builder.require_sub_tag_validation(node):
+                continue
+            missing = builder._validate_sub_tags(
+                node, builder._get_schema_info(node.node_tag),
+            )
+            if missing:
+                problems.append((node.fullpath, missing))
+        return problems
+
     def render(
-        self, mode: str | None = None, target: Any = None,
-        validate: bool = True, **opts: Any,
+        self, mode: str | None = None, target: Any = None, **opts: Any,
     ) -> Any:
         """Render the built source via ``renderer_<mode>``.
 
@@ -838,29 +900,19 @@ class BuilderBase(
         string, a falsy value falls back to a registered target, a truthy
         value is used directly).
 
-        Pre-render validation: the walk recomputes every node's minimum
-        child cardinality; the maximum is enforced at insertion, the
-        minimum only makes sense when the document is declared finished —
-        which is here, the moment it leaves the system. One error lists
-        every incomplete node. ``validate=False`` emits a partial
-        document deliberately. For XSD dialects this is the structural
-        first net, not a replacement for full XSD validation downstream.
+        Two steps, one gesture: :meth:`materialize` walks,
+        ``finalize`` delivers. Rendering does not validate — call
+        :meth:`validate_source` when the document must be checked.
         """
         mode = mode or self._default_render_mode
-        renderer = getattr(type(self), f"renderer_{mode}").__get__(self, type(self))
+        renderer = self.get_renderer(mode)
         effective_target = self._get_target(target, renderer)
         if isinstance(effective_target, TargetWrapper):
             # The destination dictates the form of every delivery (e.g. a
             # patch consumer needs the DOM ids): its walk options are the
             # base, the call's own opts win.
             opts = {**effective_target.render_opts, **opts}
-        result = renderer.render_children(renderer.preprocess(self.source), **opts)
-        if validate and renderer.incomplete:
-            problems = "\n".join(
-                f"  {path}: missing required children: {', '.join(missing)}"
-                for path, missing in renderer.incomplete
-            )
-            raise ValueError(f"incomplete document:\n{problems}")
+        result = self.materialize(mode, **opts)
         return renderer.finalize(result, effective_target, **opts)
 
     def _present_value(self, data_node: Any, value: Any) -> Any:
