@@ -36,7 +36,9 @@ project: **genro-ws-web**, built on genro-builders.
   `node_by_id`, render targets.
 - **Grammars** — per-grammar reference:
   [HTML](grammars/html.md), [SVG](grammars/svg.md),
-  [CSS](grammars/css.md), [XSD dialects](grammars/xsd.md).
+  [CSS](grammars/css.md), [XSD dialects](grammars/xsd.md). The XSLT
+  dialect ships without a reference page yet: its grammar and the
+  transpiler live in `src/genro_builders/contrib/xslt/`.
 
 ## In-flight design
 
