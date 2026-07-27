@@ -7,10 +7,13 @@ A builder declares the grammar of a dialect via decorators
 @element marked in their ``_meta`` (no dedicated decorator). The three data-elements
 (dataSetter / dataFormula / dataController) are ordinary @element
 declared on this base and marked ``_meta['data_element']``. A builder
-renders itself: it owns its source (under the ``main`` segment of a
-wrapper root), the create/render phases, the first calculation and the
-per-builder node_id lookup. The data store is supplied by the
-BuilderHandler; reactivity (live render) is a later phase.
+renders itself: it owns its source (the payload under the structural
+``SOURCE_ROOT`` of a wrapper root), the create/render phases, the first
+calculation and the per-builder node_id lookup. The data store is
+supplied by the BuilderHandler. The document is STATIC: a data change is
+followed by rendering again — fine-grained reactivity is refounded on a
+compiled bag emitted by a ``livehtml`` render mode (``RX`` area of the
+contract), not on this class.
 
 Exports:
     BuilderBase: Base class for all builders.
@@ -47,10 +50,9 @@ from .target_wrapper import TargetWrapper
 _TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 #: Structural key of the source wrapper. It exists only so the source is
-#: a tree, not a forest; it is NOT an address. Queue keys and every
-#: cross-builder identity use the builder's mount ``name`` instead, and
-#: paths that travel outside the builder are composed relative to
-#: ``builder.source`` (this segment never appears in them).
+#: a tree, not a forest; it is NOT an address. Paths that travel outside
+#: the builder are composed relative to ``builder.source``, so this
+#: segment never appears in them.
 SOURCE_ROOT = "_root_"
 
 
@@ -360,7 +362,7 @@ class BuilderBase(
         a wrapper root (tree-not-forest guarantee, never an address):
         ``self.source`` is the payload the ``main`` recipe populates,
         ``_sourceroot`` the wrapper that carries it. ``handler=None`` —
-        a bare builder renders itself with no data and no reactivity.
+        a bare builder renders itself, with no datastore behind it.
         """
         self.name: str | None = name or type(self)._name
         self._schema = type(self)._class_schema
@@ -416,9 +418,9 @@ class BuilderBase(
         ``create()`` or ``render()``.
 
         Typical use: pre-build a subtree offline, then attach it as the
-        value of some node in a live source — the resulting ``ins`` event
-        re-renders, and the render registers the new subtree's pointers at
-        read time. The throw-away root itself is not retained by anything.
+        value of some node in a document's source; the next render walks
+        it and registers its pointers at read time. The throw-away root
+        itself is not retained by anything.
         """
         root = SourceBag(builder=self, handler=None)
         root.set_backref()
@@ -483,37 +485,43 @@ class BuilderBase(
         )
 
     def setup(self, data: Any) -> None:
-        """Override point: populate this builder's data segment.
+        """Override point: populate the datastore.
 
-        Receives the builder's own data bag (its segment when mounted,
-        an empty bag otherwise). Default no-op — a page with pointers
-        overrides it to seed the values its ``main`` reads. Called by
-        :meth:`create` before ``main``.
+        Receives the datastore WHOLE — it is flat, there is no per-builder
+        segment: the handler's store when mounted, an empty bag otherwise.
+        Default no-op — a page with pointers overrides it to seed the
+        values its ``main`` reads. Called by :meth:`create` before
+        ``main``.
         """
 
     def create(self) -> None:
-        """Build the document, then run the first calculation.
+        """Build the document, then compute the logic.
 
         Sequence: ``setup(self.data)`` seeds the data, ``main(self.source)``
-        builds the document, then the first calculation runs every
-        ``dataSetter`` (it seeds the data) plus any ``dataFormula`` /
-        ``dataController`` flagged ``_on_start``. Reactivity (source/data
-        subscribes) is armed later and is out of scope here.
+        builds the document, then EVERY data-element runs, once, in
+        document order (the ``deep=True`` query walks the tree top to
+        bottom): a ``dataSetter`` seeds its value, a ``dataFormula`` writes
+        its result, a ``dataController`` fires its side effects.
+
+        Compute-then-render is the whole model: when ``render()`` runs, the
+        datastore is already complete, so a node may read a value a
+        data-element writes further DOWN the document. It is a single pass
+        and there is no recompute — a formula reading a value that another
+        formula writes AFTER it sees the earlier value. Ordering the
+        calculations is the author's job, exactly as in a script.
         """
         self.setup(self.data)
         self.main(self.source)
         self.compute_logic(
             self.source.query(
                 what="#n", deep=True,
-                condition=lambda n: bool(
-                    n._get_meta("data_element")
-                    and (n.node_tag == "dataSetter" or n.attr.get("_on_start"))
-                ),
+                condition=lambda n: bool(n._get_meta("data_element")),
             )
         )
-        # Reactivity of the SOURCE (structure) lives on the builder. Armed
-        # only when reactive: the live phase (subscribe + queue +
-        # end-of-live render) is paid by reactive pages, not one-shot ones.
+        # Subscribe to the SOURCE (structure) so that a mutation keeps the
+        # handler's pointer_map coherent and reaches the on_source_change
+        # hook. Armed only with an application behind it: a one-shot render
+        # does not maintain a map nobody reads.
         if self._is_reactive:
             self._sourceroot.subscribe(
                 "builder_source",
@@ -526,9 +534,9 @@ class BuilderBase(
     def _is_reactive(self) -> bool:
         """True when mounted on a handler that has an application.
 
-        A builder with no data has no handler: it renders one-shot and is
-        not reactive. Only a builder on a handler with an application arms
-        source reactivity (subscribe + live render).
+        A builder with no data has no handler: it renders one-shot. Only a
+        builder on a handler with an application pays for the read-time
+        pointer tracking and the source subscribe that keeps it coherent.
         """
         return bool(self.handler and self.handler.application)
 
@@ -544,38 +552,18 @@ class BuilderBase(
             raise KeyError(node_id)
         return node
 
-    def node_by_target_id(self, target_id: str) -> Any:
-        """Return the source node whose serial is ``target_id``.
-
-        The upstream half of the identity bridge: patches go DOWN
-        addressed by serial, mutations come UP addressed the same way.
-        Walk-based like ``node_by_id`` (the serial lives in a slot, the
-        tree is the registry). Raises ``KeyError`` when no node carries
-        the serial — expansion content is NOT here: its derived ids
-        resolve in ``_writeback_map``.
-        """
-        queue = [self.source]
-        while queue:
-            for node in queue.pop(0).nodes:
-                if getattr(node, "_target_id", None) == target_id:
-                    return node
-                if isinstance(node.value, SourceBag):
-                    queue.append(node.value)
-        raise KeyError(target_id)
-
     def target_id(self, node: Any) -> str | None:
-        """Per-document serial bridging a source node to its DOM element.
+        """Per-document serial naming a source node in the output.
 
-        The reactive render emits it as the element's ``id``; patches
-        address the DOM through it. Assigned on first emission from the
-        root builder's counter (``n1``, ``n2``, ... — render order, so
-        deterministic for a given program), stored on the node, never
-        recomputed: it is bound to the OBJECT, not to its position, so
-        no structural mutation can stale it.
+        Emitted as the element's ``id`` under ``include_datapath``.
+        Assigned on first emission from the root builder's counter
+        (``n1``, ``n2``, ... — render order, so deterministic for a given
+        program), stored on the node, never recomputed: it is bound to
+        the OBJECT, not to its position, so no structural mutation can
+        stale it.
 
         Expansion nodes (``handler is None``, the D9 gate) get none:
-        they reincarnate at every render — no stable identity to bridge.
-        Their replacement unit is the enclosing element.
+        they reincarnate at every render — no stable identity to name.
         """
         existing = getattr(node, "_target_id", None)
         if existing is not None:
@@ -629,8 +617,8 @@ class BuilderBase(
     def _value_nature(self, v: Any) -> str:
         """Classify a value as ``"bag"``, ``"pointer"`` or ``"scalar"``.
 
-        Used by :meth:`_on_upd_value` to dispatch over the 9-cases matrix
-        of value transitions (old kind × new kind).
+        Used by :meth:`_on_upd_value` to dispatch on the kind of the value
+        being replaced.
         """
         if isinstance(v, Bag):
             return "bag"
@@ -641,36 +629,17 @@ class BuilderBase(
     def _on_upd_value(self, node: Any, oldvalue: Any) -> None:
         """De-register the old value's pointers across an ``upd_value`` event.
 
-        Dispatches over the 9 transitions of (old kind, new kind) where
-        each kind is one of ``"scalar"``, ``"pointer"``, ``"bag"`` — see
-        :meth:`_value_nature`. Only the OLD side acts: registration of the
-        new value is the render's job (read-time ``_register_path``). The
-        empty branches are kept explicit as anchor points for the future
-        partial-render refactor.
+        Only the OLD side acts, so the dispatch is on the old value's kind
+        (``"scalar"``, ``"pointer"``, ``"bag"`` — see :meth:`_value_nature`),
+        whatever replaces it: a scalar had nothing registered, a pointer
+        de-registers itself, a bag de-registers its whole subtree.
+        Registration of the new value is the render's job (read-time
+        ``_register_path``).
         """
-        new = node.value
-        old_kind = self._value_nature(oldvalue)
-        new_kind = self._value_nature(new)
-        match (old_kind, new_kind):
-            case ("scalar", "scalar"):
-                pass
-            case ("scalar", "pointer"):
-                pass
-            case ("scalar", "bag"):
-                pass
-            case ("pointer", "scalar"):
+        match self._value_nature(oldvalue):
+            case "pointer":
                 self.handler._update_pointer_map(node, [("", oldvalue)])
-            case ("pointer", "pointer"):
-                self.handler._update_pointer_map(node, [("", oldvalue)])
-            case ("pointer", "bag"):
-                self.handler._update_pointer_map(node, [("", oldvalue)])
-            case ("bag", "scalar"):
-                for old_child in oldvalue:
-                    self.handler._unregister_pointer(old_child)
-            case ("bag", "pointer"):
-                for old_child in oldvalue:
-                    self.handler._unregister_pointer(old_child)
-            case ("bag", "bag"):
+            case "bag":
                 for old_child in oldvalue:
                     self.handler._unregister_pointer(old_child)
 
@@ -729,7 +698,7 @@ class BuilderBase(
 
         ``runtime_values`` resolves ``^``/``=`` and ``${}``; here we strip
         the element's own schema fields (``destination`` / ``func`` /
-        ``value`` / ``_on_start``), so what remains are the func bindings.
+        ``value``), so what remains are the func bindings.
         """
         fields = set(self._get_schema_info(node.node_tag).get(
             "call_args_validations") or {})
@@ -1007,10 +976,9 @@ class BuilderBase(
     # into each dialect schema by __init_subclass__ via
     # _iter_data_element_methods, and dispatched through the same
     # _command_on_node as any element.
-    # The signature carries the kind's fields (destination/value/func). The
-    # func-bearing kinds (formula/controller) also declare ``_on_start``: a
-    # control flag (compute at first calculation), excluded from the func
-    # bindings because it is part of the element signature, not a kwarg.
+    # The signature carries the kind's fields (destination/value/func); every
+    # other kwarg is a func binding. There is no flag to request execution:
+    # all three run at ``create()``, in document order.
     # -----------------------------------------------------------------------
 
     @element(_meta={"data_element": True})
@@ -1018,14 +986,11 @@ class BuilderBase(
 
     @element(_meta={"data_element": True})
     def dataFormula(
-        self, destination: str, func: str | Callable,
-        _on_start: bool = False, **kwargs,
+        self, destination: str, func: str | Callable, **kwargs,
     ): ...
 
     @element(_meta={"data_element": True})
-    def dataController(
-        self, func: str | Callable, _on_start: bool = False, **kwargs,
-    ): ...
+    def dataController(self, func: str | Callable, **kwargs): ...
 
     #: Default rendering mode used when ``render(mode=None)`` is called.
     #: Concrete dialects override this (e.g. ``"html"`` for HtmlBuilder).
@@ -1049,8 +1014,8 @@ class BuilderBase(
     )
 
     #: Retained attribute FAMILIES (name prefixes): declared on the
-    #: node, readable by whoever resolves the node (the write-back map,
-    #: a validation engine), but NEVER emitted by a renderer — they are
+    #: node, readable by whoever resolves the node (a validation engine,
+    #: a consumer of the source), but NEVER emitted by a renderer — they are
     #: server-side contract, not markup. Unlike ``_meta_attrs`` (exact
     #: names, dropped before resolution) a retained family stays in the
     #: actualized view and is filtered at emission. ``validate_`` is

@@ -1,8 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Builder package — re-exports all public and test-used symbols.
 
-All external imports (``from genro_builders.builder import X``) continue
-to work unchanged after the split from a single module to a package.
+The package is the import surface: ``from genro_builders.builder import X``
+works regardless of which module inside actually defines ``X``.
 """
 
 from ._decorators import (

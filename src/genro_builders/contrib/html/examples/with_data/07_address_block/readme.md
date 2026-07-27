@@ -39,12 +39,12 @@ body.addressBlock(
 ```
 
 The call's attributes saturate the body's signature. Plain values
-arrive as they are; a **reactive pointer passes through AS a pointer**
-(absolutized — `^html:sender.city`): the body stamps it on the nodes
+arrive as they are; a **pointer passes through AS a pointer**
+(absolutized — `^sender.city`): the body stamps it on the nodes
 it builds, and the value resolves at the final node's render, exactly
 like a hand-written pointer. That is what keeps the ADDRESS alive on
-the element (the `data-value-pointer` write-back hook in the reactive
-render). Consequence: the body builds structure with the kwargs, it
+the element (the `data-<name>-pointer` emitted under
+`include_datapath`). Consequence: the body builds structure with the kwargs, it
 never computes on their values — composing two data into one string is
 the template's job (`${zip_code} ${city}`, inputs consumed), not an
 f-string's. The same component renders the customer block from literal

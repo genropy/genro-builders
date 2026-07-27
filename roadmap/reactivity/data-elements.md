@@ -6,14 +6,15 @@
 la "fetta 2" NON è più rinviata ma **ricollocata** (vedi nota); modello
 non ancora approvato
 
-> **Stato dopo il contratto v0.9.0 (2026-07-26).** Restano validi: il
-> modello dei data-element come `@element` marcati, il compute sul builder,
-> la risoluzione della `func` per nome via `data_logic`, e il primo calcolo
-> al `create()`. **Cambia il regime**: senza reattività `dataFormula` e
-> `dataController` sono inerti (calcolano solo se `_on_start=True`) e il
-> renderer li segnala con un `UserWarning` — restano dichiarabili di
-> proposito, così la stessa pagina si prova statica e poi si monta
-> reattiva. La cascata multi-ondata descritta qui (coda FIFO, anti-loop,
+> **Stato dopo il contratto v0.9.0 (2026-07-26), emendato il 2026-07-27.**
+> Restano validi: il modello dei data-element come `@element` marcati, il
+> compute sul builder, la risoluzione della `func` per nome via
+> `data_logic`, e il calcolo al `create()`. **Cambia il regime**: tutti e
+> tre i kind calcolano al `create()`, una volta, in ordine di documento —
+> nessun flag (`_on_start` è stato rimosso) e nessun warning. Quando il
+> render parte il datastore è completo, quindi un nodo può leggere un
+> valore scritto più in basso nel documento; ma è una passata sola, senza
+> ricalcolo. La cascata multi-ondata descritta qui (coda FIFO, anti-loop,
 > ondate) appartiene alla compiled bag (`RX.5`), non a Python.
 
 > **Nota 2026-06-10 (contratto v0.8.0)** — leggere con due aggiornamenti:

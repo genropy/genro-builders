@@ -188,8 +188,8 @@ class HtmlRenderer(RendererBase):
                 continue
 
             # 0.5 Retained families (``validate_*``): node-side contract,
-            #     never markup — the write-back map reads them from the
-            #     node, the DOM must not see them.
+            #     never markup — they are read off the node by whoever
+            #     resolves it, the DOM must not see them.
             if raw_name.startswith(self.builder._retained_attr_prefixes):
                 continue
 
@@ -299,19 +299,17 @@ class HtmlRenderer(RendererBase):
     def _auto_id_attr(self, node: Any, runtime_attrs: dict[str, Any]) -> str:
         """Emit ``id="<dom serial>"`` for every node with identity.
 
-        Patches address the DOM by id, and ANY element can become a
-        patch target at runtime: a reader receives a ``replace``, a
-        container an ``insert``, a sibling anchors a ``before`` — not
-        predictable at first paint. So in the reactive render every node
-        carries its ``target_id`` (the per-document serial assigned by the
-        root builder, bound to the object: no structural mutation can
-        stale it — see ``BuilderBase.target_id``).
+        A consumer that has to reach a single element needs it addressable,
+        and which element that will be is not predictable at first paint.
+        So under ``include_datapath`` every node carries its ``target_id``
+        (the per-document serial assigned by the root builder, bound to the
+        object: no structural mutation can stale it — see
+        ``BuilderBase.target_id``).
 
-        No-op when the author declared an ``id`` (the author's id wins —
-        such an element is NOT path-addressable by patches), or when the
-        node has no identity to bridge (an expansion node: it
+        No-op when the author declared an ``id`` (the author's id wins),
+        or when the node has no identity to name (an expansion node: it
         reincarnates at every render). Only emitted under
-        ``include_datapath`` (the reactive render mode).
+        ``include_datapath``.
         """
         if "id" in runtime_attrs:
             return ""

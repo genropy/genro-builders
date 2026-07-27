@@ -29,20 +29,12 @@ carrying the node's user attributes plus the ``render_attributes`` — read in
 from __future__ import annotations
 
 import keyword
-import warnings
 from pathlib import Path
 from typing import Any
 
 from genro_bag import Bag
 
 from ..builder.source_bag import SourceBag
-
-#: Data-elements that recompute on a data change: they need a cascade, so
-#: they are inert in a static document. Declared and injected into every
-#: dialect all the same — the same page is written once, tried static, then
-#: mounted reactive without touching a line. The renderer warns when it
-#: meets one with no reactivity behind it (see ``render``).
-REACTIVE_DATA_ELEMENTS = ("dataFormula", "dataController")
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
 _ATTR_ESCAPE = str.maketrans(
@@ -96,12 +88,12 @@ class RendererBase:
     # ------------------------------------------------------------------
 
     def add_render(self, builder: Any, renderer: RendererBase) -> None:
-        """Seed the cache with a renderer for ``builder``.
+        """Pre-seed the cache with the renderer to use for ``builder``.
 
-        Called by the handler on R0 right after instantiation to
-        register the main builder/renderer pair: the walk then hits
-        the cache for every native node and only pays a property
-        lookup on foreign (sub-builder) nodes.
+        Nothing in the package calls it: the renderer registers itself for
+        its own builder in ``__init__`` and ``get_render`` resolves the
+        foreign ones on demand. It stays as the way a host application
+        overrides that resolution for a given builder.
         """
         self.renders[id(builder)] = renderer
 
@@ -159,16 +151,7 @@ class RendererBase:
         """
         item, ra = node.builder.runtime_values(node)
         if node._get_meta("data_element"):
-            if (node.node_tag in REACTIVE_DATA_ELEMENTS
-                    and not node.builder._is_reactive):
-                warnings.warn(
-                    f"{node.node_tag} at {node.fullpath} is inert: it "
-                    "recomputes on a data change and this document has no "
-                    "reactivity. Seed the value with dataSetter, or mount "
-                    "the page on a handler with an application.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+            # Transparent: they ran at create(), the render only skips them.
             return None
         if node._get_meta("component"):
             return self._render_component(node, ra, **opts)
@@ -198,12 +181,12 @@ class RendererBase:
         receives a fresh throw-away root and builds the real structure
         into it: exactly ONE tree (one root element), a forest raises.
         The call's attributes saturate the body's signature: plain
-        values resolved, REACTIVE POINTERS passed through as pointers,
-        absolutized at the component node (context free) — the ADDRESS
-        must reach the final node the body builds,
-        where it resolves exactly like a hand-written one and emits the
-        write-back hook (CMP.4). The walk then re-enters on the tree
-        the body built, so dialect dispatch, nested components and
+        values resolved, POINTERS passed through as pointers, absolutized
+        at the component node (context free) — the ADDRESS must reach the
+        final node the body builds, where it resolves exactly like a
+        hand-written one (and, under ``include_datapath``, emits the same
+        ``data-<name>-pointer``). The walk then re-enters on the tree the
+        body built, so dialect dispatch, nested components and
         sub-builders apply as usual.
         """
         body, iterable, anchor, body_kwargs = self._expansion_inputs(
@@ -244,17 +227,13 @@ class RendererBase:
         body = getattr(type(builder), node.node_tag).__get__(builder, type(builder))
         # ``store``/``iterate`` are data anchors, not values: read RAW
         # from the node (runtime_values would resolve them to the data
-        # itself) and compose the segmentless path the wrapper carries as
-        # datapath. The resolved copies are dropped from the body's
-        # kwargs — machinery words, consumed. The component node's own
-        # pointers DID register in the pointer_map (CMP.7): when the
-        # record (or the collection) changes, the block re-renders.
+        # itself) and compose the path the wrapper carries as datapath.
+        # The resolved copies are dropped from the body's kwargs —
+        # machinery words, consumed. The component node's own pointers do
+        # register in the pointer_map: a re-render of the document reads
+        # the new value, so the block follows the data.
         iterable = runtime_attrs.pop("iterate", None)
         runtime_attrs.pop("store", None)
-        # ``lazy`` is machinery too: the laziness opt-in of the iterate
-        # (lazy-iterate contract), consumed by the walk, never a body
-        # kwarg.
-        runtime_attrs.pop("lazy", None)
         raw_anchor = node.attr.get("iterate") or node.attr.get("store")
         anchor = None
         if raw_anchor is not None:

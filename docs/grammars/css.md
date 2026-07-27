@@ -1,7 +1,7 @@
 # CSS grammar (level 1)
 
-**Last Updated**: 2026-06-10
-**Status**: 🟢 APPROVATO — allineato al contratto v0.8.0 (renderer-side chain landed 2026-05-30).
+**Last Updated**: 2026-07-27
+**Status**: 🟢 APPROVATO — allineato al contratto v0.9.0 (renderer-side chain landed 2026-05-30).
 **Maintainer**: subtask `css_builder/` (closed 2026-05-12).
 
 CSS level 1 grammar. Covers rules, selectors, custom properties,

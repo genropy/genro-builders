@@ -28,7 +28,7 @@ print(page.render())
 ## Runtime data binding (pull-based)
 
 A page that reads pointers mounts on a `BuilderHandler` (the data
-source); `setup` seeds the page's own data segment:
+source); `setup` seeds the datastore, which is flat:
 
 ```python
 from genro_builders.builder import BuilderHandler
@@ -45,7 +45,7 @@ class Page(HtmlBuilder):
 
 page = Page()
 handler = BuilderHandler()
-handler.add_builder(page)   # mounts under page.name and creates
+handler.add_builder(page)   # mounts the page and creates it
 print(page.render())
 # ...<h1>Hello</h1>...
 
@@ -68,9 +68,8 @@ by what the page needs:
 - **with_data/** — pages that bind to data via pointers (`^`/`=`,
   datapath, presentation with `mask`/`_wdg`).
 - **with_logic/** — data-elements (`dataSetter`/`dataFormula`/
-  `dataController`). `dataFormula` and `dataController` recompute on a
-  data change, so without reactivity they only run when flagged
-  `_on_start=True`; the renderer warns when it meets an inert one.
+  `dataController`). All three compute at `create()`, once, in document
+  order: the datastore is complete before the render starts.
 
 Run an example from its folder: `python <name>.py`. The test suite runs
 them all (`tests/test_examples.py`).

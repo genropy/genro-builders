@@ -19,20 +19,19 @@ A `@component` is CLOSED: the caller parameterizes it, never fills it.
 The name in the source is the cross-runtime contract — the node says
 `labeledInput`, the expansion is ephemeral at render time.
 
-## Reading AND writing (CMP.4)
+## Reading AND writing
 
-A reactive `value` pointer **passes through** to the inner `<input>`:
-in the reactive render the element carries both the resolved value and
-its write-back address —
+A `value` pointer **passes through** to the inner `<input>`: rendered
+with `include_datapath`, the element carries both the resolved value and
+its address —
 
 ```html
-<input value="Mario Rossi" data-value-pointer="main.person.name"/>
+<input value="Mario Rossi" data-value-pointer="person.name"/>
 ```
 
-— so the piece displays, re-renders when the datum changes (the
-component node is the registered reader, CMP.7), and a client knows
-where to write back. `swatch` shows the read-only half: a pointer in a
-plain attribute (`background`).
+— so the piece displays, shows the new value on the next render, and a
+client knows where to write back. `swatch` shows the read-only half: a
+pointer in a plain attribute (`background`).
 
 Extra attrs reach the inner input untouched (`placeholder="..."`).
 
