@@ -21,7 +21,7 @@ condividerlo.
 
 **Stato del codice rispetto al contratto**: il codice è allineato su:
 identità dei nodi, render subsystem (walk universale, dispatch per-nodo,
-minimi di cardinalità), data binding pull-based con registrazione alla
+render in due passi), data binding pull-based con registrazione alla
 lettura, data-element e compute "fetta 1", **handler statico piatto**
 (`HND`: un builder, un datastore senza segmenti), **component** (`CMP`:
 singolo/store/iterate/frattale). Il re-render è il modello di
@@ -230,21 +230,25 @@ struttura (`DAT.2`).
 Un builder nudo (scenario 1) fa `create()` + `render()` da solo:
 `handler=None`, data bag vuota, `setup` innocuo.
 
-### PAG.4 — `render(mode, target, validate=True, **opts)` sul builder
+### PAG.4 — `render(mode, target, **opts)` sul builder, due passi
 
 Il render appartiene al builder. `mode` default =
 `_default_render_mode` del dialetto; `target`: `False` → ritorna la
 stringa ignorando i target registrati; falsy → target registrato
 (`set_render_target`); truthy → usato direttamente.
 
-**Minimi di cardinalità verificati nel walk pre-render**: il walk
-ricalcola fresco per nodo i figli minimi richiesti (NESSUNO stato
-memorizzato: la rimozione di un figlio renderebbe stantio qualunque
-flag). Un solo errore con l'elenco completo dei nodi incompleti.
-`validate=False` emette deliberatamente un documento parziale. Per i
-dialetti XSD è la prima rete strutturale, non sostituisce la
-validazione XSD a valle. (Il massimo di cardinalità è verificato
-all'inserimento.)
+**Un gesto, due passi.** `materialize(mode, **opts)` cammina la source e
+conserva il risultato in `materialized[mode]` (dict sul builder,
+indicizzato per modo, simmetrico a `_default_targets[mode]`); `finalize`
+consegna. `render` li compone, e resta l'API di ogni esempio e di ogni
+test. Conservare il risultato è la base del render parziale (`RX.5`): una
+struttura materializzata sopravvive alla chiamata e può essere
+confrontata con la precedente. Un re-render sostituisce la voce.
+
+**Il render non valida.** `materialize` cammina e produce, `finalize`
+consegna: nessuno dei due verifica la grammatica. Un metodo che
+renderizza *e* valida farebbe pagare a ogni nodo di ogni render un
+controllo che l'autore non ha chiesto.
 
 Non esiste un ingresso di render parziale: aggiornare = rendere di nuovo
 (`RX.1`). Il render parziale su struttura materializzata è competenza
@@ -292,6 +296,30 @@ Spec di dettaglio: `roadmap/slot-decorator.md` (da riallineare: scritta
 quando i metodi vivevano sull'handler; oggi vivono sulla pagina).
 Decisioni implementative (punto di aggancio dell'hook, raccolta dei
 metodi, comportamento dello slot orfano) in fase TDD.
+
+### PAG.7 — `validate_source()`: i minimi di cardinalità si chiedono
+
+Il massimo di cardinalità è verificato all'inserimento; il **minimo** ha
+senso solo quando l'autore dichiara finito il documento — e lo dichiara
+chiamando `validate_source()`, non renderizzando. Ritorna
+`(fullpath, [tag mancanti])` per ogni nodo incompleto, lista vuota se il
+documento è completo: **riporta, non solleva** — che farne è del
+chiamante.
+
+Ricalcolo fresco a ogni chiamata, NESSUNO stato memorizzato (la rimozione
+di un figlio renderebbe stantio qualunque flag). Ogni nodo è verificato
+contro la grammatica del **proprio** builder, quindi un sottoalbero
+sub-builder è validato dal dialetto che l'ha scritto; i nodi che la
+grammatica di contenimento ignora sono esclusi da
+`require_sub_tag_validation` (data-element, involucri sub-builder,
+component). Per i dialetti XSD è la prima rete strutturale, non
+sostituisce la validazione XSD a valle.
+
+Cammina la **source**: un component è il singolo nodo che l'autore ha
+scritto, la sua espansione è un fatto del render e qui non si vede. La
+domanda sul risultato effettivo — espansioni comprese — è
+`validate_materialized(mode)`, che arriva col modo di render che emette
+dati (`RX.5`): su una lista di chunk di testo non c'è nulla da validare.
 
 ---
 
@@ -720,10 +748,14 @@ Nessun periodo di doppio nome: i chiamanti migrano con il rename.
 `runtime_values` e produce il frammento via `rendered_item`. **Ogni
 fase per-nodo gira sul renderer del dialetto del nodo** (il `_builder`
 del nodo decide, anche a metà albero); la cache dei sub-renderer è per
-builder. `finalize(result, target, **opts)` compone e consuma il
-target (writeable/callable/path; `None` → ritorna). Gli `**opts`
-raggiungono walk e finalize. I dialetti object-based sovrascrivono la
-composizione.
+builder. Il walk **non valida** (`PAG.7`) e non compone: accoda i
+frammenti in una lista, qualunque cosa siano.
+`finalize(result, target, **opts)` compone e consuma il target
+(writeable/callable/path; `None` → ritorna) — è il secondo passo di
+`PAG.4`, chiamabile su un risultato già materializzato. Gli `**opts`
+raggiungono walk e finalize; quelli di documento (`doc_header`) li
+dichiara il finalize del dialetto. I dialetti object-based
+sovrascrivono la composizione.
 
 ### RND.2 — Note di dialetto HTML
 
@@ -867,8 +899,12 @@ Chiuse (per memoria):
 - **Template inputs per consumo** (non per prefisso) (`DAT.6`).
 - **Presentazione lato dati** col vocabolario legacy: `mask`/`_wdg`,
   l'eccezione batte il default (`DAT.5`).
-- **Minimi di cardinalità: ricalcolo nel walk, mai stato memorizzato**
+- **Render in due passi**: `materialize` cammina e conserva in
+  `materialized[mode]`, `finalize` consegna; `render` li compone
   (`PAG.4`).
+- **Minimi di cardinalità: si chiedono, non si subiscono** — ricalcolo
+  fresco in `validate_source()`, mai stato memorizzato, mai implicati dal
+  render (`PAG.7`).
 - **Pensionamento `contrib/live`**: ws_live è la live app.
 - **No difensivo**: condizioni impossibili → errore esplicito; niente
   fallback silenziosi; `getattr` difensivo solo su duck-typing di API

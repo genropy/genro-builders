@@ -36,11 +36,15 @@ The lifecycle is two-phase, both on the builder:
   user-defined `main(self.source)` that populates the source Bag
   through the dialect's grammar API, then the first calculation of
   the data-elements.
-- **`render(mode=None, target=None, validate=True, **opts)`** drives
-  the universal walk on the source and produces the dialect's output.
-  Default `mode` comes from the dialect; default `target` returns the
-  string. The walk also checks minimum child cardinality
-  (`validate=False` deliberately emits a partial document).
+- **`render(mode=None, target=None, **opts)`** drives the universal walk
+  on the source and produces the dialect's output. Default `mode` comes
+  from the dialect; default `target` returns the string. It composes two
+  steps you can also call on their own: `materialize(mode)` walks and
+  keeps the result in `materialized[mode]`, `finalize` delivers it.
+
+Rendering does not validate. `validate_source()` reports the nodes whose
+minimum child cardinality is unmet — `(fullpath, [missing tags])` per
+node, empty when complete — when the author asks for it.
 
 ## Dialects (contrib)
 

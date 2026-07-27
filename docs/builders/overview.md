@@ -38,7 +38,8 @@ page.render()  # serializes source
 | Phase | Method | What it does |
 |-------|--------|--------------|
 | Create | `page.create()` | Calls `setup(self.data)` (seed the data), then `self.main(self.source)` (user code populates the source bag), then the first calculation of the data-elements. |
-| Render | `page.render(mode=None, target=None, validate=True, **opts)` | Walks the source via `renderer_<mode>`. Returns the serialized output, or writes it to a target (argument, or registered via `page.set_render_target(target)`). The walk checks minimum child cardinality; `validate=False` deliberately emits a partial document. |
+| Render | `page.render(mode=None, target=None, **opts)` | Walks the source via `renderer_<mode>`. Returns the serialized output, or writes it to a target (argument, or registered via `page.set_render_target(target)`). Composes two steps, both callable alone: `page.materialize(mode)` walks and keeps the result in `page.materialized[mode]`, `finalize` delivers it. |
+| Validate | `page.validate_source()` | Reports the nodes whose minimum child cardinality is unmet: `(fullpath, [missing tags])` per node, empty list when the document is complete. Rendering never implies it — the author asks. |
 
 The source bag is inspectable as `page.source` after `create()`.
 

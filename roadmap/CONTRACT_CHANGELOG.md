@@ -11,6 +11,55 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## Emendamento v0.9.0 — 2026-07-27 (`PAG.4` in due passi, `PAG.7` `validate_source`)
+
+Due cose che stavano nello stesso metodo si separano.
+
+**Il risultato del walk aveva un nome per due righe.** In
+`BuilderBase.render`, `result` nasceva dalla camminata e moriva nel
+`finalize` della riga dopo: una locale. Conseguenze misurate: due
+destinazioni per lo stesso documento costavano **due camminate**, e non
+esisteva niente su cui appoggiare un confronto fra un render e il
+precedente — cioè la base del render parziale (`RX.5`). Ora la camminata
+è `materialize(mode, **opts)`, che conserva in `materialized[mode]` (dict
+sul builder, indicizzato per modo, simmetrico a `_default_targets[mode]`)
+e restituisce; `finalize` consegna. `render` li compone e **non cambia
+firma pubblica** a parte `validate`: ogni esempio e ogni test continua a
+chiamarla come prima.
+
+**Il render validava.** `render(validate=True)` era il default, e il
+walk chiamava `_validate_sub_tags` + `_get_schema_info` su **ogni nodo di
+ogni render** — anche con `validate=False`, perché il flag spegneva solo
+il `raise`, non la raccolta in `renderer.incomplete`. Un metodo che
+renderizza *e* valida è codice brutto: il nome dichiara un compito, il
+corpo ne fa due, e il secondo lo pagavano tutti sempre. La verifica
+diventa `validate_source()` (`PAG.7`): **riporta** `(fullpath, [tag
+mancanti])`, non solleva, e costa una camminata solo quando la chiami.
+`renderer.incomplete` e il parametro `validate` sono rimossi.
+
+Uno spostamento di copertura da dichiarare: la validazione nel walk vedeva
+l'**espansione** dei component, perché camminava il render.
+`validate_source` cammina la source, dove un component è il singolo nodo
+che l'autore ha scritto. La domanda sul risultato effettivo è
+`validate_materialized(mode)`, che arriva col modo di render che emette
+dati: su una lista di chunk di testo non c'è nulla da validare. Nel
+frattempo `validate_source` verifica ogni nodo contro la grammatica del
+**proprio** builder (sottoalberi sub-builder inclusi) riusando
+`require_sub_tag_validation`, che già esentava data-element, involucri e
+component.
+
+`_validate_sub_tags` **non è stata toccata**: continua a servire i massimi
+all'inserimento. Resta annotato che fa due compiti in un metodo — alza sui
+massimi e restituisce i minimi mancanti — smell aperto, da sciogliere a
+parte.
+
+Fuori da questo emendamento: il render mode che emette dati e la
+decisione se `materialized[mode]` sia un dict nudo o un oggetto con classe
+propria (composizione, accesso per path, diff). Questo passo prepara il
+core.
+
+---
+
 ## Emendamento v0.9.0 — 2026-07-27 (`DAT.4`: calcola-poi-renderizza, `_on_start` rimosso)
 
 La v0.9.0 aveva lasciato i data-element a metà strada. `dataFormula` e

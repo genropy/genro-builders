@@ -43,16 +43,21 @@ object dialect passing through that code is broken.
 
 ## 2. The total render
 
-`BuilderBase.render(mode, target, validate, **opts)` — builder/base.py
+`BuilderBase.render(mode, target, **opts)` — builder/base.py — is the
+composition of two steps, both callable on their own:
 
-1. resolves `renderer_<mode>` (a property: one renderer instance per
-   render, `BLD.3`);
+1. resolves `renderer_<mode>` via `get_renderer` (a property: one
+   renderer instance per render, `BLD.3`);
 2. resolves the target, and if it is a `TargetWrapper` merges its
    `render_opts` under the call's own opts — the destination dictates
    the form of the delivery;
-3. `renderer.render_children(renderer.preprocess(self.source), **opts)`;
-4. raises if `renderer.incomplete` collected minimum-cardinality misses;
-5. `renderer.finalize(result, effective_target, **opts)`.
+3. `materialize(mode, **opts)` — walks
+   (`render_children(preprocess(self.source))`) and keeps the result in
+   `materialized[mode]`, returning it;
+4. `renderer.finalize(result, effective_target, **opts)` — delivers.
+
+Neither step validates: minimum cardinality is `validate_source()`,
+called by the author (`PAG.7`).
 
 `RendererBase.render(node, **opts)` is the per-node step of the walk:
 
