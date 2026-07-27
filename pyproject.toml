@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "genro-builders"
-version = "0.20.0"
+version = "0.21.0"
 description = "Builder system for genro-bag - grammar, validation, compilation"
 readme = "README.md"
 license = "Apache-2.0"
@@ -130,21 +130,15 @@ files = ["src/genro_builders"]
 # collide under mypy's module resolution. They are excluded from type checking.
 exclude = "/examples/"
 
-# The grammar machine works with BuilderBag/BuilderBagNode but receives them
+# The grammar machine works with SourceBag/SourceBagNode but receives them
 # typed as the genro_bag base Bag/BagNode (e.g. node.value, type(parent_bag)).
-# BuilderBag adds builder=/handler= kwargs and the _builder/_handler slots that
-# the base types don't declare. This is a known, accepted type boundary: the
-# code is correct at runtime. We silence only the two error codes this boundary
-# produces, scoped to this module, rather than littering the code with casts.
+# SourceBag adds the builder= kwarg and the _builder slot the base types don't
+# declare. This is a known, accepted type boundary: the code is correct at
+# runtime. We silence only the error codes this boundary produces, scoped to
+# this module, rather than littering the code with casts.
 [[tool.mypy.overrides]]
 module = "genro_builders.builder._grammar"
-disable_error_code = ["call-arg", "union-attr"]
-
-# Same BuilderBag/BagNode boundary: __getattr__ dispatches to builder methods
-# resolved dynamically (getattr on the active builder), which mypy can't narrow.
-[[tool.mypy.overrides]]
-module = "genro_builders.builder_bag"
-disable_error_code = ["misc"]
+disable_error_code = ["call-arg", "union-attr", "misc"]
 
 # HTML/SVG renderers override _render_node with dialect-specific walk params,
 # incompatible with the base **walk_kwargs signature. These signatures will be
@@ -156,16 +150,16 @@ module = [
 ]
 disable_error_code = ["override"]
 
-# Walk-based lookups on the handler (node_by_id, abs_datapath helpers,
-# register_pointer) traverse the source tree via genro_bag's
-# BagNode.parent_node / get_node_by_attr / Bag.node, which return BagNode.
-# At runtime every node in a BuilderSource is a BuilderBagNode (invariant
-# enforced at construction by the source), but mypy can't see this narrowing.
-# We silence the resulting return-value/arg-type mismatches for this module
-# rather than littering the code with casts.
+# Walk-based lookups on the builder (node_by_id, validate_source,
+# abs_datapath helpers) traverse the source tree via genro_bag's
+# BagNode.parent_node / get_node_by_attr / Bag.walk, which return BagNode.
+# At runtime every node in a SourceBag is a SourceBagNode (invariant enforced
+# at construction by the source), but mypy can't see this narrowing. We
+# silence the resulting mismatches for this module rather than littering the
+# code with casts.
 [[tool.mypy.overrides]]
-module = "genro_builders.builder_handler"
-disable_error_code = ["return-value", "arg-type", "no-any-return"]
+module = "genro_builders.builder.base"
+disable_error_code = ["return-value", "arg-type", "no-any-return", "attr-defined"]
 
 [tool.coverage.run]
 source = ["src/genro_builders"]

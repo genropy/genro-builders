@@ -11,17 +11,16 @@ Core classes:
         data-elements are @element with the matching ``_meta`` marker).
         ``create()`` populates ``self.source``, ``render()`` serializes
         it through the renderer of the requested mode.
-    SourceBag / SourceBagNode: the bag/node pair. Contain the slots
-        ``_builder`` and ``_handler`` and the grammar-aware attribute
-        resolution.
+    SourceBag / SourceBagNode: the bag/node pair. Carry the ``_builder``
+        slot and the grammar-aware attribute resolution.
 
-A builder that reads pointers is mounted on a ``BuilderHandler``, which
-supplies the data and does not render.
+A builder that reads pointers owns its own datastore: ``builder.data``,
+one flat Bag, reachable from any node as ``node.data``.
 """
 
 from genro_builders.builder import BuilderBase, SourceBag, SourceBagNode, container
 
-__version__ = "0.20.0"
+__version__ = "0.21.0"
 
 __all__ = [
     "BuilderBase",
