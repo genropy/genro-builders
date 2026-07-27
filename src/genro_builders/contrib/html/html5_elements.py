@@ -70,7 +70,6 @@ class Html5Elements:
 
     @element(
         sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del_,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
-        node_label='body',
     )
     def body(self, **kwargs): ...
 
@@ -124,7 +123,7 @@ class Html5Elements:
     @element(sub_tags="*")
     def del_(self, **kwargs): ...  # transparent content ('del' is a Python keyword)
 
-    @element(sub_tags='summary')
+    @element(sub_tags='summary[0:1]')
     def details(self, **kwargs): ...
 
     @element(
@@ -158,7 +157,7 @@ class Html5Elements:
     @element()
     def embed(self, **kwargs): ...
 
-    @element(sub_tags='legend')
+    @element(sub_tags='legend[0:1]')
     def fieldset(self, **kwargs): ...
 
     @element(
@@ -167,7 +166,7 @@ class Html5Elements:
     def figcaption(self, **kwargs): ...
 
     @element(
-        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del_,details,dfn,dialog,div,dl,em,embed,fieldset,figcaption,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+        sub_tags='a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del_,details,dfn,dialog,div,dl,em,embed,fieldset,figcaption[0:1],figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
     )
     def figure(self, **kwargs): ...
 
@@ -212,8 +211,7 @@ class Html5Elements:
     def h6(self, **kwargs): ...
 
     @element(
-        sub_tags='base,link,meta,noscript,script,style,template,title',
-        node_label='head',
+        sub_tags='base[0:1],link,meta,noscript,script,style,template,title[0:1]',
     )
     def head(self, **kwargs): ...
 
@@ -228,7 +226,7 @@ class Html5Elements:
     @element()
     def hr(self, **kwargs): ...
 
-    @element(sub_tags='head,body')
+    @element(sub_tags='head[0:1],body[0:1]')
     def html(self, **kwargs): ...
 
     @element(
@@ -325,7 +323,7 @@ class Html5Elements:
     )
     def p(self, **kwargs): ...
 
-    @element(sub_tags='img,script,source,template')
+    @element(sub_tags='img[0:1],script,source,template')
     def picture(self, **kwargs): ...
 
     @element(
@@ -421,7 +419,10 @@ class Html5Elements:
     )
     def sup(self, **kwargs): ...
 
-    @element(sub_tags='caption,colgroup,script,tbody,template,tfoot,thead,tr')
+    @element(
+        sub_tags='caption[0:1],colgroup,script,tbody,template,'
+                 'tfoot[0:1],thead[0:1],tr',
+    )
     def table(self, **kwargs): ...
 
     @element(sub_tags='script,template,tr')

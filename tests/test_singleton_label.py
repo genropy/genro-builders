@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 
 from genro_builders.builder import BuilderBase, element
+from genro_builders.contrib.html import HtmlBuilder
 
 
 class _DocBuilder(BuilderBase):
@@ -98,3 +99,46 @@ def test_render_ignores_the_label():
     """The label names the node; the emitted tag comes from ``node_tag``."""
     page = _build(lambda root: root.doc().head("x"))
     assert page.render(target=False) == "<doc><head>x</head></doc>"
+
+
+# --------------------------------------------------------------------------
+# The HTML5 grammar declares the at-most-one children the spec defines, so
+# the labels below are derived, not spelled out with ``node_label``.
+# --------------------------------------------------------------------------
+
+
+def _html_page(main):
+    class _P(HtmlBuilder):
+        pass
+
+    _P.main = lambda self, root: main(root)
+    page = _P()
+    page.create()
+    return page
+
+
+def test_html_singletons_reachable_by_tag():
+    """``head``/``body``/``title`` carry stable labels, not ordinals."""
+    page = _html_page(
+        lambda root: (lambda h: (h.head().title("T"), h.body()))(root.html()),
+    )
+    html = next(iter(page.source)).value
+    assert [n.label for n in html] == ["head", "body"]
+    assert html.get_node("head").value.get_node("title").value == "T"
+
+
+def test_table_mixes_singletons_and_repeatables():
+    """``caption``/``thead`` are at most one; ``tbody`` is unbounded."""
+    page = _html_page(
+        lambda root: (
+            lambda t: (t.caption("c"), t.thead(), t.tbody(), t.tbody())
+        )(root.body().table()),
+    )
+    table = next(iter(page.source)).value.get_node("table_0").value
+    assert [n.label for n in table] == ["caption", "thead", "tbody_0", "tbody_1"]
+
+
+def test_second_body_raises_instead_of_silently_replacing():
+    """Before the cardinality was declared this dropped the first body."""
+    with pytest.raises(ValueError, match="declared at most once"):
+        _html_page(lambda root: (lambda h: (h.body(), h.body()))(root.html()))
