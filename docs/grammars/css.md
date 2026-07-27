@@ -22,10 +22,11 @@ from genro_builders.contrib.css import CssBuilder
 class Theme(CssBuilder):
     def main(self, root):
         sheet = root.stylesheet()
-        sheet.rule(color="red", padding="10px")\
-             .selector(class_="card")\
-             ._.selector(class_="panel")\
-             ._.cssvar("primary", value="#3498db")
+        cards = sheet.selectorList()
+        cards.selector(class_="card")
+        cards.selector(class_="panel")
+        cards.rule(color="red", padding="10px")
+        sheet.cssvar("primary", value="#3498db")
 
 
 t = Theme(); t.create()
@@ -38,19 +39,25 @@ Output:
 .card, .panel {
   color: red;
   padding: 10px;
+}
+:root {
   --primary: #3498db;
 }
 ```
+
+The selector comes first and the `rule` carries its properties — a
+`rule` is the property block OF a selector, not its container. A
+`cssvar` at stylesheet level is hoisted into `:root`.
 
 ## Elements
 
 | Element | Type | Sub-tags | Notes |
 |---------|------|----------|-------|
-| `stylesheet` | container | `rule[],importcss[]` | Top-level container. |
-| `rule` | container | `selector[],cssvar[]` | A CSS rule. Property declarations go as kwargs. |
-| `selector` | leaf | — | A selector clause (`.card`, `#main`, etc.). Multiple selectors under the same `rule` produce a selector list. |
-| `selector_list` | container | `selector[]` | Explicit selector list (rarely needed; `rule` auto-builds it from its children). |
-| `cssvar` | leaf | — | A CSS custom property declaration (`--name: value`). |
+| `stylesheet` | container | `selector,selectorList,cssvar,importcss` | Top-level shell. Mandatory only when the document has `@import`. |
+| `selector` | container | `rule,cssvar,selector` | A selector clause (`.card`, `#main`, …). Nest a `selector` inside for CSS Nesting. |
+| `selectorList` | container | `selector,rule,cssvar` | Several selectors sharing one `rule` — emitted as `.card, .panel`. |
+| `rule` | leaf | — | The property block OF its parent selector. Properties are kwargs; `_` becomes `-`. |
+| `cssvar` | leaf | — | A CSS custom property (`--name: value`). At stylesheet level it is hoisted into `:root`. |
 | `importcss` | leaf | — | `@import url(...)` at the top of a stylesheet. |
 
 `@media` and `@supports` are passed as **kwargs** on `rule`, not as
