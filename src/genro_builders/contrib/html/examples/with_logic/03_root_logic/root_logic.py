@@ -19,7 +19,7 @@ class CustomPage(HtmlBuilder):
         root.dataSetter("tax", 0.22)
         root.dataFormula(
             destination="total", func="gross",
-            price="^price", tax="^tax", _on_start=True,
+            price="^price", tax="^tax",
         )
         body = root.body()
         body.div("^price")

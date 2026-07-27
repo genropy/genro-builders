@@ -19,7 +19,7 @@ class CustomPage(HtmlBuilder):
         body = root.body()
         body.dataFormula(
             destination="area", func="triangle_area",
-            base="^base", height="^height", _on_start=True,
+            base="^base", height="^height",
         )
         body.div("^base")
         body.div("^height")

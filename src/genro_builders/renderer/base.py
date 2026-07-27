@@ -29,20 +29,12 @@ carrying the node's user attributes plus the ``render_attributes`` — read in
 from __future__ import annotations
 
 import keyword
-import warnings
 from pathlib import Path
 from typing import Any
 
 from genro_bag import Bag
 
 from ..builder.source_bag import SourceBag
-
-#: Data-elements that recompute on a data change: they need a cascade, so
-#: they are inert in a static document. Declared and injected into every
-#: dialect all the same, so that the page which will be mounted reactive
-#: is written once and can be tried static first. The renderer warns when
-#: it meets one, since nothing recomputes it here (see ``render``).
-REACTIVE_DATA_ELEMENTS = ("dataFormula", "dataController")
 
 _TEXT_ESCAPE = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})
 _ATTR_ESCAPE = str.maketrans(
@@ -159,16 +151,7 @@ class RendererBase:
         """
         item, ra = node.builder.runtime_values(node)
         if node._get_meta("data_element"):
-            if (node.node_tag in REACTIVE_DATA_ELEMENTS
-                    and not node.builder._is_reactive):
-                warnings.warn(
-                    f"{node.node_tag} at {node.fullpath} is inert: it "
-                    "recomputes on a data change and this document has no "
-                    "reactivity. Seed the value with dataSetter, or mount "
-                    "the page on a handler with an application.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+            # Transparent: they ran at create(), the render only skips them.
             return None
         if node._get_meta("component"):
             return self._render_component(node, ra, **opts)

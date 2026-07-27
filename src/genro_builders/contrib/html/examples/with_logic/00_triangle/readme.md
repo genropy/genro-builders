@@ -1,8 +1,8 @@
 # 00 — Triangle
 
 Data is not only stored, it can be **computed**. A `dataFormula`
-derives a value from other data; flagged `_on_start`, it runs once
-during `create()` — the *first calculation* — before any rendering.
+derives a value from other data; it runs once during `create()`, before
+any rendering.
 
 ## A formula over the data
 
@@ -23,7 +23,7 @@ class CustomPage(HtmlBuilder):
         body = root.body()
         body.dataFormula(
             destination="area", func="triangle_area",
-            base="^base", height="^height", _on_start=True,
+            base="^base", height="^height",
         )
         body.div("^base")
         body.div("^height")
@@ -35,17 +35,18 @@ class CustomPage(HtmlBuilder):
   resolved and passed to the function by keyword.
 - `destination="area"` is where the result is written (`area` in the
   flat datastore).
-- `_on_start=True` makes it run at `create()`.
 
 `area` does not exist until the formula runs; afterwards `^area` reads
 the computed `20.0`. A `dataFormula` is pure (no side effects) — for
 side effects use `dataController`.
 
-## First calculation, not reactivity
+## Computed once, not reactive
 
-`create()` runs `setup` → `main` → first calculation. The formula fires
-once, at build time. Recomputing on later data changes (reactivity) is a
-separate, live-mode concern — not exercised here.
+`create()` runs `setup` → `main` → the calculation of every data-element,
+in document order. The formula fires once, at build time: the datastore is
+complete before the render starts, so a node may even read a value a
+formula writes further down the page. Recomputing on later data changes
+is a separate concern — not exercised here.
 
 ## Output
 

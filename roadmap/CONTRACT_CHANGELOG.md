@@ -11,6 +11,45 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## Emendamento v0.9.0 — 2026-07-27 (`DAT.4`: calcola-poi-renderizza, `_on_start` rimosso)
+
+La v0.9.0 aveva lasciato i data-element a metà strada. `dataFormula` e
+`dataController` calcolavano **solo** se marcati `_on_start=True`, e il
+renderer emetteva un `UserWarning` su ognuno che incontrava in un
+documento non reattivo. Due difetti, misurati:
+
+1. Il warning **non consultava `_on_start`**: si accendeva anche su una
+   formula che aveva calcolato regolarmente. Nella suite si accendeva in 3
+   punti — i due esempi canonici di `with_logic/` e un test — e **tutti e
+   tre erano falsi positivi**: pagine corrette, valore giusto nell'HTML,
+   con un avviso che consigliava di correggere ciò che era già a posto.
+2. Il flag era diventato **obbligatorio per ottenere il default**. Se in
+   statico l'unico regime possibile è "calcola una volta", chiedere di
+   dichiararlo ogni volta è cerimonia: la pagina senza flag non era
+   "dormiente in attesa della cascata", era semplicemente rotta in
+   silenzio (dato mai scritto).
+
+La regola diventa una sola: **tutti** i data-element calcolano al
+`create()`, una volta, in **ordine di documento**. `_on_start` è rimosso
+dalle firme, quindi passarlo è un errore di validazione, non un no-op — la
+scelta è deliberata: era usato in 8 punti interni, tutti aggiornati.
+
+Il guadagno non è solo cosmetico. Poiché il calcolo è **completo prima**
+che il render inizi, un nodo può leggere un valore che un data-element
+scrive più in BASSO nella pagina — cosa che l'alternativa scartata
+(calcolare nel renderer, man mano che i nodi si incontrano) avrebbe reso
+impossibile, oltre a rendere `render()` impuro: scriverebbe nel datastore,
+e due render non darebbero lo stesso risultato. Il prezzo accettato è
+**una passata sola, nessun ricalcolo**: una formula che dipende da una
+successiva legge il valore precedente, in silenzio. Ordinare i calcoli è
+dell'autore; l'ordinamento per dipendenze è motore reattivo, cioè
+`RX.5` — la compiled bag.
+
+Verifica: i 4 esempi di `with_logic/` producono output **byte-identico** a
+prima, 313 test verdi, e la suite passa da 10 warning a zero.
+
+---
+
 ## v0.9.0 — 2026-07-26 (static first: handler piatto, reattività alla compiled bag)
 
 La svolta non è una rimozione, è una **diagnosi**. Il piano di lavoro

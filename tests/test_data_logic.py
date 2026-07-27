@@ -11,10 +11,8 @@ Resolution is static (``inspect.getattr_static``) and errors are explicit:
 a source owning the name but not as a staticmethod raises TypeError; a
 miss on every source raises AttributeError naming the sources tried.
 
-The formulas here carry ``_on_start=True``: at ``create()`` the first
-calculation runs every ``dataSetter`` plus whatever is flagged
-``_on_start``. A formula without the flag waits for a mutation, which is
-a reactive concern.
+Every data-element computes at ``create()``, once, in document order: the
+formulas here need no flag to run.
 """
 from __future__ import annotations
 
@@ -41,7 +39,7 @@ class AreaPage(HtmlBuilder):
         body.dataSetter("height", 6)
         body.dataFormula(
             destination="area", func="calc_area",
-            base="^base", height="^height", _on_start=True,
+            base="^base", height="^height",
         )
 
 
@@ -112,7 +110,7 @@ def test_an_unknown_func_raises_naming_the_sources():
         def main(self, root) -> None:
             root.body().dataFormula(
                 destination="area", func="calc_perimeter",
-                base="^base", _on_start=True,
+                base="^base",
             )
 
     with pytest.raises(AttributeError, match="Geometry, Page"):

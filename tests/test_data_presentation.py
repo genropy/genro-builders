@@ -49,7 +49,7 @@ def test_formula_bindings_receive_the_raw_datum():
         def main(self, root) -> None:
             body = root.body()
             body.dataSetter("temp", 10, mask="%s°")
-            body.dataFormula("doppio", "doubled", t="^temp", _on_start=True)
+            body.dataFormula("doppio", "doubled", t="^temp")
             body.div("^doppio")
 
     out = _mounted(Page).render(target=False)

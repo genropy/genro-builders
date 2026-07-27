@@ -221,22 +221,24 @@ def main(self, root):
   resolved via `runtime_values` and passed to `func` **by name**.
   `dataFormula`'s `func` is pure (`func(**bindings)`);
   `dataController`'s receives the node first (`func(node, **bindings)`).
-- **`_on_start`** (formula/controller) — requests execution at the first
-  calculation in `create()`; `dataSetter` always seeds at create.
+
+There is no flag to request execution: all three run at `create()`.
 
 At runtime the dispatch goes through the same `_command_on_node` as any
 element; `element_call` recognises the `_meta['data_element']` mark, maps
 the positional args onto the field names, and flags the node
 `_is_data_element` (which the renderer skips).
 
-> **Status**: `dataSetter` always seeds at first calculation (during
-> `create()`); a page using it needs a `BuilderHandler`, since the
-> destination is the datastore. `dataFormula` and `dataController`
-> recompute on a data change, so in a static document they only ever run
-> once, at that first calculation, and only when flagged `_on_start=True`.
-> The renderer emits a `UserWarning` on every one it meets in a
-> non-reactive document, whether or not it computed at start. The
-> recompute is refounded together with the rest of the reactivity on a
+> **Status**: all three compute at `create()`, once, in **document
+> order** — the calculation walks the source tree top to bottom. So the
+> datastore is complete before the render starts, and a node may read a
+> value a data-element writes further DOWN the page. A page using them
+> needs a `BuilderHandler`, since the destination is the datastore.
+>
+> It is a single pass and there is no recompute: a formula reading a value
+> that another formula writes AFTER it sees the earlier value, silently.
+> Ordering the calculations is the author's job. The recompute on a data
+> change is refounded together with the rest of the reactivity on a
 > compiled bag emitted by a `livehtml` render mode — see the `RX` area of
 > the contract and `roadmap/reactivity/data-elements.md`.
 

@@ -24,7 +24,7 @@ class CustomPage(HtmlBuilder):
             row.dataSetter(".height", i)
             row.dataFormula(
                 destination=".area", func="triangle_area",
-                base="^.base", height="^.height", _on_start=True,
+                base="^.base", height="^.height",
             )
             row.span("^.base")
             row.span("^.height")
@@ -33,7 +33,7 @@ class CustomPage(HtmlBuilder):
             destination="total", func="sum_areas",
             a1="^triangoli.tr1.area", a2="^triangoli.tr2.area",
             a3="^triangoli.tr3.area", a4="^triangoli.tr4.area",
-            a5="^triangoli.tr5.area", _on_start=True,
+            a5="^triangoli.tr5.area",
         )
         body.div("^total")
 

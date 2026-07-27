@@ -221,8 +221,8 @@ page.render(target="out.html")
 ```
 
 `create()` esegue: `setup(self.data)` (semina i dati), `main(self.source)`
-(costruisce il documento), poi il **primo calcolo** (ogni `data_setter` +
-formula/controller marcati `_on_start`, via `compute_logic`). Se il
+(costruisce il documento), poi il **calcolo** di ogni data-element, una
+volta, in ordine di documento (via `compute_logic`). Se il
 contesto è reattivo (`APP`), `create()` arma anche la subscribe della
 **source**, che tiene coerente la `pointer_map` sulle mutazioni di
 struttura (`DAT.2`).
@@ -467,9 +467,9 @@ attributo piatto (mai `node.value`), anche quando è una Bag.
 
 ### DAT.4 — Compute dei data-element
 
-Esecutore unico `compute_logic(nodes)` **sul builder**. Primo calcolo in
-`create()` (`PAG.3`): girano tutti i `dataSetter` più ciò che è marcato
-`_on_start=True`. `_compute_node` dispatcha sul kind: setter → seed;
+Esecutore unico `compute_logic(nodes)` **sul builder**. Calcolo in
+`create()` (`PAG.3`): girano **tutti** i data-element, una volta, in
+ordine di documento. `_compute_node` dispatcha sul kind: setter → seed;
 formula **pura** `func(**bindings)` → scrive `destination`; controller →
 `func(node, **bindings)` (effetti). I binding si risolvono sempre via
 `runtime_values` (stesso risolutore di ogni reader). `func` =
@@ -477,17 +477,29 @@ formula **pura** `func(**bindings)` → scrive `destination`; controller →
 prima-vince, errori espliciti — forma canonica per il cross-runtime: la
 source serializza il nome, non il callable).
 
-**Formula e controller senza reattività: dichiarabili, inerti,
-segnalati.** `dataFormula` e `dataController` ricalcolano su cambio dato:
-senza cascata il loro "dopo" non esiste. Restano comunque **dichiarati e
-iniettati in ogni dialetto**, e il renderer emette un `UserWarning`
-quando ne incontra uno su un documento non reattivo. La ragione è
-d'autore, non di macchina: la stessa pagina si scrive UNA volta, si prova
-statica, e si monta reattiva senza toccare una riga. Marcati
-`_on_start=True` calcolano al `create()` — la lettura-a-composizione, che
-in regime statico è l'unico "dopo" disponibile. `data_logic` /
-`_build_data_logic` / `_resolve_logic_func` restano intatti: sono la
-macchina che la compiled bag (`RX.5`) riprenderà.
+**Calcola-poi-renderizza, una passata sola.** Non esiste flag per
+chiedere l'esecuzione: tutti e tre i kind calcolano al `create()`, in
+ordine di documento (la `query(deep=True)` percorre l'albero dall'alto in
+basso). Quando `render()` parte il datastore è **completo**, quindi un
+nodo può leggere un valore che un data-element scrive più in BASSO nel
+documento. Corollario: `render()` resta **puro** — legge il datastore e
+produce una stringa, non calcola nulla; due render dello stesso documento
+danno lo stesso risultato.
+
+È **una sola passata e non c'è ricalcolo**: una formula che legge un
+valore scritto da una formula successiva vede il valore precedente, in
+silenzio. Ordinare i calcoli è responsabilità dell'autore, esattamente
+come in uno script — l'ordinamento per dipendenze è motore reattivo, non
+statico. `data_logic` / `_build_data_logic` / `_resolve_logic_func`
+restano intatti: sono la macchina che la compiled bag (`RX.5`)
+riprenderà.
+
+[Emendamento 2026-07-27: prima di questa revisione formula e controller
+calcolavano solo se marcati `_on_start=True`, e il renderer emetteva un
+`UserWarning` su ognuno che incontrava in un documento non reattivo. Il
+flag è stato **rimosso** (oggi è un attributo non dichiarato, quindi un
+errore) e il warning con esso: si accendeva su tutti e 3 i punti della
+suite, tutti falsi positivi — pagine corrette che avevano già calcolato.]
 
 La cascata — raccolta per granularità contro la `pointer_map`, coda FIFO
 breadth-first, anti-loop, ondate multiple — appartiene alla compiled bag

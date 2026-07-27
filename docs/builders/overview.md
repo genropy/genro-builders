@@ -110,9 +110,8 @@ Already implemented:
   presentation via `mask`/`_wdg` (`DAT.5`); consumed template inputs
   (`DAT.6`).
 - **Data-elements** — `dataSetter`, `dataFormula`, `dataController`
-  (plain `@element` marked as data), first calculation during
-  `create()`. Without reactivity the two recomputing ones are inert:
-  see [Decorators](decorators.md).
+  (plain `@element` marked as data). All three compute during `create()`,
+  once, in document order: see [Decorators](decorators.md).
 - **Components** — `@component` (render-time ephemeral expansion,
   `iterate` over a collection) and `@container` (generates real source
   at call time). See [Components](components.md).

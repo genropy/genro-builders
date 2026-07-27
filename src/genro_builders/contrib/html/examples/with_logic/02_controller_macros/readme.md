@@ -18,7 +18,7 @@ class CustomPage(HtmlBuilder):
         body = root.body()
         box = body.div(datapath="box")
         box.dataSetter(".start", 7)
-        box.dataController(func="init_box", start="^.start", _on_start=True)
+        box.dataController(func="init_box", start="^.start")
         box.span("^.start")
         box.span("^.count")
         box.span("^.quiet")

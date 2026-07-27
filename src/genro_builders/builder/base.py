@@ -495,23 +495,27 @@ class BuilderBase(
         """
 
     def create(self) -> None:
-        """Build the document, then run the first calculation.
+        """Build the document, then compute the logic.
 
         Sequence: ``setup(self.data)`` seeds the data, ``main(self.source)``
-        builds the document, then the first calculation runs every
-        ``dataSetter`` (it seeds the data) plus any ``dataFormula`` /
-        ``dataController`` flagged ``_on_start`` — the other two recompute
-        on a data change, so without a cascade they stay inert.
+        builds the document, then EVERY data-element runs, once, in
+        document order (the ``deep=True`` query walks the tree top to
+        bottom): a ``dataSetter`` seeds its value, a ``dataFormula`` writes
+        its result, a ``dataController`` fires its side effects.
+
+        Compute-then-render is the whole model: when ``render()`` runs, the
+        datastore is already complete, so a node may read a value a
+        data-element writes further DOWN the document. It is a single pass
+        and there is no recompute — a formula reading a value that another
+        formula writes AFTER it sees the earlier value. Ordering the
+        calculations is the author's job, exactly as in a script.
         """
         self.setup(self.data)
         self.main(self.source)
         self.compute_logic(
             self.source.query(
                 what="#n", deep=True,
-                condition=lambda n: bool(
-                    n._get_meta("data_element")
-                    and (n.node_tag == "dataSetter" or n.attr.get("_on_start"))
-                ),
+                condition=lambda n: bool(n._get_meta("data_element")),
             )
         )
         # Subscribe to the SOURCE (structure) so that a mutation keeps the
@@ -694,7 +698,7 @@ class BuilderBase(
 
         ``runtime_values`` resolves ``^``/``=`` and ``${}``; here we strip
         the element's own schema fields (``destination`` / ``func`` /
-        ``value`` / ``_on_start``), so what remains are the func bindings.
+        ``value``), so what remains are the func bindings.
         """
         fields = set(self._get_schema_info(node.node_tag).get(
             "call_args_validations") or {})
@@ -972,10 +976,9 @@ class BuilderBase(
     # into each dialect schema by __init_subclass__ via
     # _iter_data_element_methods, and dispatched through the same
     # _command_on_node as any element.
-    # The signature carries the kind's fields (destination/value/func). The
-    # func-bearing kinds (formula/controller) also declare ``_on_start``: a
-    # control flag (compute at first calculation), excluded from the func
-    # bindings because it is part of the element signature, not a kwarg.
+    # The signature carries the kind's fields (destination/value/func); every
+    # other kwarg is a func binding. There is no flag to request execution:
+    # all three run at ``create()``, in document order.
     # -----------------------------------------------------------------------
 
     @element(_meta={"data_element": True})
@@ -983,14 +986,11 @@ class BuilderBase(
 
     @element(_meta={"data_element": True})
     def dataFormula(
-        self, destination: str, func: str | Callable,
-        _on_start: bool = False, **kwargs,
+        self, destination: str, func: str | Callable, **kwargs,
     ): ...
 
     @element(_meta={"data_element": True})
-    def dataController(
-        self, func: str | Callable, _on_start: bool = False, **kwargs,
-    ): ...
+    def dataController(self, func: str | Callable, **kwargs): ...
 
     #: Default rendering mode used when ``render(mode=None)`` is called.
     #: Concrete dialects override this (e.g. ``"html"`` for HtmlBuilder).

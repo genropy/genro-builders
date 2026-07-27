@@ -68,9 +68,8 @@ by what the page needs:
 - **with_data/** — pages that bind to data via pointers (`^`/`=`,
   datapath, presentation with `mask`/`_wdg`).
 - **with_logic/** — data-elements (`dataSetter`/`dataFormula`/
-  `dataController`). `dataFormula` and `dataController` recompute on a
-  data change, so without reactivity they only run when flagged
-  `_on_start=True`; the renderer warns when it meets an inert one.
+  `dataController`). All three compute at `create()`, once, in document
+  order: the datastore is complete before the render starts.
 
 Run an example from its folder: `python <name>.py`. The test suite runs
 them all (`tests/test_examples.py`).
