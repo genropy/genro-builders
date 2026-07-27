@@ -223,8 +223,8 @@ class _SourceBagNodeMixin:
         """Compose the absolute path for ``path`` relative to this node.
 
         Pure address composition: returns *where* a datum lives as a
-        string, never reads the datastore. The store is flat — one handler
-        drives one builder — so an absolute path carries no leading
+        string, never reads the datastore. The store is flat — it belongs
+        to the builder itself — so an absolute path carries no leading
         segment. Supported syntactic forms:
 
             ``field``               — already absolute, returned as is

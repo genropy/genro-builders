@@ -2,8 +2,8 @@
 """HTML contrib — HtmlBuilder.
 
 Public entry point for HTML output. Users subclass ``HtmlBuilder`` and
-implement ``main(self, root)``; a builder with no data renders on its own,
-one with data is mounted on a ``BuilderHandler``.
+implement ``main(self, root)``; the builder owns its own datastore
+(``builder.data``), so one with data needs nothing extra.
 
 Example::
 

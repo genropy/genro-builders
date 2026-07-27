@@ -9,11 +9,11 @@ A builder declares the grammar of a dialect via decorators
 declared on this base and marked ``_meta['data_element']``. A builder
 renders itself: it owns its source (the payload under the structural
 ``SOURCE_ROOT`` of a wrapper root), the create/render phases, the first
-calculation and the per-builder node_id lookup. The data store is
-supplied by the BuilderHandler. The document is STATIC: a data change is
-followed by rendering again — fine-grained reactivity is refounded on a
-compiled bag emitted by a ``livehtml`` render mode (``RX`` area of the
-contract), not on this class.
+calculation and the per-builder node_id lookup. It also owns the data
+store: one flat Bag, ``builder.data``, reachable from any node as
+``node.data``. The document is STATIC: a data change is followed by
+rendering again — fine-grained reactivity is a separate engine, still
+under design (``RX.5``), not this class.
 
 Exports:
     BuilderBase: Base class for all builders.
@@ -76,8 +76,8 @@ class BuilderBase(
     this base and injected into every dialect's schema by
     ``__init_subclass__`` (see ``_iter_data_element_methods``).
 
-    Source, lifecycle phases, render_target and node_id belong to the
-    builder itself; the data store comes from the BuilderHandler.
+    Source, lifecycle phases, render_target, node_id and the data store
+    all belong to the builder itself.
     """
 
     _class_schema: Bag  # Schema built from decorators at class definition
@@ -350,8 +350,7 @@ class BuilderBase(
         ``name`` is the builder's identity — a label, not an address: the
         datastore is flat, so the name is no longer a path segment.
         Omitted, it defaults to the dialect typology (``_name``, e.g.
-        ``"html"``); a builder with no name at all is rejected at
-        ``add_builder``.
+        ``"html"``).
 
         Renderers are exposed as ``renderer_<mode>`` properties on the
         builder class. The base class declares ``renderer_xml`` so the

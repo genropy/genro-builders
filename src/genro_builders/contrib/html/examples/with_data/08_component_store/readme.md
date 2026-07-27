@@ -39,12 +39,12 @@ it is a **path**, stamped as `datapath` on the expansion's throw-away
 wrapper, so the body's relative pointers find it through the ordinary
 ancestor climb.
 
-## Reactivity shape (design `CMP.7`)
+## Update model
 
-The component node's own `store` pointer registers in the
-pointer_map; the expansion's pointers resolve at render but register
-nothing. One coarse subscription per component — when the record
-changes, the block re-renders.
+Every render reads `store` again, so changing the record and rendering
+again is all it takes: the expansion is rebuilt from the current data.
+Fine-grained reactivity — updating the block without re-rendering the
+document — is a separate engine, still under design (`RX.5`).
 
 Run it from this folder:
 

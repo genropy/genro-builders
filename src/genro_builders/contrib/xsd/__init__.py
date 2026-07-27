@@ -4,8 +4,8 @@
 An XSD schema is XML, so it renders through the core ``XmlRenderer`` with
 no new renderer. :class:`XsdBuilder` carries the grammar: the XSD
 vocabulary declared with ``ns="xs"`` so ``sequence`` emits
-``<xs:sequence>``. The builder is mounted on the generic
-``BuilderHandler`` like any other dialect.
+``<xs:sequence>``. The builder creates and renders itself like any other
+dialect.
 
 ``XsdBuilder`` is pure and application-agnostic. A downstream layer adds
 form-widget vocabularies inside ``xs:appinfo``.
@@ -21,7 +21,6 @@ Example::
             root.schema(xmlns_xs=XS).element(name="Foo", type="xs:string")
 
     doc = MySchema()
-    doc.create()
     doc.create()
     print(doc.render(target=False, doc_header=True))
 """

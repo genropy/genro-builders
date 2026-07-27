@@ -6,8 +6,8 @@ dialects whose serialized form is XML — XSLT and the schema-generated
 dialects today. It carries no namespace state of its own: the
 namespace-tag mechanism (``_meta`` ``ns``/``local`` → ``<prefix:local>``,
 ``xmlns_<prefix>`` attributes) lives on the core ``XmlRenderer``. A
-dialect builder is mounted on the generic ``BuilderHandler`` like any
-other (``handler.add_builder(MyBuilder())``).
+dialect builder creates and renders itself like any other
+(``doc = MyBuilder(); doc.create(); doc.render()``).
 """
 
 from __future__ import annotations

@@ -27,11 +27,10 @@ print(page.render())
 
 ## Runtime data binding (pull-based)
 
-A page that reads pointers mounts on a `BuilderHandler` (the data
-source); `setup` seeds the datastore, which is flat:
+The builder owns its datastore, `page.data`, which is flat; `setup`
+seeds it:
 
 ```python
-from genro_builders.builder import BuilderHandler
 from genro_builders.contrib.html import HtmlBuilder
 
 
@@ -44,8 +43,7 @@ class Page(HtmlBuilder):
 
 
 page = Page()
-handler = BuilderHandler()
-handler.add_builder(page)   # mounts the page and creates it
+page.create()               # setup seeds the data, then main builds
 print(page.render())
 # ...<h1>Hello</h1>...
 
@@ -55,8 +53,8 @@ print(page.render())
 ```
 
 Re-render is the whole reactivity model here: change the data, render
-again. Fine-grained reactivity is refounded on a compiled bag emitted by
-a future `livehtml` render mode — see the `RX` area of the contract.
+again. Fine-grained reactivity is a separate engine, still under design —
+see the `RX` area of the contract.
 
 ## Examples
 
@@ -64,7 +62,7 @@ See [examples/](examples/). Each example is a folder with one page
 (`<name>.py`), its rendered output, and a `readme.md`. They are grouped
 by what the page needs:
 
-- **no_data/** — pages that are pure structure, no pointers, no handler.
+- **no_data/** — pages that are pure structure, no pointers, no data.
 - **with_data/** — pages that bind to data via pointers (`^`/`=`,
   datapath, presentation with `mask`/`_wdg`).
 - **with_logic/** — data-elements (`dataSetter`/`dataFormula`/

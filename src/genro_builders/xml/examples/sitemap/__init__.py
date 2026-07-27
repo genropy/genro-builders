@@ -3,8 +3,8 @@
 
 Reference example of the XML transpiler on a tiny, widely-known schema.
 ``sitemap.py`` is generated from ``sitemap.xsd`` and declares
-``SitemapBuilder`` (grammar). It is mounted on the generic
-``BuilderHandler`` like any other dialect.
+``SitemapBuilder`` (grammar). It creates and renders itself like any
+other dialect.
 """
 
 from __future__ import annotations

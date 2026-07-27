@@ -52,7 +52,7 @@ class XsltTranspiler:
 
     ``handler_name`` is the class name of the generated builder; the
     generated module subclasses ``XsltBuilder`` and writes the stylesheet
-    in ``main``. The builder is mounted on the generic ``BuilderHandler``.
+    in ``main``. The generated class creates and renders itself.
     """
 
     def __init__(self, handler_name: str = "GeneratedStylesheet"):

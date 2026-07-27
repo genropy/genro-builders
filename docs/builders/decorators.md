@@ -159,7 +159,8 @@ From `<svg>` down, the active builder becomes the `svg` dialect. The
 sub-builder governs its own `sub_tags`; the host only declares
 `parent_tags` (where the sub-builder may appear). At render time the
 polymorphic dispatch picks the sub-builder's `renderer_<mode>` (see
-contract `BLD.3` / `HND.3`); the boundary node may carry a
+contract `BLD.3`), and `get_subbuilder` propagates the datastore to it;
+the boundary node may carry a
 `render_tag`/`render_attributes` envelope in its `_meta` (e.g. SVG
 hosting HTML in `<foreignObject xmlns="...">`).
 

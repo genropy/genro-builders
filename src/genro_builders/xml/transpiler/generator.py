@@ -48,8 +48,8 @@ class PythonGenerator:
         ``dialect_name`` is the dialect's base name (e.g. ``Gpx``,
         ``FatturaElettronica``); the module declares one class:
         ``<dialect_name>Builder(XmlBuilderBase)`` carrying the ``@element``
-        grammar. The user subclasses it, implements ``main``, and mounts it
-        on the generic ``BuilderHandler`` (``handler.add_builder(...)``).
+        grammar. The user subclasses it, implements ``main``, and calls
+        ``create()`` then ``render()`` on the subclass.
         """
         out = StringIO()
         self._write_header(out, model, dialect_name, module_docstring)

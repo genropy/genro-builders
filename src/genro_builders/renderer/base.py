@@ -215,9 +215,9 @@ class RendererBase:
         # from the node (runtime_values would resolve them to the data
         # itself) and compose the path the wrapper carries as datapath.
         # The resolved copies are dropped from the body's kwargs —
-        # machinery words, consumed. The component node's own pointers do
-        # register in the pointer_map: a re-render of the document reads
-        # the new value, so the block follows the data.
+        # machinery words, consumed. The component node's own pointers are
+        # read again on every render, so a re-render of the document picks
+        # up the new value and the block follows the data.
         iterable = runtime_attrs.pop("iterate", None)
         runtime_attrs.pop("store", None)
         raw_anchor = node.attr.get("iterate") or node.attr.get("store")

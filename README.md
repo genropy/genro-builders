@@ -173,9 +173,10 @@ grouped by scenario:
 
 - HTML — `no_data/` (grammar, styling, sub-builders, validation,
   render modes), `with_data/` (pointers, datapath, presentation),
-  `with_logic/` (data-elements), `reactive/` (live sections)
+  `with_logic/` (data-elements)
 - SVG — `01_introduction`, `badge_sheet`, `bar_chart`, and more
 - CSS — `01_introduction`
+- XSD — `01_person_schema`; XSLT — `01_sitemap_to_html`
 
 Each example ships a runnable `.py`, a `readme.md`, and the rendered
 output. The test suite runs them all (`tests/test_examples.py`).

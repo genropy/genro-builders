@@ -12,7 +12,7 @@ Python module declaring an XML dialect grammar:
 
 The generated module declares one ``<Dialect>Builder(XmlBuilderBase)``
 class — no hand-written glue. The user subclasses it, implements ``main``,
-and mounts it on the generic ``BuilderHandler`` (see the bundled
+and creates and renders the subclass (see the bundled
 ``xml/examples/sitemap/`` and ``xml/examples/fatturapa/``).
 
 The transpiler produces a *starting base*, not a guaranteed-complete dialect.

@@ -19,25 +19,23 @@ class CustomPage(HtmlBuilder):
 `^message` is a pointer: at render time it is resolved against the data
 and replaced by its value (`Hello Folk`).
 
-## Mount the page on a handler
+## Create, then render
 
-The data lives on a `BuilderHandler`. Mounting the page connects its
-pointers to that data:
+The data lives on the builder itself: `page.data` IS the store. Nothing
+needs mounting:
 
 ```python
 page = CustomPage()
-handler = BuilderHandler()
-handler.add_builder(page)         # page.data IS the store
+page.create()
 page.set_render_target("output.html")
 page.render(pretty=True)
 print(page.rendered_target)
 ```
 
-- `add_builder(page)` mounts the page and creates it. One handler drives
-  one builder, and the store is flat: `message` is addressed as
-  `message`, with no leading segment.
-- Mounting runs `create()`: `setup` (seeds the data) then `main` (builds
-  the source), then the first calculation of the data-elements.
+- `create()` runs `setup` (seeds the data) then `main` (builds the
+  source), then computes the data-elements in document order.
+- The store is flat: `message` is addressed as `message`, with no
+  leading segment.
 - `render()` resolves the pointers and writes the target file.
 
 ## Output

@@ -7,8 +7,8 @@ instructions (declared with ``_meta['render_tag']`` so ``for_each`` emits
 ``<xslt:for-each>``) plus the whole HTML5 vocabulary mixed in as literal
 result elements, emitted verbatim. The ``output``/``template``
 instructions are named ``xslt_output``/``xslt_template`` to leave the bare
-names for the HTML ``<output>``/``<template>`` tags. The builder is
-mounted on the generic ``BuilderHandler`` like any other dialect.
+names for the HTML ``<output>``/``<template>`` tags. The builder creates
+and renders itself like any other dialect.
 
 Example::
 
@@ -24,7 +24,6 @@ Example::
             tpl.html().body().h1("Sitemap")
 
     sheet = SitemapToHtml()
-    sheet.create()
     sheet.create()
     print(sheet.render(target=False, doc_header=True))
 """

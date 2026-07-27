@@ -4,7 +4,7 @@
 Reference example of the XML transpiler: ``fattura_elettronica.py`` is
 generated from ``Schema_VFPA12_V1.2.3.xsd`` and declares
 ``FatturaElettronicaBuilder`` (grammar). The user subclasses it,
-implements ``main``, and mounts it on the generic ``BuilderHandler``.
+implements ``main``, and creates and renders the subclass.
 """
 
 from __future__ import annotations

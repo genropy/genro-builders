@@ -7,8 +7,9 @@
 Il diff logico tra versioni del contratto vive in
 `roadmap/CONTRACT_CHANGELOG.md`.
 
-**Svolta della v0.9.0 — static first.** Il core è **statico**: un handler
-piatto che serve i dati a UN builder. La reattività fine non si ripara in
+**Svolta della v0.9.0 — static first.** Il core è **statico**: un builder
+che possiede il suo datastore piatto (l'handler è uscito il 2026-07-27,
+area `HND` ritirata). La reattività fine non si ripara in
 Python: si rifonda in un **motore separato** (`RX.5`, ricerca) — perché
 l'apparato precedente (identità derivata, `target_id`, motore di regole,
 corsia lazy, protocollo di patch) non era
@@ -21,16 +22,16 @@ condividerlo.
 
 **Stato del codice rispetto al contratto**: il codice è allineato su:
 identità dei nodi, render subsystem (walk universale, dispatch per-nodo,
-render in due passi), data binding pull-based con registrazione alla
-lettura, data-element e compute "fetta 1", **handler statico piatto**
-(`HND`: un builder, un datastore senza segmenti), **component** (`CMP`:
+render in due passi), data binding pull-based, data-element e compute
+"fetta 1", **datastore statico piatto sul builder** (un builder, un
+datastore senza segmenti), **component** (`CMP`:
 singolo/store/iterate/frattale). Il re-render è il modello di
 aggiornamento: si mutano i dati e si rende di nuovo. Restano da
 implementare: il **motore reattivo** (`RX.5`, ricerca) e con esso ogni
 reattività fine; **`@container`** (`CMP.9`, deciso 2026-06-11),
-`<domain>requires`/`include_components` (`CMP.6`), lo **`@slot`**
-(`PAG.6`, design completo, codice assente) e lo strato Application
-(`APP`).
+`<domain>requires`/`include_components` (`CMP.6`) e lo **`@slot`**
+(`PAG.6`, design completo, codice assente). Lo strato applicativo non è
+più un'area di questo contratto: vive in genro-ws-web (`APP` ritirata).
 
 ---
 
@@ -242,7 +243,7 @@ controllo che l'autore non ha chiesto.
 
 Non esiste un ingresso di render parziale: aggiornare = rendere di nuovo
 (`RX.1`). Il render parziale su struttura materializzata è competenza
-delil motore reattivo (`RX.5`).
+del motore reattivo (`RX.5`).
 
 ### PAG.5 — `node_by_id` sul builder; l'unicità la garantisce il root builder
 
@@ -381,14 +382,16 @@ intatte.
 Base comune (dispatch grammar, metadati) + specializzazione semantica
 della fase create/render. La data bag è `Bag` pura.
 
-### BAG.3 — `_builder` slot; `handler`/`root_builder` property via root
+### BAG.3 — `_builder` slot; `data`/`root_builder` property via risalita
 
 Il nodo porta il solo slot `_builder` (il builder attivo: il principale,
-o il sub-builder nei sottoalberi `@subbuilder`). **Niente slot
-`_handler` sui nodi**: `handler`, `root_builder` e `root_builder_name`
-sono property che risalgono a `Bag.root` — l'handler è unico per
-documento e vive sul source-root (`HND.3`). Nodi leggeri: nessun dato
-duplicato, si risale la catena ancestor.
+o il sub-builder nei sottoalberi `@subbuilder`). **Niente slot per il
+datastore sui nodi**: `data` e `root_builder` sono property che risalgono
+al builder proprietario — il datastore è unico per documento e vive sul
+builder. `node.data` funziona anche su un albero STACCATO (l'espansione
+di un component), perché il builder si risolve per catena ancestor e non
+dalla radice dell'albero. Nodi leggeri: nessun dato duplicato, si risale
+la catena ancestor.
 
 ### BAG.4 — `node_id` come primary key, unicità per documento
 
@@ -424,11 +427,11 @@ Un nodo della source può contenere un pointer; al render si legge dalla
 data bag. Tassonomia completa: assoluti `^path`; relativi `^.x`/`^..x`;
 simbolici `^#node_id.path` e scope `^#FORM.x` ecc.; con attributo
 `^path?attr`. `^` sottoscrive, `=` legge una-tantum. La forma
-`volume:field` è **uscita** in v0.9.0 con la segmentazione (`HND.2`):
+`volume:field` è **uscita** in v0.9.0 con la segmentazione del datastore:
 senza segmenti non c'è un volume da scegliere.
 
 **La risoluzione vive sul builder** (`builder.runtime_values(node)`,
-che raggiunge l'handler via `self.handler`); il nodo è il soggetto
+che legge il datastore via `self.data`); il nodo è il soggetto
 (`abs_datapath` compone i path assoluti, `#parent` collassato — nessun
 segmento anteposto). Il trigger è la **walk del render**: il walk
 universale di `RendererBase` chiama `runtime_values` per ogni nodo; un
@@ -864,15 +867,15 @@ Aperte:
 - **`format` v2**: maschere per dtype/locale col contratto di
   formattazione cross-runtime (il legacy ha già il vocabolario,
   `gnrformatter`).
-- **Application**: formalizzazione fine (`APP`).
 - **from_grammar** Python loader (companion di `to_grammar`).
 
 Chiuse (per memoria):
 
-- **SUITE dissolta** nel multibuilder handler (v0.8.0), e il
-  multibuilder a sua volta dissolto nell'handler singolo (v0.9.0,
-  `HND.1`): un handler, un builder, un datastore piatto.
-- **Reattività fine ricollocata** sulil motore reattivo (`RX.5`): non si
+- **SUITE dissolta** nel multibuilder handler (v0.8.0), il multibuilder a
+  sua volta dissolto nell'handler singolo (v0.9.0), e l'handler stesso
+  uscito il 2026-07-27 (area `HND` ritirata): un builder, che possiede il
+  suo datastore piatto.
+- **Reattività fine ricollocata** sul motore reattivo (`RX.5`): non si
   ripara in Python, e l'apparato v0.8.0 era il surrogato di una
   struttura mancante (`CMP.7`).
 - **Component reintrodotti** col design `CMP` (la rimozione v0.4 è
@@ -920,7 +923,6 @@ Contesto:
   dei component (confluito nell'area `CMP`).
 - `roadmap/reactivity/` — specifiche di dettaglio della reattività.
 - `src/genro_builders/builder/base.py`,
-  `src/genro_builders/builder/builder_handler.py`,
   `src/genro_builders/builder/source_bag.py`,
   `src/genro_builders/renderer/base.py` — implementazione di
   riferimento.
