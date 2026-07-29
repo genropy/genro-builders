@@ -11,6 +11,14 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## Errata v0.9.0 — 2026-07-29 (`RX.1`: il `target_id` non esce)
+
+`RX.1` enumerava il `target_id` fra ciò che esce con la v0.9.0,
+contraddicendo «Identità per seriale» (emendamento 2026-07-26: *il
+seriale resta come identità d'elemento su richiesta*) e il codice, dove
+è vivo e testato. Riformulato: esce il protocollo di patch che lo
+consumava, non il seriale. Nessun cambiamento di sostanza.
+
 ## Emendamento v0.9.0 — 2026-07-27 (`HND` e `APP` RITIRATE: via l'handler)
 
 `BuilderHandler` è rimosso. Il datastore è del builder.

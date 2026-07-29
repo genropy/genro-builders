@@ -5,10 +5,8 @@ Concrete dialects declare a canonical ``_name`` attribute and are
 auto-registered at class definition. Lookup happens via
 :meth:`BuilderBase.get_builder_class`.
 
-Note: ``MarkdownBuilder`` is dormant during the 2026-05 restart
-(its ``__init__`` raises ``ImportError``), so it is not covered here.
-The ``_name = "markdown"`` annotation on the class is harmless and
-will activate automatically when the module is reactivated.
+Note: the ``markdown`` dialect is archived (``temp/archive/contrib/``,
+not distributed), so it is not covered here.
 """
 from __future__ import annotations
 

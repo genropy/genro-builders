@@ -14,8 +14,8 @@ Dialects with a grammar (concrete builders, instantiated by users):
 The abstract XML base and the schema transpiler live in the core
 (``genro_builders.xml``), not here: they are bases, not dialects.
 
-Archived (moved to ``archive/contrib/``; will return under a future
-subtask when the framework supports the features they require):
-    - ``markdown`` — relied on pointers/reactive store not yet
-      implemented; archived 2026-05-12.
+Archived (a copy sits in ``temp/archive/contrib/``, a non-distributed
+working folder):
+    - ``markdown`` — written against machinery that predates the
+      current static core; archived 2026-05-12, to be rebuilt on it.
 """

@@ -29,7 +29,7 @@ PERSON = (
 
 
 def _mounted(builder):
-    """Mount a fresh builder and return it (add_builder runs its main)."""
+    """Run ``create()`` on a fresh builder and return it."""
     builder.create()
     return builder
 

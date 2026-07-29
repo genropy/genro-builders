@@ -62,12 +62,10 @@ class RendererBase:
     #: default target and to resolve sub-builder renderers.
     mode: str | None = None
 
-    def __init__(self, builder: Any, handler: Any = None) -> None:
+    def __init__(self, builder: Any) -> None:
         # A renderer is always bound to a builder at birth (the
-        # ``renderer_<mode>`` property passes ``builder=self``). The
-        # handler is attached afterwards, when it drives a render.
+        # ``renderer_<mode>`` property passes ``builder=self``).
         self._builder = builder
-        self.handler = handler
         # Cache "renderer instance for builder X", keyed by id(builder)
         # (builders are not always hashable). The renderer registers
         # itself for its own builder, so the walk hits the cache for
@@ -99,7 +97,7 @@ class RendererBase:
         walk); on miss resolve the sub-builder's renderer for its own
         default mode (``builder._default_render_mode``) — the SVG
         sub-renderer is asked for SVG output even when the host is
-        HTML. Inject ``self.handler`` and memoise.
+        HTML — and memoise it.
         ``KeyError`` if the sub-builder does not expose a
         ``renderer_<mode>`` property for its declared default mode.
         """
@@ -114,7 +112,6 @@ class RendererBase:
                 f"'renderer_{sub_mode}' property",
             )
         rn = prop.__get__(builder, type(builder))
-        rn.handler = self.handler
         self.renders[id(builder)] = rn
         return rn
 
@@ -418,7 +415,7 @@ class RendererBase:
     def finalize(self, result: Any, target: Any, **_opts: Any) -> Any:
         """Turn the render result into the user-visible output.
 
-        ``_opts`` mirrors the walk options the handler forwards (e.g.
+        ``_opts`` mirrors the walk options ``BuilderBase.render()`` forwards (e.g.
         ``pretty``, ``include_datapath``); they are per-node concerns
         already consumed during the walk, so the base finalize ignores
         them. Subclasses that need a document-level option (``XmlRenderer``

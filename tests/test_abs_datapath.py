@@ -2,8 +2,9 @@
 """Tests for SourceBagNode.abs_datapath.
 
 Composes the absolute datastore path for a node's pointer/path. The store
-is flat — one handler drives one builder — so an absolute path carries no
-leading segment: ``field`` composes to ``field``, not ``<mount>.field``.
+is flat — one builder, one Bag (``builder.data``) — so an absolute path
+carries no leading segment: ``field`` composes to ``field``, not
+``<mount>.field``.
 
 Covers all supported path forms:
 
@@ -16,9 +17,8 @@ Covers all supported path forms:
     ``#ANCHOR.x``       — nearest ancestor with attr _anchor present
     ``#<node_id>.x``    — node carrying that node_id
 
-Test pattern: a CustomPage(HtmlBuilder) is mounted via
-``BuilderHandler.add_builder(page)``; assert on the string returned by
-abs_datapath, never on private helpers.
+Test pattern: a Page(HtmlBuilder) runs ``page.create()``; assert on the
+string returned by abs_datapath, never on private helpers.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def _leaf(main_fn: Callable, node_id: str = "leaf"):
             main_fn(root)
 
     page = Page(name="main")
-    page.create()   # mounts under page.name and runs create()
+    page.create()
     return page, page.node_by_id(node_id)
 
 

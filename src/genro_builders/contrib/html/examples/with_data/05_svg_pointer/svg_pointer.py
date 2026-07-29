@@ -3,9 +3,9 @@
 
 The page is HTML; ``body.svg(...)`` opens an SVG sub-builder. A shape in
 that subtree binds an attribute to data (``fill="^fill"``). This exercises
-the case where a pointer is resolved by a *sub-builder*, not the mounted
-page builder — the sub-builder must still reach the document's handler to
-read the datum.
+the case where a pointer is resolved by a *sub-builder*, not the page
+builder — the sub-builder must still reach the document's datastore to
+read the datum (``get_subbuilder`` propagates ``builder.data``).
 """
 from __future__ import annotations
 

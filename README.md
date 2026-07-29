@@ -140,8 +140,10 @@ The companion API on each source node:
   one in the datastore
 - `node.get_relative_data(path)` / `node.set_relative_data(path,
   value)` — read/write the datastore relative to the node
-- `node.SET / GET / PUT / FIRE` — the reactive macros over the same
-  two entry points
+- `node.SET / GET / PUT / FIRE` — DSL macros over the same two entry
+  points; the `fired`/`reason` flags they carry travel through the
+  genro-bag subscribe pipeline, and nothing in this package acts on
+  them (vocabulary for the future reactive engine)
 
 ## Render target
 
@@ -193,7 +195,7 @@ output. The test suite runs them all (`tests/test_examples.py`).
 ## Downstream
 
 genro-builders is a generic engine: the grammars, the renderers, and the
-reactive data binding know nothing about who consumes them. The source carries
+pull-based data binding know nothing about who consumes them. The source carries
 no reference to any downstream layer — this is the one place that names them.
 Known consumers in the Genro ecosystem:
 

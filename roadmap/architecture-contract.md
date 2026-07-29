@@ -757,11 +757,13 @@ coda di render, nessun protocollo di patch: il render è già la funzione
 che porta i dati nel documento, e rifarlo è la via più corta e sempre
 corretta per rifletterne il cambio.
 
-Escono con la v0.9.0, e con essi il `target_id`, l'identità derivata,
-l'optimizer di netting e la busta `replace`/`insert`/`remove`: la
-`live()` come sezione critica, il decoratore `@live`, la coda per mount
-(`add_render_path`), `render_nodes`, la corsia lazy e il catalogo delle
-regole di riga. Il materiale è depositato in
+Escono con la v0.9.0 la `live()` come sezione critica, il decoratore
+`@live`, la coda per mount (`add_render_path`), `render_nodes`, la
+corsia lazy e il catalogo delle regole di riga; e con essi l'identità
+derivata, l'optimizer di netting e la busta `replace`/`insert`/`remove`.
+Il `target_id` NON esce: il seriale resta come identità d'elemento su
+richiesta (`include_datapath`, vedi «Identità per seriale») — esce il
+protocollo di patch che lo consumava. Il materiale è depositato in
 `genro-ws-web@c88c6e6` (`attic/partial-render/`) e la sua specifica di
 ricostruzione resta `roadmap/render-layer-html-ws.md`.
 

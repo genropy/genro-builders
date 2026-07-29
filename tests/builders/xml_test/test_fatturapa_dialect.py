@@ -1,8 +1,8 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
 """Tests for the FatturaPA example dialect.
 
-The generated dialect (``FatturaElettronicaBuilder`` + ``...Handler``) is
-pure Python (no xmlschema needed), so it is testable on every install.
+The generated dialect (``FatturaElettronicaBuilder``) is pure Python
+(no xmlschema needed), so it is testable on every install.
 The optional regeneration round-trip is gated on ``xmlschema`` being
 available so the suite stays green on a vanilla install.
 """

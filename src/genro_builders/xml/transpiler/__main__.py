@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help=(
             "Base name of the generated dialect (e.g. FatturaElettronica). "
-            "The module declares <name>Builder and <name>Handler."
+            "The module declares <name>Builder."
         ),
     )
     parser.add_argument(
