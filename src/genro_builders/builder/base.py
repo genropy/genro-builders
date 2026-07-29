@@ -30,7 +30,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, ClassVar
 
-from genro_bag import Bag
+from genro_bag import Bag, BagResolver
 
 from ..renderer.xml import XmlRenderer
 from ..renderer.yaml import YamlRenderer
@@ -647,13 +647,19 @@ class BuilderBase(
         )
 
     def runtime_values(self, node: Any) -> tuple[Any, dict[str, Any]]:
-        """Resolve the pointers/templates carried by ``node``.
+        """Resolve the pointers/templates/resolvers carried by ``node``.
 
         Returns ``(runtime_value, runtime_attrs)``. Resolution lives on
         the builder, which owns the datastore; ``node`` is just the subject
         whose pointers are resolved. ``^``/``=`` strings are read from
         ``self.data`` at the node's absolute path; ``${name}`` templates
         expand against the resolved attrs.
+
+        A ``BagResolver`` found as the node value or in an attribute is
+        CALLED, and its result is the resolved datum: a resolver supplies
+        a value in place, so the recipe declares it where the value lives
+        instead of pairing a datastore entry with a pointer. It needs no
+        node of its own — caching and TTL live in the resolver.
 
         ``^`` and ``=`` resolve identically here: the difference is an
         author's declaration of INTENT (``^`` "this is meant to follow the
@@ -673,6 +679,13 @@ class BuilderBase(
         resolved: dict[Any, Any] = {}
         carried: dict[str, Any] = {}
         for k, v in node.runtime_to_evaluate().items():
+            if isinstance(v, BagResolver):
+                # A resolver SUPPLIES the value, wherever it sits: as the
+                # node value (key ``None``) or in an attribute. Calling it
+                # IS the resolution — caching and TTL live in the resolver,
+                # which works with no node of its own.
+                resolved[k] = v()
+                continue
             ptype = node.pointer_type(v)
             if not ptype:
                 resolved[k] = v
