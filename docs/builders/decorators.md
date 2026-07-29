@@ -164,6 +164,25 @@ the boundary node may carry a
 `render_tag`/`render_attributes` envelope in its `_meta` (e.g. SVG
 hosting HTML in `<foreignObject xmlns="...">`).
 
+The marker has a second form, the **parameter reference**
+`"kwarg:attr"` (contract `BLD.2`): the grammar of the subtree is not
+fixed in the host grammar — it comes from an object the recipe passes
+at the call site:
+
+```python
+@element(_meta={"subbuilder": "app:grammar"})
+def application(self, code=None, app=None): ...
+```
+
+*The value passed as `app` carries in `grammar` the mixin class that
+governs everything below this node.* The kwarg left unset means no
+switch (the node stays a leaf of the host grammar); the referenced
+class is fabricated into a builder once and cached. The envelope's own
+arguments belong to the **host** grammar — only its children live in
+the mounted one. This is the primitive behind the
+[config dialect](../grammars/config.md); the runnable example is
+`contrib/html/examples/no_data/10_subbuilder_by_reference/`.
+
 ## Data-elements
 
 Three **transparent** elements live in the source tree but emit **no

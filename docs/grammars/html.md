@@ -139,8 +139,9 @@ the bag directly: that is a different thing from `render(mode="xml")`.
 ## Validation rules
 
 - `<rect>`, `<circle>`, `<path>` and other SVG tags are **not**
-  valid here. The grammar rejects them unless they appear inside a
-  `@subbuilder(SvgBuilder)` boundary (see `<svg>`).
+  valid here. The grammar rejects them unless they appear inside the
+  `<svg>` sub-builder boundary
+  (`@element(_meta={"subbuilder": "svg"})`).
 - `<li>` must appear inside `<ul>` or `<ol>`.
 - `<head>` elements (title, meta, link, ...) reject body content.
 - Void tags reject children.

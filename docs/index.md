@@ -17,6 +17,7 @@ Dialects under `genro_builders.contrib`, plus the XML core:
 | SVG | `genro_builders.contrib.svg` | 60+ elements |
 | CSS | `genro_builders.contrib.css` | Level 1 (rules, selectors, vars, `@media`/`@supports`/`@import`) |
 | XSLT | `genro_builders.contrib.xslt` | XSLT 1.0 stylesheets written pythonically; HTML5 vocabulary mixed in as literal result elements |
+| Config | `genro_builders.contrib.config` | Configuration trees with distributed grammars (`app:grammar` mounts) + the callable `ConfigHandler` read door |
 | XML / XSD | `genro_builders.xml` | `XmlBuilderBase` shared grammar base + transpiler: an XSD schema becomes a `<Dialect>Builder` you commit and import (bundled Sitemap and FatturaPA examples) |
 
 The live application layer (server-side SPA over websocket, the
@@ -36,7 +37,8 @@ project: **genro-ws-web**, built on genro-builders.
   `node_by_id`, render targets.
 - **Grammars** — per-grammar reference:
   [HTML](grammars/html.md), [SVG](grammars/svg.md),
-  [CSS](grammars/css.md), [XSD dialects](grammars/xsd.md). The XSLT
+  [CSS](grammars/css.md), [Config](grammars/config.md),
+  [XSD dialects](grammars/xsd.md). The XSLT
   dialect ships without a reference page yet: its grammar and the
   transpiler live in `src/genro_builders/contrib/xslt/`.
 
@@ -89,5 +91,6 @@ builders/patterns
 grammars/html
 grammars/svg
 grammars/css
+grammars/config
 grammars/xsd
 ```
