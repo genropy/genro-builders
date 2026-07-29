@@ -1,0 +1,13 @@
+<configuration>
+  <server host="localhost"></server>
+  <applications>
+    <application code="shop" app="&lt;class '__main__.ShopApp'&gt;">
+      <catalog title="Summer sale">
+        <product sku="S1" price="10"></product>
+      </catalog>
+    </application>
+    <application code="crm" app="&lt;class '__main__.CrmApp'&gt;">
+      <pipeline></pipeline>
+    </application>
+  </applications>
+</configuration>

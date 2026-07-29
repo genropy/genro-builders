@@ -10,6 +10,8 @@ Dialects with a grammar (concrete builders, instantiated by users):
     - ``genro_builders.contrib.css`` — CssBuilder (level 1)
     - ``genro_builders.contrib.xslt`` — XsltBuilder (XSLT 1.0 stylesheets)
     - ``genro_builders.contrib.xsd`` — XsdBuilder (XSD 1.0 schemas)
+    - ``genro_builders.contrib.config`` — ConfigBuilder + ConfigHandler
+      (configuration trees, distributed grammars)
 
 The abstract XML base and the schema transpiler live in the core
 (``genro_builders.xml``), not here: they are bases, not dialects.

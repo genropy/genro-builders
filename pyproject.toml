@@ -36,7 +36,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "genro-bag>=0.18.5",
+    "genro-bag>=0.19.1",
     "genro-toolbox>=0.6.1",
 ]
 
@@ -160,6 +160,14 @@ disable_error_code = ["override"]
 [[tool.mypy.overrides]]
 module = "genro_builders.builder.base"
 disable_error_code = ["return-value", "arg-type", "no-any-return", "attr-defined"]
+
+# ConfigHandler walks the source tree through genro_bag's BagNode API,
+# whose annotations don't know the SourceBagNode mixin members
+# (_resolve_builder, _get_meta, parent_bag._builder) — the same dynamic
+# boundary silenced for builder.base above.
+[[tool.mypy.overrides]]
+module = "genro_builders.contrib.config.handler"
+disable_error_code = ["union-attr", "no-any-return"]
 
 [tool.coverage.run]
 source = ["src/genro_builders"]
