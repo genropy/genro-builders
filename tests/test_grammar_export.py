@@ -78,6 +78,24 @@ def test_svg_grammar_export_includes_html_subbuilder_with_render_tag(tmp_path: P
     }
 
 
+def test_parameter_reference_subbuilder_exports_verbatim() -> None:
+    """The ``kwarg:attr`` form is a plain string: the export stays valid
+    JSON and the reference is preserved verbatim (no reconstruction
+    promise — GRAMMAR_FORMAT §4)."""
+
+    class _AppsHost(BuilderBase):
+        _name = None  # not registered
+
+        @element(sub_tags="application")
+        def apps(self, **kwargs): ...
+
+        @element(_meta={"subbuilder": "app:grammar"})
+        def application(self, code=None, app=None): ...
+
+    data = json.loads(json.dumps(_class_schema_to_grammar_document(_AppsHost)))
+    assert data["elements"]["application"]["_meta"]["subbuilder"] == "app:grammar"
+
+
 def test_css_grammar_export_smoke(tmp_path: Path) -> None:
     data = _dump(CssBuilder, tmp_path)
 

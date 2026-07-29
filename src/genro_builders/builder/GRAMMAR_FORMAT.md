@@ -1,6 +1,6 @@
 # `builder_grammar` v1.0 — format specification
 
-**Last Updated**: 2026-06-06
+**Last Updated**: 2026-07-29
 **Status**: 🔴 DA REVISIONARE — documento non ancora approvato
 **Format version**: 1.0
 
@@ -162,22 +162,42 @@ The shape of each per-element entry is fixed. All declared keys are
 A sub-builder and a data-element are ordinary elements; what marks them
 is a key in `_meta`, not a dedicated section or shape:
 
-- **Sub-builder** — `_meta.subbuilder` holds the canonical name of the
-  grammar the node switches to (matches some other `grammar.name`).
+- **Sub-builder** — `_meta.subbuilder` declares the grammar the node
+  switches to, in one of two string forms:
+
+  - **Registry name** (no colon) — the canonical name of a registered
+    grammar (matches some other `grammar.name`):
+
+    ```json
+    {
+      "doc": "Embedded SVG drawing.",
+      "sub_tags": "*",
+      "parent_tags": null,
+      "inherits_from": null,
+      "attributes": null,
+      "_meta": {"subbuilder": "svg"}
+    }
+    ```
+
+  - **Parameter reference** (`kwarg:attr`) — the grammar comes from the
+    call site: the value the recipe passes as `kwarg` carries the
+    grammar class in its `attr` attribute
+    (`_meta": {"subbuilder": "app:grammar"}`). The kwarg left unset
+    (or passed as `null`/`None`) means **no switch**: the node keeps
+    the host dialect and, being marked as a sub-builder, stays
+    transparent to containment — it does not police its children: a
+    child tag unknown to the host grammar raises, a host-grammar child
+    is accepted.
+
+    **No reconstruction promise (v1.x).** The reference is exported
+    verbatim as a plain string; a consumer cannot resolve `app:grammar`
+    without the Python class the recipe passes at runtime. A consumer
+    reading the document knows *that* the element mounts a
+    caller-supplied grammar, not *which* one.
+
   The boundary envelope, when present, rides on `_meta` too
   (`_meta.render_tag` for the host-side wrap tag, `_meta.render_attributes`
-  for the framework attributes emitted on it):
-
-  ```json
-  {
-    "doc": "Embedded SVG drawing.",
-    "sub_tags": "*",
-    "parent_tags": null,
-    "inherits_from": null,
-    "attributes": null,
-    "_meta": {"subbuilder": "svg"}
-  }
-  ```
+  for the framework attributes emitted on it).
 
 - **Data-element** — `_meta.data_element` marks an element that binds
   data-infrastructure (a tabular section, a setter/formula/controller).

@@ -119,15 +119,54 @@ class _GrammarMixin:
             child = self._add_element(destination_bag, node_value, node_tag=node_tag, **kwargs)
 
             # Sub-builder element: ``_meta['subbuilder']`` names the dialect
-            # active from this node down. Switch the child's active builder
-            # (the node carries its own ``_builder``); the descent then
-            # resolves the foreign grammar instead of the host's.
+            # active from this node down — a registry name (``"svg"``) or a
+            # parameter reference (``"kwarg:attr"``, resolved against the
+            # recipe kwargs here, the one point that sees them). Switch the
+            # child's active builder (the node carries its own
+            # ``_builder``); the descent then resolves the foreign grammar
+            # instead of the host's.
             sub_name = meta.get("subbuilder")
             if sub_name is not None:
-                child._builder = self.get_subbuilder(sub_name)
+                sub_target = self._resolve_subbuilder_reference(sub_name, kwargs, node_tag)
+                if sub_target is not None:
+                    child._builder = self.get_subbuilder(sub_target)
             return child
 
         return wrapper
+
+    def _resolve_subbuilder_reference(
+        self, spec: str, kwargs: dict[str, Any], node_tag: str,
+    ) -> str | type | None:
+        """Resolve a ``_meta['subbuilder']`` spec to a get_subbuilder target.
+
+        Two forms. No colon → ``spec`` is a registry name, returned as-is
+        (the historical path). ``kwarg:attr`` → the grammar comes from the
+        call site: take the value the recipe passed as ``kwarg`` and read
+        ``attr`` from it — that class governs the subtree. The kwarg left
+        unset means NO switch (returns None): the node stays a leaf of the
+        host grammar. A set kwarg missing the declared attribute, or whose
+        attribute is not a class, is an authoring error raised at the
+        recipe line.
+        """
+        if ":" not in spec:
+            return spec
+        kwarg, attr_name = spec.split(":", 1)
+        value = kwargs.get(kwarg)
+        if value is None:
+            return None
+        grammar = getattr(value, attr_name, None)
+        if grammar is None:
+            raise ValueError(
+                f"'{node_tag}': subbuilder reference {spec!r} — the object "
+                f"passed as {kwarg!r} has no attribute {attr_name!r}",
+            )
+        if not isinstance(grammar, type):
+            raise ValueError(
+                f"'{node_tag}': subbuilder reference {spec!r} — "
+                f"{kwarg}.{attr_name} must be a class, got "
+                f"{type(grammar).__name__}",
+            )
+        return grammar
 
     def _add_element(
         self,
@@ -183,7 +222,15 @@ class _GrammarMixin:
         parent_node = build_where.parent_node
         parent_check: tuple[BagNode, dict] | None = None
         if parent_node and parent_node.node_tag:
-            parent_check = (parent_node, self._get_schema_info(parent_node.node_tag))
+            try:
+                parent_check = (parent_node, self._get_schema_info(parent_node.node_tag))
+            except KeyError:
+                # A subbuilder envelope belongs to the HOST grammar: the
+                # embedded grammar need not declare its tag. The envelope
+                # is transparent to containment anyway, so it simply
+                # imposes nothing on its children here.
+                if not parent_node._get_meta("subbuilder"):
+                    raise
 
         child_info = self._get_schema_info(node_tag)
         self._validate_parent_tags(child_info, parent_node)

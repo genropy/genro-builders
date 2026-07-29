@@ -100,6 +100,14 @@ class BuilderBase(
     #: ``ABCMeta.register`` virtual-subclass method inherited via ABC.
     _registry: ClassVar[dict[str, type]] = {}
 
+    #: Builder classes fabricated from grammar mixins (class-level, shared
+    #: across all dialects): one ``(mixin, BuilderBase)`` subclass per
+    #: grammar class, built lazily by :meth:`get_subbuilder` when a
+    #: ``kwarg:attr`` subbuilder reference resolves to a class. Fabricated
+    #: classes declare no ``_name`` of their own, so they never touch
+    #: :attr:`_registry`.
+    _grammar_builders: ClassVar[dict[type, type]] = {}
+
     #: Case-insensitive tag map (lowercase key -> canonical label), rebuilt
     #: per subclass in :meth:`__init_subclass__`. Declared here so the type
     #: is known at class scope (it cannot be annotated on the ``cls`` target).
@@ -382,8 +390,9 @@ class BuilderBase(
         self.data.set_backref()
         # data-element logic sources, resolved lazily by ``data_logic``.
         self._data_logic: list[Any] | None = None
-        # Sub-builder instances, one per dialect name (see get_subbuilder).
-        self._subbuilders: dict[str, Any] = {}
+        # Sub-builder instances, one per dialect name or grammar class
+        # (see get_subbuilder).
+        self._subbuilders: dict[str | type, Any] = {}
         # Per-document DOM-id serial (see ``target_id``): the root builder
         # is the identity authority, sub-builder subtrees draw from the
         # host's counter through ``node.root_builder``.
@@ -452,28 +461,69 @@ class BuilderBase(
         wrapper.set_backref()
         return wrapper[SOURCE_ROOT]
 
-    def get_subbuilder(self, name: str) -> Any:
+    def get_subbuilder(self, name: str | type) -> Any:
         """Return THE sub-builder instance for ``name``, cached per host.
 
-        Looks up the class in the global registry via
-        :meth:`get_builder_class`, instantiates it once and memoises it
-        (the same pattern as the renderer cache: one instance per host
-        per dialect, so every ``<svg>`` subtree of the document shares
-        one ``SvgBuilder`` and the renderer cache keyed by
-        ``id(builder)`` serves them all with a single sub-renderer).
-        Used when a ``_meta['subbuilder']`` element switches the active
-        dialect mid-document (e.g. ``body.svg(...)`` inside HTML). The
-        host's DATASTORE is passed on so the sub-builder resolves pointers
-        against the same document data; it cascades to nested
-        sub-builders, and is re-synced on every hit so a host whose data
-        was replaced after a first render keeps the invariant.
+        ``name`` is a registry name (looked up via
+        :meth:`get_builder_class`) or a grammar class (a mixin of
+        ``@element`` methods, ``Html5Elements`` style, resolved from a
+        ``kwarg:attr`` subbuilder reference): the builder class is then
+        fabricated by :meth:`_builder_class_from_grammar`. Either way the
+        instance is memoised per host (the same pattern as the renderer
+        cache: one instance per host per dialect, so every ``<svg>``
+        subtree of the document shares one ``SvgBuilder`` and the
+        renderer cache keyed by ``id(builder)`` serves them all with a
+        single sub-renderer). Used when a ``_meta['subbuilder']`` element
+        switches the active dialect mid-document (e.g. ``body.svg(...)``
+        inside HTML). The host's DATASTORE is passed on so the
+        sub-builder resolves pointers against the same document data; it
+        cascades to nested sub-builders, and is re-synced on every hit so
+        a host whose data was replaced after a first render keeps the
+        invariant.
         """
         subbuilder = self._subbuilders.get(name)
         if subbuilder is None:
-            subbuilder = type(self).get_builder_class(name)()
+            if isinstance(name, type):
+                builder_class = self._builder_class_from_grammar(name)
+            else:
+                builder_class = type(self).get_builder_class(name)
+            subbuilder = builder_class()
             self._subbuilders[name] = subbuilder
         subbuilder.data = self.data
         return subbuilder
+
+    def _builder_class_from_grammar(self, grammar: type) -> type:
+        """Return the builder class for a grammar mixin, fabricated once.
+
+        A class that is already a ``BuilderBase`` subclass is used as-is.
+        Otherwise the class is composed exactly like a hand-written
+        dialect — ``(grammar, BuilderBase)``, the ``HtmlBuilder``
+        shape — so ``__init_subclass__`` collects the mixin's
+        ``@element`` methods through the MRO; plain inheritance between
+        grammar classes composes grammars the same way. The result is
+        cached in :attr:`_grammar_builders` per grammar class. A grammar
+        contributing no elements of its own (the schema holds only the
+        injected data-elements) is an authoring error and raises.
+        """
+        if issubclass(grammar, BuilderBase):
+            return grammar
+        fabricated = BuilderBase._grammar_builders.get(grammar)
+        if fabricated is None:
+            fabricated = type(BuilderBase)(
+                f"{grammar.__name__}Builder", (grammar, BuilderBase), {},
+            )
+            declared = [
+                node.label for node in fabricated._class_schema
+                if not node.label.startswith("_")
+                and not (node.get_attr("_meta") or {}).get("data_element")
+            ]
+            if not declared:
+                raise ValueError(
+                    f"{grammar.__name__} declares no grammar elements: "
+                    "it cannot govern a subbuilder subtree",
+                )
+            BuilderBase._grammar_builders[grammar] = fabricated
+        return fabricated
 
     def main(self, root: SourceBag) -> None:
         """Build the document into ``root``. Override on a page subclass.

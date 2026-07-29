@@ -11,6 +11,34 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## Emendamento v0.9.0 — 2026-07-29 (`BLD.2`: subbuilder per riferimento di parametro)
+
+`_meta['subbuilder']` acquisisce la seconda forma `kwarg:attr`: la
+grammatica del sottoalbero non è fissata nel dialetto host ma arriva da
+un oggetto che la ricetta passa al call-site (`application(code=,
+app=ShopApp)` → il sottoalbero segue `ShopApp.grammar`). La classe
+referenziata è un mixin di grammatica; il core fabbrica e memoizza la
+classe builder per classe-grammatica; kwarg assente = nessuno switch
+(foglia); errori rumorosi alla riga della ricetta. È il primitivo su cui
+si costruiranno i dialetti di configurazione. Il documento di grammatica
+esporta il riferimento verbatim senza promessa di ricostruzione
+(GRAMMAR_FORMAT §4, nota v1.x).
+
+Contestualmente BLD.2 è stata sanata in due punti stantii: il titolo
+parlava ancora di un «decoratore dedicato `@subbuilder`» (il sub-builder
+è da tempo un normale `@element` marcato in `_meta`, come documenta
+GRAMMAR_FORMAT) e la propagazione citava l'«handler del padre», uscito
+con il ritiro di `HND`: propaga il DATASTORE. Aggiunto inoltre al
+confine letterale: il tag dell'involucro appartiene al dialetto host —
+la grammatica montata non deve dichiararlo e non impone nulla ai figli
+attraverso di esso.
+
+Passata di precisione in giornata: «foglia» era sovradichiarato —
+nessuno switch ≠ foglia, l'involucro è trasparente alla containment —
+e la clausola ora dichiara anche il ramo builder-usato-as-is (classe
+già `BuilderBase`: nessuna fabbricazione, guard «classe senza
+elementi» solo sul percorso di fabbricazione).
+
 ## Errata v0.9.0 — 2026-07-29 (`RX.1`: il `target_id` non esce)
 
 `RX.1` enumerava il `target_id` fra ciò che esce con la v0.9.0,

@@ -145,22 +145,49 @@ dialetto base resta sempre nel builder. La grammatica si può arricchire
 anche **per istanza** a runtime con i component di un mixin
 (`include_components`, `CMP.6`): la schema di classe resta intatta.
 
-### BLD.2 — Sub-builder via decoratore dedicato `@subbuilder`
+### BLD.2 — Sub-builder: elemento marcato `_meta['subbuilder']`
 
-Lo switch di dialetto a metà albero è dichiarato con un decoratore
-separato da `@element`. Da `<svg>` in giù il builder attivo è
-`SvgBuilder`; cambia solo lo slot `_builder` dei nodi del sottoalbero
-(`BAG.3`).
+Lo switch di dialetto a metà albero è dichiarato su un normale
+`@element` con il marker `_meta['subbuilder']`. Da `<svg>` in giù il
+builder attivo è `SvgBuilder`; cambia solo lo slot `_builder` dei nodi
+del sottoalbero (`BAG.3`). Il marker ha **due forme**, entrambe
+stringhe:
 
-- **Propagazione dell'handler**: `get_subbuilder` istanzia il
-  sub-builder e gli passa l'handler del padre (a cascata sui sub-builder
-  annidati), così i pointer del sottoalbero risolvono sugli stessi dati
-  del documento. Il sub-builder è solo grammatica: non porta dati propri.
+- **Nome di registro** (senza `:`): il nome canonico di un dialetto
+  registrato (`"svg"`, `"html"`).
+- **Riferimento di parametro** (`kwarg:attr`): la grammatica arriva dal
+  call-site. `@element(_meta={"subbuilder": "app:grammar"})` su
+  `application(code=, app=)` legge: *il valore che la ricetta passa
+  come `app` porta in `grammar` la classe-grammatica del sottoalbero*.
+  Una dichiarazione nel dialetto host, la derivazione alla riga della
+  ricetta. La classe referenziata è un **mixin di grammatica** (stile
+  `Html5Elements`), non un builder: il core fabbrica la classe builder
+  (`(grammar, BuilderBase)`) una volta per classe-grammatica e la
+  memoizza; la composizione/specializzazione di grammatiche è normale
+  ereditarietà Python (decide l'MRO). Una classe referenziata che è
+  GIÀ una sottoclasse di `BuilderBase` è usata as-is, senza
+  fabbricazione. Kwarg assente → **nessuno switch**: il nodo resta nel
+  dialetto host e, da nodo marcato subbuilder, è trasparente alla
+  containment — non fa polizia sui figli: un tag ignoto al dialetto
+  host solleva, un figlio del dialetto host è accettato. Errori —
+  attributo dichiarato mancante, attributo non-classe, classe senza
+  elementi (guard che si applica solo al percorso di fabbricazione) —
+  rumorosi alla riga della ricetta. Il documento di grammatica esporta
+  il riferimento verbatim, **senza promessa di ricostruzione** per il
+  consumer (GRAMMAR_FORMAT §4, nota v1.x).
+
+- **Propagazione del datastore**: `get_subbuilder` istanzia il
+  sub-builder e gli propaga il DATASTORE del padre (a cascata sui
+  sub-builder annidati, risincronizzato a ogni hit), così i pointer del
+  sottoalbero risolvono sugli stessi dati del documento. Il sub-builder
+  è solo grammatica: non porta dati propri.
 - **Confine letterale**: il nodo-involucro di confine fra dialetti
   (`svg` dentro html, `foreignObject` dentro svg) emette i propri
   attributi **letterali nei due sensi**: non appartiene per intero a
   nessuno dei due dialetti, quindi nessuna trasformazione
-  dialetto-specifica vi si applica.
+  dialetto-specifica vi si applica. Il tag dell'involucro appartiene al
+  dialetto host: la grammatica montata non deve dichiararlo, e non
+  impone nulla ai suoi figli attraverso di esso.
 
 ### BLD.3 — Builder = grammar; renderer come property `renderer_<mode>`
 

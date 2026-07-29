@@ -154,6 +154,9 @@ def _class_schema_to_grammar_document(cls: type) -> dict[str, Any]:
     ``_meta`` (``subbuilder`` / ``data_element``, plus ``render_tag`` /
     ``render_attributes`` for a boundary envelope), so they appear in the
     ``elements`` section with that ``_meta`` — no separate section.
+    Both forms of ``subbuilder`` (registry name, ``kwarg:attr``
+    parameter reference) are plain strings and pass through verbatim;
+    see GRAMMAR_FORMAT.md §4 for what a consumer may do with each.
 
     Within each section, entries are topologically sorted by their
     ``inherits_from`` references (insertion-order on ties).

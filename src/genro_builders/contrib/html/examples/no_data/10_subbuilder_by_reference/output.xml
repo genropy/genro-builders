@@ -1,0 +1,8 @@
+<apps>
+  <application code="shop" app="&lt;class '__main__.ShopApp'&gt;">
+    <catalog title="Summer sale">
+      <product sku="S1" price="10"></product>
+      <product sku="S2" price="25"></product>
+    </catalog>
+  </application>
+</apps>
