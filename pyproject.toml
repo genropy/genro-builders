@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "genro-builders"
-version = "0.23.0"
+dynamic = ["version"]
 description = "Builder system for genro-bag - grammar, validation, compilation"
 readme = "README.md"
 license = "Apache-2.0"
@@ -83,6 +83,10 @@ all = [
 [project.urls]
 Homepage = "https://github.com/genropy/genro-builders"
 Repository = "https://github.com/genropy/genro-builders"
+
+[tool.hatch.version]
+# Single source of truth: __version__ in the package itself.
+path = "src/genro_builders/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/genro_builders"]
