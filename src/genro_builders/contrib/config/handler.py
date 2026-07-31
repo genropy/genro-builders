@@ -7,6 +7,15 @@ Built from one of three sources: a path to a ``config.py`` module
 The handler runs ``create()`` when needed and owns the tree
 (``handler.builder``).
 
+``parents`` layers the tree over base recipes, the legacy
+``instanceconfig.xml``-over-defaults mechanism: each parent (same three
+forms as ``source``) is EXECUTED, then the sources are folded with
+``Bag.update`` in declaration order — first parent lowest, the main
+recipe applied last and winning. Parents are recipes, never
+materialized documents: an executed tree carries the grammar identity
+(``node_tag``, ``_meta``) a dumped XML cannot round-trip. The datastore
+(``builder.data``) is not merged — configuration is static attributes.
+
 ``handler(path, default=...)`` resolves through four layers, in order:
 
 1. **written value** — what the recipe wrote (``?attr`` on the source;
@@ -32,6 +41,7 @@ from __future__ import annotations
 
 import importlib.util
 import inspect
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -44,7 +54,35 @@ _MISSING = object()
 class ConfigHandler:
     """Callable read door over a configuration tree (four-layer stack)."""
 
-    def __init__(self, source: str | Path | type | BuilderBase):
+    def __init__(
+        self,
+        source: str | Path | type | BuilderBase,
+        parents: Sequence[str | Path | type | BuilderBase] | None = None,
+    ):
+        layers = [self._resolve_recipe(item) for item in (*(parents or ()), source)]
+        builder = layers[0]
+        for layer in layers[1:]:
+            # ignore_none: a childless element in a higher layer has value
+            # None — it inherits the lower subtree, it never erases it.
+            builder.source.bag_update(layer.source, ignore_none=True)
+        roots = list(builder.source)
+        if len(roots) != 1:
+            labels = [n.label for n in roots]
+            raise ValueError(
+                f"parent and main recipes must share one root element, "
+                f"found {len(roots)}: {labels}",
+            )
+        self._builder = builder
+        self._root_label = roots[0].label
+
+    def _resolve_recipe(self, source: str | Path | type | BuilderBase) -> BuilderBase:
+        """Resolve one layer to an EXECUTED builder with exactly one root.
+
+        Accepts the three source forms (``config.py`` path, builder class,
+        builder instance), runs ``create()`` when the tree is empty and
+        enforces the exactly-one-root rule per recipe — a parent building
+        zero or two roots is that recipe's error, reported before the fold.
+        """
         if isinstance(source, (str, Path)):
             builder = self._load_recipe_class(source)()
         elif isinstance(source, type):
@@ -70,8 +108,7 @@ class ConfigHandler:
                 f"the recipe must build exactly one root element, "
                 f"found {len(roots)}: {labels}",
             )
-        self._builder = builder
-        self._root_label = roots[0].label
+        return builder
 
     @property
     def builder(self) -> BuilderBase:

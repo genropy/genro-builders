@@ -1,0 +1,11 @@
+<configuration>
+  <server host="prod.example.com" port="9000"></server>
+  <applications>
+    <application code="shop" app="&lt;class '__main__.ShopApp'&gt;">
+      <catalog title="Base catalog"></catalog>
+    </application>
+    <application code="crm" app="&lt;class '__main__.CrmApp'&gt;">
+      <pipeline></pipeline>
+    </application>
+  </applications>
+</configuration>

@@ -1,7 +1,7 @@
 # Config grammar (configuration trees)
 
-**Last Updated**: 2026-07-29
-**Status**: 🟢 APPROVATO — allineato al contratto v0.9.0 (BLD.2, emendamento 2026-07-29). Shipped in 0.22.0.
+**Last Updated**: 2026-07-31
+**Status**: 🟢 APPROVATO — allineato al contratto v0.9.0 (BLD.2, emendamento 2026-07-29). Shipped in 0.22.0; parent recipes post-0.22.0 (design doc v0.4.0).
 
 Configuration as a **distributed grammar**: the dialect declares only
 the layout, each application brings its own vocabulary to the tree.
@@ -84,6 +84,37 @@ Paths are **relative to the root element**: `config("server.host")`
 reads `configuration.server?host`; the last dotted segment is the
 attribute, a single-segment path addresses the root element itself.
 
+## Parent recipes
+
+A configuration can start from a base and update it — the legacy
+`instanceconfig.xml`-over-defaults mechanism, rebuilt on executed
+recipes:
+
+```python
+config = ConfigHandler(InstanceConfig, parents=[DefaultsConfig])
+```
+
+Each parent is a recipe in the same three forms as the source. Every
+layer is executed (`create()`, exactly-one-root per recipe), then the
+sources fold with `Bag.update` in declaration order — first parent
+lowest, the main recipe applied last and winning:
+
+- attributes merge **per-name**: rewrite what you name, inherit the
+  rest (a `port` written only by the base survives the instance's
+  `host` rewrite);
+- explicit collections merge **by key**: an application added by the
+  instance joins the inherited ones; a colliding key overrides;
+- a childless element in a higher layer **inherits, never erases**
+  (the fold runs with `ignore_none=True`);
+- signature defaults (layer 2) keep resolving on every node of the
+  merged tree, inherited subtrees included.
+
+Parents are recipes, **never reloaded documents**: a dumped XML does
+not round-trip the grammar identity (`node_tag`, `_meta`, collection
+labels) an executed tree carries. The defaults-path convention (e.g.
+`.genro_asgi/defaults/config.py`) belongs to the consuming repo, which
+passes `parents=[...]`.
+
 ## App-side delegation
 
 An application never receives a subtree: it knows its own `code` and
@@ -129,10 +160,14 @@ defaults do not appear, and the mount kwarg stays literal
 
 ## Worked examples
 
-`01_instance_config/` under
+Under
 [src/genro_builders/contrib/config/examples/](https://github.com/genropy/genro-builders/tree/main/src/genro_builders/contrib/config/examples/):
-a server, two applications with different grammars, the four layers
-printed one by one, the XML dump.
+
+- `01_instance_config/` — a server, two applications with different
+  grammars, the four layers printed one by one, the XML dump.
+- `02_parent_config/` — parent recipes: the instance overrides one
+  value, inherits the rest, adds an application to the inherited
+  collection.
 
 ## Known limitations
 

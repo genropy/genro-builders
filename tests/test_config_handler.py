@@ -308,3 +308,135 @@ def test_recipe_building_no_root_element_raises():
 
     with pytest.raises(ValueError, match="exactly one root element"):
         ConfigHandler(_recipe(body))
+
+
+# --- parents layering ---------------------------------------------------
+
+
+class CrmGrammar:
+    """A second application grammar for collection-merge tests."""
+
+    @element(node_label="pipeline")
+    def pipeline(self, stages: int = 3): ...
+
+
+class CrmApp:
+    grammar = CrmGrammar
+
+
+def _base_recipe():
+    """The defaults layer: server values plus the shop application."""
+
+    def body(root):
+        c = root.configuration()
+        c.server(host="basehost", port=9000)
+        shop = c.applications().application(code="shop", app=ShopApp)
+        shop.catalog().product(sku="S1")
+
+    return _recipe(body)
+
+
+def test_parent_value_overridden_by_instance():
+    def body(root):
+        root.configuration().server(host="prodhost")
+
+    h = ConfigHandler(_recipe(body), parents=[_base_recipe()])
+    assert h("server.host") == "prodhost"
+
+
+def test_parent_written_value_inherited_when_not_rewritten():
+    def body(root):
+        root.configuration().server(host="prodhost")
+
+    h = ConfigHandler(_recipe(body), parents=[_base_recipe()])
+    assert h("server.port") == 9000  # written by the base, not the 8000 default
+
+
+def test_parent_only_subtree_survives_with_signature_defaults():
+    def body(root):
+        root.configuration().server(host="prodhost")
+
+    h = ConfigHandler(_recipe(body), parents=[_base_recipe()])
+    assert h("applications.shop.code") == "shop"
+    assert h("applications.shop.catalog.title") == "Untitled"  # layer 2, mounted
+
+
+def test_instance_only_subtree_added_over_parent():
+    def base_body(root):
+        root.configuration().server(host="basehost")
+
+    def body(root):
+        c = root.configuration()
+        c.applications().application(code="crm", app=CrmApp).pipeline()
+
+    h = ConfigHandler(_recipe(body), parents=[_recipe(base_body)])
+    assert h("server.host") == "basehost"
+    assert h("applications.crm.pipeline.stages") == 3  # layer 2 through the graft
+
+
+def test_collections_merge_across_layers():
+    def body(root):
+        c = root.configuration()
+        c.applications().application(code="crm", app=CrmApp).pipeline()
+
+    h = ConfigHandler(_recipe(body), parents=[_base_recipe()])
+    assert h("applications.shop.catalog.title") == "Untitled"
+    assert h("applications.crm.pipeline.stages") == 3
+
+
+def test_two_parents_fold_in_declaration_order():
+    def first(root):
+        root.configuration().server(host="one", port=9000)
+
+    def second(root):
+        root.configuration().server(host="two")
+
+    def body(root):
+        root.configuration()
+
+    h = ConfigHandler(_recipe(body), parents=[_recipe(first), _recipe(second)])
+    assert h("server.host") == "two"
+    assert h("server.port") == 9000
+
+
+def test_merged_tree_renders():
+    def body(root):
+        c = root.configuration()
+        c.applications().application(code="crm", app=CrmApp).pipeline(stages=5)
+
+    h = ConfigHandler(_recipe(body), parents=[_base_recipe()])
+    xml = h.builder.render(target=False)
+    assert 'host="basehost"' in xml
+    assert 'code="shop"' in xml
+    assert 'code="crm"' in xml
+    assert 'stages="5"' in xml
+
+
+def test_parent_from_config_py_path(tmp_path):
+    parent_py = tmp_path / "defaults.py"
+    parent_py.write_text(textwrap.dedent("""
+        from genro_builders.contrib.config import ConfigBuilder
+
+        class DefaultsConfig(ConfigBuilder):
+            def main(self, root):
+                root.configuration().server(host="from-defaults", port=9000)
+    """))
+
+    def body(root):
+        root.configuration().server(host="prodhost")
+
+    h = ConfigHandler(_recipe(body), parents=[parent_py])
+    assert h("server.host") == "prodhost"
+    assert h("server.port") == 9000
+
+
+def test_parents_with_different_root_raises():
+    class OtherRoot(ConfigBuilder):
+        @element(node_label="settings")
+        def settings(self): ...
+
+        def main(self, root):
+            root.settings()
+
+    with pytest.raises(ValueError, match="share one root element"):
+        ConfigHandler(OtherRoot, parents=[_base_recipe()])

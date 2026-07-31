@@ -58,6 +58,25 @@ class Application:
         return self.server.config(f"applications.{self.code}.{path}", default=default)
 ```
 
+## Parent recipes
+
+A configuration can start from a base and update it — the legacy
+`instanceconfig.xml`-over-defaults mechanism, rebuilt on executed
+recipes:
+
+```python
+config = ConfigHandler(InstanceConfig, parents=[DefaultsConfig])
+```
+
+Each parent is a recipe in the same three forms as the source. Every
+layer is executed, then the sources fold with `Bag.update` in
+declaration order — first parent lowest, the main recipe last and
+winning. Attributes merge per-name, explicit collections merge by key,
+and a childless element in a higher layer inherits the lower subtree
+instead of erasing it. Parents are recipes, never reloaded documents:
+a dumped XML does not round-trip the grammar identity an executed tree
+carries.
+
 ## Conventions
 
 - Element parameters are **annotated** (`port: int = 8000`): only
@@ -71,5 +90,6 @@ class Application:
 - A mount envelope's own arguments belong to the HOST grammar; only its
   children live in the mounted one.
 
-Worked example: `examples/01_instance_config/`. Design:
+Worked examples: `examples/01_instance_config/`,
+`examples/02_parent_config/`. Design:
 `roadmap/config-builder-design.md`.

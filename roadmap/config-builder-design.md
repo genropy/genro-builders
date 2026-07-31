@@ -1,7 +1,14 @@
 # ConfigBuilder — configurazione come grammatica distribuita
 
-**Version**: 0.3.1 · **Last Updated**: 2026-07-29 · **Status**: 🟢 APPROVATO
+**Version**: 0.4.0 · **Last Updated**: 2026-07-31 · **Status**: 🟢 APPROVATO
 
+> v0.4.0 (ricette parent): `ConfigHandler(source, parents=[...])` — la
+> config parte da una base e la aggiorna, il meccanismo legacy
+> `instanceconfig.xml`-sopra-default ricostruito su ricette ESEGUITE
+> piegate con `Bag.update` (§2.7, emendamento della voce «Merge/layering»
+> in §4). Poggia sul fix genro-bag `e26c7e8` (`update` trasporta
+> `node_tag`/`xml_tag`).
+>
 > v0.3.1 (Fase 2, gate di esecuzione): l'elemento radice si chiama
 > `configuration` (non `config`, che è il nome del DIALETTO) e le
 > collezioni sono sempre esplicite — `applications` è il container
@@ -239,6 +246,39 @@ rischio "ricalcola a ogni lettura" è governato dall'autore con
 Il taglio per-ruolo di asgi (`Projection`, 261 righe) **non entra** nel
 modello. Era l'alternativa di quel repo al layering; qui non serve.
 
+### 2.7 Ricette parent — la config parte da una base (v0.4.0)
+
+Il meccanismo legacy di `GnrApp.load_instance_config` (gnrapp.py:936-961:
+`default.xml` → template → `instanceconfig.xml`, catena di `Bag.update`,
+l'istanza per ultima vince) ricostruito sul modello attuale:
+
+```python
+config = ConfigHandler(InstanceConfig, parents=[DefaultsConfig])
+```
+
+- **I parent sono RICETTE nelle stesse tre forme della source** (path a
+  `config.py`, classe, istanza builder). Ogni strato viene ESEGUITO
+  (`create()`, regola exactly-one-root per ricetta), poi le source si
+  piegano con `Bag.update` in ordine di dichiarazione: primo parent più
+  in basso, la ricetta principale applicata per ultima. Gli attributi si
+  fondono per nome (riscrivi ciò che nomini, il resto si eredita), le
+  collezioni esplicite si fondono per chiave.
+- **Mai documenti materializzati**: l'XML emesso non fa round-trip
+  dell'identità grammaticale (`node_tag`, `_meta`, label di collezione —
+  `shop` tornerebbe `application_1`). Un albero eseguito porta tutto, e
+  il risultato fuso continua a rendere e a risolvere i default di firma
+  su ogni nodo (richiede genro-bag con `update` che trasporta
+  `node_tag`/`xml_tag` — fix `e26c7e8`).
+- **Ereditare, mai cancellare**: un element senza figli in uno strato
+  alto ha valore `None`; il fold usa `ignore_none=True`, così una
+  sezione vuota eredita il sottoalbero inferiore invece di azzerarlo.
+- Il datastore (`builder.data`) NON si fonde: la configurazione è
+  attributi statici. La convenzione di path dei default
+  (`.genro_asgi/defaults/config.py`) vive nel repo applicativo, che
+  passa `parents=[...]`.
+
+Esempio: `contrib/config/examples/02_parent_config/`.
+
 ## 3. Cosa NON si riusa da genro-asgi
 
 Il tentativo asgi era **piatto** (verificato: zero `subbuilder` in tutto
@@ -290,9 +330,13 @@ ne ha bisogno: la classe arriva come valore di un parametro.
 - **Dump/round-trip — CHIUSO in gran parte (§6.4)**: `to_xml`/
   `from_xml` verificati con tipi conservati; `renderer_yaml` esiste su
   ogni builder. Il diff resta non progettato (fuori scope v1).
-- **Merge/layering — CHIUSO (§6)**: niente profili arbitrari; gli
-  strati sono config → preferenza di applicazione → preferenza utente,
-  con ponte dichiarato per-elemento.
+- **Merge/layering — CHIUSO (§6), EMENDATO in v0.4.0**: niente profili
+  arbitrari; gli strati sono config → preferenza di applicazione →
+  preferenza utente, con ponte dichiarato per-elemento. L'emendamento
+  sancisce UN layering in più, dentro il solo strato config: le ricette
+  parent (§2.7) — il meccanismo legacy `instanceconfig.xml`-sopra-default,
+  ricostruito su ricette ESEGUITE e piegate con `Bag.update`. Restano
+  esclusi i profili arbitrari e il merge di documenti materializzati.
 
 ## 5. Ordine di lavoro — stato
 
