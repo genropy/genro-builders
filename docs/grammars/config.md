@@ -35,7 +35,8 @@ class InstanceConfig(ConfigBuilder):
     def main(self, root):
         c = root.configuration()
         c.server(host="localhost")
-        c.applications().application(code="shop", app=ShopApp)
+        shop = c.applications().application(code="shop", app=ShopApp)
+        shop.catalog()          # the node exists, its attributes are left to defaults
 
 
 config = ConfigHandler(InstanceConfig)
@@ -45,6 +46,13 @@ config("applications.shop.catalog.title")   # "Untitled"   (mounted grammar's de
 config("server.workers", default=4)         # 4            (call-site default)
 config("server.tls")                        # KeyError carrying the full path
 ```
+
+A signature default is read **from the node**: it answers for an
+element the recipe wrote without that attribute, not for an element the
+recipe never wrote. `catalog()` above is what makes
+`applications.shop.catalog.title` resolvable — with no `catalog` node
+the read falls straight through to the call-site default, or to the
+`KeyError`.
 
 ## Elements
 

@@ -1,106 +1,125 @@
 # Implementation roadmap — open work
 
-**Last Updated**: 2026-06-10
-**Status**: 🟡 DA RIALLINEARE al contratto v0.9.0.
+**Last Updated**: 2026-08-04
+**Status**: 🟢 ALIGNED with contract v0.9.0, code at 0.23.1.
 
-> **Stato dopo il contratto v0.9.0 (2026-07-26).** Le voci sulla
-> reattività push (Livello 0, `live()`, render parziale nel flush,
-> granularità SRC/DATA) non sono più "lavoro aperto" in Python: quel
-> codice è uscito e la reattività fine si rifonda in un motore separato
-> (`RX.5`), che è **ricerca**. Restano aperte, e
-> invariate, le voci non reattive: `@container` (`CMP.9`),
-> `<domain>requires`/`include_components` (`CMP.6`), `@slot` (`PAG.6`),
-> `format` v2, `from_grammar`, e la formalizzazione di `APP`.
-This document is intentionally **not a plan**. It maps what is open
-and how the open pieces depend on each other; it does not pick an
-order and does not record decisions. Decisions live in
+This document is intentionally **not a plan**. It maps what is open and
+how the open pieces depend on each other; it does not pick an order and
+does not record decisions. Decisions live in
 [architecture-contract.md](architecture-contract.md).
 
 ---
 
-## 1. Where the rebuild stands
+## 1. Where the code stands
 
-The reintroduction question that this document used to frame ("in
-which order do we bring the blueprint features back?") is largely
-answered: the axes are back on `develop` under the v0.8.0 contract.
+The static-first core is complete and the areas it closed are no longer
+open work. Implemented and covered by tests (340 green at 0.23.1):
 
-Closed axes:
+- **Data, pull-based** — path grammar, `^`/`=` pointers, `${}` templates
+  with consumed inputs, `mask`/`_wdg` presentation, read-time pointer
+  registration (`DAT.2`, `DAT.5`, `DAT.6`). A `BagResolver` found as a
+  value or as an attribute resolves through `runtime_values`.
+- **Datastore** — ONE flat Bag owned by the builder (`builder.data`,
+  reachable from any node as `node.data`). `BuilderHandler` is gone
+  (`a83e61e`), and with it multibuilder and datastore segmentation.
+- **Render subsystem** — universal walk, per-node dialect dispatch, and
+  the two steps: `materialize(mode)` keeps its result in
+  `materialized[mode]`, `finalize` delivers it. Rendering does not
+  validate — `validate_source()` reports on demand (`RND`, `PAG.4`,
+  `PAG.7`).
+- **Data elements** — `dataSetter`/`dataFormula`/`dataController` as
+  marked `@element`, every kind computed once at `create()`, in document
+  order (`DAT.3`, `DAT.4`).
+- **Components** — `@component` in its three calling forms
+  (single/store/iterate, fractal composition) and `@container`
+  (`CMP.9`): the body runs once and writes real nodes the caller fills.
+- **Sub-builders** — `@element` marked `subbuilder`, including the
+  parameter-reference form `"kwarg:attr"`, where the governing grammar
+  arrives as a call-site argument (`BLD.2`).
+- **Dialects** — HTML5, SVG, CSS level 1, XSLT 1.0, XSD, and Config
+  (`ConfigBuilder` + the callable `ConfigHandler`, four-layer read,
+  parent recipes).
+- **Grammar export** — `to_grammar(path)` writes the schema as a
+  portable document (`_grammar_export.py`, format in
+  `src/genro_builders/builder/GRAMMAR_FORMAT.md`).
 
-- **Data (pull-based)** — path grammar, `^`/`=` pointers, `${}`
-  templates with consumed inputs, `mask`/`_wdg` presentation,
-  read-time pointer registration (`DAT.2`, `DAT.5`, `DAT.6`).
-- **Sub-builders** — `@subbuilder` with handler propagation and
-  literal boundary envelopes (`BLD.2`).
-- **Render subsystem** — universal walk, per-node dialect dispatch,
-  fused `finalize`, pre-render cardinality minima (`RND`, `PAG.4`).
-- **Data elements** — `data_setter`/`data_formula`/`data_controller`
-  as marked `@element`, compute slice 1 (`DAT.3`, `DAT.4`).
-- **Multi-builder** — the suite-level orchestrator dissolved into the
-  multibuilder `BuilderHandler` (`HND.1`): N builders mounted by name
-  on one segmented datastore.
-- **Push reactivity Level 0** — `live()` as the handler's mutation
-  critical section, per-mount render queue, forbidden without an
-  application (`RX.1`).
-
-Components are **back as a design** (`CMP`, full record in
-[component-design.md](component-design.md)): named node in the
-source, ephemeral render-time expansion, `iterate`/`value`. The
-2026-04-27 drop decision is superseded; the code is not written yet.
+Retired areas, not open work: `HND` (the handler), `APP` (the
+application layer, now genro-ws-web), and the whole push-reactive
+apparatus — `live()`, the patch protocol, the render queue, the lazy
+lane, derived identity. Where to fish that code out of git is recorded
+in [reactivity/removed-machinery.md](reactivity/removed-machinery.md).
 
 ## 2. The open axes
 
-### 2.1 Component (`CMP`) + `@slot` (`PAG.6`)
+### 2.1 Reactive engine (`RX.5`) — research
 
-The largest unimplemented design. Component: decorator, render-walk
-third branch, iterate/label mechanics, fractal composition tests.
-Slot: fill-by-id at node birth (the ws_live frame with header/footer
-panels is the guide case). Leftovers to reconcile while implementing:
-the surviving `@component`/`include_components` from June 6, the
-`pyrequires` successor (`<domain>requires` family), the
-`test_no_components_section_post_v0_4_0` sentinel test.
+Fine-grained reactivity is a **separate engine**, not a repair of the
+core. The grammar is shared; the static engine EXECUTES the
+data-elements while the reactive one carries them. Everything that used
+to be listed here as "reactivity granularity" is inside this axis now:
+partial re-render off the kept `materialized` result, per-row component
+reactivity (`CMP.7`), the data-element cascade (multi-wave compute, ex
+"slice 2"), variable datapath and master-detail
+([reactivity/variable-datapath.md](reactivity/variable-datapath.md)).
+The `roadmap/reactivity/` documents were written against contract
+v0.5.0: they are starting material to re-read under `RX.5`, not a
+specification to implement.
 
-### 2.2 Data-element cascade (slice 2, `DAT.4`)
+### 2.2 `@slot(node_id)` (`PAG.6`)
 
-Multi-wave compute: FIFO breadth-first queue, anti-loop (per-node
-input dict + run-count backstop). Slice 1 (single wave) is in.
+Fill-by-id at node birth. Design complete
+([slot-decorator.md](slot-decorator.md)), code absent. The guide case is
+a frame whose header/footer panels are filled by the page that mounts
+it.
 
-### 2.3 Reactivity granularity (`RX`)
+### 2.3 `from_grammar` loader
 
-Partial render in the `live()` flush (`render_nodes` per touched
-node, `_optimize_render` reduction), SRC/DATA dispatcher separation,
-component reactivity by path arithmetic (`CMP.7`), variable datapath
-/ master-detail (see
-[reactivity/variable-datapath.md](reactivity/variable-datapath.md)).
+`to_grammar` writes the schema; nothing reads it back. The loader
+reconstructs a builder class from an exported grammar document — the
+symmetric half, and the precondition of the JS twin consuming the same
+file.
 
-### 2.4 Application (`APP`)
+### 2.4 `include_components` (`CMP.6`) — implemented, untested
 
-The world↔handler layer. `contrib/ws_live` is the living reference;
-the area is formalized when it stabilizes (API, hooks,
-multi-session).
+Per-instance grammar enrichment from mixins exists
+(`BuilderBase.include_components`) and is documented, but no test
+exercises it. Either cover it or decide it is not part of the surface.
 
 ### 2.5 Cross-runtime
 
-"One language, two interpreters": the semantic contract of the
-source, the JS twin (bag/builder client-side), golden tests (same
-recipe + same mutations → same tree). Far horizon; constrains design
-today (named components, func-by-name).
+"One language, two interpreters": the semantic contract of the source,
+the JS twin (bag/builder client-side), golden tests (same recipe → same
+tree). Far horizon; constrains design today (named components,
+func-by-name, the exported grammar format).
 
-## 3. Dependency hints
+## 3. Smaller open items
 
-- CMP needs nothing new from the data layer (read-time registration
-  already serves ephemeral nodes); its reactive half (CMP.7) lands
-  with RX granularity, not before.
-- Slice 2 and RX granularity are independent of CMP but share the
-  queue/anti-loop machinery: whichever lands first shapes the other.
-- APP formalization gates nothing: ws_live evolves freely; the
-  contract area is descriptive.
-- Downstream conversions (genro-textual, genro-print, genro-scriba)
-  consume the current model and put real-world pressure on PAG/HND;
-  they inform the preset question (open in the contract).
+Tracked as GitHub issues, each independent of the axes above: collection
+re-declaration semantics (#31), the HTML `<label>` tag masked by
+`BagNode.label` (#29), inferring `main_tag` for `@component` (#26),
+Python→JS transpiling of formulas (#19), `Coerce` in `Annotated`
+metadata (#14), optional root-element schema validation (#13), friendly
+validation errors (#11).
 
-## 4. What this document is not
+Documentation gap: the XSLT dialect ships without a reference page under
+`docs/grammars/` (its grammar and transpiler live in
+`src/genro_builders/contrib/xslt/`).
+
+## 4. Dependency hints
+
+- `RX.5` gates the reactive half of components (`CMP.7`) and the
+  data-element cascade; nothing else waits on it.
+- `@slot` and `from_grammar` are independent of each other and of
+  `RX.5`: both are pure static-core work.
+- `from_grammar` gates the cross-runtime axis, which cannot consume a
+  grammar nobody can load.
+- Downstream consumers (genro-ws-web, genro-textual, genro-print,
+  genro-scriba) put real-world pressure on `PAG`/`BLD` and inform the
+  preset question left open in the contract.
+
+## 5. What this document is not
 
 - Not a plan: no axis is scheduled.
 - Not a commitment: any sentence here frames discussion.
-- Not a substitute for the contract: decisions are recorded there
-  (or in component-design.md for the component record).
+- Not a substitute for the contract: decisions are recorded there (or in
+  `component-design.md` for the component record).

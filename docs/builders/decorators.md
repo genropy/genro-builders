@@ -38,7 +38,7 @@ Declares a concrete tag. **The tag is the method name** — there is no
 `tags` argument.
 
 ```python
-@element(sub_tags='h1,p[]')
+@element(sub_tags='h1,p')
 def body(self): ...
 
 @element(sub_tags='', parent_tags='ul,ol')
