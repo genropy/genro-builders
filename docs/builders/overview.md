@@ -64,7 +64,7 @@ class MyBuilder(BuilderBase):
     @element(sub_tags='body')
     def html(self): ...
 
-    @element(sub_tags='h1,p[]')
+    @element(sub_tags='h1,p')
     def body(self): ...
 
     @element(sub_tags='')   # leaf (void element)

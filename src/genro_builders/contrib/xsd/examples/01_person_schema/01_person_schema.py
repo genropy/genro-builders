@@ -58,7 +58,7 @@ if __name__ == "__main__":
     page.create()  # mounts and builds the source
     rendered = page.render(target=False, doc_header=True, pretty=True)
 
-    output = Path(__file__).with_suffix(".xsd")
+    output = Path("01_person_schema.xsd")
     output.write_text(rendered)
     print(rendered)
     print(f"\nSaved schema to {output}")
