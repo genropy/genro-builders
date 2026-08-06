@@ -44,7 +44,7 @@ if __name__ == "__main__":
     page.create()
     rendered = page.render()
 
-    output = Path(__file__).with_suffix(".svg")
+    output = Path("badge_sheet.svg")
     output.write_text(rendered)
     print(rendered)
     print(f"\nSaved to {output}")

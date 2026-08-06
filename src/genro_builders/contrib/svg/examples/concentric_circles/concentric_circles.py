@@ -26,7 +26,7 @@ for r, color in zip(radii, colors, strict=True):
 
 output = builder.render()
 
-output_path = Path(__file__).with_suffix(".svg")
+output_path = Path("concentric_circles.svg")
 output_path.write_text(output)
 print(output)
 print(f"\nSaved to {output_path}")

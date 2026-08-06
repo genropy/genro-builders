@@ -36,7 +36,7 @@ svg.text("With drop shadow", x="100", y="85",
 
 output = builder.render()
 
-output_path = Path(__file__).with_suffix(".svg")
+output_path = Path("card_shadow.svg")
 output_path.write_text(output)
 print(output)
 print(f"\nSaved to {output_path}")

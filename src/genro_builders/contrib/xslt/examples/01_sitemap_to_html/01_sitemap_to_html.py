@@ -79,7 +79,7 @@ if __name__ == "__main__":
     sheet.create()
     stylesheet_xml = sheet.render(target=False, doc_header=True, pretty=True)
 
-    output_xslt = Path(__file__).with_suffix(".xslt")
+    output_xslt = Path("01_sitemap_to_html.xslt")
     output_xslt.write_text(stylesheet_xml)
     print(stylesheet_xml)
 
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     transform = etree.XSLT(etree.fromstring(stylesheet_xml.encode("utf-8")))
     result_html = str(transform(etree.fromstring(sitemap_xml.encode("utf-8"))))
 
-    output_html = Path(__file__).with_suffix(".html")
+    output_html = Path("01_sitemap_to_html.html")
     output_html.write_text(result_html)
     print("\n--- transformed HTML ---\n")
     print(result_html)

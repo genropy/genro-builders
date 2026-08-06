@@ -39,7 +39,7 @@ svg.rect(x="80", y="25", width="12", height="30", fill="#95a5a6")
 
 output = builder.render()
 
-output_path = Path(__file__).with_suffix(".svg")
+output_path = Path("house_icon.svg")
 output_path.write_text(output)
 print(output)
 print(f"\nSaved to {output_path}")
