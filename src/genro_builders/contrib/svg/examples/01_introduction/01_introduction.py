@@ -32,7 +32,7 @@ if __name__ == "__main__":
     page.create()
     rendered = page.render()
 
-    output = Path(__file__).with_suffix(".svg")
+    output = Path("01_introduction.svg")
     output.write_text(rendered)
     print(rendered)
     print(f"\nSaved to {output}")

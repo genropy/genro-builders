@@ -49,7 +49,7 @@ for i, (label, value) in enumerate(data):
 
 output = builder.render()
 
-output_path = Path(__file__).with_suffix(".svg")
+output_path = Path("bar_chart.svg")
 output_path.write_text(output)
 print(output)
 print(f"\nSaved to {output_path}")

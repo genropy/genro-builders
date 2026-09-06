@@ -108,7 +108,13 @@ See [../builders/patterns.md](../builders/patterns.md).
 
 ### Round-trip from CSS source
 
-The builder exposes two classmethods for the reverse direction:
+The builder exposes two classmethods for the reverse direction. They
+parse with tree-sitter, which ships in the optional `reverse` extra —
+without it the call raises `ImportError`:
+
+```bash
+pip install 'genro-builders[reverse]'
+```
 
 ```python
 from genro_builders.contrib.css import CssBuilder
