@@ -144,7 +144,8 @@ class Html5Elements:
     )
     def div(self, **kwargs): ...
 
-    @element(sub_tags='div,dt,script,template')
+    # WHATWG: dt/dd groups, or div groups, intermixed with script-supporting.
+    @element(sub_tags='dd,div,dt,script,template')
     def dl(self, **kwargs): ...
 
     @element(
@@ -160,7 +161,10 @@ class Html5Elements:
     @element()
     def embed(self, **kwargs): ...
 
-    @element(sub_tags='legend[0:1]')
+    # WHATWG: optionally a legend element, followed by flow content.
+    @element(
+        sub_tags='legend[0:1],a,abbr,address,area,article,aside,audio,b,bdi,bdo,blockquote,br,button,canvas,cite,code,data,datalist,del_,details,dfn,dialog,div,dl,em,embed,fieldset,figure,footer,form,h1,h2,h3,h4,h5,h6,header,hgroup,hr,i,iframe,img,input,ins,kbd,label,link,main,map,mark,menu,meta,meter,nav,noscript,object,ol,output,p,picture,pre,progress,q,ruby,s,samp,script,search,section,select,selectedcontent,slot,small,span,strong,style,sub,sup,table,template,textarea,time,u,ul,var,video,wbr',
+    )
     def fieldset(self, **kwargs): ...
 
     @element(
@@ -455,7 +459,10 @@ class Html5Elements:
     @element(sub_tags='script,template,tr')
     def thead(self, **kwargs): ...
 
-    @element()
+    # WHATWG: phrasing content when the datetime attribute is present.
+    @element(
+        sub_tags='a,abbr,area,audio,b,bdi,bdo,br,button,canvas,cite,code,data,datalist,del_,dfn,em,embed,i,iframe,img,input,ins,kbd,label,link,map,mark,meta,meter,noscript,object,output,picture,progress,q,ruby,s,samp,script,select,selectedcontent,slot,small,span,strong,sub,sup,template,textarea,time,u,var,video,wbr',
+    )
     def time(self, **kwargs): ...
 
     @element()
