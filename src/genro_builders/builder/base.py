@@ -200,6 +200,9 @@ class BuilderBase(
             call_args_validations, declared_names, accepts_var_keyword = (
                 _extract_signature_info(obj))
             for tag in tag_list:
+                existing = cls._class_schema.get_node(tag)
+                if existing is not None and (existing.get_attr("_meta") or {}).get("data_element"):
+                    continue
                 cls._class_schema.set_item(
                     tag, None,
                     sub_tags=decorator_info.get("sub_tags", ""),
