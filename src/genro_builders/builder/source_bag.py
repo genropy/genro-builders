@@ -120,13 +120,18 @@ class _SourceBagNodeMixin:
     def data(self) -> Any:
         """The document's datastore, reached through the owning builder.
 
-        Same name as ``builder.data`` and the same object: one Bag per
+        GUI dialects opting into ``data_recipe_alias`` expose the dataSetter
+        callable here instead; datastore access remains on ``builder.data``.
+        For generic dialects, same name and object as ``builder.data``: one Bag per
         document, whatever level you read it from. Works on a DETACHED
         tree too (a component expansion), because the builder is resolved
         by the ancestor walk, not by the tree's root — an expansion node
         reads and writes the SAME datastore as the document it projects.
         """
-        return self._resolve_builder().data
+        builder = self._resolve_builder()
+        if getattr(type(builder), "data_recipe_alias", False):
+            return self.__getattr__("dataSetter")
+        return builder.data
 
     @property
     def root_builder(self) -> Any:
@@ -412,7 +417,7 @@ class _SourceBagNodeMixin:
         explicitly ``None``) is seeded with ``default`` before the read —
         the two cases are intentionally not distinguished.
         """
-        data = self.data
+        data = self._resolve_builder().data
         abs_path = self.abs_datapath(path)
         if autocreate and data.get_item(abs_path) is None:
             data.set_item(abs_path, default)
@@ -439,7 +444,7 @@ class _SourceBagNodeMixin:
         override.
         """
         abs_path = self.abs_datapath(path)
-        self.data.set_item(
+        self._resolve_builder().data.set_item(
             abs_path,
             value,
             _attributes=attributes,
@@ -589,6 +594,8 @@ class _SourceBagMixin:
         except AttributeError:
             builder = None
         if builder is not None:
+            if name == "data" and getattr(type(builder), "data_recipe_alias", False):
+                return builder._bag_call(self, "dataSetter")
             original_tag = _schema_tag(builder, name)
             if original_tag is not None:
                 return builder._bag_call(self, original_tag)
@@ -640,6 +647,7 @@ class SourceBag(Bag, _SourceBagMixin):
     returns a detached one for offline subtree building.
     """
 
+    __tytx_suffix__ = "XS"
     _node_class: type[BagNode] = SourceBagNode
 
     def __init__(

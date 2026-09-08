@@ -214,3 +214,11 @@ Known consumers in the Genro ecosystem:
 ## License
 
 Apache License 2.0 — Copyright 2025 Softwell S.r.l.
+
+### Experimental Pages integration
+
+The `codex/sourcebag-tytx` branch registers SourceBag with TYTX as `XS`, preserving
+SourceBagNode identity and nested ordinary Bags when transporting a detached recipe.
+GUI dialects can opt into `data_recipe_alias = True` to expose `pane.data(...)`
+as a dataSetter recipe; generic dialects keep their datastore property semantics.
+This branch is a collaborator preview, not a published release.

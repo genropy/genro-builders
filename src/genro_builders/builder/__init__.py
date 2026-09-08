@@ -5,6 +5,8 @@ The package is the import surface: ``from genro_builders.builder import X``
 works regardless of which module inside actually defines ``X``.
 """
 
+from genro_tytx import register_class
+
 from ._decorators import (
     abstract,
     component,
@@ -15,6 +17,8 @@ from ._validators import Range, Regex
 from .base import BuilderBase
 from .source_bag import SourceBag, SourceBagNode
 from .target_wrapper import TargetWrapper
+
+register_class(SourceBag)
 
 __all__ = [
     "BuilderBase",
