@@ -121,6 +121,18 @@ class BuilderBase(
     #: gnrwebstruct parity).
     _containers: dict[str, str]
 
+    #: The ``SourceBag`` class of this builder's Source (legacy GenroPy
+    #: ``domSrcFactory``): the builder declares the class of the Source,
+    #: the Source declares the class of its nodes (``_node_class``). It is
+    #: instantiated for ``_sourceroot``, for the ``source`` payload under
+    #: ``SOURCE_ROOT``, for :meth:`new_root` and for the component
+    #: expansion root, always as ``_source_class(builder=self)``. Branches
+    #: created while authoring follow the class of their parent bag.
+    #: Redefine it on a subclass to use a ``SourceBag`` subclass; to
+    #: travel on the TYTX wire, the subclass must be registered in the
+    #: genro-tytx subtype dictionary of ``X``.
+    _source_class: ClassVar[type[SourceBag]] = SourceBag
+
     # -----------------------------------------------------------------------
     # Initialization
     # -----------------------------------------------------------------------
@@ -368,13 +380,14 @@ class BuilderBase(
         The source lives under the structural ``SOURCE_ROOT`` segment of
         a wrapper root (tree-not-forest guarantee, never an address):
         ``self.source`` is the payload the ``main`` recipe populates,
-        ``_sourceroot`` the wrapper that carries it.
+        ``_sourceroot`` the wrapper that carries it. Both are instances of
+        :attr:`_source_class`.
         """
         self.name: str | None = name or type(self)._name
         self._schema = type(self)._class_schema
         self._schema_tag_names = type(self)._schema_tag_names
-        self._sourceroot: SourceBag = SourceBag(builder=self)
-        self._sourceroot[SOURCE_ROOT] = SourceBag(builder=self)
+        self._sourceroot: SourceBag = self._source_class(builder=self)
+        self._sourceroot[SOURCE_ROOT] = self._source_class(builder=self)
         self.source: SourceBag = self._sourceroot[SOURCE_ROOT]
         self._sourceroot.set_backref()
         self._default_targets: dict[str, Any] = {}
@@ -420,7 +433,9 @@ class BuilderBase(
         return YamlRenderer(builder=self)
 
     def new_root(self) -> SourceBag:
-        """Return a fresh, throw-away ``SourceBag`` driven by this builder.
+        """Return a fresh, throw-away Source driven by this builder.
+
+        The Source is an instance of :attr:`_source_class`.
 
         The returned source carries this builder (so the grammar API
         works: ``root.div(...)`` etc.) and has backref enabled (so
@@ -432,7 +447,7 @@ class BuilderBase(
         it and resolves its pointers. The throw-away root itself is not
         retained by anything.
         """
-        root = SourceBag(builder=self)
+        root = self._source_class(builder=self)
         root.set_backref()
         return root
 
@@ -452,10 +467,10 @@ class BuilderBase(
         is the machinery's own object — so the body's relative pointers
         (``^.company``) find it through the ordinary ancestor climb.
         """
-        wrapper = SourceBag(builder=self)
+        wrapper = self._source_class(builder=self)
         attrs = {"datapath": datapath} if datapath else {}
         wrapper.set_item(
-            SOURCE_ROOT, SourceBag(builder=self),
+            SOURCE_ROOT, self._source_class(builder=self),
             _attributes=attrs,
         )
         wrapper.set_backref()

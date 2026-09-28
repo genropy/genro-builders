@@ -94,6 +94,11 @@ with absolute paths and no leading segment — reachable from any node as
 fragments via dialect-specific `rendered_item`, then `finalize` ships
 the result to the target.
 
+The builder also declares the class of its Source: `_source_class`
+(default `SourceBag`), redefinable per subclass. The Source declares
+the class of its nodes (`_node_class`). Branches follow the class of
+their parent bag. See [the Source class](docs/builders/overview.md#the-source-class).
+
 ## Runtime data binding (pull-based)
 
 Attribute values and node text can carry pointers and templates,

@@ -637,8 +637,11 @@ class SourceBagNode(BagNode, _SourceBagNodeMixin):
 class SourceBag(Bag, _SourceBagMixin):
     """Bag with builder-aware attribute dispatch.
 
-    The builder instantiates one as ``self.source``; ``new_root``
-    returns a detached one for offline subtree building.
+    The builder instantiates its ``_source_class`` (this class by
+    default, or a subclass) as ``self.source``; ``new_root`` returns a
+    detached one for offline subtree building. A subclass declares the
+    class of its nodes in ``_node_class`` and keeps this constructor
+    signature: the builder calls it as ``cls(builder=...)``.
     """
 
     _node_class: type[BagNode] = SourceBagNode

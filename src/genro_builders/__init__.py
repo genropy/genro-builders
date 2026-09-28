@@ -20,7 +20,7 @@ one flat Bag, reachable from any node as ``node.data``.
 
 from genro_builders.builder import BuilderBase, SourceBag, SourceBagNode, container
 
-__version__ = "0.24.0"
+__version__ = "0.25.0"
 
 __all__ = [
     "BuilderBase",

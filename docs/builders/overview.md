@@ -1,6 +1,6 @@
 # Builders overview
 
-**Last Updated**: 2026-07-27
+**Last Updated**: 2026-09-28
 **Status**: 🟢 APPROVATO — allineato al contratto v0.9.0.
 
 A builder is a Python class that defines a grammar for a structured
@@ -86,6 +86,46 @@ class CustomerPage(HtmlBuilder):
     def main(self, root):
         root.body().h1("Customer page")
 ```
+
+## The Source class
+
+The builder declares the `SourceBag` class of its Source in the class
+attribute `_source_class`. The default is `SourceBag`. The Source
+declares the class of its nodes in `_node_class` (`SourceBagNode` for
+`SourceBag`). This is the legacy GenroPy pair `domSrcFactory` /
+node class.
+
+```python
+from genro_tytx import get_subtype_dict, set_subtype_dict
+
+from genro_builders import SourceBag, SourceBagNode
+from genro_builders.contrib.html import HtmlBuilder
+
+class PageNode(SourceBagNode):
+    __slots__ = ()
+
+class PageSource(SourceBag):
+    _node_class = PageNode
+
+# Only needed for the TYTX wire: "::X" with __cls "PageSource".
+set_subtype_dict("X", {**get_subtype_dict("X"), "PageSource": PageSource})
+
+class CustomerPage(HtmlBuilder):
+    _source_class = PageSource
+
+    def main(self, root):
+        root.body().h1("Customer page")
+```
+
+- `_source_class(builder=self)` is instantiated for `_sourceroot`, for
+  `source` under `_root_`, for `new_root()` and for the component
+  expansion root. A subclass keeps the `SourceBag` constructor
+  signature.
+- A branch created while authoring, including a scalar node promoted
+  to a branch, is an instance of the class of its parent bag.
+- On the TYTX wire the Source travels as `::X` with `__cls` set to the
+  name under which its class is registered in the subtype dictionary
+  of `X`. An unregistered subclass cannot be serialized.
 
 ## What lives where
 
