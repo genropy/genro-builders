@@ -17,7 +17,10 @@ class CommonComponents:
         card = root.div(**kwargs)
         card.strong("^.company")
         card.div("^.street")
-        card.div("${z} ${c}", z="^.zip", c="^.city")
+        line = card.div()
+        line.span("^.zip")
+        line.span(" ")
+        line.span("^.city")
 
 
 class CustomPage(HtmlBuilder, CommonComponents):

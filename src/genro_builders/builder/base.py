@@ -47,7 +47,7 @@ from .source_bag import SourceBag
 from .target_wrapper import TargetWrapper
 
 # Template token spotted by ``runtime_values`` for ``${name}`` placeholders.
-_TEMPLATE_RE = re.compile(r"\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+_TEMPLATE_RE = re.compile(r"(\\)?\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 
 #: Structural key of the source wrapper. It exists only so the source is
 #: a tree, not a forest; it is NOT an address. Paths that travel outside
@@ -718,7 +718,11 @@ class BuilderBase(
         the builder, which owns the datastore; ``node`` is just the subject
         whose pointers are resolved. ``^``/``=`` strings are read from
         ``self.data`` at the node's absolute path; ``${name}`` templates
-        expand against the resolved attrs.
+        expand only inside attributes, against the resolved attrs. A preceding
+        backslash protects a token and is removed. Node values are not templates.
+        Data elements carry code, not presentation: their attributes are never
+        templates (a controller script uses ``${...}`` as JavaScript). A name
+        that is not a resolved attribute raises ``ValueError``.
 
         A ``BagResolver`` found as the node value or in an attribute is
         CALLED, and its result is the resolved datum: a resolver supplies
@@ -779,13 +783,19 @@ class BuilderBase(
 
         def _expand(s: str) -> str:
             def repl(m: re.Match[str]) -> str:
-                name = m.group(1)
+                if m.group(1):
+                    return m.group(0)[1:]
+                name = m.group(2)
+                if name not in resolved:
+                    raise ValueError(f"Unknown template parameter '{name}'")
                 consumed.add(name)
                 val = resolved[name]
                 return "" if val is None else str(val)
             return _TEMPLATE_RE.sub(repl, s)
 
         for k, v in resolved.items():
+            if is_data_element or k is None:
+                continue
             if isinstance(v, str) and "${" in v:
                 resolved[k] = _expand(v)
 

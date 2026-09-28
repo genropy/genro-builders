@@ -15,12 +15,14 @@ class CommonComponents:
         card = root.div(**kwargs)
         card.strong("^.company")
         card.div("^.street")
-        card.div("${z} ${c}", z="^.zip", c="^.city")
+        line = card.div()
+        line.span("^.zip")
+        line.span(" ")
+        line.span("^.city")
 ```
 
-The body reads the record through relative pointers (`^.company`),
-plus the usual grammar niceties (here a template with consumed inputs
-composes "zip city"). The call's other attributes flow in as
+The body reads the record through relative pointers (`^.company`);
+ZIP and city get a span each, because node text is not a template. The call's other attributes flow in as
 ``kwargs`` and the author routes them — here onto the card, so the
 caller can dress the block (`class_`, `style`, ...) while the root
 stays the author's.

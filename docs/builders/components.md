@@ -60,12 +60,15 @@ body.addressBlock(company="^sender.company", street="^sender.street",
 body.addressBlock(company="ACME", street="123 Main St", city="Springfield")  # literals
 ```
 
-To compose two data into one string use a **template**, not an f-string:
-a pointer kwarg reaches the body as a pointer, its value exists only at
-the final node's render.
+Never compose two data with an f-string: a pointer kwarg reaches the body
+as a pointer, its value exists only at the final node's render. Node text is
+not a template, so each datum gets its own node:
 
 ```python
-card.div("${zip} ${city}", zip="^.zip", city="^.city")
+line = card.div()
+line.span("^.zip")
+line.span(" ")
+line.span("^.city")
 ```
 
 ### 2. `store` — anchored to a record
@@ -81,7 +84,10 @@ def addressBlock(self, root, **kwargs):
     card = root.div(**kwargs)
     card.strong("^.company")
     card.div("^.street")
-    card.div("${z} ${c}", z="^.zip", c="^.city")
+    line = card.div()
+    line.span("^.zip")
+    line.span(" ")
+    line.span("^.city")
 
 # call site — one body, two records:
 body.addressBlock(store="^sender", class_="address")

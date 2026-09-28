@@ -153,7 +153,10 @@ class HtmlRenderer(RendererBase):
             return f"{indent}<{tag}{attrs}>{newline}{body}{indent}</{tag}>{newline}"
         if item is None:
             return f"{indent}<{tag}{attrs}></{tag}>{newline}"
-        text = item if tag in _RAW_TEXT_TAGS else self._escape_text(item)
+        if isinstance(item, str) and item.endswith("::HTML"):
+            text = item[:-6]
+        else:
+            text = item if tag in _RAW_TEXT_TAGS else self._escape_text(item)
         return (
             f"{indent}<{tag}{attrs}>"
             f"{text}"
