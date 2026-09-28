@@ -17,7 +17,10 @@ class CommonComponents:
         card = root.div(class_="address")
         card.strong(company)
         card.div(street)
-        card.div("${zip_code} ${city}", zip_code=zip_code, city=city)
+        line = card.div()
+        line.span(zip_code)
+        line.span(" ")
+        line.span(city)
 
 
 class CustomPage(HtmlBuilder, CommonComponents):
@@ -45,9 +48,8 @@ it builds, and the value resolves at the final node's render, exactly
 like a hand-written pointer. That is what keeps the ADDRESS alive on
 the element (the `data-<name>-pointer` emitted under
 `include_datapath`). Consequence: the body builds structure with the kwargs, it
-never computes on their values — composing two data into one string is
-the template's job (`${zip_code} ${city}`, inputs consumed), not an
-f-string's. The same component renders the customer block from literal
+never computes on their values. Separate spans resolve the ZIP and city
+pointers at rendering time; node text no longer interpolates `${...}`. The same component renders the customer block from literal
 params — the call site decides the data.
 
 ## Why this example exists

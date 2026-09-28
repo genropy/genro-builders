@@ -109,8 +109,10 @@ resolved at render time:
 
 Both resolve the same way in a static render: the difference is the
 author's declaration of intent, which a reactive engine would act on.
-- `${name}` — template token; an attribute referenced by a template
-  of the same node is a consumed input, never emitted
+- `${name}` — template token, expanded only inside attributes (never in the
+  node value nor in data-element attributes; `\${name}` stays literal); an
+  attribute referenced by a template of the same node is a consumed input,
+  never emitted
 
 ```python
 from genro_builders.contrib.html import HtmlBuilder

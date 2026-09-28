@@ -15,12 +15,11 @@ class CommonComponents:
         card = root.div(class_="address")
         card.strong(company)
         card.div(street)
-        # Composing two data into one string is a TEMPLATE's job (the
-        # inputs are consumed, DAT.6) — never an f-string on the kwargs:
-        # a pointer kwarg reaches the body as a POINTER (CMP.4
-        # pass-through), the value exists only at the final node's
-        # render.
-        card.div("${zip_code} ${city}", zip_code=zip_code, city=city)
+        # Node text resolves pointers, but does not interpolate templates.
+        line = card.div()
+        line.span(zip_code)
+        line.span(" ")
+        line.span(city)
 
 
 class CustomPage(HtmlBuilder, CommonComponents):
