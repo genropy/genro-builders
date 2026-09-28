@@ -831,7 +831,7 @@ class BuilderBase(
         :meth:`require_sub_tag_validation`.
         """
         problems = []
-        for _path, node in self.source.walk():
+        for node in self.source.traverse():
             builder = node.builder
             if not builder.require_sub_tag_validation(node):
                 continue

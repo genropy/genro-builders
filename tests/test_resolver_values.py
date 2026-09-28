@@ -94,7 +94,7 @@ def test_resolved_attribute_reaches_the_render():
 
 def test_resolver_cache_belongs_to_the_resolver():
     """``cache_time`` works with no node: two renders, one load."""
-    counter = _Counter(cache_time=False)  # infinite cache
+    counter = _Counter(cache_time=-1)  # infinite cache
     page = _build(lambda root: root.doc().item(title=counter))
     first = page.render(target=False)
     second = page.render(target=False)
