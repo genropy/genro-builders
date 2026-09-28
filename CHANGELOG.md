@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.26.0 — 2026-09-28
 
 - Contract change: `${name}` templates expand only inside the attributes of
   non-data elements, the rule of genro-builders-js 0.3.0. The node value is not
