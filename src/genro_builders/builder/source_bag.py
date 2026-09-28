@@ -23,6 +23,7 @@ import warnings
 from typing import Any
 
 from genro_bag import Bag, BagNode
+from genro_tytx import get_subtype_dict, set_subtype_dict
 
 
 def _schema_tag(builder: Any, name: str) -> str | None:
@@ -657,3 +658,14 @@ class SourceBag(Bag, _SourceBagMixin):
         """
         super().__init__(source=source)
         self._builder = builder
+
+
+# SourceBag travels on the TYTX wire as "::X" with __cls "SourceBag"
+# (genro-bag 0.26.0): its name joins the subtype dictionary of its type.
+# The name already owned by another class is a collision.
+if get_subtype_dict(SourceBag.__tytx_suffix__).get("SourceBag", SourceBag) is not SourceBag:
+    raise ValueError("TYTX subtype name 'SourceBag' is already registered for another class")
+set_subtype_dict(
+    SourceBag.__tytx_suffix__,
+    {**get_subtype_dict(SourceBag.__tytx_suffix__), "SourceBag": SourceBag},
+)
