@@ -1,0 +1,28 @@
+{
+  "document_format": {"name": "builder_grammar", "version": "1.1"},
+  "grammar": {"name": "fixture_sub", "version": null, "title": null, "description": null},
+  "abstracts": {},
+  "elements": {
+    "badge": {
+      "doc": "A short label.",
+      "sub_tags": "",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": {
+        "parameters": [
+          {"name": "node_value", "kind": "positional_or_keyword", "role": "value",
+           "annotation": {"kind": "type", "module": "builtins", "name": "str"}, "has_default": false},
+          {"name": "tone", "kind": "positional_or_keyword", "role": "attribute",
+           "annotation": {"kind": "literal", "values": ["info", "warning"]},
+           "has_default": true, "default": "info"}
+        ],
+        "accepts_var_keyword": false,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": null,
+      "_meta": null
+    }
+  }
+}

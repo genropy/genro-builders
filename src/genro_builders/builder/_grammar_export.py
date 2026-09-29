@@ -3,8 +3,8 @@
 
 The neutral JSON format produced here is the runtime contract between
 the Python builder (producer) and consumers in other environments
-(JavaScript builder, future `from_grammar` Python loader, downstream
-transpilers).
+(JavaScript builder, the Python loader of ``_grammar_documents`` in
+``_grammar_load.py``, downstream transpilers).
 
 The format is specified in `GRAMMAR_FORMAT.md`, co-located with this
 module. This module is the **producer** side: it reads a builder
@@ -18,11 +18,18 @@ Exports:
 
 from __future__ import annotations
 
+import copy
+import inspect
+import math
+import types
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any, Literal, Union, get_args, get_origin
+
+from ._utilities import SIGNATURE_SKIP_PARAMS
+from ._validators import Range, Regex
 
 FORMAT_NAME = "builder_grammar"
-FORMAT_VERSION = "1.0"
+FORMAT_VERSION = "1.1"
 
 
 def _topological_sort(
@@ -78,9 +85,99 @@ def _parse_inherits_from(raw: Any) -> list[str]:
     return [p.strip() for p in str(raw).split(",") if p.strip()]
 
 
-def _meta_copy(meta: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Shallow-copy ``_meta``. Return ``None`` if empty."""
-    return dict(meta) if meta else None
+def _json_value(value: Any, path: str) -> Any:
+    """Copy JSON data; refuse what JSON cannot carry losslessly."""
+    if value is None or type(value) in (str, bool, int):
+        return value
+    if type(value) is float and math.isfinite(value):
+        return value
+    if type(value) is list:
+        return [_json_value(v, f"{path}[{i}]") for i, v in enumerate(value)]
+    if type(value) is dict and all(type(k) is str for k in value):
+        return {k: _json_value(v, f"{path}.{k}") for k, v in value.items()}
+    raise TypeError(f"{path}: cannot export {type(value).__name__} losslessly as JSON")
+
+
+def _annotation_form(annotation: Any, path: str) -> Any:
+    """JSON descriptor of a parameter annotation (``None`` if absent)."""
+    if annotation is inspect.Parameter.empty:
+        return None
+    if annotation is Any:
+        return {"kind": "any"}
+    if annotation is Ellipsis:
+        return {"kind": "ellipsis"}
+    origin, args = get_origin(annotation), get_args(annotation)
+    if origin is Annotated:
+        metadata = []
+        for item in args[1:]:
+            if type(item) is Regex:
+                metadata.append({"kind": "regex", "pattern": item.pattern, "flags": int(item.flags)})
+            elif type(item) is Range:
+                metadata.append({"kind": "range", **{
+                    k: _json_value(getattr(item, k), f"{path}.{k}")
+                    for k in ("ge", "le", "gt", "lt")
+                }})
+            elif callable(item):
+                raise TypeError(f"{path}: unsupported callable annotation metadata; "
+                                "a portable validator descriptor is required")
+            else:
+                metadata.append({"kind": "value", "value": _json_value(item, path)})
+        return {"kind": "annotated", "base": _annotation_form(args[0], path), "metadata": metadata}
+    if origin in (Union, types.UnionType):
+        return {"kind": "union", "items": [_annotation_form(a, path) for a in args]}
+    if origin is Literal:
+        return {"kind": "literal", "values": [_json_value(a, path) for a in args]}
+    if isinstance(annotation, list):  # typing.Callable argument list
+        return {"kind": "arguments", "items": [_annotation_form(a, path) for a in annotation]}
+    if origin is not None:
+        return {"kind": "generic", "origin": _annotation_form(origin, path),
+                "arguments": [_annotation_form(a, path) for a in args]}
+    if isinstance(annotation, type) and "<locals>" not in annotation.__qualname__:
+        return {"kind": "type", "module": annotation.__module__, "name": annotation.__qualname__}
+    raise TypeError(f"{path}: unsupported annotation {annotation!r}")
+
+
+def _attributes_form(node: Any) -> dict[str, Any] | None:
+    """JSON ``attributes`` of a schema node.
+
+    A decorated declaration carries its ``declaration_signature``; a
+    declaration read from a document carries the document's
+    ``attributes`` verbatim, so it is written back unchanged.
+    """
+    signature = node.get_attr("declaration_signature")
+    if signature is None:
+        attributes: dict[str, Any] | None = copy.deepcopy(node.get_attr("attributes"))
+        return attributes
+    parameters = []
+    for name, parameter in signature.parameters.items():
+        path = f"{node.label}.{name}"
+        has_default = parameter.default is not inspect.Parameter.empty
+        item = {
+            "name": name,
+            "kind": parameter.kind.name.lower(),
+            "role": "framework" if name in SIGNATURE_SKIP_PARAMS else (
+                "value" if name == "node_value" else "attribute"),
+            "annotation": _annotation_form(parameter.annotation, path),
+            "has_default": has_default,
+        }
+        if has_default:
+            item["default"] = _json_value(parameter.default, f"{path}.default")
+        parameters.append(item)
+    kinds = {p.kind for p in signature.parameters.values()}
+    return {
+        "parameters": parameters,
+        "accepts_var_keyword": inspect.Parameter.VAR_KEYWORD in kinds,
+        "accepts_var_positional": inspect.Parameter.VAR_POSITIONAL in kinds,
+    }
+
+
+def _meta_copy(node: Any) -> dict[str, Any] | None:
+    """JSON copy of the node's ``_meta``; an empty ``{}`` stays ``{}``.
+
+    Raises ``TypeError`` on a value JSON cannot carry losslessly.
+    """
+    meta = node.get_attr("_meta")
+    return _json_value(meta, f"{node.label}._meta") if meta is not None else None
 
 
 def _abstract_form(node: Any) -> dict[str, Any]:
@@ -92,7 +189,8 @@ def _abstract_form(node: Any) -> dict[str, Any]:
         "parent_tags": node.get_attr("parent_tags"),
         "inherits_from": inherits_from,
         "ns": node.get_attr("ns"),
-        "_meta": _meta_copy(node.get_attr("_meta")),
+        "attributes": _attributes_form(node),
+        "_meta": _meta_copy(node),
     }
 
 
@@ -105,8 +203,10 @@ def _element_form(node: Any) -> dict[str, Any]:
         "parent_tags": node.get_attr("parent_tags"),
         "inherits_from": inherits_from,
         "ns": node.get_attr("ns"),
-        "attributes": None,
-        "_meta": _meta_copy(node.get_attr("_meta")),
+        "attributes": _attributes_form(node),
+        "node_label": node.get_attr("node_label"),
+        "collection_key": node.get_attr("collection_key"),
+        "_meta": _meta_copy(node),
     }
 
 
