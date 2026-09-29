@@ -89,7 +89,8 @@ data) and is also the document: it owns `name`, `source`,
 `create()`/`render()`, and exposes its renderers as `renderer_<mode>`
 properties. It also owns its **datastore**: one FLAT Bag, `builder.data`,
 with absolute paths and no leading segment — reachable from any node as
-`node.data`. A
+`node.data`. As the source, it is the content node `_root_` of a private
+wrapper, `_dataroot`, so the datastore is a tree. A
 **renderer** is responsible for one mode: the universal walk produces
 fragments via dialect-specific `rendered_item`, then `finalize` ships
 the result to the target.

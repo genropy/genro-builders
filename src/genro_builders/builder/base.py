@@ -58,6 +58,14 @@ _TEMPLATE_RE = re.compile(r"(\\)?\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 #: segment never appears in them.
 SOURCE_ROOT = "_root_"
 
+#: Structural key of the datastore wrapper, the same shape as the source:
+#: ``builder.data`` is the content node under it, so the datastore is a
+#: tree, not a forest. It is NOT an address: author data paths are
+#: relative to ``builder.data``, so this segment never appears in them.
+#: A subscriber on the wrapper sees it as the first element of the
+#: pathlist.
+DATA_ROOT = "_root_"
+
 
 def _decorated_schema_attrs(obj: Any, decorator_info: dict[str, Any]) -> dict[str, Any]:
     """Schema-node attributes of a decorated declaration (@element, @abstract)."""
@@ -462,7 +470,9 @@ class BuilderBase(
         a wrapper root (tree-not-forest guarantee, never an address):
         ``self.source`` is the payload the ``main`` recipe populates,
         ``_sourceroot`` the wrapper that carries it. Both are instances of
-        :attr:`_source_class`.
+        :attr:`_source_class`. The datastore has the same shape:
+        ``self.data`` is the content node ``DATA_ROOT`` of the private
+        wrapper ``_dataroot``.
         """
         self.name: str | None = name or type(self)._name
         self._schema = type(self)._class_schema
@@ -479,9 +489,13 @@ class BuilderBase(
         self.materialized: dict[str, Any] = {}
         # The datastore: ONE flat Bag per document, owned by the builder.
         # ``setup`` seeds it, pointers read it, ``node.data`` reaches it
-        # from any node through the ancestor walk.
-        self.data: Bag = Bag()
-        self.data.set_backref()
+        # from any node through the ancestor walk. It is the content node
+        # ``DATA_ROOT`` of the private wrapper ``_dataroot``, as the source
+        # is under ``_sourceroot``; the content node is never replaced.
+        self._dataroot: Bag = Bag()
+        self._dataroot[DATA_ROOT] = Bag()
+        self.data: Bag = self._dataroot[DATA_ROOT]
+        self._dataroot.set_backref()
         # data-element logic sources, resolved lazily by ``data_logic``.
         self._data_logic: list[Any] | None = None
         # Sub-builder instances, one per dialect name or grammar class
@@ -573,9 +587,9 @@ class BuilderBase(
         switches the active dialect mid-document (e.g. ``body.svg(...)``
         inside HTML). The host's DATASTORE is passed on so the
         sub-builder resolves pointers against the same document data; it
-        cascades to nested sub-builders, and is re-synced on every hit so
-        a host whose data was replaced after a first render keeps the
-        invariant.
+        cascades to nested sub-builders. The wrapper ``_dataroot`` is
+        passed on with it, so a subscriber on the host's wrapper sees the
+        sub-builder's writes.
         """
         subbuilder = self._subbuilders.get(name)
         if subbuilder is None:
@@ -585,6 +599,7 @@ class BuilderBase(
                 builder_class = type(self).get_builder_class(name)
             subbuilder = builder_class()
             self._subbuilders[name] = subbuilder
+        subbuilder._dataroot = self._dataroot
         subbuilder.data = self.data
         return subbuilder
 
