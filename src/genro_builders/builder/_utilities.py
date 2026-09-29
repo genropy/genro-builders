@@ -57,7 +57,7 @@ def _split_annotated(tp: Any) -> tuple[Any, list]:
 # Type checking
 # ---------------------------------------------------------------------------
 
-def _check_type(value: Any, tp: Any) -> bool:
+def _check_type(value: Any, tp: Any, *, strict_json_primitives: bool = False) -> bool:
     """Check if value matches the type annotation."""
     tp, _ = _split_annotated(tp)
 
@@ -70,14 +70,21 @@ def _check_type(value: Any, tp: Any) -> bool:
     if tp is type(None):
         return value is None
 
+    # Portable grammar documents use JSON's disjoint boolean and number
+    # domains. Python's ``bool`` subclasses ``int``; loaded schemas opt into
+    # the stricter interchange semantics without changing decorator-built
+    # grammars that rely on the established Python behavior.
+    if strict_json_primitives and tp in (int, float) and isinstance(value, bool):
+        return False
+
     if origin is Literal:
         return value in args
 
     if origin is types.UnionType:
-        return any(_check_type(value, t) for t in args)
+        return any(_check_type(value, t, strict_json_primitives=strict_json_primitives) for t in args)
 
     if origin is Union:
-        return any(_check_type(value, t) for t in args)
+        return any(_check_type(value, t, strict_json_primitives=strict_json_primitives) for t in args)
 
     if origin is None:
         if tp is float and isinstance(value, numbers.Number):
@@ -95,7 +102,7 @@ def _check_type(value: Any, tp: Any) -> bool:
         if not args:
             return True
         t_item = args[0]
-        return all(_check_type(v, t_item) for v in value)
+        return all(_check_type(v, t_item, strict_json_primitives=strict_json_primitives) for v in value)
 
     if origin is dict:
         if not isinstance(value, dict):
@@ -103,7 +110,7 @@ def _check_type(value: Any, tp: Any) -> bool:
         if not args:
             return True
         k_t, v_t = args[0], args[1] if len(args) > 1 else Any
-        return all(_check_type(k, k_t) and _check_type(v, v_t) for k, v in value.items())
+        return all(_check_type(k, k_t, strict_json_primitives=strict_json_primitives) and _check_type(v, v_t, strict_json_primitives=strict_json_primitives) for k, v in value.items())
 
     if origin is tuple:
         if not isinstance(value, tuple):
@@ -111,9 +118,9 @@ def _check_type(value: Any, tp: Any) -> bool:
         if not args:
             return True
         if len(args) == 2 and args[1] is Ellipsis:
-            return all(_check_type(v, args[0]) for v in value)
+            return all(_check_type(v, args[0], strict_json_primitives=strict_json_primitives) for v in value)
         return len(value) == len(args) and all(
-            _check_type(v, t) for v, t in zip(value, args, strict=True)
+            _check_type(v, t, strict_json_primitives=strict_json_primitives) for v, t in zip(value, args, strict=True)
         )
 
     if origin is set:
@@ -122,7 +129,7 @@ def _check_type(value: Any, tp: Any) -> bool:
         if not args:
             return True
         t_item = args[0]
-        return all(_check_type(v, t_item) for v in value)
+        return all(_check_type(v, t_item, strict_json_primitives=strict_json_primitives) for v in value)
 
     try:
         return isinstance(value, origin)
@@ -228,6 +235,23 @@ def _extract_signature_info(fn: Callable) -> tuple[dict[str, tuple[Any, list, An
         validators[name] = (base, param_validators, param.default)
 
     return validators, declared_names, accepts_var_keyword
+
+
+def _declaration_signature(fn: Callable) -> inspect.Signature:
+    """Full signature of a declaration, for the grammar export.
+
+    Unlike ``_extract_signature_info`` it keeps every parameter but
+    ``self``: order, kind, default and resolved annotation, variadic
+    and unannotated parameters included. The grammar export writes it
+    as the ``attributes`` of the element or abstract.
+    """
+    fn = getattr(fn, "_func", fn)
+    hints = get_type_hints(fn, include_extras=True)
+    signature = inspect.signature(fn)
+    return signature.replace(parameters=[
+        parameter.replace(annotation=hints.get(name, parameter.annotation))
+        for name, parameter in signature.parameters.items() if name != "self"
+    ])
 
 
 # ---------------------------------------------------------------------------
@@ -368,8 +392,8 @@ def _pop_decorated_methods(cls: type, builder_base: type):
             continue
         if base is builder_base:
             # BuilderBase contributes no schema elements via this path:
-            # the three data-elements it declares are injected into every
-            # subclass schema by __init_subclass__ via
+            # the three data-elements it declares are the first layer of
+            # every grammar, added by __init_subclass__ via
             # _iter_data_element_methods.
             continue
         if issubclass(base, builder_base):
@@ -390,8 +414,8 @@ def _iter_data_element_methods(builder_base: type):
     Data-elements are ordinary ``@element`` declared on ``builder_base``
     and marked with ``_meta['data_element']``. ``_pop_decorated_methods``
     skips ``builder_base``, so these stubs never reach a subclass schema
-    through the normal path; ``__init_subclass__`` injects them into every
-    subclass via this iterator. Discovery is dynamic: any ``@element`` on
+    through the normal path; ``__init_subclass__`` adds them via this
+    iterator as the first layer of every direct subclass's grammar. Discovery is dynamic: any ``@element`` on
     the base carrying the ``data_element`` marker is picked up, so adding a
     new data-element needs no change here.
     """

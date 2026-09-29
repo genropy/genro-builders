@@ -1,5 +1,5 @@
 # Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
-"""Tests for BuilderBase.to_grammar — the builder_grammar v1.0 exporter.
+"""Tests for BuilderBase.to_grammar — the builder_grammar v1.1 exporter.
 
 The format specification lives in
 ``src/genro_builders/builder/GRAMMAR_FORMAT.md``.
@@ -40,7 +40,7 @@ def test_html_grammar_export(tmp_path: Path) -> None:
     data = _dump(HtmlBuilder, tmp_path)
 
     assert data["document_format"]["name"] == "builder_grammar"
-    assert data["document_format"]["version"] == "1.0"
+    assert data["document_format"]["version"] == "1.1"
     assert data["grammar"]["name"] == "html"
 
     assert "div" in data["elements"]
@@ -240,3 +240,144 @@ def test_unrecognized_sub_tags_item_raises_at_class_definition():
         class Broken(BuilderBase):
             @element(sub_tags="div [1]")
             def box(self, **kwargs): ...
+
+
+# ---------------------------------------------------------------------------
+# Export 1.1: signatures, _meta and portability
+# ---------------------------------------------------------------------------
+
+
+def test_export_preserves_all_element_decorator_options_and_signature(tmp_path):
+    from typing import Annotated, Literal
+    from genro_builders.builder import Range, Regex
+
+    # Concrete annotations avoid resolving function-local names from future annotations.
+    def declaration(self, node_value=None, /, plain="default", *, count=2, mode="a", **extras): ...
+    declaration.__annotations__ = {
+        "node_value": Annotated[str, Regex("[A-Z]+", 2)] | None,
+        "count": Annotated[int, Range(ge=1, lt=8)],
+        "mode": Literal["a", "b"],
+    }
+    decorated = element(sub_tags="child[0:2]", parent_tags="root", node_label="stable",
+                        collection_key="${code}_${env}", ns="x",
+                        _meta={"render_tag": "x:item", "capabilities": ["styling"]})(declaration)
+
+    class Dialect(BuilderBase):
+        _name = None
+        item = decorated
+
+    data = _dump(Dialect, tmp_path)["elements"]["item"]
+    assert data["sub_tags"] == "child[0:2]"
+    assert data["parent_tags"] == "root"
+    assert data["node_label"] == "stable"
+    assert data["collection_key"] == "${code}_${env}"
+    assert data["ns"] == "x"
+    assert data["_meta"] == {"render_tag": "x:item", "capabilities": ["styling"]}
+    attrs = data["attributes"]
+    assert attrs["accepts_var_keyword"] is True
+    params = {p["name"]: p for p in attrs["parameters"]}
+    assert list(params) == ["node_value", "plain", "count", "mode", "extras"]
+    assert params["node_value"]["kind"] == "positional_only"
+    assert params["node_value"]["role"] == "value"
+    assert params["node_value"]["annotation"]["kind"] == "union"
+    assert params["node_value"]["annotation"]["items"][0]["metadata"] == [
+        {"kind": "regex", "pattern": "[A-Z]+", "flags": 2}]
+    assert params["plain"]["default"] == "default"
+    assert params["plain"]["annotation"] is None
+    assert params["count"]["kind"] == "keyword_only"
+    assert params["count"]["annotation"]["metadata"] == [
+        {"kind": "range", "ge": 1, "le": None, "gt": None, "lt": 8}]
+    assert params["mode"]["annotation"] == {"kind": "literal", "values": ["a", "b"]}
+
+
+def test_closed_signature_required_and_null_default_are_distinct(tmp_path):
+    class Dialect(BuilderBase):
+        _name = None
+
+        @element()
+        def item(self, required, optional=None): ...
+
+    attrs = _dump(Dialect, tmp_path)["elements"]["item"]["attributes"]
+    assert attrs["accepts_var_keyword"] is False
+    assert attrs["parameters"][0]["has_default"] is False
+    assert "default" not in attrs["parameters"][0]
+    assert attrs["parameters"][1]["has_default"] is True
+    assert attrs["parameters"][1]["default"] is None
+
+
+def test_abstract_signature_and_inherited_element_survive_export(tmp_path):
+    class Parent(BuilderBase):
+        _name = None
+
+        @abstract(sub_tags="*", ns="x")
+        def common(self, plain=3): ...
+
+        @element(inherits_from="common", node_label="stable")
+        def item(self, enabled=True): ...
+
+    class Child(Parent):
+        _name = None
+
+    doc = _dump(Child, tmp_path)
+    assert doc["abstracts"]["common"]["attributes"]["parameters"][0]["default"] == 3
+    assert doc["elements"]["item"]["node_label"] == "stable"
+    assert doc["elements"]["item"]["inherits_from"] == "common"
+
+
+@pytest.mark.parametrize("bad", [object(), float("nan"), (1, 2), {1: "lost-key-type"}])
+def test_unportable_default_fails_without_overwriting_file(tmp_path, bad):
+    class Dialect(BuilderBase):
+        _name = None
+
+        @element()
+        def item(self, value=bad): ...
+
+    out = tmp_path / "grammar.json"
+    out.write_text("previous")
+    with pytest.raises(TypeError, match="losslessly"):
+        Dialect.to_grammar(out)
+    assert out.read_text() == "previous"
+
+
+@pytest.mark.parametrize("bad", [object(), float("inf"), (1, 2)])
+def test_unportable_meta_fails_without_overwriting_file(tmp_path, bad):
+    class Dialect(BuilderBase):
+        _name = None
+
+        @element(_meta={"marker": bad})
+        def item(self, **kwargs): ...
+
+    out = tmp_path / "grammar.json"
+    out.write_text("previous")
+    with pytest.raises(TypeError, match="losslessly"):
+        Dialect.to_grammar(out)
+    assert out.read_text() == "previous"
+
+
+def test_empty_meta_is_exported_as_an_empty_object(tmp_path):
+    class Dialect(BuilderBase):
+        _name = None
+
+        @element(_meta={})
+        def item(self, **kwargs): ...
+
+        @element()
+        def plain(self, **kwargs): ...
+
+    elements = _dump(Dialect, tmp_path)["elements"]
+    assert elements["item"]["_meta"] == {}
+    assert elements["plain"]["_meta"] is None
+
+
+def test_custom_callable_validator_is_not_silently_dropped(tmp_path):
+    from typing import Annotated
+
+    def declaration(self, value): ...
+    declaration.__annotations__ = {"value": Annotated[str, lambda value: None]}
+
+    class Dialect(BuilderBase):
+        _name = None
+        item = element()(declaration)
+
+    with pytest.raises(TypeError, match="portable validator"):
+        _dump(Dialect, tmp_path)
