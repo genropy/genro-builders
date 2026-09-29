@@ -457,19 +457,42 @@ class _GrammarMixin:
         if node_value is not None:
             all_args["node_value"] = node_value
 
+        # A signature read from a document follows genro-builders-js
+        # (``validateElementValues``): a parameter is required by
+        # presence, a supplied ``None`` is a value that only a nullable
+        # annotation accepts, and ``True`` is not an int. Decorator-built schemas
+        # keep the established behavior: ``None`` counts as missing.
+        loaded = bool(info.get("loaded_strict_json_primitives"))
+        loaded_required = info.get("loaded_required_names") or ()
+        loaded_nullable = info.get("loaded_nullable_names") or ()
+
         for attr_name, (base_type, validators, default) in call_args_validations.items():
             attr_value = all_args.get(attr_name)
 
-            # Required check
-            if default is inspect.Parameter.empty and attr_value is None:
-                errors.append(f"required attribute '{attr_name}' is missing")
-                continue
+            if loaded:
+                if attr_name not in all_args:
+                    if attr_name in loaded_required:
+                        errors.append(f"required attribute '{attr_name}' is missing")
+                    continue
+                if attr_value is None:
+                    # The loader decided which annotations accept None
+                    # (a nullable union, Any, no annotation).
+                    if attr_name not in loaded_nullable:
+                        errors.append(
+                            f"'{attr_name}': expected {base_type}, got NoneType"
+                        )
+                    continue
+            else:
+                # Required check
+                if default is inspect.Parameter.empty and attr_value is None:
+                    errors.append(f"required attribute '{attr_name}' is missing")
+                    continue
 
-            if attr_value is None:
-                continue
+                if attr_value is None:
+                    continue
 
             # Type check
-            if not _check_type(attr_value, base_type):
+            if not _check_type(attr_value, base_type, strict_json_primitives=loaded):
                 errors.append(
                     f"'{attr_name}': expected {base_type}, got {type(attr_value).__name__}"
                 )

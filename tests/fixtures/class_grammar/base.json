@@ -1,0 +1,77 @@
+{
+  "document_format": {"name": "builder_grammar", "version": "1.1"},
+  "grammar": {"name": "fixture_base", "version": null, "title": null, "description": null},
+  "abstracts": {
+    "flow": {
+      "doc": "Flow content.",
+      "sub_tags": "item,panel",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": null,
+      "_meta": null
+    }
+  },
+  "elements": {
+    "group": {
+      "doc": "A collection of items keyed by code.",
+      "sub_tags": "item,panel",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": {
+        "parameters": [
+          {"name": "kwargs", "kind": "var_keyword", "role": "attribute", "annotation": null, "has_default": false}
+        ],
+        "accepts_var_keyword": true,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": "code",
+      "_meta": null
+    },
+    "item": {
+      "doc": "One item.",
+      "sub_tags": "",
+      "parent_tags": "group",
+      "inherits_from": null,
+      "ns": "fx",
+      "attributes": {
+        "parameters": [
+          {"name": "code", "kind": "positional_or_keyword", "role": "attribute",
+           "annotation": {"kind": "type", "module": "builtins", "name": "str"}, "has_default": false},
+          {"name": "level", "kind": "positional_or_keyword", "role": "attribute",
+           "annotation": {"kind": "annotated", "base": {"kind": "type", "module": "builtins", "name": "int"},
+                          "metadata": [{"kind": "range", "ge": 1, "le": 6, "gt": null, "lt": null}]},
+           "has_default": true, "default": 1}
+        ],
+        "accepts_var_keyword": false,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": null,
+      "_meta": null
+    },
+    "panel": {
+      "doc": "A titled panel.",
+      "sub_tags": null,
+      "parent_tags": "group",
+      "inherits_from": "flow",
+      "ns": "fx",
+      "attributes": {
+        "parameters": [
+          {"name": "title", "kind": "positional_or_keyword", "role": "attribute",
+           "annotation": {"kind": "annotated", "base": {"kind": "type", "module": "builtins", "name": "str"},
+                          "metadata": [{"kind": "regex", "pattern": "[A-Z][a-z]*", "flags": 0}]},
+           "has_default": true, "default": "Panel"},
+          {"name": "kwargs", "kind": "var_keyword", "role": "attribute", "annotation": null, "has_default": false}
+        ],
+        "accepts_var_keyword": true,
+        "accepts_var_positional": false
+      },
+      "node_label": "panel",
+      "collection_key": null,
+      "_meta": {"render_tag": "section"}
+    }
+  }
+}

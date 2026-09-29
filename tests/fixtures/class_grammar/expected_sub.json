@@ -1,0 +1,322 @@
+{
+  "document_format": {
+    "name": "builder_grammar",
+    "version": "1.1"
+  },
+  "grammar": {
+    "name": "fixture_sub",
+    "version": null,
+    "title": null,
+    "description": null
+  },
+  "abstracts": {
+    "flow": {
+      "doc": "Flow content.",
+      "sub_tags": "item,panel",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": null,
+      "_meta": null
+    }
+  },
+  "elements": {
+    "dataSetter": {
+      "doc": "Write value at destination_path.",
+      "sub_tags": "",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": {
+        "parameters": [
+          {
+            "name": "destination_path",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": {
+              "kind": "type",
+              "module": "builtins",
+              "name": "str"
+            },
+            "has_default": false
+          },
+          {
+            "name": "value",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": {
+              "kind": "any"
+            },
+            "has_default": true,
+            "default": null
+          },
+          {
+            "name": "attr",
+            "kind": "var_keyword",
+            "role": "attribute",
+            "annotation": null,
+            "has_default": false
+          }
+        ],
+        "accepts_var_keyword": true,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": null,
+      "_meta": {
+        "data_element": true
+      }
+    },
+    "dataFormula": {
+      "doc": "Write the result of formula at result_path.",
+      "sub_tags": "",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": {
+        "parameters": [
+          {
+            "name": "result_path",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": {
+              "kind": "type",
+              "module": "builtins",
+              "name": "str"
+            },
+            "has_default": false
+          },
+          {
+            "name": "formula",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": {
+              "kind": "union",
+              "items": [
+                {
+                  "kind": "type",
+                  "module": "builtins",
+                  "name": "str"
+                },
+                {
+                  "kind": "type",
+                  "module": "builtins",
+                  "name": "NoneType"
+                }
+              ]
+            },
+            "has_default": true,
+            "default": null
+          },
+          {
+            "name": "func",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": null,
+            "has_default": true,
+            "default": null
+          },
+          {
+            "name": "params",
+            "kind": "var_keyword",
+            "role": "attribute",
+            "annotation": null,
+            "has_default": false
+          }
+        ],
+        "accepts_var_keyword": true,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": null,
+      "_meta": {
+        "data_element": true
+      }
+    },
+    "dataController": {
+      "doc": "Run script.",
+      "sub_tags": "",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": {
+        "parameters": [
+          {
+            "name": "script",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": {
+              "kind": "union",
+              "items": [
+                {
+                  "kind": "type",
+                  "module": "builtins",
+                  "name": "str"
+                },
+                {
+                  "kind": "type",
+                  "module": "builtins",
+                  "name": "NoneType"
+                }
+              ]
+            },
+            "has_default": true,
+            "default": null
+          },
+          {
+            "name": "params",
+            "kind": "var_keyword",
+            "role": "attribute",
+            "annotation": null,
+            "has_default": false
+          }
+        ],
+        "accepts_var_keyword": true,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": null,
+      "_meta": {
+        "data_element": true
+      }
+    },
+    "group": {
+      "doc": "A collection of items keyed by code.",
+      "sub_tags": "item,panel",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": {
+        "parameters": [
+          {
+            "name": "kwargs",
+            "kind": "var_keyword",
+            "role": "attribute",
+            "annotation": null,
+            "has_default": false
+          }
+        ],
+        "accepts_var_keyword": true,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": "code",
+      "_meta": null
+    },
+    "item": {
+      "doc": "One item.",
+      "sub_tags": "",
+      "parent_tags": "group",
+      "inherits_from": null,
+      "ns": "fx",
+      "attributes": {
+        "parameters": [
+          {
+            "name": "code",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": {
+              "kind": "type",
+              "module": "builtins",
+              "name": "str"
+            },
+            "has_default": false
+          },
+          {
+            "name": "level",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": {
+              "kind": "annotated",
+              "base": {
+                "kind": "type",
+                "module": "builtins",
+                "name": "int"
+              },
+              "metadata": [
+                {
+                  "kind": "range",
+                  "ge": 1,
+                  "le": 6,
+                  "gt": null,
+                  "lt": null
+                }
+              ]
+            },
+            "has_default": true,
+            "default": 1
+          }
+        ],
+        "accepts_var_keyword": false,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": null,
+      "_meta": null
+    },
+    "panel": {
+      "doc": "A panel redefined without containment rules.",
+      "sub_tags": null,
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": {
+        "parameters": [
+          {
+            "name": "kwargs",
+            "kind": "var_keyword",
+            "role": "attribute",
+            "annotation": null,
+            "has_default": false
+          }
+        ],
+        "accepts_var_keyword": true,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": null,
+      "_meta": null
+    },
+    "badge": {
+      "doc": "A short label.",
+      "sub_tags": "",
+      "parent_tags": null,
+      "inherits_from": null,
+      "ns": null,
+      "attributes": {
+        "parameters": [
+          {
+            "name": "node_value",
+            "kind": "positional_or_keyword",
+            "role": "value",
+            "annotation": {
+              "kind": "type",
+              "module": "builtins",
+              "name": "str"
+            },
+            "has_default": false
+          },
+          {
+            "name": "tone",
+            "kind": "positional_or_keyword",
+            "role": "attribute",
+            "annotation": {
+              "kind": "literal",
+              "values": [
+                "info",
+                "warning"
+              ]
+            },
+            "has_default": true,
+            "default": "info"
+          }
+        ],
+        "accepts_var_keyword": false,
+        "accepts_var_positional": false
+      },
+      "node_label": null,
+      "collection_key": null,
+      "_meta": null
+    }
+  }
+}

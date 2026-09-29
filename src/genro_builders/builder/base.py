@@ -2,8 +2,9 @@
 """BuilderBase — grammar base class for Bag builders.
 
 A builder declares the grammar of a dialect via decorators
-(@element, @abstract) and the schema of valid tag placements
-(sub_tags, parent_tags). Sub-builders and data-elements are ordinary
+(@element, @abstract), via ``builder_grammar`` 1.1 JSON documents
+(``_grammar_documents``), or both, and the schema of valid tag
+placements (sub_tags, parent_tags). Sub-builders and data-elements are ordinary
 @element marked in their ``_meta`` (no dedicated decorator). The three data-elements
 (dataSetter / dataFormula / dataController) are ordinary @element
 declared on this base and marked ``_meta['data_element']``. A builder
@@ -37,7 +38,9 @@ from ..renderer.yaml import YamlRenderer
 from ._decorators import element
 from ._grammar import _GrammarMixin
 from ._grammar_export import _class_schema_to_grammar_document
+from ._grammar_load import _read_grammar_document
 from ._utilities import (
+    _declaration_signature,
     _extract_signature_info,
     _iter_data_element_methods,
     _parse_sub_tags_spec,
@@ -54,6 +57,55 @@ _TEMPLATE_RE = re.compile(r"(\\)?\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
 #: the builder are composed relative to ``builder.source``, so this
 #: segment never appears in them.
 SOURCE_ROOT = "_root_"
+
+
+def _decorated_schema_attrs(obj: Any, decorator_info: dict[str, Any]) -> dict[str, Any]:
+    """Schema-node attributes of a decorated declaration (@element, @abstract)."""
+    attrs: dict[str, Any] = {
+        "sub_tags": decorator_info.get("sub_tags", ""),
+        "parent_tags": decorator_info.get("parent_tags"),
+        "inherits_from": decorator_info.get("inherits_from", ""),
+        "_meta": decorator_info.get("_meta"),
+        "documentation": obj.__doc__,
+        "declaration_signature": _declaration_signature(obj),
+    }
+    # ``ns`` (namespace prefix) is optional: only the elements that
+    # declare it carry the attribute, so nodes without a namespace stay
+    # clean and the inherits_from merge (``not result[k]``) is never
+    # tripped by a spurious ``ns=None``.
+    ns = decorator_info.get("ns")
+    if ns is not None:
+        attrs["ns"] = ns
+    if decorator_info.get("abstract", False):
+        return attrs
+    call_args_validations, declared_names, accepts_var_keyword = (
+        _extract_signature_info(obj))
+    attrs.update(
+        call_args_validations=call_args_validations,
+        declared_names=declared_names,
+        accepts_var_keyword=accepts_var_keyword,
+        node_label=decorator_info.get("node_label"),
+        collection_key=decorator_info.get("collection_key"),
+    )
+    return attrs
+
+
+def _grammar_document_paths(cls: type) -> list[Path]:
+    """Paths of the documents named in ``cls``'s own ``_grammar_documents``.
+
+    A relative path is resolved against the directory of the module that
+    defines ``cls``.
+    """
+    documents = cls.__dict__.get("_grammar_documents", ())
+    if isinstance(documents, (str, Path)):
+        raise TypeError(
+            f"{cls.__name__}._grammar_documents must be a tuple of paths, "
+            f"got a single {type(documents).__name__}"
+        )
+    if not documents:
+        return []
+    module_dir = Path(inspect.getfile(cls)).parent
+    return [module_dir / document for document in documents]
 
 
 class BuilderBase(
@@ -73,8 +125,13 @@ class BuilderBase(
     through the same schema and the same ``_command_on_node`` dispatch as
     any element; the element's ``_meta`` rides onto the node and readers
     query it via ``node._get_meta(...)``. The data-elements are declared on
-    this base and injected into every dialect's schema by
-    ``__init_subclass__`` (see ``_iter_data_element_methods``).
+    this base; ``__init_subclass__`` makes them the first layer of every
+    grammar (see ``_iter_data_element_methods``), so a subclass can
+    redefine them like any element.
+
+    A class declares its grammar with decorators, with JSON documents
+    (``_grammar_documents``), or with both; ``_decorated_elements``
+    switches its decorated methods off. See ``GRAMMAR_FORMAT.md`` §9.
 
     Source, lifecycle phases, render_target, node_id and the data store
     all belong to the builder itself.
@@ -133,15 +190,42 @@ class BuilderBase(
     #: genro-tytx subtype dictionary of ``X``.
     _source_class: ClassVar[type[SourceBag]] = SourceBag
 
+    #: The ``builder_grammar`` 1.1 JSON documents of THIS class, as a
+    #: tuple of paths; a relative path is resolved against the directory
+    #: of the class's module. ``__init_subclass__`` applies them in
+    #: declared order on top of the parent's grammar and after the
+    #: class's decorated methods, which they override. Read from the
+    #: class's own namespace: a subclass does not inherit it.
+    _grammar_documents: ClassVar[tuple[str | Path, ...]] = ()
+
+    #: Whether the decorated methods (``@element``, ``@abstract``) of
+    #: THIS class enter its grammar. ``False`` leaves them out; they are
+    #: removed from the class either way. Read from the class's own
+    #: namespace: a subclass does not inherit it.
+    _decorated_elements: ClassVar[bool] = True
+
     # -----------------------------------------------------------------------
     # Initialization
     # -----------------------------------------------------------------------
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Build _class_schema Bag from decorated methods (@element,
-        @abstract). Sub-builders are @element (marked ``_meta['subbuilder']``)
-        and collected like any element; the data-elements are injected from
-        the base afterwards (see below)."""
+        """Build ``_class_schema``, one layer after the other.
+
+        1. The grammar of the parent builder class. A direct subclass of
+           BuilderBase starts from the data-elements declared on
+           BuilderBase (``_iter_data_element_methods``).
+        2. The class's decorated methods (@element, @abstract; sub-builders
+           and data-elements are @element marked in ``_meta``), unless the
+           class sets ``_decorated_elements = False``.
+        3. The JSON documents named in the class's own
+           ``_grammar_documents``, in declared order.
+
+        A later definition of an element or abstract replaces the earlier
+        one entirely: nothing of the earlier definition survives. This
+        holds for the data-elements too, and for a name declared both by
+        a decorator and by a document of the same class: the document
+        wins.
+        """
         super().__init_subclass__(**kwargs)
 
         parent_schema = None
@@ -149,80 +233,46 @@ class BuilderBase(
             if hasattr(base, "_class_schema"):
                 parent_schema = base._class_schema
                 break
-        cls._class_schema = Bag(source=parent_schema) if parent_schema else Bag()
-
-        # Ensure the dedicated sub-bag for abstracts exists. Abstracts
-        # live in a nested Bag rather than at the top level, with no `@`
-        # prefix on labels. This keeps element / subbuilder / data_element
-        # names cleanly separated from the abstract namespace.
-        if cls._class_schema.get_node("_abstracts") is None:
+        if parent_schema is not None:
+            cls._class_schema = Bag(source=parent_schema)
+            # The copy carries the parent's ``_get_schema_info`` cache,
+            # resolved against the parent's abstracts; a layer of this
+            # class may replace them, so the cache is rebuilt here.
+            for node in cls._class_schema:
+                node.attr.pop("_cached_info", None)
+        else:
+            # Abstracts live in a nested Bag rather than at the top level,
+            # with no `@` prefix on labels. This keeps element / subbuilder
+            # / data_element names cleanly separated from the abstract
+            # namespace.
+            cls._class_schema = Bag()
             cls._class_schema.set_item("_abstracts", Bag())
-
-        for tag_list, obj, decorator_info in _pop_decorated_methods(cls, BuilderBase):
-            is_abstract = decorator_info.get("abstract", False)
-            sub_tags = decorator_info.get("sub_tags", "")
-            parent_tags = decorator_info.get("parent_tags")
-            inherits_from = decorator_info.get("inherits_from", "")
-            meta = decorator_info.get("_meta")
-            documentation = obj.__doc__
-            call_args_validations, declared_names, accepts_var_keyword = (
-                _extract_signature_info(obj))
-            node_label = decorator_info.get("node_label")
-            collection_key = decorator_info.get("collection_key")
-            # ``ns`` (namespace prefix) is optional: only the elements that
-            # declare it carry the attribute, so nodes without a namespace
-            # stay clean and the inherits_from merge (``not result[k]``) is
-            # never tripped by a spurious ``ns=None``.
-            ns = decorator_info.get("ns")
-            ns_attr = {"ns": ns} if ns is not None else {}
-
-            for tag in tag_list:
-                if is_abstract:
-                    cls._class_schema["_abstracts"].set_item(
-                        tag, None,
-                        sub_tags=sub_tags,
-                        parent_tags=parent_tags,
-                        inherits_from=inherits_from,
-                        _meta=meta,
-                        documentation=documentation,
-                        **ns_attr,
-                    )
-                else:
+            # The data-element stubs are @element on BuilderBase marked
+            # with _meta['data_element']; _pop_decorated_methods skips the
+            # base, so they enter the grammar here, as its first layer.
+            for tag_list, obj, decorator_info in _iter_data_element_methods(BuilderBase):
+                for tag in tag_list:
                     cls._class_schema.set_item(
-                        tag, None,
-                        sub_tags=sub_tags,
-                        parent_tags=parent_tags,
-                        inherits_from=inherits_from,
-                        _meta=meta,
-                        documentation=documentation,
-                        call_args_validations=call_args_validations,
-                        declared_names=declared_names,
-                        accepts_var_keyword=accepts_var_keyword,
-                        node_label=node_label,
-                        collection_key=collection_key,
-                        **ns_attr,
-                    )
+                        tag, None, **_decorated_schema_attrs(obj, decorator_info))
+        abstracts_bag = cls._class_schema["_abstracts"]
 
-        # Inject the data-element stubs declared on BuilderBase into this
-        # subclass schema. They are @element marked with _meta['data_element'];
-        # _pop_decorated_methods skips the base, so they reach every dialect
-        # only here. Injected AFTER the dialect's own elements so a data-element
-        # (e.g. ``data``) overrides a same-named dialect tag (e.g. HTML <data>).
-        for tag_list, obj, decorator_info in _iter_data_element_methods(BuilderBase):
-            call_args_validations, declared_names, accepts_var_keyword = (
-                _extract_signature_info(obj))
+        # The generator removes the decorated methods from the class, so
+        # it is consumed even when they do not enter the grammar.
+        use_decorated = cls.__dict__.get("_decorated_elements", True)
+        for tag_list, obj, decorator_info in _pop_decorated_methods(cls, BuilderBase):
+            if not use_decorated:
+                continue
+            is_abstract = decorator_info.get("abstract", False)
+            target = abstracts_bag if is_abstract else cls._class_schema
             for tag in tag_list:
-                cls._class_schema.set_item(
-                    tag, None,
-                    sub_tags=decorator_info.get("sub_tags", ""),
-                    parent_tags=decorator_info.get("parent_tags"),
-                    inherits_from=decorator_info.get("inherits_from", ""),
-                    _meta=decorator_info.get("_meta"),
-                    documentation=obj.__doc__,
-                    call_args_validations=call_args_validations,
-                    declared_names=declared_names,
-                    accepts_var_keyword=accepts_var_keyword,
-                )
+                target.set_item(tag, None, **_decorated_schema_attrs(obj, decorator_info))
+
+        for path in _grammar_document_paths(cls):
+            abstracts, elements = _read_grammar_document(path)
+            for tag, attrs in abstracts.items():
+                abstracts_bag.set_item(tag, None, **attrs)
+            for tag, attrs in elements.items():
+                cls._class_schema.set_item(tag, None, **attrs)
 
         # Validate `inherits_from` references: each name in the
         # comma-separated list must exist among the abstracts. Errors
@@ -245,6 +295,37 @@ class BuilderBase(
                         f"inherits_from={parent!r} not found among abstracts; "
                         f"available: {sorted(known_abstracts)}"
                     )
+
+        # Abstract inheritance, as genro-builders-js ``resolveAbstract``
+        # checks it: every parent of an abstract exists and no chain
+        # comes back to itself.
+        abstract_parents = {
+            node.label: [p.strip() for p in (node.get_attr("inherits_from") or "").split(",")
+                         if p.strip()]
+            for node in abstracts_bag
+        }
+        for label, parents in abstract_parents.items():
+            for parent in parents:
+                if parent not in known_abstracts:
+                    raise ValueError(
+                        f"{cls.__name__}._abstracts.{label}: "
+                        f"inherits_from={parent!r} not found among abstracts; "
+                        f"available: {sorted(known_abstracts)}"
+                    )
+        acyclic: set[str] = set()
+
+        def _check_chain(label: str, trail: tuple[str, ...]) -> None:
+            if label in trail:
+                cycle = " -> ".join((*trail, label))
+                raise ValueError(f"{cls.__name__}: abstract inheritance cycle: {cycle}")
+            if label in acyclic:
+                return
+            for parent in abstract_parents[label]:
+                _check_chain(parent, (*trail, label))
+            acyclic.add(label)
+
+        for label in abstract_parents:
+            _check_chain(label, ())
 
         # Validate sub_tags specs eagerly: a grammar typo must surface at
         # class definition, not at the first lazy _get_schema_info. The
@@ -343,7 +424,7 @@ class BuilderBase(
 
     @classmethod
     def to_grammar(cls, path: str | Path) -> None:
-        """Serialize the grammar to a ``builder_grammar`` v1.0 JSON file.
+        """Serialize the grammar to a ``builder_grammar`` v1.1 JSON file.
 
         The output is a language-neutral document that describes the
         builder's grammar (two sections: abstracts and elements;
@@ -360,7 +441,7 @@ class BuilderBase(
         """
         document = _class_schema_to_grammar_document(cls)
         Path(path).write_text(
-            json.dumps(document, indent=2, ensure_ascii=False),
+            json.dumps(document, indent=2, ensure_ascii=False, allow_nan=False),
             encoding="utf-8",
         )
 
@@ -518,7 +599,7 @@ class BuilderBase(
         grammar classes composes grammars the same way. The result is
         cached in :attr:`_grammar_builders` per grammar class. A grammar
         contributing no elements of its own (the schema holds only the
-        injected data-elements) is an authoring error and raises.
+        data-elements of BuilderBase) is an authoring error and raises.
         """
         if issubclass(grammar, BuilderBase):
             return grammar
@@ -1002,10 +1083,10 @@ class BuilderBase(
 
     # -----------------------------------------------------------------------
     # Data-elements (core, every dialect inherits them). Plain @element marked
-    # ``_meta['data_element']``: bodies ignored (like every @element), injected
-    # into each dialect schema by __init_subclass__ via
+    # ``_meta['data_element']``: bodies ignored (like every @element), the
+    # first layer of every grammar built by __init_subclass__ via
     # _iter_data_element_methods, and dispatched through the same
-    # _command_on_node as any element.
+    # _command_on_node as any element. A subclass may redefine them.
     # The signature carries the kind's fields (destination/value/func); every
     # other kwarg is a func binding. There is no flag to request execution:
     # all three run at ``create()``, in document order.

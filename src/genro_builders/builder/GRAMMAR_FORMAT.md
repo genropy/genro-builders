@@ -1,8 +1,8 @@
-# `builder_grammar` v1.0 — format specification
+# `builder_grammar` v1.1 — format specification
 
-**Last Updated**: 2026-07-29
+**Last Updated**: 2026-09-29
 **Status**: 🔴 DA REVISIONARE — documento non ancora approvato
-**Format version**: 1.0
+**Format version**: 1.1
 
 ---
 
@@ -13,13 +13,12 @@ Python builder (the producer, via `BuilderBase.to_grammar(path)`)
 and any consumer that needs to reconstruct the same grammar in a
 different environment:
 
-- the upcoming **JavaScript builder**, which has no Python
-  decorators and bootstraps its internal schema by reading a JSON
-  document at startup time (the equivalent of Python's
-  `__init_subclass__`);
-- the future **`from_grammar` Python loader**, which reconstructs a
-  builder class from an external document (e.g. a grammar authored
-  by hand for a builder that lives natively in another language);
+- the **JavaScript builder** (genro-builders-js), which has no Python
+  decorators and builds its class schema from JSON documents
+  (`defineGrammar`, the equivalent of Python's `__init_subclass__`);
+- the **Python loader**: a builder class names its documents in
+  `_grammar_documents` and `__init_subclass__` composes them into
+  `_class_schema` (§9);
 - any downstream transpiler (JSON Schema, XSD, RELAX NG) that needs
   a neutral starting point.
 
@@ -54,7 +53,7 @@ keys**, always present, in this exact order:
 
 ```json
 {
-  "document_format": {"name": "builder_grammar", "version": "1.0"},
+  "document_format": {"name": "builder_grammar", "version": "1.1"},
   "grammar": {
     "name": "html",
     "version": null,
@@ -77,7 +76,7 @@ that `_meta` marker (see §4.2).
 | Field | Type | Meaning |
 |---|---|---|
 | `name` | string | Always `"builder_grammar"`. Identifies the format. |
-| `version` | string | Format version (e.g. `"1.0"`). Independent from `grammar.version`. |
+| `version` | string | Format version, `"1.1"`. Independent from `grammar.version`. A consumer refuses any other value. |
 
 `document_format` is **always the first key** of the document.
 
@@ -112,8 +111,10 @@ it processes the elements that inherit from them.
 
 ## 4. Per-element form
 
-The shape of each per-element entry is fixed. All declared keys are
-**always present**; missing values are explicit `null`.
+The shape of each per-element entry is fixed. The exporter writes
+every key, missing values as explicit `null`. A consumer accepts an
+entry that omits keys and reads them as `null`; it refuses an unknown
+key.
 
 ### 4.1 Abstract
 
@@ -123,6 +124,8 @@ The shape of each per-element entry is fixed. All declared keys are
   "sub_tags": "p,div,section",
   "parent_tags": null,
   "inherits_from": null,
+  "ns": null,
+  "attributes": null,
   "_meta": null
 }
 ```
@@ -133,6 +136,8 @@ The shape of each per-element entry is fixed. All declared keys are
 | `sub_tags` | string \| null | Cardinality string for valid children. See §5. |
 | `parent_tags` | string \| null | Cardinality string for valid parents. See §5. |
 | `inherits_from` | string \| null | Comma-separated names of other abstracts (e.g. `"phrasing"` or `"phrasing,flow"`). **Literal, not resolved.** |
+| `ns` | string \| null | Namespace prefix of the emitted tag (`@element(ns=...)`). |
+| `attributes` | object \| null | Signature of the `@abstract` method. See §4.3. |
 | `_meta` | object \| null | Pass-through metadata for renderers/compilers. No validation. |
 
 ### 4.2 Element
@@ -143,7 +148,17 @@ The shape of each per-element entry is fixed. All declared keys are
   "sub_tags": "a,abbr,b,em,strong",
   "parent_tags": null,
   "inherits_from": null,
-  "attributes": null,
+  "ns": null,
+  "attributes": {
+    "parameters": [
+      {"name": "kwargs", "kind": "var_keyword", "role": "attribute",
+       "annotation": null, "has_default": false}
+    ],
+    "accepts_var_keyword": true,
+    "accepts_var_positional": false
+  },
+  "node_label": null,
+  "collection_key": null,
   "_meta": null
 }
 ```
@@ -154,7 +169,10 @@ The shape of each per-element entry is fixed. All declared keys are
 | `sub_tags` | string \| null | Cardinality string for valid children. See §5. |
 | `parent_tags` | string \| null | Cardinality string for valid parents. See §5. |
 | `inherits_from` | string \| null | Comma-separated names of abstracts to inherit from. **Literal, not resolved.** See §6. |
-| `attributes` | object \| null | Reserved for the parametric-attribute plan (Step 3 of the broader subtask). **Always `null` in v1.0.** |
+| `ns` | string \| null | Namespace prefix of the emitted tag (`@element(ns=...)`). |
+| `attributes` | object \| null | Signature of the element: its parameters. See §4.3. `null` declares no signature: every attribute is accepted, none is required. |
+| `node_label` | string \| null | Default node label of a singleton element (`@element(node_label=...)`). |
+| `collection_key` | string \| null | Child attribute or `${...}` template that labels the children (`@element(collection_key=...)`). |
 | `_meta` | object \| null | Pass-through metadata. Also the **marker** that distinguishes special elements (see below). |
 
 #### Sub-builders and data-elements via `_meta`
@@ -174,7 +192,10 @@ is a key in `_meta`, not a dedicated section or shape:
       "sub_tags": "*",
       "parent_tags": null,
       "inherits_from": null,
+      "ns": null,
       "attributes": null,
+      "node_label": null,
+      "collection_key": null,
       "_meta": {"subbuilder": "svg"}
     }
     ```
@@ -210,13 +231,83 @@ is a key in `_meta`, not a dedicated section or shape:
     "sub_tags": "",
     "parent_tags": null,
     "inherits_from": null,
+    "ns": null,
     "attributes": null,
+    "node_label": null,
+    "collection_key": null,
     "_meta": {"data_element": "setter"}
   }
   ```
 
 A consumer that does not recognise a `_meta` marker still sees a valid
 element entry; the marker is additive information, not a different shape.
+
+### 4.3 `attributes` — the signature
+
+`attributes` describes the parameters of the declaring method, in
+order, `self` excluded:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `parameters` | array | One object per parameter (below). |
+| `accepts_var_keyword` | boolean | A parameter has kind `var_keyword` (`**kwargs`): the attribute set is open. |
+| `accepts_var_positional` | boolean | A parameter has kind `var_positional`. |
+
+The two flags must agree with `parameters`; a consumer that finds them
+absent computes them from `parameters`.
+
+Each parameter:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `name` | string | Identifier, unique in the list. |
+| `kind` | string | `positional_only`, `positional_or_keyword`, `keyword_only`, `var_positional`, `var_keyword` (Python `inspect.Parameter.kind`, lowercase). |
+| `role` | string | `framework` (a build-time parameter such as `node_tag`, not an attribute), `value` (`node_value`, the node value), `attribute`. |
+| `annotation` | object \| null | Type descriptor (below). `null`: no annotation, no type check. |
+| `has_default` | boolean | The parameter has a default: it may be omitted. |
+| `default` | JSON value | Present if and only if `has_default` is `true`. |
+
+A non-variadic `attribute` or `value` parameter without default is
+**required**, by presence: an explicit `null` is a supplied value,
+accepted only by a nullable annotation: no annotation, `any`,
+`NoneType`, `builtins.object`, a literal listing `null`, a union with
+such a member, an `annotated` whose base accepts it and whose metadata
+holds no `range` / `regex` (e.g. `Optional[Annotated[int, Range(ge=1)]]`
+accepts `null`, `Annotated[int, Range(ge=1)]` does not). JSON `true` / `false` are not numbers:
+they fail `int` and `float`. The Python loader applies these rules,
+taken from genro-builders-js 0.3.1, to the signatures it reads; a
+decorated signature keeps the Python rules (`None` counts as missing,
+`bool` is an `int`). A consumer reading a document (the Python loader,
+genro-builders-js) skips the first positional non-framework parameter
+of a component (`_meta.component`): it is the expansion root, supplied
+by the renderer.
+
+Type descriptors, by `kind`:
+
+| `kind` | Fields | Python type |
+|---|---|---|
+| `any` | — | `Any` |
+| `type` | `module`, `name` | A named type. Portable: `builtins.str`, `int`, `float`, `bool`, `list`, `dict`, `tuple`, `set`, `object`, `NoneType`, and `collections.abc.Callable`. |
+| `union` | `items` (descriptors) | `A \| B` |
+| `literal` | `values` (JSON values) | `Literal[...]` |
+| `generic` | `origin` (a `type`), `arguments` (descriptors) | `list[...]`, `dict[...]`, `tuple[...]`, `set[...]` |
+| `ellipsis` | — | `...` inside `tuple[T, ...]` |
+| `annotated` | `base` (descriptor), `metadata` (array) | `Annotated[base, ...]` |
+
+`annotated` metadata items: `{"kind": "regex", "pattern", "flags"}`
+(`Regex`), `{"kind": "range", "ge", "le", "gt", "lt"}` (`Range`, every
+bound present, `null` when unset), `{"kind": "value", "value"}` (plain
+JSON metadata, no validation).
+
+The exporter raises `TypeError` on an annotation with no descriptor
+(a class defined in a function, callable metadata other than `Regex` /
+`Range`) and on a default or `_meta` value that JSON cannot carry
+losslessly (an object, a non-finite float, a tuple, a non-string dict
+key). `to_grammar` builds the whole document before it opens the file,
+so a failed export leaves an existing file unchanged. An empty `_meta`
+is exported as `{}`, a missing one as `null`. The Python loader
+refuses a `type` outside the portable list: a document never makes it
+import a module.
 
 ---
 
@@ -342,17 +433,84 @@ for checking it and refusing documents with unsupported versions.
 
 ---
 
-## 9. Known limitations of v1.0
+## 9. Grammar documents on a builder class
 
-- **Parametric attribute plan**: the `attributes` field on
-  elements is always `null`. The format reserves the key but does
-  not populate it. Element-level attribute constraints (`Range`,
-  `Regex`, type annotations) will be introduced in v1.x.
+A builder class declares its grammar with decorators, with JSON
+documents, or with both. Two class attributes of `BuilderBase`
+control it:
+
+| Attribute | Default | Meaning |
+|---|---|---|
+| `_grammar_documents` | `()` | Tuple of paths of v1.1 documents of THIS class. A relative path is resolved against the directory of the module that defines the class. The documents override the class's decorated methods. |
+| `_decorated_elements` | `True` | `False`: the decorated methods of THIS class (`@element`, `@abstract`) do not enter its grammar. They are still removed from the class. |
+
+Both are read from the class's own namespace: a subclass does not
+inherit them.
+
+```python
+from genro_builders.contrib.html import HtmlBuilder
+
+class Dialect(HtmlBuilder):
+    _name = "dialect"
+    _grammar_documents = ("grammars/binding.json",)
+```
+
+`__init_subclass__` builds `_class_schema` in layers, each applied on
+top of the previous one:
+
+1. the grammar of the parent builder class; a direct subclass of
+   `BuilderBase` starts from the data-elements declared on
+   `BuilderBase` (`dataSetter`, `dataFormula`, `dataController`);
+2. the class's decorated methods, unless `_decorated_elements` is
+   `False`;
+3. the class's `_grammar_documents`, in declared order.
+
+The grammar of a class is therefore composed along the class chain,
+parent first, as `defineGrammar` composes it in genro-builders-js.
+
+**Replace rule.** When a layer defines an element (or an abstract)
+that an earlier layer defines, the new entry replaces the earlier one
+entirely: parameters, `sub_tags`, `parent_tags`, `inherits_from`,
+`ns`, `doc`, `node_label`, `collection_key`, `_meta`. Nothing is
+merged; a key the new entry leaves `null` stays `null`. Elements not
+named by the layer are inherited unchanged. The data-elements follow
+the same rule: a subclass redefines `dataSetter` with its own
+signature, e.g. `dataSetter(destination_path, value=None, **attr)`.
+
+A name declared both by a decorator and by a document of the same
+class is not an error: the document's entry replaces the decorator's
+entirely, by the same rule. A malformed document raises `ValueError`
+naming the file and the field. Besides the shape of every key, the
+loader checks what genro-builders-js 0.3.1 checks: finite JSON numbers
+only (`NaN`, `Infinity` refused), `parent_tags` names that are
+identifiers without duplicates, unique parameter names, variadic flags
+that match the parameters, regular expressions that compile and are
+portable (flags limited to `MULTILINE`, `DOTALL`, `UNICODE`; no
+`IGNORECASE`; no `\A \Z \w \W \d \D \s \S`, `(?P<`, `(?P=`, `(?P!`, `(?(`,
+`(?>`), `sub_tags` without a repeated tag or a maximum below the
+minimum.
+After all the layers of a class, `__init_subclass__` checks that every
+`inherits_from` name exists and that no abstract chain is a cycle.
+
+The export of a class (`to_grammar`) is a v1.1 document that a class
+reads back through `_grammar_documents` as the same grammar. The shared
+fixtures in `tests/fixtures/class_grammar/` (three input documents and
+the two expected composed grammars) are the cross-language contract
+with genro-builders-js.
+
+---
+
+## 10. Known limitations of v1.1
+
+- **Abstract signatures**: in Python the `attributes` of an abstract
+  are exported and read back, but do not validate the calls of the
+  elements that inherit from it. genro-builders-js copies them onto an
+  inheriting element whose `attributes` is `null`.
 - **No transpiler**: the format is the **source** of downstream
   transpilers (JSON Schema, XSD, RELAX NG) but does not include any
   of them. Transpilers are separate tools.
 - **No CLI**: the exporter API is `Class.to_grammar(path)`. A
-  command-line tool may be added later but is not required for v1.0.
+  command-line tool may be added later.
 - **`_meta` is opaque**: the format does not validate `_meta`
   contents. By convention, `_meta` values must be JSON-friendly
   (no callables, no class objects). A producer that includes
@@ -361,11 +519,13 @@ for checking it and refusing documents with unsupported versions.
 
 ---
 
-## 10. References
+## 11. References
 
 - **Producer** (Python): `BuilderBase.to_grammar(path)` in
   [`base.py`](./base.py).
 - **Implementation**: [`_grammar_export.py`](./_grammar_export.py).
+- **Consumer** (Python): `_grammar_documents`, read by
+  [`_grammar_load.py`](./_grammar_load.py).
 - **Reference dialects**:
   [`contrib/html/`](../contrib/html/),
   [`contrib/svg/`](../contrib/svg/),

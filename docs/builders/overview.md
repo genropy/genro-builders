@@ -1,6 +1,6 @@
 # Builders overview
 
-**Last Updated**: 2026-09-28
+**Last Updated**: 2026-09-29
 **Status**: 🟢 APPROVATO — allineato al contratto v0.9.0.
 
 A builder is a Python class that defines a grammar for a structured
@@ -73,6 +73,39 @@ class MyBuilder(BuilderBase):
 
 An unknown item in `sub_tags` raises at class definition time. See
 [Decorators](decorators.md) for the full list.
+
+## Grammar documents
+
+A builder class can also declare its grammar in JSON documents, the
+`builder_grammar` 1.1 format that `to_grammar()` writes and
+genro-builders-js reads. Two class attributes control it:
+
+- `_grammar_documents` — tuple of document paths of this class. A
+  relative path is resolved against the directory of the class's
+  module. Default `()`.
+- `_decorated_elements` — `False` leaves the decorated methods of this
+  class out of its grammar. Default `True`.
+
+Neither is inherited: each class states its own.
+
+```python
+from genro_builders.contrib.html import HtmlBuilder
+
+class Dialect(HtmlBuilder):
+    _name = "dialect"
+    _grammar_documents = ("grammars/binding.json",)
+```
+
+The class grammar is composed parent first: the parent's grammar, then
+the class's decorated methods, then its documents in declared order. A
+later definition of an element replaces the earlier one entirely,
+without merging parameters, `sub_tags`, `parent_tags`,
+`inherits_from`, `ns` or `_meta`: a document of the class overrides a
+decorated method of the same name. The data-elements of `BuilderBase`
+(`dataSetter`, `dataFormula`, `dataController`) are the first layer, so
+a subclass can redefine them with its own signature. The format and
+the rule are specified in `GRAMMAR_FORMAT.md` §9, next to
+`builder/base.py`.
 
 ## Page subclassing
 
