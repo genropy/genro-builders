@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.27.0 — 2026-09-29
+
+- A builder class declares its JSON grammar documents (`builder_grammar` 1.1)
+  in `_grammar_documents`; `_decorated_elements` (default `True`) says whether
+  its decorated elements are used. Grammars compose along the MRO, parent
+  first; within a class the documents come after the decorated elements and
+  override them (#50).
+- A redefined element or abstract replaces the earlier definition entirely;
+  nothing merges. The BuilderBase data-elements are the first layer, so a
+  dialect can redefine `dataSetter`, `dataFormula` and `dataController` (#50).
+- The grammar export writes version 1.1. The document loader applies the
+  validations of genro-builders-js 0.4.0: strict JSON primitives, required as
+  presence, nullable annotations, finite JSON, abstract cycles, `parent_tags`
+  and `sub_tags` syntax, regex portability (#50).
+- The datastore has a stable root, as the Source: a private wrapper
+  `_dataroot` with the content node `_root_` (`DATA_ROOT`). `builder.data`
+  stays the content Bag, so author paths do not change. Sub-builders share the
+  content and the wrapper; the builder exposes no subscription (#37).
+
 ## 0.26.0 — 2026-09-28
 
 - Contract change: `${name}` templates expand only inside the attributes of
