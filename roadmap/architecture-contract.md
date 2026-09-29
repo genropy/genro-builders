@@ -59,7 +59,8 @@ la minor del contratto, si conserva la versione superata in
   `render`. Vive sotto il segmento strutturale `SOURCE_ROOT` (`_root_`).
 - **Data**: il datastore, UNA Bag piatta posseduta dal builder:
   `builder.data`, raggiungibile da qualunque nodo come `node.data`
-  (`HND`).
+  (`HND`). Vive sotto il segmento strutturale `DATA_ROOT` (`_root_`) del
+  wrapper privato `_dataroot`, come la source.
 - **Data-element**: `@element` marcato `_meta['data_element']` che porta
   logica sui dati (kind: `data_setter`/`data_formula`/`data_controller`),
   trasparente al render, eseguito dal compute (`DAT.3`/`DAT.4`).
@@ -179,8 +180,10 @@ stringhe:
 - **Propagazione del datastore**: `get_subbuilder` istanzia il
   sub-builder e gli propaga il DATASTORE del padre (a cascata sui
   sub-builder annidati, risincronizzato a ogni hit), così i pointer del
-  sottoalbero risolvono sugli stessi dati del documento. Il sub-builder
-  è solo grammatica: non porta dati propri.
+  sottoalbero risolvono sugli stessi dati del documento. Propaga la Bag
+  contenuto (`data`) e il wrapper (`_dataroot`): un subscriber sul
+  wrapper del padre riceve le scritture fatte dal sottoalbero. Il
+  sub-builder è solo grammatica: non porta dati propri.
 - **Confine letterale**: il nodo-involucro di confine fra dialetti
   (`svg` dentro html, `foreignObject` dentro svg) emette i propri
   attributi **letterali nei due sensi**: non appartiene per intero a
@@ -360,6 +363,24 @@ Quel che resta, e sta sul builder (`BLD`):
   acceso alla nascita. Un path assoluto non porta segmento iniziale
   (`counter`, non `page.counter`); non c'è segmento per builder né il
   segmento comune `_`.
+- **Radice stabile** (issue #37, decisione 2026-09-29): `builder.data` è
+  il valore del nodo contenuto `DATA_ROOT = "_root_"` di un wrapper
+  privato `_dataroot`, backref acceso. Stessa forma della source
+  (`PAG.2`), stessa ragione: il datastore è un albero, non una foresta.
+  `DATA_ROOT` è una costante distinta da `SOURCE_ROOT`, con lo stesso
+  valore. È una **costante strutturale, MAI un indirizzo**: i path
+  d'autore sono relativi a `builder.data` e non la contengono.
+  - Il nodo contenuto non si sostituisce mai per tutta la vita del
+    builder; non esiste un gesto pubblico di sostituzione.
+  - Il builder non espone API di subscription. Chi porta il datastore
+    fuori dal builder (per esempio un runtime browser) si iscrive sul
+    wrapper. Il subscriber riceve inserimenti, update e delete a
+    qualsiasi profondità, con `pathlist` che comincia con `_root_`:
+    `set_item("a.b", 1)` → `ins ["_root_"]` (autocreazione di `a`) poi
+    `ins ["_root_", "a"]`; update → `upd_value ["_root_", "a", "b"]`;
+    delete di `a.b` → `del ["_root_", "a"]`.
+  - Stessa struttura e stessi nomi in genro-builders-js
+    (genropy/genro-builders-js#11).
 - **`node.data`** raggiunge la stessa Bag da qualunque nodo, risalendo al
   builder: stesso nome a ogni livello. Funziona anche su un albero
   staccato (un'espansione di component), che il vecchio `node.handler` non

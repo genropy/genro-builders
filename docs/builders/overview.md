@@ -23,7 +23,11 @@ The framework is built around three concrete classes:
 The builder also owns the **datastore**: one FLAT Bag, `page.data`,
 absolute paths with no leading segment. `setup(data)` seeds it, pointers
 read it, and any node reaches it as `node.data` — same name at every
-level.
+level. As the source, it is the content node `_root_` (`DATA_ROOT`) of
+a private wrapper, `_dataroot`, with backrefs on. The segment is
+structural, never part of an author path. A subscriber on the wrapper
+receives every change under the content, with `_root_` as the first
+element of the pathlist.
 
 ## The two phases
 

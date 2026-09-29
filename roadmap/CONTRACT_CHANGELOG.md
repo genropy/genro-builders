@@ -11,6 +11,29 @@ consolidato nel v0.8.0); ciascun header archiviato conserva il proprio
 
 ---
 
+## Emendamento v0.9.0 — 2026-09-29 (`HND`: il datastore ha una radice stabile)
+
+Issue #37, decisione del 2026-09-29. Il datastore torna ad avere un
+wrapper privato `_dataroot` con un solo nodo contenuto
+`DATA_ROOT = "_root_"`, la stessa forma della source (`PAG.2`).
+`builder.data` / `node.data` restano la Bag contenuto: path d'autore,
+`setup`, pointer, `abs_datapath`, `set_relative_data` /
+`get_relative_data` non cambiano. `get_subbuilder` propaga al
+sub-builder la Bag contenuto e il wrapper. Il builder non espone API di
+subscription; il nodo contenuto non si sostituisce mai.
+
+**Perché.** Il datastore deve essere un albero, non una foresta: senza
+wrapper nessun nodo rappresenta l'insieme dei dati. Chi porta il
+datastore fuori dal builder si iscrive una volta sul wrapper.
+
+**Fuori da questo emendamento.** `parent=` / `data=` alla costruzione e
+`setup` eseguito solo dal proprietario dei dati restano per dopo. Il
+rename di `data` in `_data` (issue #42) è abbandonato.
+
+Storia: `_dataroot["main"]` era stato introdotto in `82f4630`
+(2026-05-26), segmentato per builder in `a9c3a06` (2026-06-08) e reso
+piatto in `2f48b4a` (2026-07-26).
+
 ## Emendamento v0.9.0 — 2026-07-29 (`BLD.2`: subbuilder per riferimento di parametro)
 
 `_meta['subbuilder']` acquisisce la seconda forma `kwarg:attr`: la
